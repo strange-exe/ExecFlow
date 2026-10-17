@@ -40,6 +40,15 @@ Other commands:
 | `npm run e2e` | End-to-end tests against the production build, in Chromium, Firefox and WebKit |
 | `node scripts/contrast-check.mjs` | WCAG contrast of every colour pair the UI draws, for every theme |
 
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) checks every push to `main` and every pull request.
+One job runs `npm ci --ignore-scripts`, the type check, the unit tests and `npm run build`; when
+it passes, the end-to-end suite runs in Chromium, Firefox and WebKit, one job per browser. The
+downloads in `node_modules/.cache/` are kept between runs, and a failed end-to-end job keeps its
+`test-results/` folder as an artifact for 7 days. CI doesn't hold back deploys: Cloudflare Pages
+builds every push to `main` on its own.
+
 ## Keeping the files on GitHub
 
 Connect from the sync status in the top bar ("Not connected"), the empty workspace, or Settings.

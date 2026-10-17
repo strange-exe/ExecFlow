@@ -1,0 +1,91 @@
+name: CI
+
+# Checks that each push to main and each pull request type-checks, passes the unit tests, builds,
+# and works end to end. It doesn't hold back deploys: Cloudflare Pages' Git integration builds every
+# push to main on its own.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Nothing here reads git history, so the default shallow checkout is enough.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      # What the prebuild downloads: the numpy/pandas wheels and the C/C++ pack, every file SHA-256
+      # checked by its script. Restored after npm ci, which empties node_modules/.
+      - uses: actions/cache@v6
+        with:
+          path: node_modules/.cache/
+          key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'scripts/fetch-*.mjs') }}
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Cloudflare Pages' build command: the prebuild (Pyodide copy and downloads), typecheck, vite build.
+      - name: Build
+        run: npm run build
+
+  e2e:
+    name: End-to-end (${{ matrix.browser }})
+    # A commit that doesn't build never takes three runners, and the check job has filled the cache.
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      # Same path and key as in the check job.
+      - uses: actions/cache@v6
+        with:
+          path: node_modules/.cache/
+          key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'scripts/fetch-*.mjs') }}
+
+      - name: Install ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # Playwright's webServer runs `npm run build` and serves the production build with the
+      # deployed site's headers; with CI set it uses one worker and the github reporter.
+      - name: End-to-end tests
+        run: npx playwright test --project=${{ matrix.browser }}
+
+      - name: Keep failure details
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7
