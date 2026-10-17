@@ -65,6 +65,35 @@ test("a traceback marks the right file and line, and Problems jumps there", asyn
   await expect(treeItem(page, "calc.py")).toHaveAttribute("aria-current", "true");
 });
 
+test("a problem with keyboard focus keeps it when a later check updates the Problems list", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [
+    { name: "main.py", text: "from calc import ratio\nprint(ratio(1, 0))\n" },
+    { name: "calc.py", text: "def ratio(a, b):\n    return a / b\n" },
+  ]);
+  await openFromTree(page, "main.py");
+  expect((await run(page)).status).toBe("error");
+  await page.locator("#ptab-problems").click();
+  const problem = page.locator('.problem[data-path="calc.py"][data-line="2"]');
+  await problem.focus();
+  await expect(problem).toBeFocused();
+  // Every Problems update writes the tab's label, changed or not: the signal that one ran.
+  await page.evaluate(() => {
+    const tab = document.getElementById("ptab-problems")!;
+    (window as unknown as { problemsUpdated: Promise<void> }).problemsUpdated = new Promise((resolve) =>
+      new MutationObserver((_, observer) => {
+        observer.disconnect();
+        resolve();
+      }).observe(tab, { attributeFilter: ["aria-label"] }),
+    );
+  });
+  // A script click doesn't move focus. Once Python is ready again, the idle check of main.py runs
+  // and its result updates the list (on a slow machine this landed in the middle of a Tab path).
+  await page.evaluate(() => document.getElementById("restart-python")!.click());
+  await page.evaluate(() => (window as unknown as { problemsUpdated: Promise<void> }).problemsUpdated);
+  await expect(problem).toBeFocused();
+});
+
 test("numpy is downloaded on first import and the run says so", async ({ page }) => {
   test.setTimeout(150_000);
   await openApp(page);

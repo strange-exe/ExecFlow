@@ -12,6 +12,9 @@ export const SEVERITY_WORD: Readonly<Record<DiagSeverity, string>> = { error: "E
 
 const SEVERITY_ICON: Record<Problem["severity"], IconName> = { error: "x-circle", warning: "warning", info: "info", hint: "info" };
 
+/** Everything a row shows or opens: two lists with the same keys draw the same rows. */
+const rowKey = (p: Problem) => JSON.stringify([p.severity, p.path, p.line, p.col ?? null, p.message, p.source]);
+
 export interface ProblemCounts {
   errors: number;
   warnings: number;
@@ -38,6 +41,8 @@ export class ProblemsView {
   readonly element: HTMLElement;
   private readonly list: HTMLUListElement;
   private readonly empty: HTMLElement;
+  /** The rows' keys, in order (null before the first list). */
+  private keys: string[] | null = null;
   onOpen: ((p: Problem) => void) | null = null;
 
   constructor() {
@@ -47,6 +52,14 @@ export class ProblemsView {
   }
 
   set(problems: readonly Problem[]): void {
+    const keys = problems.map(rowKey);
+    const old = this.keys;
+    // Every check result calls this, mostly with the same list: keep those rows as they are.
+    if (old && keys.length === old.length && keys.every((k, i) => k === old[i])) return;
+    // New rows would drop the keyboard focus on an old one to the page. It moves to the same problem,
+    // else the row now in its place, else the panel (measured: a check landing mid-Tab lost it).
+    const focusedAt = [...this.list.children].findIndex((row) => row.contains(document.activeElement));
+    this.keys = keys;
     this.empty.hidden = problems.length > 0;
     this.list.hidden = problems.length === 0;
     this.list.replaceChildren(
@@ -67,6 +80,11 @@ export class ProblemsView {
         return h("li", null, button);
       }),
     );
+    if (focusedAt < 0 || !old) return;
+    const same = keys.indexOf(old[focusedAt]!);
+    const row = this.list.children[same >= 0 ? same : Math.min(focusedAt, keys.length - 1)];
+    const target = row?.querySelector("button") ?? this.list.querySelector("button");
+    (target ?? this.element.closest<HTMLElement>("[tabindex]"))?.focus();
   }
 
   focusFirst(): boolean {
