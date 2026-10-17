@@ -1,0 +1,15 @@
+{
+ "name": "include-not-found",
+ "entry": "k/main.c",
+ "files": {
+  "k/main.c": "#include <stdio.h>\n#include \"missing.h\"\nint main(void) { return 0; }\n"
+ },
+ "units": [
+  {
+   "unit": "k/main.c",
+   "object": "/o/include-not-found-0.o",
+   "ok": false,
+   "output": "/w/k/main.c:2:10:{2:10-2:21}: fatal error: 'missing.h' file not found\n #include \"missing.h\"\n          ^~~~~~~~~~~\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

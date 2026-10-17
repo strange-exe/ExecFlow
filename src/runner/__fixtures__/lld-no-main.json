@@ -1,0 +1,19 @@
+{
+ "name": "lld-no-main",
+ "entry": "s/lib.c",
+ "files": {
+  "s/lib.c": "int helper(void) { return 1; }\n"
+ },
+ "units": [
+  {
+   "unit": "s/lib.c",
+   "object": "/o/lld-no-main-0.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: /lib/wasm32-wasi/crt1.o: undefined symbol: main\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

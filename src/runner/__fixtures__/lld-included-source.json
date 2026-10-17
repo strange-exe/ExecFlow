@@ -1,0 +1,26 @@
+{
+ "name": "lld-included-source",
+ "entry": "q/main.c",
+ "files": {
+  "q/main.c": "#include \"helper.c\"\nint main(void) { return helper(); }\n",
+  "q/helper.c": "int helper(void) { return 7; }\n"
+ },
+ "units": [
+  {
+   "unit": "q/main.c",
+   "object": "/o/lld-included-source-0.o",
+   "ok": true,
+   "output": "\n"
+  },
+  {
+   "unit": "q/helper.c",
+   "object": "/o/lld-included-source-1.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: duplicate symbol: helper\n>>> defined in /o/lld-included-source-0.o\n>>> defined in /o/lld-included-source-1.o\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

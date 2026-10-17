@@ -1,0 +1,79 @@
+/* The GitHub dialogs (src/ui/sync-connect.ts, sync-first-connect.ts): loaded with the sync screens.
+   The body scrolls; the actions stay at the bottom, under a hairline, so Connect is always in view. */
+.sync-dialog .dialog-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sync-dialog .dialog-form > .dialog-body { flex: 1; min-height: 0; }
+.sync-dialog .dialog-form > .dialog-actions { padding-top: var(--s3); border-top: 1px solid var(--border); }
+.sync-dialog input[type="text"], .sync-dialog input[type="password"] { width: 100%; min-width: 0; }
+.sync-dialog input[type="password"] {
+  min-height: 32px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  color: var(--text);
+}
+.sync-dialog input[aria-invalid="true"] { border-color: var(--danger); }
+.sync-dialog input::placeholder { color: var(--text-muted); opacity: 1; }
+/* A branch name is short: half the row on wide dialogs (full width on phones, below). */
+.repo-fields > .field { max-width: calc(50% - var(--s3)); }
+.sync-dialog a { color: var(--accent-ink); text-underline-offset: 2px; }
+
+.connect-lede { margin: 0 0 var(--s2); }
+.connect-where { display: flex; gap: var(--s2); margin: 0 0 var(--s4); color: var(--text-muted); font-size: var(--text-xs); }
+.connect-where .icon { margin-top: 1px; }
+.steps-title { margin: 0 0 var(--s2); padding: 0; font-size: var(--text-sm); font-weight: 600; }
+.repo-fields { min-width: 0; margin: 0 0 var(--s3); padding: 0; border: 0; }
+.repo-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; column-gap: var(--s2); margin-bottom: var(--s3); }
+/* Level with the inputs: below the 21 px label line and the field's 4 px gap. */
+.repo-slash { padding-top: 30px; color: var(--text-muted); font: var(--text-md)/1 var(--font-code); }
+.sync-dialog .field + .field, .repo-fields + .field { margin-top: var(--s3); }
+.field-error { display: flex; align-items: flex-start; gap: 4px; }
+.field-error .icon { flex: none; width: 1rem; height: 1rem; }
+.field-note[data-tone="warning"] { color: var(--warning); }
+
+/* The check result: a live line, kept rendered (empty) so it is announced when it fills. */
+.connect-result { margin: 0; }
+.connect-result[data-tone] { display: flex; gap: var(--s2); margin-top: var(--s3); padding: var(--s2) var(--s3); border-left: 3px solid var(--danger); background: var(--surface); }
+.connect-result[data-tone="warning"] { border-left-color: var(--warning); }
+.connect-result .result-icon { flex: none; margin-top: 2px; color: var(--danger); }
+.connect-result[data-tone="warning"] .result-icon { color: var(--warning); }
+
+.token-steps { margin: var(--s4) 0 var(--s2); padding-top: var(--s3); border-top: 1px solid var(--border); }
+.token-steps ol { margin: 0; padding-left: 1.4em; }
+.token-steps li + li { margin-top: 4px; }
+.ext-icon { width: 0.9em; height: 0.9em; margin-left: 2px; vertical-align: -0.1em; }
+
+/* First connect: one bordered list of choices, the chosen one on the selection colour. */
+.choice-list { min-width: 0; margin: var(--s3) 0 0; padding: 0; border: 1px solid var(--border-strong); border-radius: var(--r-panel); overflow: hidden; }
+.choice { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--s2); padding: var(--s3); }
+.choice + .choice { border-top: 1px solid var(--border); }
+.choice:has(input:checked) { background: var(--selection); }
+.choice label { font-weight: 500; }
+.choice .field-note { grid-column: 2; }
+
+.conflict-list { margin: var(--s3) 0 0; padding: 0; list-style: none; }
+.conflict-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--border); }
+.conflict-of { font: var(--text-xs) var(--font-code); }
+.conflict-arrow { color: var(--text-muted); font-size: var(--text-xs); }
+.link-btn {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: var(--text-xs)/1.4 var(--font-code);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 479px) {
+  .repo-row { grid-template-columns: minmax(0, 1fr); row-gap: var(--s3); }
+  .repo-slash { display: none; }
+  .repo-fields > .field { max-width: none; }
+}
+@media (pointer: coarse) {
+  .link-btn { min-height: 44px; }
+  .choice { min-height: 44px; }
+}

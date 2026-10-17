@@ -1,0 +1,143 @@
+# CodeEditor
+
+A personal code editor for Python, C and C++ that runs programs in the browser. Files live in
+folders in a workspace kept in the browser's storage (IndexedDB), and can be kept in a private
+GitHub repository. There is no server: compiling and running happen on your own computer, in
+WebAssembly workers.
+
+- **Python 3.14** through [Pyodide](https://pyodide.org/) 314.0.7, with numpy and pandas (downloaded
+  the first time a program imports them).
+- **C and C++** through clang 8 and lld compiled to WebAssembly
+  ([binji/wasm-clang](https://github.com/binji/wasm-clang)). Programs can have several files and
+  headers in one folder, and can read and write files in that folder.
+- Programs read typed input while they run (`input()`, `scanf`, `std::cin`), and Stop works at any
+  point. Compiler and Python errors are marked on the line they belong to, in every file of the
+  program, and listed under Problems.
+- Works offline after the first visit (a service worker keeps the app and the Python runtime).
+
+## Running it
+
+Needs Node 24.18 (see `.node-version`) and npm 11.
+
+```sh
+npm ci --ignore-scripts
+npm run dev
+```
+
+`npm run dev` first copies Pyodide out of `node_modules` and downloads, with a SHA-256 check for
+every file, the numpy and pandas wheels (about 7.5 MB, from Pyodide's CDN) and the C/C++ pack
+(about 19 MB, from the wasm-clang repository at a pinned commit) into `public/`. Later runs use a
+cache in `node_modules/.cache/`. Then it serves the app on http://localhost:5173.
+
+Other commands:
+
+| Command | What it does |
+|---|---|
+| `npm test` | Unit tests (Vitest) |
+| `npm run typecheck` | TypeScript for the app, the workers and the tooling |
+| `npm run build` | Type check, then a production build in `dist/` with a Cloudflare Pages `_headers` file |
+| `npx playwright install chromium firefox webkit` | Once, before the end-to-end tests |
+| `npm run e2e` | End-to-end tests against the production build, in Chromium, Firefox and WebKit |
+| `node scripts/contrast-check.mjs` | WCAG contrast of every colour pair the UI draws, for every theme |
+
+## Keeping the files on GitHub
+
+Connect from the sync status in the top bar ("Not connected"), the empty workspace, or Settings.
+You need a repository (private: a public one gets a warning first) and a fine-grained personal
+access token for that one repository with **Contents: Read and write**. The Connect dialog links to
+GitHub's new-token page with the name, Contents and a 90-day expiry filled in; you pick the
+repository there.
+
+- The token goes only to `https://api.github.com`, in the Authorization header. By default it is
+  kept in the tab's memory and forgotten when the tab closes. "Remember on this computer" stores it
+  encrypted (AES-GCM with a non-extractable key) in its own IndexedDB database; leave it off on
+  shared computers. Disconnect, or "Sign out and clear this computer" in Settings, removes it.
+- A sync downloads what changed on GitHub and uploads what changed here as one commit. Ctrl+S and
+  the sync status sync at once; with "Sync automatically" (Settings, on by default) a sync also runs
+  a minute after the last change while the tab is in front. Only the tab that edits the workspace
+  syncs.
+- A file changed on both sides keeps GitHub's version under its name, and yours is saved next to
+  it as `name.conflict-YYYYMMDD-HHMMSS.ext`, here and in the repository: nothing is lost. The same
+  happens when a sync brings in a new version of a file while you are typing in it: the tab shows
+  GitHub's version and your typing is saved as the conflict copy. On the first sync, if this
+  computer and the repository have different versions of the same file, you choose: merge
+  (conflict copies), the repository's versions, or this computer's.
+- Offline, changes stay here and sync once the connection is back. When GitHub limits requests,
+  CodeEditor waits as long as GitHub says, then twice as long, and stops after 3 tries.
+
+## How it is put together
+
+| Folder | |
+|---|---|
+| `src/core` | Shared types, paths, byte and text checks, languages |
+| `src/storage` | The workspace in IndexedDB, one editing tab at a time, import, zip export |
+| `src/sync` | GitHub sync (one commit per push, conflicts kept as copies) |
+| `src/editor` | CodeMirror 6 editor sessions and diagnostics |
+| `src/runner`, `src/workers` | The Python and C/C++ runtimes and their workers |
+| `src/ui`, `src/theme`, `src/styles` | The workbench, the colour themes, the styles |
+
+The page is cross-origin isolated (COOP and COEP), so programs can wait for typed input. Its
+Content-Security-Policy allows scripts only from the site itself (no `eval`), and network requests
+only to the site and `https://api.github.com`. The workers that run code get a stricter policy
+(the site only), and Python's worker has storage, network, locks, messaging to other tabs and its
+own `postMessage` removed before any program starts (a program can't send the page messages).
+
+## Limits
+
+- Each file is at most 1 MiB; a workspace holds up to 2000 files and 50 MiB.
+- A run stops after 15 seconds by default (time spent waiting for typed input doesn't count) or
+  after 512 Ki characters of output. Both can be changed in Settings.
+- Python has 512 MB of memory, C and C++ programs 256 MB. Compiling has 30 seconds per file plus
+  30 seconds to link.
+- C and C++ use clang 8: C up to C17, C++ up to C++17 (C++20 partly, as `c++2a`).
+- C and C++ need a one-time 19.6 MB download, offered in the Output panel the first time.
+- Not supported: matplotlib plots, command-line arguments, programs that open network connections.
+- Binary files, files with mixed line endings and other files that aren't plain UTF-8 text are kept
+  read-only when they come from GitHub, and refused when imported.
+- The browser may clear its storage when the disk is full (Safari: after 7 days without a visit).
+  Settings has "Protect local data" (persistent storage) and Export to a .zip.
+- Files save 400 ms after you stop typing. When the page is closed or reloaded sooner, the unsaved
+  text is also kept in the browser's localStorage and saved on the next visit (as a conflict copy
+  if the file changed meanwhile); "Sign out and clear this computer" removes it too.
+- GitHub sync: an empty repository can only be started on its default branch; changes under
+  `.github/workflows/` need a token with the Workflows permission, so they stay here; repository
+  paths that can't be file names here (reserved or unsafe names) are left out and reported.
+
+## Third-party software
+
+CodeEditor bundles or downloads the following. Their licences apply to their parts.
+
+| Software | Licence | Used for |
+|---|---|---|
+| [CodeMirror 6](https://codemirror.net/) and [Lezer](https://lezer.codemirror.net/) (`@codemirror/*`, `@lezer/*`), with `style-mod`, `w3c-keyname`, `crelt`, `@marijn/find-cluster-break` | MIT | The editor |
+| [idb](https://github.com/jakearchibald/idb) | ISC | IndexedDB access |
+| [Pyodide](https://github.com/pyodide/pyodide) 314.0.7 (includes CPython, PSF licence) | MPL-2.0 | Python |
+| numpy 2.4.6 | BSD-3-Clause (with 0BSD, MIT, Zlib and CC0-1.0 parts) | Python package |
+| pandas 3.0.2 | BSD-3-Clause | Python package |
+| python-dateutil 2.9.0.post0 | Apache-2.0 or BSD-3-Clause | Python package (pandas) |
+| pytz 2026.1.post1, six 1.17.0 | MIT | Python packages (pandas) |
+| [wasm-clang](https://github.com/binji/wasm-clang) (Ben Smith), vendored in `src/vendor/wasm-clang` | Apache-2.0 | C and C++ runtime glue |
+| LLVM: clang, lld, libc++ and the sysroot in the C/C++ pack | Apache-2.0 WITH LLVM-exception (`LICENSE.llvm.txt` in the pack) | C and C++ |
+| [Inter](https://rsms.me/inter/) and [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource-variable/*`) | SIL Open Font License 1.1 | Fonts |
+| [Phosphor Icons](https://phosphoricons.com/) (`@phosphor-icons/core`) | MIT | Icons |
+| [Workbox](https://github.com/GoogleChrome/workbox) (through `vite-plugin-pwa`) | MIT | Offline service worker |
+| Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
+
+The colour themes in Settings use the published palettes of these themes, expanded onto
+CodeEditor's colours and adjusted where a colour pair would be hard to read:
+
+| Theme | Source | Licence |
+|---|---|---|
+| Tokyo Night | [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim) | Apache-2.0 |
+| Catppuccin | [catppuccin/palette](https://github.com/catppuccin/palette) | MIT |
+| Dracula | [draculatheme.com/spec](https://draculatheme.com/spec) | MIT |
+| GitHub-style | [primer/github-vscode-theme](https://github.com/primer/github-vscode-theme) | MIT |
+| One Dark Pro | [Binaryify/OneDark-Pro](https://github.com/Binaryify/OneDark-Pro) | MIT |
+| Rose Pine | [rose-pine/rose-pine-palette](https://github.com/rose-pine/rose-pine-palette) | MIT |
+| Nord | [nordtheme/nord](https://github.com/nordtheme/nord) | MIT |
+| Gruvbox | [morhetz/gruvbox](https://github.com/morhetz/gruvbox) | MIT |
+| Kanagawa | [rebelot/kanagawa.nvim](https://github.com/rebelot/kanagawa.nvim) | MIT |
+| Everforest | [sainnhe/everforest](https://github.com/sainnhe/everforest) | MIT |
+| Ayu | [ayu-theme/vscode-ayu](https://github.com/ayu-theme/vscode-ayu) | MIT |
+| Night Owl | [sdras/night-owl-vscode-theme](https://github.com/sdras/night-owl-vscode-theme) | MIT |
+| Solarized | [altercation/vim-colors-solarized](https://github.com/altercation/vim-colors-solarized) | MIT |

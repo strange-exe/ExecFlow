@@ -1,0 +1,15 @@
+{
+ "name": "macro-expansion",
+ "entry": "l/main.c",
+ "files": {
+  "l/main.c": "#define TWICE(x) ((x) + (x) + missing)\nint main(void) {\n  return TWICE(2);\n}\n"
+ },
+ "units": [
+  {
+   "unit": "l/main.c",
+   "object": "/o/macro-expansion-0.o",
+   "ok": false,
+   "output": "/w/l/main.c:3:10: error: use of undeclared identifier 'missing'\n   return TWICE(2);\n          ^\n/w/l/main.c:1:31: note: expanded from macro 'TWICE'\n #define TWICE(x) ((x) + (x) + missing)\n                               ^\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

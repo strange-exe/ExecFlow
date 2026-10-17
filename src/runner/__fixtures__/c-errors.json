@@ -1,0 +1,15 @@
+{
+ "name": "c-errors",
+ "entry": "a/main.c",
+ "files": {
+  "a/main.c": "#include <stdio.h>\nint main(void) {\n  int unused;\n  int a = 1, b = 2;\n  printf(\"%d\\n\", a + b)\n  return x;\n}\n"
+ },
+ "units": [
+  {
+   "unit": "a/main.c",
+   "object": "/o/c-errors-0.o",
+   "ok": false,
+   "output": "/w/a/main.c:5:24: error: expected ';' after expression\n   printf(\"%d\\n\", a + b)\n                        ^\n                        ;\nfix-it:\"/w/a/main.c\":{5:24-5:24}:\";\"\n/w/a/main.c:6:10: error: use of undeclared identifier 'x'\n   return x;\n          ^\n2 errors generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

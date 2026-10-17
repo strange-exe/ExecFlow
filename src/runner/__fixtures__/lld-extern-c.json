@@ -1,0 +1,27 @@
+{
+ "name": "lld-extern-c",
+ "entry": "o/main.cpp",
+ "files": {
+  "o/main.cpp": "#include <cstdio>\n#include \"add.h\"\nint main() {\n  std::printf(\"%d\\n\", add(1, 2));\n}\n",
+  "o/add.h": "int add(int a, int b);\n",
+  "o/add.c": "#include \"add.h\"\nint add(int a, int b) { return a + b; }\n"
+ },
+ "units": [
+  {
+   "unit": "o/main.cpp",
+   "object": "/o/lld-extern-c-0.o",
+   "ok": true,
+   "output": "\n"
+  },
+  {
+   "unit": "o/add.c",
+   "object": "/o/lld-extern-c-1.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: /o/lld-extern-c-0.o: undefined symbol: add(int, int)\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

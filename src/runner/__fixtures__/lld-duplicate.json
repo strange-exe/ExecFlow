@@ -1,0 +1,26 @@
+{
+ "name": "lld-duplicate",
+ "entry": "p/main.c",
+ "files": {
+  "p/main.c": "int value(void) { return 1; }\nint main(void) { return value(); }\n",
+  "p/other.c": "int value(void) { return 2; }\n"
+ },
+ "units": [
+  {
+   "unit": "p/main.c",
+   "object": "/o/lld-duplicate-0.o",
+   "ok": true,
+   "output": "\n"
+  },
+  {
+   "unit": "p/other.c",
+   "object": "/o/lld-duplicate-1.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: duplicate symbol: value\n>>> defined in /o/lld-duplicate-0.o\n>>> defined in /o/lld-duplicate-1.o\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

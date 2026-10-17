@@ -1,0 +1,27 @@
+{
+ "name": "lld-header-definition",
+ "entry": "r/main.c",
+ "files": {
+  "r/main.c": "#include \"counter.h\"\nint main(void) { return bump() + counter; }\n",
+  "r/bump.c": "#include \"counter.h\"\nint bump(void) { return ++counter; }\n",
+  "r/counter.h": "int counter = 0;\nint bump(void);\n"
+ },
+ "units": [
+  {
+   "unit": "r/main.c",
+   "object": "/o/lld-header-definition-0.o",
+   "ok": true,
+   "output": "\n"
+  },
+  {
+   "unit": "r/bump.c",
+   "object": "/o/lld-header-definition-1.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: duplicate symbol: counter\n>>> defined in /o/lld-header-definition-0.o\n>>> defined in /o/lld-header-definition-1.o\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

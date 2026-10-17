@@ -1,0 +1,23 @@
+{
+ "name": "header-error-two-units",
+ "entry": "b/main.c",
+ "files": {
+  "b/main.c": "#include \"util.h\"\nint main(void) {\n  return add(1, 2);\n}\n",
+  "b/util.c": "#include \"util.h\"\nint add(int a, int b) { return a + b; }\n",
+  "b/util.h": "#ifndef UTIL_H\n#define UTIL_H\nint add(int a, int b);\nint oops = ;\nstruct S { int x } ;\n#endif\n"
+ },
+ "units": [
+  {
+   "unit": "b/main.c",
+   "object": "/o/header-error-two-units-0.o",
+   "ok": false,
+   "output": "In file included from /w/b/main.c:1:\n/w/b/util.h:4:12: error: expected expression\n int oops = ;\n            ^\n/w/b/util.h:5:17: warning: expected ';' at end of declaration list\n struct S { int x } ;\n                 ^\n                 ;\nfix-it:\"/w/b/util.h\":{5:17-5:17}:\";\"\n1 warning and 1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  },
+  {
+   "unit": "b/util.c",
+   "object": "/o/header-error-two-units-1.o",
+   "ok": false,
+   "output": "In file included from /w/b/util.c:1:\n/w/b/util.h:4:12: error: expected expression\n int oops = ;\n            ^\n/w/b/util.h:5:17: warning: expected ';' at end of declaration list\n struct S { int x } ;\n                 ^\n                 ;\nfix-it:\"/w/b/util.h\":{5:17-5:17}:\";\"\n1 warning and 1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

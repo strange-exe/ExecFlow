@@ -1,0 +1,20 @@
+{
+ "name": "lld-cpp-method",
+ "entry": "u/main.cpp",
+ "files": {
+  "u/main.cpp": "#include \"a.h\"\nint main() {\n  ns::A a;\n  return a.f(3) + ns::g<int>(1);\n}\n",
+  "u/a.h": "namespace ns {\nstruct A { int f(int) const; };\ntemplate <class T> int g(T);\n}\n"
+ },
+ "units": [
+  {
+   "unit": "u/main.cpp",
+   "object": "/o/lld-cpp-method-0.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: /o/lld-cpp-method-0.o: undefined symbol: ns::A::f(int) const\nwasm-ld: error: /o/lld-cpp-method-0.o: undefined symbol: int ns::g<int>(int)\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

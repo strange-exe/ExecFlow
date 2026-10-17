@@ -1,0 +1,19 @@
+{
+ "name": "lld-vtable",
+ "entry": "t/main.cpp",
+ "files": {
+  "t/main.cpp": "struct Shape {\n  virtual int area() const;\n  virtual ~Shape() {}\n};\nint main() {\n  Shape s;\n  return s.area();\n}\n"
+ },
+ "units": [
+  {
+   "unit": "t/main.cpp",
+   "object": "/o/lld-vtable-0.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": false,
+  "output": "wasm-ld: error: /o/lld-vtable-0.o: undefined symbol: vtable for Shape\nwasm-ld: error: /o/lld-vtable-0.o: undefined symbol: Shape::area() const\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+ }
+}

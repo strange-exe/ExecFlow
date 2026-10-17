@@ -1,0 +1,1565 @@
+// The workbench controller: wires storage (one writer tab per workspace), the editor, the file
+// tree, tabs, runs, the Output and Problems panels, settings and the keyboard. DOM is built by
+// layout.ts and the component modules; this file decides what happens.
+import { detectLanguage, isHeader, LANGUAGES, type LanguageId } from "../core/languages";
+import { conflictName, foldKey, isInside, nameOf, parentOf } from "../core/paths";
+import type { EntryMeta, RunPhase, RunResult, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
+import type { EditorManager, FileId, Problem } from "../editor/editor-manager";
+import { toLineCol } from "../editor/positions";
+import { deleteAllLocalData, isVersionError, openWorkspaceDb, StorageError, type UiState, type WorkspaceDb, type WorkspaceRecord } from "../storage/db";
+import { createTabCoordinator, relayChanges, type ReadOnlyReason, type TabCoordinator } from "../storage/tabs";
+import { createWorkspaceStore, type WorkspaceStore } from "../storage/workspace";
+import { confirmDialog } from "./dialogs";
+import { h, isMac, isTyping, listNames, plural } from "./dom";
+import { noEditor, type Editors } from "./editors";
+import { emptyWorkspace, noFileOpen } from "./empty-state";
+import { icon } from "./icons";
+import { exportZip, pickFiles } from "./import-export";
+import { describeImport, showRefusals } from "./import-notice";
+import { createLayout } from "./layout";
+import { menuButton, openMenu, type MenuItem } from "./menu";
+import { createAnnouncer, createNotice } from "./notice";
+import { OutputView, statusWord } from "./output";
+import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD } from "./problems";
+import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
+import { dropStash, readStash, textHash, writeStash } from "./recover";
+import { callSiteMarks } from "./run-diagnostics";
+import { buildOptions, createSettingsStore, runLimits } from "./settings";
+import { createShortcutsDialog } from "./shortcuts";
+import { mountSync, type SyncHooks } from "./sync-entry";
+import { TabStrip } from "./tabs";
+import { FileTree } from "./tree";
+import type { TreeNode } from "./tree-model";
+
+const WORKSPACE_NAME = "Workspace";
+const AUTOSAVE_MS = 400;
+const CHECK_MS = 500;
+const STDIN_KEY = "codeeditor:stdin";
+
+interface OpenFile {
+  id: FileId;
+  path: WsPath;
+}
+
+const errorText = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong.");
+
+function phaseLabel(phase: RunPhase, detail: string | undefined, lang: LanguageId): string {
+  switch (phase) {
+    case "downloading":
+      return detail ? `Downloading ${detail}` : lang === "python" ? "Downloading Python" : "Downloading the C/C++ compiler";
+    case "booting":
+      return lang === "python" ? "Starting Python" : "Starting the C/C++ compiler";
+    case "compiling":
+      return detail ? `Compiling ${detail}` : "Compiling";
+    case "linking":
+      return "Linking";
+    case "running":
+      return "Running";
+  }
+}
+
+function announcement(r: RunResult, summary: string, path: WsPath, timeLimitS: number): string {
+  switch (r.status) {
+    case "ok":
+      return `Finished: ${nameOf(path)} exited with code 0.`;
+    case "error":
+      return `${statusWord(r)}${summary ? `: ${summary}` : ""}.`;
+    case "build-failed":
+      return `Build failed${summary ? `: ${summary}` : ""}.`;
+    case "timeout":
+      return `Stopped: still running after the ${timeLimitS} second limit.`;
+    case "output-limit":
+      return "Stopped: the program printed more than the output limit.";
+    case "stopped":
+      return "Stopped.";
+    case "crashed":
+      return `Crashed${r.message ? `: ${r.message}` : "."}`;
+    case "unavailable":
+      return `Couldn't run${r.message ? `: ${r.message}` : "."}`;
+  }
+}
+
+/** A compiler-style line for the console: "main.c:3:5: error: expected ';'". */
+function diagnosticLine(d: ToolDiagnostic): string {
+  const col = d.col === undefined ? "" : `:${d.base === 0 ? d.col + 1 : d.col}`;
+  const where = d.path ? `${d.path}:${d.line}${col}: ` : "";
+  return `${where}${(SEVERITY_WORD[d.severity] ?? "Error").toLowerCase()}: ${d.message.split("\n")[0]}`;
+}
+
+export async function startWorkbench(root: HTMLElement): Promise<void> {
+  const L = createLayout(root);
+  // A notice's button that had focus goes away with it: focus moves to the code (or Run).
+  const notice = createNotice({ returnFocus: () => (manager && editors.activeId ? L.editorHost.querySelector<HTMLElement>(".cm-content") : null) ?? L.runButton });
+  L.noticeHost.append(notice.element);
+  const announcer = createAnnouncer();
+  root.append(announcer.element);
+  const settings = createSettingsStore();
+  const runtimes = new Runtimes();
+  const output = new OutputView();
+  L.outputPanel.append(output.element);
+  L.panelStatus.append(output.status);
+  const problemsView = new ProblemsView();
+  L.problemsPanel.append(problemsView.element);
+  L.editorPanel.append(
+    h("span", { id: "editor-help", hidden: true }, `Tab indents. To move on, press Escape and then Tab, or press ${isMac() ? "Shift Option M" : "Control M"} so that Tab moves the focus.`),
+  );
+  root.style.setProperty("--code-size", `${settings.get().codeSize}px`);
+  try {
+    output.stdin.value = sessionStorage.getItem(STDIN_KEY) ?? "";
+  } catch {
+    // storage blocked
+  }
+  output.stdin.addEventListener("input", () => {
+    try {
+      sessionStorage.setItem(STDIN_KEY, output.stdin.value);
+    } catch {
+      // storage blocked
+    }
+  });
+
+  // ---------------------------------------------------------------- storage and the writer lock
+  let db: WorkspaceDb;
+  let store: WorkspaceStore;
+  let record: WorkspaceRecord;
+  let tab: TabCoordinator | null = null;
+  try {
+    db = await openWorkspaceDb({
+      onBlocking({ blockedVersion, close }) {
+        // Another tab is clearing this computer (or a newer version needs the database).
+        // Still starting up: nothing can be unsaved yet (and the editor state below isn't set up).
+        if (root.dataset.state !== "ready") {
+          close();
+          notice.show("CodeEditor's data on this computer changed in another tab. Reload to continue.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
+          return;
+        }
+        void saves.flushAll().finally(() => {
+          close();
+          editors.setReadOnly(true);
+          notice.show(
+            blockedVersion === null ? "CodeEditor's data on this computer is being cleared in another tab." : "A newer version of CodeEditor was opened in another tab.",
+            { tone: "warning", action: { label: "Reload", run: () => location.reload() } },
+          );
+        });
+      },
+      onTerminated() {
+        notice.show("The browser closed CodeEditor's storage (it may have been cleared). Reload to continue.", { action: { label: "Reload", run: () => location.reload() } });
+      },
+    });
+    store = createWorkspaceStore(db, { canWrite: () => tab?.canWrite() ?? false });
+    record = await store.ensureWorkspace(WORKSPACE_NAME);
+  } catch (e) {
+    root.dataset.state = "failed";
+    L.emptyHost.replaceChildren(
+      h(
+        "div",
+        { class: "empty-state", "data-empty": "storage" },
+        h("h2", { class: "empty-title" }, "CodeEditor can't open its storage"),
+        h("p", { class: "empty-lede" }, isVersionError(e) ? "A newer version of CodeEditor is open in another tab. Reload this page." : `This browser refused to keep files for this site (${errorText(e)}). A private window or blocked site data can cause this.`),
+      ),
+    );
+    return;
+  }
+  const ws = record.id;
+  tab = createTabCoordinator(ws, {
+    readRev: async () => (await store.getWorkspace(ws))?.rev ?? null,
+    flush: async () => void (await saves.flushAll()),
+    onStolen: () => saves.drop(),
+  });
+  store.onChange(relayChanges(tab, ws));
+  const canWrite = () => tab?.canWrite() ?? false;
+
+  // ---------------------------------------------------------------- editor, tree, tabs
+  const open: OpenFile[] = [];
+  /** Files with error diagnostics: the tree and the tabs mark them. */
+  let errorPaths = new Set<WsPath>();
+  let seq = 0;
+  const newId = () => `f${++seq}`;
+  const fileOf = (id: FileId | null) => (id ? (open.find((f) => f.id === id) ?? null) : null);
+  let previousActive: FileId | null = null;
+
+  // The editor chunk loads the first time a file is opened (editors.ts): until then `editors` is a
+  // stand-in with nothing open, and `manager` is null. Code that needs a file open uses `manager`.
+  const idle = noEditor();
+  let editors: Editors = idle;
+  let manager: EditorManager | null = null;
+  let loadingEditor: Promise<EditorManager> | null = null;
+  function loadEditor(): Promise<EditorManager> {
+    loadingEditor ??= import("../editor/editor-manager").then(
+      ({ EditorManager }) => {
+        manager ??= new EditorManager({
+          parent: L.editorHost,
+          prefs: { lineWrapping: settings.get().lineWrapping },
+          readOnly: idle.readOnly,
+          hooks: {
+            onActiveChange(id) {
+              if (previousActive && previousActive !== id) void saves.save(previousActive);
+              previousActive = id;
+              afterActiveChange();
+            },
+            onDirtyChange(id, dirty) {
+              tabs.setDirty(id, dirty);
+            },
+            onDocChanged(id) {
+              saves.schedule(id);
+              scheduleCheck(id);
+              schedulePosition();
+            },
+            onDiagnosticsChange: scheduleProblems,
+            onRun: () => void run({ key: true }),
+            onSave: () => void saveAndSync(),
+          },
+        });
+        editors = manager;
+        // How to leave the editor, read with it (WCAG 2.1.2: Tab indents here, so the way out is
+        // said where it is needed, not only in the Shortcuts dialog). CodeMirror keeps attributes
+        // it didn't set, so this one stays across files.
+        manager.view?.contentDOM.setAttribute("aria-describedby", "editor-help");
+        return manager;
+      },
+      (e: unknown) => {
+        loadingEditor = null; // a later open tries again
+        throw e;
+      },
+    );
+    return loadingEditor;
+  }
+  // Heading for the files or the starters is a good sign a file opens next: fetch the editor then.
+  const prefetchEditor = () => void loadEditor().catch(() => {});
+  for (const region of [L.sidebar, L.emptyHost]) {
+    region.addEventListener("pointerover", prefetchEditor, { once: true });
+    region.addEventListener("focusin", prefetchEditor, { once: true });
+  }
+  const focusEditor = () => manager?.host.focus();
+  const tree = new FileTree(
+    {
+      open: (path, focus) => void openFile(path, { focus }),
+      create: createEntry,
+      rename: renameEntry,
+      remove: (node) => void removeEntry(node),
+      menu: (node, at) => openMenu(menuFor(node), at, { label: node ? `Actions for ${node.name}` : "File actions", returnFocus: (document.activeElement as HTMLElement) ?? L.treeHost }),
+      expandedChanged: () => persistUi(),
+    },
+    "files-title",
+  );
+  L.treeHost.append(tree.element, tree.descriptions);
+  // The empty space below the files: a click chooses nothing (New file then goes to the top level),
+  // a right-click offers the top-level actions.
+  L.treeHost.addEventListener("click", (e) => {
+    if (!(e.target as Element).closest("[role=treeitem], .tree-new")) tree.clearSelection();
+  });
+  L.treeHost.addEventListener("contextmenu", (e) => {
+    if ((e.target as Element).closest("[role=treeitem], .tree-new")) return;
+    e.preventDefault();
+    tree.clearSelection();
+    openMenu(menuFor(null), { x: e.clientX, y: e.clientY }, { label: "File actions", returnFocus: moreButton });
+  });
+  const tabs = new TabStrip(
+    {
+      activate: (id) => void activate(id),
+      close: (id) => void closeFile(id),
+      focusEditor,
+    },
+    "editor-panel",
+  );
+  L.tabHost.append(tabs.element);
+
+  // Sidebar actions: New file, New folder, and a menu button for the rest.
+  const newFileButton = h("button", { type: "button", class: "icon-btn", id: "new-file", "aria-label": "New file", title: "New file" }, icon("file-plus"));
+  const newFolderButton = h("button", { type: "button", class: "icon-btn", id: "new-folder", "aria-label": "New folder", title: "New folder" }, icon("folder-plus"));
+  const moreButton = h("button", { type: "button", class: "icon-btn", id: "file-actions", "aria-label": "More file actions", title: "More file actions" }, icon("dots-three"));
+  L.sidebarActions.append(newFileButton, newFolderButton, moreButton);
+  newFileButton.addEventListener("click", () => startCreate("file"));
+  newFolderButton.addEventListener("click", () => startCreate("dir"));
+  menuButton(moreButton, "File actions", () => [
+    ...menuFor(tree.selectedNode()),
+    { label: "Import files", icon: "upload-simple", run: () => void importFrom(false, targetDir()) },
+    { label: "Import a folder", icon: "folder-plus", run: () => void importFrom(true, targetDir()) },
+    { label: "Export workspace (.zip)", icon: "download-simple", run: () => void exportWorkspace() },
+    ...widthItems(),
+  ]);
+
+  const targetDir = (): WsPath => {
+    const node = tree.selectedNode();
+    return node ? (node.kind === "dir" ? node.path : parentOf(node.path)) : "";
+  };
+
+  function explainReadOnly(): boolean {
+    if (canWrite()) return false;
+    notice.show(tab?.reason === "no-locks" ? "This browser can't keep tabs in step, so this tab is read-only." : "This tab is read-only: the workspace is open for editing in another tab. Choose Edit here to edit in this tab.", { tone: "info" });
+    return true;
+  }
+
+  function startCreate(kind: "file" | "dir", dir?: WsPath) {
+    if (explainReadOnly()) return;
+    if (L.narrow() && !L.drawerOpen()) L.openDrawer();
+    tree.startCreate(kind, dir);
+  }
+
+  function menuFor(node: TreeNode | null): MenuItem[] {
+    const dir = node ? (node.kind === "dir" ? node.path : parentOf(node.path)) : "";
+    const items: MenuItem[] = [];
+    if (node?.kind === "file" && !node.opaque) {
+      items.push({ label: "Open", icon: "file", run: () => void openFile(node.path, { focus: true }) });
+      if (detectLanguage(node.path)) items.push({ label: "Run", icon: "play-fill", shortcut: isMac() ? "Cmd Enter" : "Ctrl Enter", run: () => void openFile(node.path, { focus: false }).then(() => run()) });
+      // Closing without a keyboard, for screen readers on touch (the tab's own x is mouse-only).
+      const openTab = open.find((f) => f.path === node.path);
+      if (openTab) items.push({ label: "Close tab", icon: "x", shortcut: "Alt W", run: () => void closeFile(openTab.id) });
+    }
+    items.push(
+      { label: "New file", icon: "file-plus", run: () => startCreate("file", dir) },
+      { label: "New folder", icon: "folder-plus", run: () => startCreate("dir", dir) },
+    );
+    if (node) {
+      items.push(
+        { label: "Rename", icon: "pencil-simple", shortcut: "F2", run: () => (explainReadOnly() ? undefined : tree.startRename(node.path)) },
+        { label: "Delete", icon: "trash", shortcut: "Delete", danger: true, run: () => void removeEntry(node) },
+      );
+    }
+    return items;
+  }
+
+  // ---------------------------------------------------------------- autosave
+  /**
+   * The text each open file was loaded with or last saved as: what its unsaved typing is based on.
+   * Every save is a compare-and-set against it (storage saveFile `expect`), so text that reached
+   * storage some other way (a sync pull, an import, a program's file, another tab) is never
+   * overwritten unseen: both versions are kept instead (keepBoth).
+   */
+  const based = new Map<FileId, string>();
+  /** Replaces a clean open file's text (a pull, an import) and records it as the new base. */
+  function replaceText(id: FileId, text: string): boolean {
+    if (!editors.replaceContent(id, text)) return false;
+    based.set(id, text);
+    return true;
+  }
+  /** Conflict copies keepBoth made, for the sync report to name (reloadFromStorage collects them). */
+  const copiesMade = new Map<FileId, { path: WsPath; copy: WsPath }>();
+
+  /**
+   * The stored text changed under unsaved typing. Like a sync conflict: the stored version keeps the
+   * name and the open tab shows it; the typing is saved as a conflict copy next to it.
+   */
+  async function keepBoth(id: FileId, path: WsPath): Promise<boolean> {
+    let theirs: string;
+    try {
+      theirs = await store.readFile(ws, path);
+    } catch (e) {
+      notice.show(`${nameOf(path)} couldn't be saved: ${storageMessage(e)}`);
+      return false;
+    }
+    // Typing pauses for the moment the copy is written, so nothing typed meanwhile is left out of it.
+    editors.setReadOnly(true, id);
+    try {
+      const mine = editors.text(id) ?? "";
+      const taken = new Set((await store.loadTree(ws)).map((e) => foldKey(e.path)));
+      const copy = conflictName(path, new Date(), (p) => taken.has(foldKey(p)));
+      await store.createFile(ws, copy, mine);
+      const state = editors.state(id);
+      if (state) editors.markSaved(id, state.doc);
+      if (!replaceText(id, theirs)) based.set(id, theirs);
+      copiesMade.set(id, { path, copy });
+      await refreshTree();
+      notice.show(`${nameOf(path)} changed outside the editor while you were typing. That version keeps the name; yours is saved as ${nameOf(copy)}.`, {
+        tone: "warning",
+        action: { label: `Open ${nameOf(copy)}`, run: () => void openFile(copy, { focus: true }) },
+      });
+      announcer.say(`${nameOf(path)} changed elsewhere. Your version is saved as ${nameOf(copy)}.`);
+      return true;
+    } catch (e) {
+      notice.show(`${nameOf(path)} changed outside the editor while you were typing, and your version couldn't be saved as a copy (${storageMessage(e)}). It is still in the tab, unsaved.`);
+      return false;
+    } finally {
+      editors.setReadOnly(false, id);
+    }
+  }
+
+  const saves = (() => {
+    const timers = new Map<FileId, ReturnType<typeof setTimeout>>();
+    const chains = new Map<FileId, Promise<boolean>>();
+
+    async function write(id: FileId, durability: "default" | "strict"): Promise<boolean> {
+      if (!editors.has(id) || !editors.isDirty(id)) return true;
+      // A tab without the writer lock never writes (storage refuses too).
+      if (!canWrite()) return false;
+      const path = editors.path(id)!;
+      const doc = editors.state(id)!.doc;
+      const text = doc.toString();
+      try {
+        await store.saveFile(ws, path, text, { durability, expect: based.get(id) });
+        based.set(id, text);
+        editors.markSaved(id, doc);
+        sync.onLocalChange();
+        scheduleSyncCount();
+        return true;
+      } catch (e) {
+        if (e instanceof StorageError && e.code === "changed") return keepBoth(id, path);
+        notice.show(`${nameOf(path)} couldn't be saved: ${errorText(e)}`);
+        return false;
+      }
+    }
+
+    function save(id: FileId, durability: "default" | "strict" = "default"): Promise<boolean> {
+      clearTimeout(timers.get(id));
+      timers.delete(id);
+      const next = (chains.get(id) ?? Promise.resolve(true)).then(() => write(id, durability));
+      chains.set(id, next);
+      void next.finally(() => {
+        if (chains.get(id) === next) chains.delete(id);
+      });
+      return next;
+    }
+
+    return {
+      schedule(id: FileId) {
+        clearTimeout(timers.get(id));
+        timers.set(id, setTimeout(() => void save(id), AUTOSAVE_MS));
+      },
+      save,
+      /** Saves every unsaved file now; resolves true if all of them were saved. */
+      async flushAll(durability: "default" | "strict" = "default"): Promise<boolean> {
+        const ids = new Set([...timers.keys(), ...chains.keys(), ...open.map((f) => f.id).filter((id) => editors.isDirty(id))]);
+        const results = await Promise.all([...ids].map((id) => save(id, durability)));
+        return results.every(Boolean);
+      },
+      /** The lock was taken without a handover: pending saves would race the new writer. */
+      drop() {
+        for (const t of timers.values()) clearTimeout(t);
+        timers.clear();
+      },
+    };
+  })();
+  // The last save can't be relied on while the page goes away: also stash unsaved typing
+  // synchronously (recover.ts), and use the stash on the next start (recoverTyping).
+  function stashTyping() {
+    if (!canWrite()) return;
+    const dirty = open.filter((f) => editors.isDirty(f.id) && based.has(f.id));
+    writeStash(ws, dirty.map((f) => ({ path: f.path, base: textHash(based.get(f.id)!), text: editors.text(f.id) ?? "" })));
+  }
+  addEventListener("pagehide", () => {
+    stashTyping();
+    void saves.flushAll();
+  });
+  addEventListener("beforeunload", stashTyping);
+  // Only the writer stashes, so only the writer drops: closing the writer brings a read-only tab of
+  // the same workspace into view, and that tab must leave the writer's stash for Edit here to use.
+  addEventListener("pageshow", (e) => {
+    if (e.persisted && canWrite()) dropStash(ws);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      stashTyping();
+      void saves.flushAll();
+    } else if (started && canWrite()) {
+      // Still here: the saves started on hide carry the text.
+      dropStash(ws);
+    }
+  });
+  addEventListener("blur", () => void saves.flushAll());
+  L.editorHost.addEventListener("focusout", () => {
+    const id = editors.activeId;
+    if (id) void saves.save(id);
+  });
+
+  async function saveAndSync() {
+    const ok = await saves.flushAll("strict");
+    if (!canWrite()) return void explainReadOnly();
+    if (ok) await sync.syncNow();
+  }
+
+  // ---------------------------------------------------------------- tree data and UI state
+  let entries: EntryMeta[] = [];
+  let uiQueued = false;
+
+  async function refreshTree() {
+    entries = await store.loadTree(ws);
+    tree.setEntries(entries);
+    renderEmpty();
+    // New, renamed, deleted and imported files change the unsynced count too.
+    scheduleSyncCount();
+  }
+
+  /** Keeps which files are open (and which folders) at once: a reload right after must find them. */
+  function persistUi() {
+    if (uiQueued) return;
+    uiQueued = true;
+    queueMicrotask(() => {
+      uiQueued = false;
+      if (!canWrite()) return;
+      const ui: UiState = {
+        openTabs: open.map((f) => f.path),
+        activePath: fileOf(editors.activeId)?.path ?? null,
+        expanded: tree.expandedPaths(),
+      };
+      void store.setUiState(ws, ui).catch(() => {});
+    });
+  }
+
+  // ---------------------------------------------------------------- opening, switching, closing
+  const opening = new Map<WsPath, Promise<OpenFile | null>>();
+
+  function openFile(path: WsPath, options: { focus?: boolean; activate?: boolean } = {}): Promise<OpenFile | null> {
+    const pending = opening.get(path);
+    if (pending) return pending;
+    // Opening can wait for storage and, the first time, for the editor to download. If the user
+    // has moved on meanwhile (into a menu, a dialog or a text field), the file opens without
+    // taking focus. (The tree redraws its items while a file opens, so "the same element" can't
+    // be the test.)
+    const focusedAtStart = document.activeElement;
+    const focusStayed = () => {
+      const now = document.activeElement;
+      return now === focusedAtStart || !(now instanceof Element) || (!now.closest(".menu, dialog[open]") && !isTyping(now));
+    };
+    const job = (async () => {
+      const entry = entries.find((e) => e.path === path) ?? (await store.getEntry(ws, path));
+      if (!entry || entry.kind !== "file") return null;
+      if (entry.opaque) {
+        notice.show(`${nameOf(path)} is read-only (binary or special file), so it can't be shown here. It stays in the repository as it is.`, { tone: "info" });
+        return null;
+      }
+      let file = open.find((f) => f.path === path);
+      if (!file) {
+        file = { id: newId(), path };
+        const at = open.findIndex((f) => f.id === editors.activeId);
+        open.splice(at < 0 ? open.length : at + 1, 0, file);
+      }
+      if (options.activate !== false) await activate(file.id);
+      if (options.focus && focusStayed()) {
+        if (L.narrow()) {
+          L.closeDrawer(false);
+          L.showView("code");
+        }
+        focusEditor();
+      }
+      return file;
+    })().finally(() => opening.delete(path));
+    opening.set(path, job);
+    return job;
+  }
+
+  /** Shows an open file, loading its text again if the editor dropped it to save memory. */
+  async function activate(id: FileId) {
+    const file = fileOf(id);
+    if (!file) return;
+    const drop = (message: string) => {
+      notice.show(message);
+      if (open.includes(file)) open.splice(open.indexOf(file), 1);
+      renderTabs();
+    };
+    let ed: EditorManager;
+    try {
+      ed = await loadEditor();
+    } catch {
+      return drop(`The editor couldn't load, so ${nameOf(file.path)} can't be shown. Check the connection, then open it again.`);
+    }
+    if (!ed.has(id)) {
+      let text: string;
+      try {
+        text = await store.readFile(ws, file.path);
+      } catch (e) {
+        return drop(`${nameOf(file.path)} couldn't be opened: ${errorText(e)}`);
+      }
+      if (!ed.has(id)) {
+        ed.open(id, file.path, text, { activate: true });
+        based.set(id, text);
+      } else ed.activate(id);
+    } else {
+      ed.activate(id);
+    }
+    renderTabs();
+    persistUi();
+  }
+
+  async function closeFile(id: FileId) {
+    const file = fileOf(id);
+    if (!file) return;
+    const index = open.indexOf(file);
+    const neighbour = open[index + 1] ?? open[index - 1] ?? null;
+    // Files autosave, so a tab is never unsaved for long: save now, then close.
+    const saved = await saves.save(id);
+    if (!editors.close(id, { next: neighbour && editors.has(neighbour.id) ? neighbour.id : null }).closed) {
+      const ok = await confirmDialog({
+        title: `Close ${nameOf(file.path)} without saving?`,
+        body: [saved ? "It has changes that weren't saved yet." : "Its latest changes couldn't be saved. Closing it loses them."],
+        confirm: "Close without saving",
+        danger: true,
+      });
+      if (!ok) return;
+      editors.close(id, { force: true, next: null });
+    }
+    based.delete(id);
+    open.splice(open.indexOf(file), 1);
+    if (editors.activeId === null && neighbour && open.includes(neighbour)) await activate(neighbour.id);
+    renderTabs();
+    persistUi();
+    afterActiveChange();
+  }
+
+  function renderTabs() {
+    tabs.set(open.map((f) => ({ id: f.id, path: f.path, dirty: editors.isDirty(f.id), readOnly: false, errors: errorPaths.has(f.path) })), editors.activeId);
+    const active = editors.activeId;
+    if (active && open.length) {
+      L.editorPanel.setAttribute("role", "tabpanel");
+      L.editorPanel.setAttribute("aria-labelledby", `tab-${active}`);
+    } else {
+      L.editorPanel.removeAttribute("role");
+      L.editorPanel.removeAttribute("aria-labelledby");
+    }
+  }
+
+  function renderEmpty() {
+    const none = editors.activeId === null;
+    L.editorPanel.dataset.empty = String(none);
+    L.editorHost.inert = none;
+    if (!none) return L.emptyHost.replaceChildren();
+    L.emptyHost.replaceChildren(
+      tree.isEmpty
+        ? emptyWorkspace(
+            {
+              create: (lang) => void createStarter(lang),
+              importFiles: () => void importFrom(false, ""),
+              importFolder: () => void importFrom(true, ""),
+              connect: () => sync.connect(),
+            },
+            false,
+          )
+        : noFileOpen(),
+    );
+  }
+
+  function afterActiveChange() {
+    const file = fileOf(editors.activeId);
+    tree.setActive(file?.path ?? null);
+    renderTabs();
+    renderEmpty();
+    const lang = file ? detectLanguage(file.path)?.id ?? null : null;
+    runtimes.prepare(lang);
+    if (lang === "python" && file) scheduleCheck(file.id);
+    renderStatus();
+    schedulePosition();
+  }
+
+  // ---------------------------------------------------------------- creating, renaming, deleting
+  function storageMessage(e: unknown): string {
+    return e instanceof StorageError ? e.message : errorText(e);
+  }
+
+  async function createEntry(kind: "file" | "dir", path: WsPath): Promise<string | null> {
+    if (explainReadOnly()) return "This tab is read-only.";
+    try {
+      if (kind === "file") await store.createFile(ws, path, "");
+      else await store.createDir(ws, path);
+    } catch (e) {
+      return storageMessage(e);
+    }
+    await refreshTree();
+    if (kind === "file") await openFile(path, { focus: true });
+    else tree.reveal(path);
+    return null;
+  }
+
+  async function createStarter(lang: LanguageId) {
+    if (explainReadOnly()) return;
+    const language = LANGUAGES.find((l) => l.id === lang)!;
+    const path = language.defaultFilename;
+    try {
+      if (!entries.some((e) => foldKey(e.path) === foldKey(path))) await store.createFile(ws, path, language.sample);
+    } catch (e) {
+      return notice.show(storageMessage(e));
+    }
+    await refreshTree();
+    await openFile(path, { focus: true });
+    announcer.say(`Created ${path}. Press ${isMac() ? "Command" : "Control"} Enter to run it.`);
+  }
+
+  async function renameEntry(from: WsPath, to: WsPath): Promise<string | null> {
+    if (explainReadOnly()) return "This tab is read-only.";
+    await saves.flushAll();
+    let moved: { from: WsPath; to: WsPath }[];
+    try {
+      moved = await store.renamePath(ws, from, to);
+    } catch (e) {
+      return storageMessage(e);
+    }
+    for (const m of moved) {
+      const file = open.find((f) => f.path === m.from);
+      if (file) {
+        file.path = m.to;
+        if (editors.has(file.id)) editors.rename(file.id, m.to);
+      } else {
+        editors.movePending(m.from, m.to);
+      }
+      recordMove(m.from, m.to);
+    }
+    tree.moved(from, to);
+    await refreshTree();
+    renderTabs();
+    renderStatus();
+    persistUi();
+    tree.reveal(to);
+    return null;
+  }
+
+  async function removeEntry(node: TreeNode) {
+    if (explainReadOnly()) return;
+    const inside = node.kind === "dir" ? entries.filter((e) => e.kind === "file" && isInside(e.path, node.path)).length : 0;
+    const body = [
+      node.kind === "dir"
+        ? inside
+          ? `The folder and the ${plural(inside, "file")} in it are deleted from this computer.`
+          : "The empty folder is deleted from this computer."
+        : `${node.name} is deleted from this computer.`,
+    ];
+    if (node.opaque && sync.connected()) body.push("It came from GitHub as a read-only file, so the next sync brings it back. Delete it on GitHub to remove it for good.");
+    else if (sync.connected()) body.push("The next sync deletes it from the GitHub repository too (its history keeps old versions).");
+    const ok = await confirmDialog({ title: `Delete ${node.name}?`, body, confirm: "Delete", danger: true });
+    if (!ok) return;
+    await saves.flushAll();
+    let deleted: WsPath[];
+    try {
+      deleted = await store.deletePath(ws, node.path);
+    } catch (e) {
+      return notice.show(storageMessage(e));
+    }
+    for (const path of deleted) {
+      const file = open.find((f) => f.path === path);
+      if (file) {
+        editors.close(file.id, { force: true, next: null });
+        based.delete(file.id);
+        open.splice(open.indexOf(file), 1);
+      } else {
+        editors.movePending(path, null);
+      }
+      recordMove(path, null);
+    }
+    if (editors.activeId === null && open.length) await activate(open[open.length - 1].id);
+    await refreshTree();
+    renderTabs();
+    afterActiveChange();
+    persistUi();
+    announcer.say(`Deleted ${node.name}.`);
+    tree.focus();
+  }
+
+  // ---------------------------------------------------------------- import and export
+  async function importFrom(folder: boolean, dir: WsPath) {
+    if (explainReadOnly()) return;
+    const target = (name: string) => (dir ? `${dir}/${name}` : name);
+    let existing = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
+    const stats = await store.workspaceStats(ws).catch(() => null);
+    const budget = stats && {
+      files: stats.limits.maxFiles - stats.files,
+      bytes: stats.limits.maxBytes - stats.bytes,
+      isNew: (name: string) => existing.get(foldKey(target(name)))?.kind !== "file",
+    };
+    const picked = await pickFiles(folder, budget ?? undefined);
+    if (!picked) return;
+    existing = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
+    const targets = picked.files.map((f) => target(f.name));
+    const clashes = targets.filter((p) => existing.get(foldKey(p))?.kind === "file");
+    const clashKeys = new Set(clashes.map(foldKey));
+    let replace = false;
+    if (clashes.length) {
+      replace = await confirmDialog({
+        title: `Replace ${plural(clashes.length, "file")}?`,
+        body: [`${listNames(clashes.map(nameOf))} already ${clashes.length === 1 ? "exists" : "exist"} here. Replace ${clashes.length === 1 ? "it" : "them"} with the imported ${clashes.length === 1 ? "copy" : "copies"}? This can't be undone.`],
+        confirm: "Replace",
+        cancel: "Keep mine",
+        danger: true,
+      });
+    }
+    let result;
+    try {
+      result = await store.importFiles(ws, dir, picked.files, { replace });
+    } catch (e) {
+      return notice.show(storageMessage(e));
+    }
+    // Replaced files that are open take the imported text.
+    for (const path of result.replaced) {
+      const file = open.find((f) => f.path === path);
+      if (file && editors.has(file.id)) replaceText(file.id, await store.readFile(ws, path));
+    }
+    await refreshTree();
+    // Files the user chose to keep aren't "left out" news.
+    const refused = [...picked.skipped, ...result.refused.filter((r) => replace || !r.path || !clashKeys.has(foldKey(r.path)))];
+    const summary = describeImport({ added: result.added.length + result.replaced.length, refused, hidden: result.hidden.map((x) => x.path) });
+    const opener = moreButton;
+    notice.show(summary.text, { tone: summary.tone, action: summary.folded ? { label: "Show all", run: () => showRefusals(refused, opener) } : undefined });
+    const first = result.added[0] ?? result.replaced[0];
+    if (first) {
+      tree.reveal(first);
+      if (detectLanguage(first)) await openFile(first);
+    }
+  }
+
+  async function exportWorkspace() {
+    await saves.flushAll();
+    try {
+      const { count, skipped } = await exportZip(store, ws, record.name);
+      notice.show(`Saved ${plural(count, "file")} as a .zip.${skipped.length ? ` Left out ${listNames(skipped.map(nameOf))}: read-only files from GitHub are only stored there.` : ""}`, { tone: "success" });
+    } catch (e) {
+      notice.show(`The export didn't work: ${errorText(e)}`);
+    }
+  }
+
+  // ---------------------------------------------------------------- problems and the Python check
+  let problemsFrame = 0;
+  function scheduleProblems() {
+    problemsFrame ||= requestAnimationFrame(() => {
+      problemsFrame = 0;
+      const list = editors.problems();
+      problemsView.set(list);
+      const withErrors = new Set(list.filter((p) => p.severity === "error" && p.path).map((p) => p.path!));
+      if (withErrors.size !== errorPaths.size || [...withErrors].some((p) => !errorPaths.has(p))) {
+        errorPaths = withErrors;
+        tree.setErrors(errorPaths);
+        renderTabs();
+      }
+      const counts = countProblems(list);
+      L.panelTabs.count.textContent = counts.total ? String(counts.total) : "";
+      L.panelTabs.count.dataset.count = String(counts.total);
+      L.panelTabs.count.dataset.errors = String(counts.errors);
+      L.panelTabs.problems.setAttribute("aria-label", counts.total ? `Problems, ${describeCounts(counts)}` : "Problems");
+    });
+  }
+  problemsView.onOpen = (p) => void revealProblem(p);
+
+  async function revealProblem(p: Problem) {
+    if (!p.path) return;
+    const file = await openFile(p.path, { focus: false });
+    if (!file || !editors.has(file.id)) return;
+    if (L.narrow()) L.showView("code");
+    const rows = editors.problems().filter((q) => q.id === file.id && q.line === p.line);
+    const match = rows.find((q) => q.message === p.message) ?? rows[0];
+    if (match?.from !== undefined) editors.reveal(file.id, match.from, match.to);
+    else {
+      const doc = editors.state(file.id)!.doc;
+      editors.reveal(file.id, doc.line(Math.min(Math.max(1, p.line), doc.lines)).from);
+    }
+  }
+
+  let checkTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleCheck(id: FileId) {
+    const path = editors.path(id);
+    if (!path || detectLanguage(path)?.id !== "python") return;
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => void runCheck(id), CHECK_MS);
+  }
+  async function runCheck(id: FileId) {
+    const ed = manager;
+    if (!ed?.has(id) || runtimes.state("python") !== "ready") return;
+    const ticket = ed.beginBuild([id], { channel: "check" });
+    const source = ticket.sources[0];
+    if (!source) return ed.cancelBuild(ticket);
+    const found = await runtimes.check(source.path, source.text);
+    if (found === null) ed.cancelBuild(ticket);
+    else ed.endBuild(ticket, found);
+  }
+
+  // ---------------------------------------------------------------- running
+  function setRunning(state: "idle" | "running" | "waiting") {
+    root.dataset.run = state;
+    const running = state !== "idle";
+    L.runButton.dataset.running = String(running);
+    L.runLabel.textContent = running ? "Stop" : "Run";
+    L.runKey.textContent = running ? `${isMac() ? "Cmd" : "Ctrl"} .` : `${isMac() ? "Cmd" : "Ctrl"} Enter`;
+    L.runButton.setAttribute("aria-keyshortcuts", running ? "Control+Period" : "Control+Enter");
+    L.runButton.querySelector(".run-icon")!.replaceChildren(icon(running ? "stop-fill" : "play-fill"));
+    L.panelActions.querySelector<HTMLButtonElement>("#restart-python")!.disabled = running;
+    renderStatus();
+  }
+
+  /**
+   * When Run was pressed for the run in progress (0: none). It is set at once, before saving and
+   * reading the files, so a second press of the same gesture (a double-click, Ctrl+Enter twice)
+   * can't start a second run that wipes the first one's output; the runtime itself is busy only
+   * once the program starts.
+   */
+  let runPressed = 0;
+  /** Stop was pressed while the run was still starting: it ends before the program runs. */
+  let stopAsked = false;
+  /** Files renamed (to) or deleted (null) while a program runs: its diagnostics follow them. */
+  let runMoves: Map<WsPath, WsPath | null> | null = null;
+  const SAME_GESTURE_MS = 400;
+
+  function recordMove(from: WsPath, to: WsPath | null) {
+    if (!runMoves) return;
+    for (const [k, v] of runMoves) if (v === from) runMoves.set(k, to);
+    runMoves.set(from, to);
+  }
+
+  function stopRun() {
+    if (!runPressed) return;
+    if (runtimes.running) runtimes.stop();
+    else stopAsked = true;
+  }
+
+  /**
+   * Run, or Stop while a program runs. `repeat`: the second click of a double-click (the browser
+   * decides what a double-click is), or a held key repeating. `key`: Ctrl+Enter, which has the
+   * Stop key Ctrl+. beside it, so a second Ctrl+Enter right after the first is a double press.
+   */
+  async function run(how: { repeat?: boolean; key?: boolean } = {}) {
+    if (runPressed) {
+      // The rest of the gesture that started the run: ignore it. (A plain click on Stop always stops.)
+      if (how.repeat || (how.key && performance.now() - runPressed < SAME_GESTURE_MS)) return;
+      return stopRun();
+    }
+    runPressed = performance.now();
+    stopAsked = false;
+    setRunning("running");
+    try {
+      await runProgram();
+    } finally {
+      runPressed = 0;
+      stopAsked = false;
+      runMoves = null;
+      setRunning("idle");
+    }
+  }
+
+  async function runProgram() {
+    const file = fileOf(editors.activeId);
+    const ed = manager;
+    if (!file || !ed) return notice.show("Open a Python, C or C++ file first, then run it.", { tone: "info" });
+    const lang = detectLanguage(file.path)?.id;
+    if (!lang) {
+      return notice.show(
+        isHeader(file.path)
+          ? `${nameOf(file.path)} is a header: run the .c or .cpp file that includes it.`
+          : `${nameOf(file.path)} isn't a Python, C or C++ file, so it can't run. Files ending .py, .c or .cpp do.`,
+        { tone: "info" },
+      );
+    }
+    if (runtimeOf(lang) === "cpp") {
+      const cpp = (await runtimes.loadCpp()).runner;
+      if (cpp.state === "checking") {
+        // The compiler worker answers "is the pack installed?" within moments of starting.
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(done, 10_000);
+          const off = cpp.subscribe((s) => {
+            if (s !== "checking") done();
+          });
+          function done() {
+            clearTimeout(timer);
+            off();
+            resolve();
+          }
+        });
+      }
+      if (cpp.state === "absent") {
+        renderPack();
+        L.showPanelTab("output");
+        if (L.narrow()) L.showView("output");
+        notice.show("C and C++ need a one-time download first. The button is in the Output panel.", { tone: "info" });
+        output.focusPackButton();
+        return;
+      }
+      if (cpp.state === "downloading") return notice.show("The C/C++ download is still running. Run works as soon as it finishes.", { tone: "info" });
+    }
+    notice.clear();
+    const moves = new Map<WsPath, WsPath | null>();
+    runMoves = moves;
+    await saves.flushAll();
+    const rootDir = lang === "python" ? "" : parentOf(file.path);
+    let files: WorkspaceFile[];
+    try {
+      files = await store.loadRunFiles(ws, rootDir);
+    } catch (e) {
+      return notice.show(`Couldn't read the program's files: ${storageMessage(e)}`);
+    }
+    if (stopAsked) return notice.show(`Stopped before ${nameOf(file.path)} started.`, { tone: "info" });
+    // The file itself was renamed or deleted while it was saved and read: run nothing stale.
+    if (moves.has(file.path)) return notice.show(`${nameOf(file.path)} moved while it was getting ready to run. Press Run again.`, { tone: "info" });
+    const paths = [...new Set([...files.map((f) => f.path), file.path])];
+    const ids = paths.map((p) => ed.idForPath(p)).filter((id): id is FileId => id !== null);
+    const ticket = ed.beginBuild(ids, { channel: "build", paths });
+    const byPath = new Map(files.map((f) => [f.path, f]));
+    for (const s of ticket.sources) byPath.set(s.path, { path: s.path, text: s.text });
+    const current = settings.get();
+    output.begin();
+    L.showPanelTab("output");
+    if (L.narrow()) L.showView("output");
+    setRunning("running");
+    output.setPhase(lang === "python" ? "running" : "compiling", lang === "python" ? "Running" : "Compiling");
+    announcer.say(`Running ${nameOf(file.path)}.`);
+    try {
+      const { result, summary } = await runtimes.run(
+        { lang, entry: file.path, files: [...byPath.values()], stdin: output.stdin.value, limits: runLimits(current), build: buildOptions(current) },
+        {
+          onOutput: (stream, text) => output.write(stream, text),
+          onPhase: (phase, detail) => output.setPhase(phase, phaseLabel(phase, detail, lang)),
+          onInputRequest: () => {
+            setRunning("waiting");
+            output.setPhase("waiting", "Waiting for input (timer paused)");
+            output.waitInput((line) => {
+              setRunning("running");
+              output.setPhase("running", "Running");
+              runtimes.provideInput(line);
+            });
+          },
+        },
+      );
+      // A file deleted during the run takes its errors with it; a renamed one keeps them under its
+      // new name (endBuild stores a closed file's results under the path the tool saw).
+      const marks = [...result.diagnostics, ...callSiteMarks(result.diagnostics)].filter((d) => !(d.path && moves.get(d.path) === null));
+      ed.endBuild(ticket, marks);
+      for (const [from, to] of moves) if (to !== null) ed.movePending(from, to);
+      if (result.status === "error" || result.status === "build-failed" || result.status === "crashed") revealRunProblem(ed, file.id);
+      if (lang === "python") {
+        // The run reported this file's errors itself; the idle check's copies would be duplicates.
+        ed.endBuild(ed.beginBuild(ids, { channel: "check", paths }), []);
+      } else if (result.status === "build-failed") {
+        // The compiler's messages, as it would print them (the Problems list has them as links).
+        for (const d of result.diagnostics.slice(0, 50)) output.write(d.severity === "error" ? "stderr" : "stdout", `${diagnosticLine(d)}\n`);
+      } else {
+        const warnings = result.diagnostics.filter((d) => d.severity === "warning").length;
+        if (warnings) output.note(`The build had ${plural(warnings, "warning")}: see Problems, or the marks in the code.`, "warning");
+      }
+      if (result.skipped?.length) {
+        const names = result.skipped.map(nameOf);
+        output.note(names.length === 1
+          ? `Skipped ${names[0]}: it has its own main(), so it is a separate program.`
+          : `Skipped ${listNames(names)}: they have their own main(), so they are separate programs.`);
+      }
+      if (result.message) output.note(result.message, result.status === "ok" ? "info" : "warning");
+      output.finish(result);
+      announcer.say(announcement(result, summary, file.path, current.timeLimitS));
+      void offerWritten(result.written);
+    } catch (e) {
+      ed.cancelBuild(ticket);
+      output.fail(errorText(e));
+      announcer.say(`Couldn't run: ${errorText(e)}`);
+    } finally {
+      setRunning("idle");
+      // A counter tests (and anything else) can wait on: one more finished run.
+      root.dataset.runs = String(Number(root.dataset.runs ?? 0) + 1);
+    }
+  }
+
+  /**
+   * After a failed run, the file that ran shows the line that needs attention: the cursor goes
+   * to its first error, or else to the call that led to an error in
+   * another file, and that line scrolls into view. Focus stays where it is (the console, the field).
+   */
+  function revealRunProblem(ed: EditorManager, id: FileId) {
+    if (ed.activeId !== id) return;
+    const rows = ed.problems().filter((p) => p.id === id && p.channel === "build" && p.from !== undefined);
+    const row = rows.find((p) => p.severity === "error") ?? rows.find((p) => p.severity === "info");
+    if (row?.from === undefined) return;
+    ed.apply(id, { selection: { anchor: row.from }, scrollIntoView: true });
+    schedulePosition();
+  }
+
+  async function offerWritten(written: WorkspaceFile[] | undefined) {
+    if (!written?.length || !canWrite()) return;
+    const byKey = new Map<string, WorkspaceFile>();
+    for (const f of written) byKey.set(foldKey(f.path), f);
+    const current = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
+    const changes: { file: WorkspaceFile; target: WsPath; replace: boolean }[] = [];
+    for (const [key, file] of byKey) {
+      const existing = current.get(key);
+      if (existing?.opaque || existing?.kind === "dir") continue;
+      if (existing) {
+        const text = await store.readFile(ws, existing.path).catch(() => null);
+        if (text === file.text) continue;
+      }
+      changes.push({ file, target: existing?.path ?? file.path, replace: Boolean(existing) });
+    }
+    if (!changes.length) return;
+    const names = changes.map((c) => c.target);
+    notice.show(`The program wrote ${listNames(names)}.`, { tone: "info", action: { label: "Add to workspace", run: () => void addWritten(changes) } });
+  }
+
+  async function addWritten(changes: { file: WorkspaceFile; target: WsPath; replace: boolean }[]) {
+    if (explainReadOnly()) return;
+    const replacing = changes.filter((c) => c.replace);
+    if (replacing.length) {
+      const ok = await confirmDialog({
+        title: `Replace ${plural(replacing.length, "file")}?`,
+        body: [`${listNames(replacing.map((c) => c.target))} already ${replacing.length === 1 ? "exists" : "exist"}. Replace ${replacing.length === 1 ? "it" : "them"} with what the program wrote?`],
+        confirm: "Replace",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    await saves.flushAll();
+    let done = 0;
+    for (const c of changes) {
+      try {
+        if (c.replace) await store.saveFile(ws, c.target, c.file.text);
+        else await store.createFile(ws, c.target, c.file.text);
+        const id = editors.idForPath(c.target);
+        if (id) replaceText(id, c.file.text);
+        done++;
+      } catch (e) {
+        notice.show(`${c.target} wasn't added: ${storageMessage(e)}`);
+      }
+    }
+    await refreshTree();
+    if (done) {
+      announcer.say(`Added ${plural(done, "file")} to the workspace.`);
+      if (done === changes.length) notice.show(`Added ${listNames(changes.map((c) => c.target))} to the workspace.`, { tone: "success" });
+    }
+  }
+
+  // C/C++ download offer (in Output while a C or C++ file is open).
+  output.onPackDownload = () => {
+    runtimes.cppRunner?.download();
+    // The service worker keeps the app (and, in WebKit, the pack's cache) for offline use: main.ts.
+    document.dispatchEvent(new CustomEvent("codeeditor:offline-wanted"));
+    renderPack();
+  };
+  function renderPack() {
+    const file = fileOf(editors.activeId);
+    const lang = file ? detectLanguage(file.path)?.id : null;
+    const cpp = runtimes.cppRunner;
+    if (!cpp || (lang !== "c" && lang !== "cpp") || (cpp.state !== "absent" && cpp.state !== "downloading")) return output.showPack({ state: "hidden", loaded: 0, total: 0 });
+    output.showPack({
+      state: cpp.state === "downloading" ? "downloading" : cpp.error ? "failed" : "offer",
+      loaded: cpp.progress.loaded,
+      total: cpp.progress.total,
+      error: cpp.error,
+    });
+  }
+
+  // Panel actions: Restart Python, Clear.
+  const restartButton = h("button", { type: "button", class: "btn ghost small", id: "restart-python", title: "Start Python again with a clean state" }, icon("arrow-clockwise"), "Restart Python");
+  const clearButton = h("button", { type: "button", class: "btn ghost small", id: "clear-output", title: "Clear the output" }, icon("eraser"), h("span", { class: "label-wide" }, "Clear"));
+  clearButton.setAttribute("aria-label", "Clear the output");
+  restartButton.addEventListener("click", () => {
+    runtimes.restartPython();
+    announcer.say("Restarting Python.");
+    notice.show("Python is starting again with a clean state.", { tone: "info" });
+  });
+  clearButton.addEventListener("click", () => output.clear());
+  // Maximise / restore the panel: resizing without dragging (WCAG 2.2 SC 2.5.7). Desktop only;
+  // below 900 px Output fills the screen anyway.
+  const panelSize = L.splitters.panel;
+  let restoreTo = panelSize.initial;
+  const maxButton = h("button", { type: "button", class: "icon-btn small panel-max", id: "panel-max", "aria-pressed": "false" });
+  const renderMax = () => {
+    const on = panelSize.value >= panelSize.max();
+    maxButton.setAttribute("aria-pressed", String(on));
+    maxButton.setAttribute("aria-label", "Maximise the panel");
+    maxButton.title = on ? "Restore the panel's size" : "Maximise the panel";
+    maxButton.replaceChildren(icon(on ? "corners-in" : "corners-out"));
+  };
+  maxButton.addEventListener("click", () => {
+    if (panelSize.value >= panelSize.max()) panelSize.set(restoreTo < panelSize.max() ? restoreTo : panelSize.initial);
+    else {
+      restoreTo = panelSize.value;
+      panelSize.set(panelSize.max());
+    }
+    renderMax();
+  });
+  for (const type of ["keyup", "pointerup", "dblclick"]) panelSize.element.addEventListener(type, renderMax);
+  renderMax();
+  L.panelActions.append(restartButton, clearButton, maxButton);
+
+  /** The file list's width in steps, from the More file actions menu (no dragging needed). */
+  const WIDTH_STEP = 64;
+  function widthItems(): MenuItem[] {
+    if (L.narrow()) return [];
+    const side = L.splitters.sidebar;
+    const items: MenuItem[] = [];
+    if (side.value < side.max()) items.push({ label: "Wider file list", icon: "corners-out", run: () => side.set(side.value + WIDTH_STEP) });
+    if (side.value > side.min) items.push({ label: "Narrower file list", icon: "corners-in", run: () => side.set(side.value - WIDTH_STEP) });
+    return items;
+  }
+
+  // ---------------------------------------------------------------- status bar
+  const RUNTIME_WORDS: Record<string, string> = {
+    "python:idle": "Python starts on first run",
+    "python:booting": "Starting Python",
+    "python:ready": "Python ready",
+    "python:running": "Python running",
+    "python:failed": "Python couldn't start",
+    "cpp:not-loaded": "C/C++ loading",
+    "cpp:checking": "Checking for C/C++",
+    "cpp:absent": "C/C++ needs a one-time download",
+    "cpp:downloading": "Downloading C/C++",
+    "cpp:idle": "C/C++ starts on first run",
+    "cpp:booting": "Starting the C/C++ compiler",
+    "cpp:ready": "C/C++ ready",
+    "cpp:running": "C/C++ running",
+    "cpp:failed": "C/C++ couldn't start",
+  };
+  function renderStatus() {
+    const file = fileOf(editors.activeId);
+    const lang = file ? detectLanguage(file.path) : null;
+    L.status.lang.textContent = file ? (lang?.label ?? (isHeader(file.path) ? "C/C++ header" : "Plain text")) : "";
+    L.status.lang.hidden = !file;
+    root.dataset.runnable = String(Boolean(lang));
+    const kind: RuntimeKind | null = lang ? runtimeOf(lang.id) : null;
+    const el = L.status.runtime;
+    el.hidden = !kind;
+    restartButton.hidden = kind !== "python" && runtimes.state("python") === "idle";
+    if (kind) {
+      const state = runtimes.state(kind);
+      el.dataset.runtime = kind;
+      el.dataset.state = state;
+      const failed = state === "failed";
+      const busy = state === "booting" || state === "checking" || state === "downloading" || state === "not-loaded" || state === "running";
+      let words = RUNTIME_WORDS[`${kind}:${state}`] ?? state;
+      if (kind === "cpp" && state === "downloading" && runtimes.cppRunner) {
+        const { loaded, total } = runtimes.cppRunner.progress;
+        words = `Downloading C/C++ ${total ? Math.floor((loaded / total) * 100) : 0}%`;
+      }
+      el.replaceChildren(icon(failed ? "x-circle" : busy ? "arrow-clockwise" : state === "absent" ? "download-simple" : "check-circle"), h("span", null, words));
+    }
+    renderPack();
+  }
+  runtimes.onChange(() => {
+    renderStatus();
+    const file = fileOf(editors.activeId);
+    if (file && runtimes.state("python") === "ready" && detectLanguage(file.path)?.id === "python") scheduleCheck(file.id);
+  });
+
+  let positionFrame = 0;
+  function schedulePosition() {
+    positionFrame ||= requestAnimationFrame(() => {
+      positionFrame = 0;
+      const id = editors.activeId;
+      const state = id ? editors.state(id) : null;
+      L.status.pos.hidden = !state;
+      if (!state) return;
+      const { line, col } = toLineCol(state.doc, state.selection.main.head);
+      L.status.pos.textContent = `Ln ${line}, Col ${col}`;
+    });
+  }
+  document.addEventListener("selectionchange", schedulePosition);
+  L.editorHost.addEventListener("keyup", schedulePosition);
+  L.editorHost.addEventListener("pointerup", schedulePosition);
+
+  let syncCountTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleSyncCount() {
+    clearTimeout(syncCountTimer);
+    syncCountTimer = setTimeout(() => void refreshSyncCount(), 800);
+  }
+  async function refreshSyncCount() {
+    const rec = await store.getWorkspace(ws);
+    if (!rec?.remote) {
+      L.status.sync.textContent = "Saved on this computer";
+      L.status.sync.dataset.unsynced = "0";
+      return;
+    }
+    const stats = await store.workspaceStats(ws);
+    // New files count too: storage reports them as "added", apart from "changed".
+    const n = stats.changed + stats.added + stats.deleted;
+    L.status.sync.dataset.unsynced = String(n);
+    L.status.sync.textContent = n ? `${plural(n, "unsynced change")}` : "All changes synced";
+  }
+
+  // ---------------------------------------------------------------- read-only tabs
+  const REASON_TEXT: Record<ReadOnlyReason, string> = {
+    "other-tab": "This workspace is open for editing in another tab. You can read and run code here.",
+    "handed-over": "Editing moved to another tab. You can read and run code here.",
+    stolen: "Another tab took over editing. You can read and run code here.",
+    paused: "This tab was paused by the browser.",
+    closed: "This tab stopped editing.",
+    "no-locks": "This browser can't keep tabs in step, so this tab is read-only.",
+  };
+  let wasWriter = false;
+  /** Set once start-up has restored the tabs (a role change before that needs no reload). */
+  let started = false;
+  function applyRole() {
+    const writer = tab?.role === "writer";
+    editors.setReadOnly(!writer);
+    tree.readOnly = !writer;
+    root.dataset.role = tab?.role ?? "starting";
+    L.banner.hidden = writer || tab?.role === "starting";
+    L.bannerText.textContent = tab?.reason ? REASON_TEXT[tab.reason] : "";
+    L.bannerButton.hidden = tab?.reason === "no-locks";
+    // Becoming the writer: another tab may have changed files meanwhile.
+    if (started && writer && !wasWriter) void reloadFromStorage("tab").then(() => recoverTyping());
+    wasWriter = writer;
+  }
+  L.bannerButton.addEventListener("click", async () => {
+    L.bannerButton.disabled = true;
+    try {
+      await tab?.requestEdit();
+    } finally {
+      L.bannerButton.disabled = false;
+    }
+    if (tab?.role === "writer") {
+      announcer.say("You can edit in this tab now.");
+      focusEditor();
+    }
+  });
+
+  /**
+   * Re-reads the tree and every open file (another tab or a sync changed them). Clean files take the
+   * stored text. A file with unsaved typing whose stored text changed underneath keeps both versions
+   * (keepBoth); one whose stored text is unchanged is left alone (`kept`: it saves as usual).
+   */
+  async function reloadFromStorage(cause: "tab" | "sync"): Promise<{ kept: WsPath[]; copies: { path: WsPath; copy: WsPath }[] }> {
+    const before = new Set(entries.map((e) => e.path));
+    await refreshTree();
+    const kept: WsPath[] = [];
+    const copies: { path: WsPath; copy: WsPath }[] = [];
+    const files = entries.filter((e) => e.kind === "file" && !e.opaque);
+    const known = new Set(files.map((e) => e.path));
+    // Files that appeared since the last read: where an open file went if another tab renamed it.
+    // (A sync reports its own deletions: its report names the tabs it closed.)
+    const arrived = cause === "tab" ? files.filter((e) => !before.has(e.path) && !open.some((f) => f.path === e.path)) : [];
+    for (const file of [...open]) {
+      if (!known.has(file.path)) {
+        if (editors.isDirty(file.id)) {
+          kept.push(file.path);
+          continue;
+        }
+        const old = file.path;
+        const moved = await renamedTo(file.id, arrived);
+        if (moved) {
+          file.path = moved;
+          if (editors.has(file.id)) editors.rename(file.id, moved);
+          arrived.splice(arrived.findIndex((e) => e.path === moved), 1);
+          notice.show(`${nameOf(old)} was renamed to ${nameOf(moved)} in another tab.`, { tone: "info" });
+          continue;
+        }
+        editors.close(file.id, { force: true, next: null });
+        based.delete(file.id);
+        open.splice(open.indexOf(file), 1);
+        if (cause === "tab") notice.show(`${nameOf(old)} is no longer in the workspace (renamed or deleted in another tab), so its tab closed.`, { tone: "info" });
+        continue;
+      }
+      if (!editors.has(file.id)) continue;
+      const text = await store.readFile(ws, file.path).catch(() => null);
+      if (text === null) continue;
+      if (editors.isDirty(file.id)) {
+        if (based.has(file.id) && text !== based.get(file.id)) {
+          // The save finds the changed text and keeps both versions.
+          copiesMade.delete(file.id);
+          await saves.save(file.id);
+          const made = copiesMade.get(file.id);
+          copiesMade.delete(file.id);
+          if (made) copies.push(made);
+          else kept.push(file.path);
+        } else kept.push(file.path);
+        continue;
+      }
+      if (text !== editors.text(file.id)) replaceText(file.id, text);
+      else based.set(file.id, text);
+    }
+    if (editors.activeId === null && open.length) await activate(open[0].id);
+    renderTabs();
+    afterActiveChange();
+    persistUi();
+    const rev = (await store.getWorkspace(ws))?.rev;
+    if (rev !== undefined) tab?.seen(rev);
+    scheduleSyncCount();
+    return { kept, copies };
+  }
+
+  /**
+   * Saves typing stashed when the page last went away (stashTyping), if its file still holds the
+   * text it was based on; otherwise keeps it as a conflict copy, so a newer version is never lost.
+   */
+  async function recoverTyping() {
+    if (!canWrite()) return;
+    const stash = readStash(ws);
+    if (!stash.length) return;
+    let restored = 0;
+    const copies: WsPath[] = [];
+    for (const f of stash) {
+      const entry = entries.find((e) => e.path === f.path && e.kind === "file" && !e.opaque);
+      const stored = entry ? await store.readFile(ws, f.path).catch(() => null) : null;
+      if (stored === f.text) continue; // the last save made it after all
+      try {
+        if (stored !== null && textHash(stored) === f.base) {
+          await store.saveFile(ws, f.path, f.text, { expect: stored });
+          restored++;
+        } else {
+          const taken = new Set((await store.loadTree(ws)).map((e) => foldKey(e.path)));
+          const copy = conflictName(f.path, new Date(), (p) => taken.has(foldKey(p)));
+          await store.createFile(ws, copy, f.text);
+          copies.push(copy);
+        }
+      } catch {
+        // Refused (a limit, or the text changed again meanwhile): what is stored stays.
+      }
+    }
+    dropStash(ws);
+    if (!restored && !copies.length) return;
+    if (started) await reloadFromStorage("tab");
+    else await refreshTree();
+    if (copies.length) {
+      notice.show(`Typing from your last visit is saved as ${listNames(copies.map(nameOf))}: its file changed since, so it wasn't put back into it.`, {
+        tone: "warning",
+        action: copies.length === 1 ? { label: `Open ${nameOf(copies[0])}`, run: () => void openFile(copies[0], { focus: true }) } : undefined,
+      });
+    }
+  }
+
+  /** The new path of an open, clean file another tab renamed: the one arrived file with its text. */
+  async function renamedTo(id: FileId, arrived: readonly EntryMeta[]): Promise<WsPath | null> {
+    const text = editors.has(id) ? editors.text(id) : (based.get(id) ?? null);
+    if (text === null) return null;
+    const matches: WsPath[] = [];
+    for (const e of arrived.slice(0, 50)) {
+      if ((await store.readFile(ws, e.path).catch(() => null)) === text) matches.push(e.path);
+    }
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  // ---------------------------------------------------------------- settings, shortcuts, sync
+  let sync: SyncHooks = {
+    connect() {},
+    disconnect() {},
+    async syncNow() {},
+    onLocalChange() {},
+    connected: () => false,
+    describe: () => "",
+    async signOut() {},
+  };
+  // Settings (with the theme picker) is its own chunk, fetched the first time it opens.
+  let settingsDialog: Promise<{ open(opener?: HTMLElement): void }> | null = null;
+  function openSettings() {
+    settingsDialog ??= import("./settings-dialog").then(({ createSettingsDialog }) =>
+      createSettingsDialog({ settings, db, sync: () => sync, exportWorkspace, signOut: signOutAndClear }),
+    );
+    settingsDialog.then(
+      (dialog) => dialog.open(L.settingsButton),
+      (e: unknown) => {
+        settingsDialog = null;
+        notice.show(`Settings couldn't open: ${errorText(e)}`);
+      },
+    );
+  }
+  const shortcuts = createShortcutsDialog();
+  L.settingsButton.addEventListener("click", openSettings);
+  L.status.shortcuts.addEventListener("click", () => shortcuts.open(L.status.shortcuts));
+  settings.onChange((now, before) => {
+    if (now.codeSize !== before.codeSize) root.style.setProperty("--code-size", `${now.codeSize}px`);
+    if (now.lineWrapping !== before.lineWrapping) editors.setPrefs({ lineWrapping: now.lineWrapping });
+  });
+
+  async function signOutAndClear() {
+    const ok = await confirmDialog({
+      title: "Sign out and clear this computer?",
+      body: [
+        "This removes every file, setting and saved GitHub token CodeEditor keeps in this browser, then reloads the page.",
+        "Files already synced to GitHub stay in the repository. Anything not synced is lost: export it first if you need it.",
+      ],
+      confirm: "Clear this computer",
+      danger: true,
+    });
+    if (!ok) return;
+    root.dataset.state = "clearing";
+    await sync.signOut().catch(() => {});
+    await tab?.close().catch(() => {});
+    try {
+      await deleteAllLocalData({ close: [db], onBlocked: () => notice.show("Close CodeEditor's other tabs to finish clearing this computer.", { tone: "warning" }) });
+      const { deleteSecretsDb } = await import("../sync/token-store");
+      await deleteSecretsDb();
+    } catch (e) {
+      root.dataset.state = "ready";
+      return notice.show(`Clearing didn't finish: ${errorText(e)}`);
+    }
+    try {
+      for (const key of Object.keys(localStorage)) if (key.startsWith("codeeditor:")) localStorage.removeItem(key);
+      sessionStorage.clear();
+    } catch {
+      // storage blocked: nothing kept there
+    }
+    location.reload();
+  }
+
+  // A new version was downloaded in the background: reload only when the user says so.
+  document.addEventListener("codeeditor:update-ready", (e) => {
+    const apply = (e as CustomEvent<() => void>).detail;
+    notice.show("A new version of CodeEditor is ready.", {
+      tone: "info",
+      action: { label: "Reload now", run: () => void saves.flushAll().then(() => apply()) },
+    });
+  });
+
+  // ---------------------------------------------------------------- the Run button and keyboard
+  L.runButton.addEventListener("click", (e) => void run({ repeat: e.detail > 1 }));
+
+  addEventListener("keydown", (e) => {
+    if (e.defaultPrevented) return;
+    const mod = isMac() ? e.metaKey : e.ctrlKey;
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (mod && !e.altKey && key === "Enter") {
+      e.preventDefault();
+      void run({ repeat: e.repeat, key: true });
+    } else if (mod && !e.altKey && !e.shiftKey && key === "s") {
+      e.preventDefault();
+      void saveAndSync();
+    } else if (mod && !e.altKey && key === ".") {
+      e.preventDefault();
+      stopRun();
+    } else if (e.altKey && !mod && (key === "w" || e.code === "KeyW")) {
+      const id = editors.activeId;
+      if (!id) return;
+      e.preventDefault();
+      void closeFile(id);
+    } else if (mod && e.shiftKey && (key === "e" || e.code === "KeyE")) {
+      e.preventDefault();
+      if (L.narrow()) L.openDrawer();
+      tree.focus();
+    } else if (mod && (key === "`" || e.code === "Backquote")) {
+      e.preventDefault();
+      if (L.narrow()) L.showView("output");
+      L.showPanelTab("output");
+      // Nothing printed yet: the Output tab itself takes the focus.
+      if (!output.focus()) L.panelTabs.output.focus();
+    } else if ((key === "?" && !mod && !isTyping(e.target)) || (mod && key === "/" && !isTyping(e.target))) {
+      e.preventDefault();
+      shortcuts.open();
+    }
+  });
+
+  // ---------------------------------------------------------------- start
+  tab.onRole(applyRole);
+  tab.onStale(() => void reloadFromStorage("tab"));
+  await tab.start();
+  applyRole();
+  await refreshTree();
+  await recoverTyping();
+  const ui = await store.getUiState(ws).catch((): UiState => ({ openTabs: [], activePath: null, expanded: [] }));
+  tree.setExpanded(ui.expanded);
+  for (const path of ui.openTabs) {
+    if (entries.some((e) => e.path === path && e.kind === "file" && !e.opaque) && !open.some((f) => f.path === path)) open.push({ id: newId(), path });
+  }
+  const start = open.find((f) => f.path === ui.activePath) ?? open[0];
+  if (start) await activate(start.id);
+  renderTabs();
+  afterActiveChange();
+  setRunning("idle");
+  void refreshSyncCount();
+  const rev = (await store.getWorkspace(ws))?.rev;
+  if (rev !== undefined) tab.seen(rev);
+
+  sync = mountSync({
+    db,
+    store,
+    ws,
+    tab,
+    editors: () => editors,
+    settings,
+    notice,
+    announce: (text) => announcer.say(text),
+    statusSlot: L.syncSlot,
+    flushSaves: async () => void (await saves.flushAll()),
+    reload: async () => reloadFromStorage("sync"),
+    openFile: async (path) => void (await openFile(path, { focus: true })),
+    refreshWorkspaceInfo: async () => {
+      const rec = await store.getWorkspace(ws);
+      if (!rec) return;
+      record = rec;
+      L.wsName.textContent = rec.name;
+      L.repoName.hidden = !rec.remote;
+      L.repoName.textContent = rec.remote ? `${rec.remote.owner}/${rec.remote.repo}` : "";
+      void refreshSyncCount();
+    },
+  });
+  L.wsName.textContent = record.name;
+  if (record.remote) {
+    L.repoName.hidden = false;
+    L.repoName.textContent = `${record.remote.owner}/${record.remote.repo}`;
+  }
+  started = true;
+  root.dataset.state = "ready";
+}

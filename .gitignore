@@ -1,0 +1,20 @@
+# Local planning notes and tool state
+.claude/
+# Dependencies and build output
+node_modules/
+dist/
+dist-*/
+dev-dist/
+# Generated runtimes (copied or fetched by scripts)
+public/pyodide/
+public/clang/
+# Test output
+test-results/
+playwright-report/
+e2e/shots/
+# Secrets
+.env
+.env.*
+!.env.example
+# Tool state
+.wrangler/

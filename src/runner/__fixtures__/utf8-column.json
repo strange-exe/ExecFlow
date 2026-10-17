@@ -1,0 +1,15 @@
+{
+ "name": "utf8-column",
+ "entry": "d/main.c",
+ "files": {
+  "d/main.c": "#include <stdio.h>\nint main(void) {\n  const char *s = \"héllo € नमस्ते\"; int r = s + 1.5;\n  printf(\"%s\\n\", s);\n  return r;\n}\n"
+ },
+ "units": [
+  {
+   "unit": "d/main.c",
+   "object": "/o/utf8-column-0.o",
+   "ok": false,
+   "output": "/w/d/main.c:3:62:{3:60-3:61}{3:64-3:67}: error: invalid operands to binary expression ('const char *' and 'double')\n   const char *s = \"héllo € नमस्ते\"; int r = s + 1.5;\n                                           ~ ^ ~~~\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

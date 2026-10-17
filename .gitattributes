@@ -1,0 +1,6 @@
+# Keep LF in every checkout (tests compare bytes, and Windows checkouts with autocrlf would add CR).
+* text=auto eol=lf
+*.png binary
+*.wasm binary
+*.whl binary
+*.zip binary

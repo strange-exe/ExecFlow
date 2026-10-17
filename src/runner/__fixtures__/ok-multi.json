@@ -1,0 +1,27 @@
+{
+ "name": "ok-multi",
+ "entry": "v/main.cpp",
+ "files": {
+  "v/main.cpp": "#include <iostream>\n#include \"util.h\"\nint main() { std::cout << twice(21) << \"\\n\"; }\n",
+  "v/util.cpp": "#include \"util.h\"\nint twice(int x) { return 2 * x; }\n",
+  "v/util.h": "#pragma once\nint twice(int x);\n"
+ },
+ "units": [
+  {
+   "unit": "v/main.cpp",
+   "object": "/o/ok-multi-0.o",
+   "ok": true,
+   "output": "\n"
+  },
+  {
+   "unit": "v/util.cpp",
+   "object": "/o/ok-multi-1.o",
+   "ok": true,
+   "output": "\n"
+  }
+ ],
+ "link": {
+  "ok": true,
+  "output": "\n"
+ }
+}

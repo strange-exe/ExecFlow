@@ -1,0 +1,15 @@
+{
+ "name": "utf8-identifier",
+ "entry": "e/main.c",
+ "files": {
+  "e/main.c": "int main(void) {\n  int café = 1;\n  return café + naïve;\n}\n"
+ },
+ "units": [
+  {
+   "unit": "e/main.c",
+   "object": "/o/utf8-identifier-0.o",
+   "ok": false,
+   "output": "/w/e/main.c:3:18: error: use of undeclared identifier 'naïve'\n   return café + naïve;\n                 ^\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

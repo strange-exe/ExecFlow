@@ -1,0 +1,16 @@
+{
+ "name": "space-in-path",
+ "entry": "my prog/main.c",
+ "files": {
+  "my prog/main.c": "#include \"my util.h\"\nint main(void) { return twice(2) + nope; }\n",
+  "my prog/my util.h": "static int twice(int x) { return 2 * x; }\n"
+ },
+ "units": [
+  {
+   "unit": "my prog/main.c",
+   "object": "/o/space-in-path-0.o",
+   "ok": false,
+   "output": "/w/my prog/main.c:2:36: error: use of undeclared identifier 'nope'\n int main(void) { return twice(2) + nope; }\n                                    ^\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  }
+ ]
+}

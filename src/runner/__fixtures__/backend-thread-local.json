@@ -1,0 +1,15 @@
+{
+ "name": "backend-thread-local",
+ "entry": "m/main.cpp",
+ "files": {
+  "m/main.cpp": "thread_local int counter = 0;\nint main() { return ++counter; }\n"
+ },
+ "units": [
+  {
+   "unit": "m/main.cpp",
+   "object": "/o/backend-thread-local-0.o",
+   "ok": false,
+   "output": "fatal error: error in backend: Cannot select: 0x715a58: i32 = GlobalTLSAddress<i32* @counter> 0\nIn function: __original_main\n\u001b[91mError: process exited with code 70.\u001b[0m\n"
+  }
+ ]
+}
