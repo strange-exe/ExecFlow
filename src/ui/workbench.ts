@@ -1,6 +1,7 @@
 // The workbench controller: wires storage (one writer tab per workspace), the editor, the file
 // tree, tabs, runs, the Output and Problems panels, settings and the keyboard. DOM is built by
 // layout.ts and the component modules; this file decides what happens.
+import type { EditorState } from "@codemirror/state";
 import { detectLanguage, isHeader, LANGUAGES, type LanguageId } from "../core/languages";
 import { conflictName, foldKey, isInside, nameOf, parentOf } from "../core/paths";
 import type { EntryMeta, RunPhase, RunResult, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
@@ -12,14 +13,14 @@ import { createWorkspaceStore, type WorkspaceStore } from "../storage/workspace"
 import { confirmDialog } from "./dialogs";
 import { h, isMac, isTyping, listNames, plural } from "./dom";
 import { noEditor, type Editors } from "./editors";
-import { emptyWorkspace, noFileOpen } from "./empty-state";
+import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
 import { exportZip, pickFiles } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
 import { createLayout } from "./layout";
 import { menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
-import { OutputView, statusWord } from "./output";
+import { FAILED, OutputView, statusWord, type LiftedError } from "./output";
 import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD } from "./problems";
 import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
 import { dropStash, readStash, textHash, writeStash } from "./recover";
@@ -88,8 +89,12 @@ function diagnosticLine(d: ToolDiagnostic): string {
 
 export async function startWorkbench(root: HTMLElement): Promise<void> {
   const L = createLayout(root);
-  // A notice's button that had focus goes away with it: focus moves to the code (or Run).
-  const notice = createNotice({ returnFocus: () => (manager && editors.activeId ? L.editorHost.querySelector<HTMLElement>(".cm-content") : null) ?? L.runButton });
+  // A notice's button that had focus goes away with it: focus moves to the code (or Run, or, with
+  // nothing open and so no Run, the Shortcuts button beside the notice).
+  const isShown = (el: HTMLElement) => el.getClientRects().length > 0;
+  const notice = createNotice({
+    returnFocus: () => (manager && editors.activeId ? L.editorHost.querySelector<HTMLElement>(".cm-content") : null) ?? (isShown(L.runButton) ? L.runButton : L.status.shortcuts),
+  });
   L.noticeHost.append(notice.element);
   const announcer = createAnnouncer();
   root.append(announcer.element);
@@ -97,7 +102,6 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const runtimes = new Runtimes();
   const output = new OutputView();
   L.outputPanel.append(output.element);
-  L.panelStatus.append(output.status);
   const problemsView = new ProblemsView();
   L.problemsPanel.append(problemsView.element);
   L.editorPanel.append(
@@ -149,6 +153,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     record = await store.ensureWorkspace(WORKSPACE_NAME);
   } catch (e) {
     root.dataset.state = "failed";
+    // The empty workspace's layout (no head, no panel), which shows the centre column again.
+    root.dataset.files = "none";
     L.emptyHost.replaceChildren(
       h(
         "div",
@@ -188,8 +194,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       ({ EditorManager }) => {
         manager ??= new EditorManager({
           parent: L.editorHost,
-          prefs: { lineWrapping: settings.get().lineWrapping },
+          prefs: { lineWrapping: settings.get().lineWrapping, suggestOnTyping: settings.get().suggestOnTyping },
           readOnly: idle.readOnly,
+          // Read at each suggestion request: import and #include names, and the -std settings
+          // that decide which library names fit.
+          library: {
+            files: textFiles,
+            standards: () => ({ c: settings.get().cStd, cpp: settings.get().cxxStd }),
+          },
+          // Other files' names (included headers, imported modules), read when they are needed.
+          readFile: (path) => store.readFile(ws, path),
           hooks: {
             onActiveChange(id) {
               if (previousActive && previousActive !== id) void saves.save(previousActive);
@@ -198,12 +212,17 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
             },
             onDirtyChange(id, dirty) {
               tabs.setDirty(id, dirty);
+              // Phones have no tab strip: the top bar's file name says it too.
+              if (id === editors.activeId) L.setCrumb(fileOf(id)?.path ?? null, dirty);
             },
             onDocChanged(id) {
               saves.schedule(id);
               scheduleCheck(id);
-              schedulePosition();
+              // An edit is the next step after a failed run: Run takes its filled style again.
+              setLastRun(false);
             },
+            // Ln/Col in the editor's own update, not a frame of its own after the key (see showPosition).
+            onSelectionChange: (_id, state) => showPosition(state),
             onDiagnosticsChange: scheduleProblems,
             onRun: () => void run({ key: true }),
             onSave: () => void saveAndSync(),
@@ -223,6 +242,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     );
     return loadingEditor;
   }
+  // Every committed write in this tab (saves too) tells the editor's names index which stored
+  // files changed; another tab's writes arrive through reloadFromStorage.
+  store.onChange((e) => {
+    if (e.ws === ws && e.paths.length && e.reason !== "sha" && e.reason !== "ui") manager?.indexChanged(e.paths);
+  });
   // Heading for the files or the starters is a good sign a file opens next: fetch the editor then.
   const prefetchEditor = () => void loadEditor().catch(() => {});
   for (const region of [L.sidebar, L.emptyHost]) {
@@ -270,9 +294,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   L.sidebarActions.append(newFileButton, newFolderButton, moreButton);
   newFileButton.addEventListener("click", () => startCreate("file"));
   newFolderButton.addEventListener("click", () => startCreate("dir"));
+  // Grouped by separators: open and close; new, rename, delete; import and export; the file list's width.
   menuButton(moreButton, "File actions", () => [
     ...menuFor(tree.selectedNode()),
-    { label: "Import files", icon: "upload-simple", run: () => void importFrom(false, targetDir()) },
+    { label: "Import files", icon: "upload-simple", separatorBefore: true, run: () => void importFrom(false, targetDir()) },
     { label: "Import a folder", icon: "folder-plus", run: () => void importFrom(true, targetDir()) },
     { label: "Export workspace (.zip)", icon: "download-simple", run: () => void exportWorkspace() },
     ...widthItems(),
@@ -306,7 +331,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       if (openTab) items.push({ label: "Close tab", icon: "x", shortcut: "Alt W", run: () => void closeFile(openTab.id) });
     }
     items.push(
-      { label: "New file", icon: "file-plus", run: () => startCreate("file", dir) },
+      { label: "New file", icon: "file-plus", separatorBefore: true, run: () => startCreate("file", dir) },
       { label: "New folder", icon: "folder-plus", run: () => startCreate("dir", dir) },
     );
     if (node) {
@@ -366,7 +391,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       announcer.say(`${nameOf(path)} changed elsewhere. Your version is saved as ${nameOf(copy)}.`);
       return true;
     } catch (e) {
-      notice.show(`${nameOf(path)} changed outside the editor while you were typing, and your version couldn't be saved as a copy (${storageMessage(e)}). It is still in the tab, unsaved.`);
+      notice.show(`${nameOf(path)} changed outside the editor while you were typing, and your version couldn't be saved as a copy (${storageMessage(e)}). It is still open here, unsaved.`);
       return false;
     } finally {
       editors.setReadOnly(false, id);
@@ -469,6 +494,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // ---------------------------------------------------------------- tree data and UI state
   let entries: EntryMeta[] = [];
   let uiQueued = false;
+  /** The workspace's text files, one array per tree read (the editor caches by it). */
+  let textFileList: { from: EntryMeta[]; paths: WsPath[] } | null = null;
+  function textFiles(): WsPath[] {
+    if (textFileList?.from !== entries) textFileList = { from: entries, paths: entries.filter((e) => e.kind === "file" && !e.opaque).map((e) => e.path) };
+    return textFileList.paths;
+  }
 
   async function refreshTree() {
     entries = await store.loadTree(ws);
@@ -594,6 +625,23 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     afterActiveChange();
   }
 
+  /** The failed run's first error, for the editor head's error jump (renderJump). */
+  let runError: Problem | null = null;
+  /** Its exception class as the tool reported it (liftError's head). */
+  let runErrorCode: string | undefined;
+
+  /**
+   * The failed run's error follows its file: renamed, the jump and the lifted exception name the new
+   * path (and open it); deleted, both go (review B, 2026-10-18: they kept the old name and a click
+   * did nothing).
+   */
+  function followError(from: WsPath, to: WsPath | null) {
+    if (!runError || runError.path !== from) return;
+    runError = to === null ? null : { ...runError, path: to };
+    renderJump();
+    output.relift(runError ? liftError(runError, runErrorCode) : null);
+  }
+
   function renderTabs() {
     tabs.set(open.map((f) => ({ id: f.id, path: f.path, dirty: editors.isDirty(f.id), readOnly: false, errors: errorPaths.has(f.path) })), editors.activeId);
     const active = editors.activeId;
@@ -604,25 +652,57 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       L.editorPanel.removeAttribute("role");
       L.editorPanel.removeAttribute("aria-labelledby");
     }
+    L.setCrumb(fileOf(active)?.path ?? null, active !== null && editors.isDirty(active));
+    // Below 900 px there is no tab strip: the drawer's tree marks the files open in a tab.
+    tree.setOpenFiles(L.narrow() ? new Set(open.map((f) => f.path)) : new Set());
+    renderJump();
+  }
+  L.onNarrowChange(() => renderTabs());
+
+  /** While start-up reopens the files left open last time: the one it shows first (see start). */
+  let restoring: WsPath | null = null;
+  /** The file start-up is reopening, while it exists and nothing is open yet. */
+  const reopening = () =>
+    restoring !== null && editors.activeId === null && entries.some((e) => e.path === restoring && e.kind === "file" && !e.opaque) ? restoring : null;
+
+  /**
+   * The layout's state, read by app.css. data-open: the editor head and Run show, because a file is
+   * open, start-up is reopening one, or a program is still running or waiting (its Stop, its output
+   * and its input field stay even after its file is closed or deleted: review B, 2026-10-18).
+   * data-files="none": the empty workspace's layout (no panel and no view switch, the starters
+   * lead), only with no files and nothing running. data-restoring: Run keeps its place, unseen,
+   * until the reopened file can run.
+   */
+  function renderShell() {
+    const running = root.dataset.run === "running" || root.dataset.run === "waiting";
+    const back = reopening() !== null;
+    root.dataset.open = String(editors.activeId !== null || back || running);
+    root.dataset.files = tree.isEmpty && !running ? "none" : "some";
+    root.toggleAttribute("data-restoring", back);
+    if (root.dataset.files === "none" && L.view() !== "code") L.showView("code");
   }
 
   function renderEmpty() {
     const none = editors.activeId === null;
     L.editorPanel.dataset.empty = String(none);
     L.editorHost.inert = none;
+    renderShell();
     if (!none) return L.emptyHost.replaceChildren();
+    const back = reopening();
     L.emptyHost.replaceChildren(
-      tree.isEmpty
-        ? emptyWorkspace(
-            {
-              create: (lang) => void createStarter(lang),
-              importFiles: () => void importFrom(false, ""),
-              importFolder: () => void importFrom(true, ""),
-              connect: () => sync.connect(),
-            },
-            false,
-          )
-        : noFileOpen(),
+      back
+        ? openingFile(nameOf(back))
+        : tree.isEmpty
+          ? emptyWorkspace(
+              {
+                create: (lang) => void createStarter(lang),
+                importFiles: () => void importFrom(false, ""),
+                importFolder: () => void importFrom(true, ""),
+                connect: () => sync.connect(),
+              },
+              false,
+            )
+          : noFileOpen(),
     );
   }
 
@@ -689,6 +769,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         editors.movePending(m.from, m.to);
       }
       recordMove(m.from, m.to);
+      followError(m.from, m.to);
     }
     tree.moved(from, to);
     await refreshTree();
@@ -730,6 +811,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         editors.movePending(path, null);
       }
       recordMove(path, null);
+      followError(path, null);
     }
     if (editors.activeId === null && open.length) await activate(open[open.length - 1].id);
     await refreshTree();
@@ -815,12 +897,27 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         renderTabs();
       }
       const counts = countProblems(list);
-      L.panelTabs.count.textContent = counts.total ? String(counts.total) : "";
-      L.panelTabs.count.dataset.count = String(counts.total);
-      L.panelTabs.count.dataset.errors = String(counts.errors);
-      L.panelTabs.problems.setAttribute("aria-label", counts.total ? `Problems, ${describeCounts(counts)}` : "Problems");
+      for (const [tab, count] of [[L.panelTabs.problems, L.panelTabs.count], [L.viewTabs.problems, L.viewTabs.count]] as const) {
+        count.textContent = counts.total ? String(counts.total) : "";
+        count.dataset.count = String(counts.total);
+        count.dataset.errors = String(counts.errors);
+        tab.setAttribute("aria-label", counts.total ? `Problems, ${describeCounts(counts)}` : "Problems");
+      }
+      // The collapsed panel opens for the first problem of the session (as it does for every run).
+      if (counts.total && !problemsSeen) {
+        problemsSeen = true;
+        L.expandPanel();
+      }
+      // The error jump and the lifted exception go with their error (deleted, or no longer in the
+      // build's results), so the header never names a place Problems no longer has.
+      if (runError && !list.some((p) => p.channel === "build" && p.severity === "error" && p.path === runError!.path)) {
+        runError = null;
+        renderJump();
+        output.relift(null);
+      }
     });
   }
+  let problemsSeen = false;
   problemsView.onOpen = (p) => void revealProblem(p);
 
   async function revealProblem(p: Problem) {
@@ -861,11 +958,53 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const running = state !== "idle";
     L.runButton.dataset.running = String(running);
     L.runLabel.textContent = running ? "Stop" : "Run";
-    L.runKey.textContent = running ? `${isMac() ? "Cmd" : "Ctrl"} .` : `${isMac() ? "Cmd" : "Ctrl"} Enter`;
+    // The shortcut is in the tooltip and aria-keyshortcuts, not drawn inside the button.
+    L.runButton.title = running ? `Stop (${isMac() ? "Cmd" : "Ctrl"}+.)` : `Run (${isMac() ? "Cmd" : "Ctrl"}+Enter)`;
     L.runButton.setAttribute("aria-keyshortcuts", running ? "Control+Period" : "Control+Enter");
     L.runButton.querySelector(".run-icon")!.replaceChildren(icon(running ? "stop-fill" : "play-fill"));
     L.panelActions.querySelector<HTMLButtonElement>("#restart-python")!.disabled = running;
+    // A run in progress keeps Stop and the panel on screen, even with no file open.
+    renderShell();
     renderStatus();
+  }
+
+  /**
+   * After a failed run Run steps back to the secondary (outline) style until the next edit or run:
+   * the next step is a fix, not a re-run. It stays enabled, with its label, id and shortcut.
+   */
+  function setLastRun(failed: boolean) {
+    if (failed) root.dataset.lastRun = "failed";
+    else delete root.dataset.lastRun;
+  }
+
+  /**
+   * "Error in calc.py, line 2" in the editor head while the failed run's first error is in a file
+   * other than the active one; it opens that line the way its Problems row does.
+   */
+  function renderJump() {
+    const show = runError !== null && runError.path !== null && fileOf(editors.activeId)?.path !== runError.path;
+    L.errorJump.hidden = !show;
+    if (!show || !runError?.path) return;
+    L.errorJumpWords.textContent = `Error in ${nameOf(runError.path)}, line ${runError.line}`;
+    L.errorJump.title = runError.message.split("\n")[0];
+  }
+  L.errorJump.addEventListener("click", () => {
+    if (runError) void revealProblem(runError);
+  });
+
+  /**
+   * The header's lifted exception: "ZeroDivisionError" (the exception class, or "Error" for a
+   * compiler error) at 600, the rest of the message, then "calc.py, line 2"; it opens that line.
+   */
+  function liftError(p: Problem, code: string | undefined): LiftedError {
+    const message = p.message.split("\n")[0];
+    const head = code && message.startsWith(code) ? code : "Error";
+    return {
+      head,
+      rest: message.startsWith(head) ? message.slice(head.length) : `: ${message}`,
+      where: `${nameOf(p.path ?? "")}, line ${p.line}`,
+      open: () => void revealProblem(p),
+    };
   }
 
   /**
@@ -906,6 +1045,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     }
     runPressed = performance.now();
     stopAsked = false;
+    // A new run: Run takes its filled style again, and the last run's error jump goes.
+    setLastRun(false);
+    runError = null;
+    renderJump();
     setRunning("running");
     try {
       await runProgram();
@@ -976,7 +1119,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const byPath = new Map(files.map((f) => [f.path, f]));
     for (const s of ticket.sources) byPath.set(s.path, { path: s.path, text: s.text });
     const current = settings.get();
-    output.begin();
+    output.begin(nameOf(file.path));
+    // The panel opens on Run (to its remembered height) and shows Output.
     L.showPanelTab("output");
     if (L.narrow()) L.showView("output");
     setRunning("running");
@@ -990,7 +1134,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
           onPhase: (phase, detail) => output.setPhase(phase, phaseLabel(phase, detail, lang)),
           onInputRequest: () => {
             setRunning("waiting");
-            output.setPhase("waiting", "Waiting for input (timer paused)");
+            // The header adds "(timer paused)": time spent waiting doesn't count.
+            output.setPhase("waiting", "Waiting for input");
+            // The field the program waits on must be in view: the panel may have been collapsed, or
+            // Problems (on a phone, the Code view) chosen, while it ran (review B, 2026-10-18).
+            L.showPanelTab("output");
+            if (L.narrow()) L.showView("output");
             output.waitInput((line) => {
               setRunning("running");
               output.setPhase("running", "Running");
@@ -1004,6 +1153,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       const marks = [...result.diagnostics, ...callSiteMarks(result.diagnostics)].filter((d) => !(d.path && moves.get(d.path) === null));
       ed.endBuild(ticket, marks);
       for (const [from, to] of moves) if (to !== null) ed.movePending(from, to);
+      // The run's first error: the editor head's jump (when it is in another file) and the header's
+      // lifted exception.
+      const failed = FAILED.has(result.status);
+      const first = failed ? marks.find((d) => d.severity === "error" && d.path) : undefined;
+      const firstPath = first?.path ? (moves.get(first.path) ?? first.path) : null;
+      runError = first && firstPath
+        ? { id: null, path: firstPath, severity: "error", message: first.message, source: first.source, channel: "build", line: first.line, heuristic: Boolean(first.heuristic) }
+        : null;
+      runErrorCode = first?.code;
+      renderJump();
       if (result.status === "error" || result.status === "build-failed" || result.status === "crashed") revealRunProblem(ed, file.id);
       if (lang === "python") {
         // The run reported this file's errors itself; the idle check's copies would be duplicates.
@@ -1022,12 +1181,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
           : `Skipped ${listNames(names)}: they have their own main(), so they are separate programs.`);
       }
       if (result.message) output.note(result.message, result.status === "ok" ? "info" : "warning");
-      output.finish(result);
+      // A failed build wrote a line per compiler error: the danger line in the log is the lifted
+      // (first) error's own line, not the last one (review B, 2026-10-18).
+      output.finish(result, first && runError ? liftError(runError, first.code) : null, result.status === "build-failed" && first ? diagnosticLine(first) : undefined);
+      setLastRun(failed);
       announcer.say(announcement(result, summary, file.path, current.timeLimitS));
       void offerWritten(result.written);
     } catch (e) {
       ed.cancelBuild(ticket);
       output.fail(errorText(e));
+      setLastRun(true);
       announcer.say(`Couldn't run: ${errorText(e)}`);
     } finally {
       setRunning("idle");
@@ -1103,6 +1266,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   }
 
   // C/C++ download offer (in Output while a C or C++ file is open).
+  let packShown = false;
   output.onPackDownload = () => {
     runtimes.cppRunner?.download();
     // The service worker keeps the app (and, in WebKit, the pack's cache) for offline use: main.ts.
@@ -1112,8 +1276,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   function renderPack() {
     const file = fileOf(editors.activeId);
     const lang = file ? detectLanguage(file.path)?.id : null;
-    const cpp = runtimes.cppRunner;
-    if (!cpp || (lang !== "c" && lang !== "cpp") || (cpp.state !== "absent" && cpp.state !== "downloading")) return output.showPack({ state: "hidden", loaded: 0, total: 0 });
+    const runner = runtimes.cppRunner;
+    const cpp = runner && (runner.state === "absent" || runner.state === "downloading") ? runner : null;
+    // Only once the pack is in (or the runner isn't there yet) may a later offer open the panel again.
+    if (!cpp) packShown = false;
+    if (!cpp || (lang !== "c" && lang !== "cpp")) return output.showPack({ state: "hidden", loaded: 0, total: 0 });
+    // The offer is something to act on before any run: a collapsed panel opens to show it, once per
+    // offer rather than on every visit to a C file, so a panel the user collapsed again stays so
+    // (review B, 2026-10-18).
+    if (!packShown) L.expandPanel();
+    packShown = true;
     output.showPack({
       state: cpp.state === "downloading" ? "downloading" : cpp.error ? "failed" : "offer",
       loaded: cpp.progress.loaded,
@@ -1150,11 +1322,19 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       restoreTo = panelSize.value;
       panelSize.set(panelSize.max());
     }
+    L.expandPanel();
     renderMax();
   });
   for (const type of ["keyup", "pointerup", "dblclick"]) panelSize.element.addEventListener(type, renderMax);
   renderMax();
-  L.panelActions.append(restartButton, clearButton, maxButton);
+  // Input (text given to the program first) opens its box above the log, so it shows Output; the
+  // caret goes into the box it opened (it sat four Tab stops past the toggle: review B, 2026-10-18).
+  // OutputView's own listener, added first, has opened or closed the box by now.
+  output.inputToggle.addEventListener("click", () => {
+    L.showPanelTab("output");
+    if (output.inputToggle.getAttribute("aria-expanded") === "true") output.stdin.focus();
+  });
+  L.panelActions.append(output.inputToggle, restartButton, clearButton, maxButton);
 
   /** The file list's width in steps, from the More file actions menu (no dragging needed). */
   const WIDTH_STEP = 64;
@@ -1164,6 +1344,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const items: MenuItem[] = [];
     if (side.value < side.max()) items.push({ label: "Wider file list", icon: "corners-out", run: () => side.set(side.value + WIDTH_STEP) });
     if (side.value > side.min) items.push({ label: "Narrower file list", icon: "corners-in", run: () => side.set(side.value - WIDTH_STEP) });
+    if (items.length) items[0].separatorBefore = true;
     return items;
   }
 
@@ -1215,39 +1396,52 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (file && runtimes.state("python") === "ready" && detectLanguage(file.path)?.id === "python") scheduleCheck(file.id);
   });
 
+  /**
+   * The status bar's Ln/Col for the active file's state (hidden with no file). While typing it is
+   * written from the editor's own update (onSelectionChange), so it is painted in the editor's
+   * frame: from keyup and selectionchange through requestAnimationFrame it was a second full-page
+   * frame for every key (speed profile, 2026-10-19; putting those listeners back costs about 20%
+   * more rendering per key at 4x CPU slowdown, measured 2026-10-20). Every cursor move in the
+   * editor is a transaction, so that hook sees them all; a text replaced from outside (a pull, an
+   * import, a program's file) calls it too (EditorManager.replaceContent); a file switch comes
+   * through schedulePosition.
+   */
+  function showPosition(state: EditorState | null) {
+    L.status.pos.hidden = !state;
+    if (!state) return;
+    const { line, col } = toLineCol(state.doc, state.selection.main.head);
+    L.status.pos.textContent = `Ln ${line}, Col ${col}`;
+  }
   let positionFrame = 0;
   function schedulePosition() {
     positionFrame ||= requestAnimationFrame(() => {
       positionFrame = 0;
       const id = editors.activeId;
-      const state = id ? editors.state(id) : null;
-      L.status.pos.hidden = !state;
-      if (!state) return;
-      const { line, col } = toLineCol(state.doc, state.selection.main.head);
-      L.status.pos.textContent = `Ln ${line}, Col ${col}`;
+      showPosition(id ? editors.state(id) : null);
     });
   }
-  document.addEventListener("selectionchange", schedulePosition);
-  L.editorHost.addEventListener("keyup", schedulePosition);
-  L.editorHost.addEventListener("pointerup", schedulePosition);
 
   let syncCountTimer: ReturnType<typeof setTimeout> | undefined;
   function scheduleSyncCount() {
     clearTimeout(syncCountTimer);
     syncCountTimer = setTimeout(() => void refreshSyncCount(), 800);
   }
+  /**
+   * The unsynced count on the top bar's sync status (data-unsynced), the one place sync and save
+   * state are shown: "0" while not connected (everything is saved on this computer, which its name
+   * and tooltip say). The sync screens set the same attribute from the same counts once they load.
+   */
+  let unsynced = "0";
   async function refreshSyncCount() {
     const rec = await store.getWorkspace(ws);
-    if (!rec?.remote) {
-      L.status.sync.textContent = "Saved on this computer";
-      L.status.sync.dataset.unsynced = "0";
-      return;
+    if (!rec?.remote) unsynced = "0";
+    else {
+      const stats = await store.workspaceStats(ws);
+      // New files count too: storage reports them as "added", apart from "changed".
+      unsynced = String(stats.changed + stats.added + stats.deleted);
     }
-    const stats = await store.workspaceStats(ws);
-    // New files count too: storage reports them as "added", apart from "changed".
-    const n = stats.changed + stats.added + stats.deleted;
-    L.status.sync.dataset.unsynced = String(n);
-    L.status.sync.textContent = n ? `${plural(n, "unsynced change")}` : "All changes synced";
+    const status = L.syncSlot.querySelector<HTMLElement>("#sync-status");
+    if (status) status.dataset.unsynced = unsynced;
   }
 
   // ---------------------------------------------------------------- read-only tabs
@@ -1295,6 +1489,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   async function reloadFromStorage(cause: "tab" | "sync"): Promise<{ kept: WsPath[]; copies: { path: WsPath; copy: WsPath }[] }> {
     const before = new Set(entries.map((e) => e.path));
     await refreshTree();
+    // Any stored file may have changed: the names index reads again what it needs.
+    manager?.indexChanged();
     const kept: WsPath[] = [];
     const copies: { path: WsPath; copy: WsPath }[] = [];
     const files = entries.filter((e) => e.kind === "file" && !e.opaque);
@@ -1314,12 +1510,14 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
           file.path = moved;
           if (editors.has(file.id)) editors.rename(file.id, moved);
           arrived.splice(arrived.findIndex((e) => e.path === moved), 1);
+          followError(old, moved);
           notice.show(`${nameOf(old)} was renamed to ${nameOf(moved)} in another tab.`, { tone: "info" });
           continue;
         }
         editors.close(file.id, { force: true, next: null });
         based.delete(file.id);
         open.splice(open.indexOf(file), 1);
+        followError(old, null);
         if (cause === "tab") notice.show(`${nameOf(old)} is no longer in the workspace (renamed or deleted in another tab), so its tab closed.`, { tone: "info" });
         continue;
       }
@@ -1432,6 +1630,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   settings.onChange((now, before) => {
     if (now.codeSize !== before.codeSize) root.style.setProperty("--code-size", `${now.codeSize}px`);
     if (now.lineWrapping !== before.lineWrapping) editors.setPrefs({ lineWrapping: now.lineWrapping });
+    if (now.suggestOnTyping !== before.suggestOnTyping) editors.setPrefs({ suggestOnTyping: now.suggestOnTyping });
   });
 
   async function signOutAndClear() {
@@ -1502,9 +1701,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     } else if (mod && (key === "`" || e.code === "Backquote")) {
       e.preventDefault();
       if (L.narrow()) L.showView("output");
+      // Opens a collapsed panel too.
       L.showPanelTab("output");
-      // Nothing printed yet: the Output tab itself takes the focus.
-      if (!output.focus()) L.panelTabs.output.focus();
+      // Nothing printed yet: the Output tab itself takes the focus (the switch's, on a phone).
+      if (!output.focus()) (L.narrow() ? L.viewTabs.output : L.panelTabs.output).focus();
     } else if ((key === "?" && !mod && !isTyping(e.target)) || (mod && key === "/" && !isTyping(e.target))) {
       e.preventDefault();
       shortcuts.open();
@@ -1516,15 +1716,23 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   tab.onStale(() => void reloadFromStorage("tab"));
   await tab.start();
   applyRole();
+  // What was open last time is read before the tree is drawn: the first layout is then the final
+  // one (the editor head and the switch in place, "Opening main.py" where the code will be, never a
+  // "No file open" that isn't true, and nothing moving when the code arrives: review S, 2026-10-18),
+  // and the editor downloads alongside the tree and the stash instead of after them.
+  const ui = await store.getUiState(ws).catch((): UiState => ({ openTabs: [], activePath: null, expanded: [] }));
+  restoring = ui.openTabs.find((p) => p === ui.activePath) ?? ui.openTabs[0] ?? null;
+  if (restoring !== null) prefetchEditor();
+  tree.setExpanded(ui.expanded);
   await refreshTree();
   await recoverTyping();
-  const ui = await store.getUiState(ws).catch((): UiState => ({ openTabs: [], activePath: null, expanded: [] }));
-  tree.setExpanded(ui.expanded);
   for (const path of ui.openTabs) {
     if (entries.some((e) => e.path === path && e.kind === "file" && !e.opaque) && !open.some((f) => f.path === path)) open.push({ id: newId(), path });
   }
   const start = open.find((f) => f.path === ui.activePath) ?? open[0];
+  restoring = start?.path ?? null;
   if (start) await activate(start.id);
+  restoring = null;
   renderTabs();
   afterActiveChange();
   setRunning("idle");
@@ -1549,17 +1757,20 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       const rec = await store.getWorkspace(ws);
       if (!rec) return;
       record = rec;
-      L.wsName.textContent = rec.name;
-      L.repoName.hidden = !rec.remote;
-      L.repoName.textContent = rec.remote ? `${rec.remote.owner}/${rec.remote.repo}` : "";
+      renderWorkspaceName();
       void refreshSyncCount();
     },
   });
-  L.wsName.textContent = record.name;
-  if (record.remote) {
-    L.repoName.hidden = false;
-    L.repoName.textContent = `${record.remote.owner}/${record.remote.repo}`;
+  // The breadcrumb starts with the workspace, or with the repository once one is connected (one
+  // name for one thing).
+  function renderWorkspaceName() {
+    L.wsName.textContent = record.name;
+    L.wsName.hidden = Boolean(record.remote);
+    L.repoName.hidden = !record.remote;
+    L.repoName.textContent = record.remote ? `${record.remote.owner}/${record.remote.repo}` : "";
   }
+  renderWorkspaceName();
+  void refreshSyncCount();
   started = true;
   root.dataset.state = "ready";
 }

@@ -100,10 +100,28 @@ function resolveInclude(dir: WsPath, spelling: string): WsPath | null {
 }
 
 /**
- * User files reachable from `start` through quoted includes, resolved the way clang does here:
- * next to the including file first, then in the program's root folder (-iquote).
+ * The file `#include "spelling"` names, for a file in folder `dir`, found the way clang does here:
+ * next to the including file first, then in the program's root folder (-iquote). `has` says which
+ * paths the compiler can see. Null when neither place has it, or the spelling climbs out.
+ * (The editor's include suggestions use this too: library-completion.ts workspaceHeaders.)
  */
-export function includeClosure(start: WsPath, files: ReadonlyMap<WsPath, WorkspaceFile>, root: WsPath): WsPath[] {
+export function findQuotedInclude(dir: WsPath, spelling: string, has: (path: WsPath) => boolean, root: WsPath): WsPath | null {
+  return [resolveInclude(dir, spelling), resolveInclude(root, spelling)].find((p): p is WsPath => !!p && has(p)) ?? null;
+}
+
+/**
+ * User files reachable from `start` through quoted includes, resolved the way clang does here:
+ * next to the including file first, then in the program's root folder (-iquote). `includesOf`
+ * gives a file's quoted include spellings in order: by default they are read from its text; the
+ * editor gives the ones its syntax trees found (own-completion.ts), so no text is scanned while
+ * typing.
+ */
+export function includeClosure(
+  start: WsPath,
+  files: ReadonlyMap<WsPath, WorkspaceFile>,
+  root: WsPath,
+  includesOf: (file: WorkspaceFile) => readonly string[] = (file) => quotedIncludes(file.text),
+): WsPath[] {
   const seen = new Set<WsPath>([start]);
   const queue = [start];
   const out: WsPath[] = [];
@@ -112,8 +130,8 @@ export function includeClosure(start: WsPath, files: ReadonlyMap<WsPath, Workspa
     const file = files.get(path);
     if (!file) continue;
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-    for (const spelling of quotedIncludes(file.text)) {
-      const hit = [resolveInclude(dir, spelling), resolveInclude(root, spelling)].find((p): p is WsPath => !!p && files.has(p));
+    for (const spelling of includesOf(file)) {
+      const hit = findQuotedInclude(dir, spelling, (p) => files.has(p), root);
       if (hit && !seen.has(hit)) {
         seen.add(hit);
         out.push(hit);
@@ -149,7 +167,7 @@ function walkToBits(path: WsPath, files: ReadonlyMap<WsPath, WorkspaceFile>, roo
       if (BITS_INCLUDE.test(rest)) return depth === 0 ? "bits" : "unsafe";
       const quoted = /^"([^"\n]+)"/.exec(rest);
       if (!quoted) continue; // another library header: it can't change what the PCH's headers mean
-      const hit = [resolveInclude(dir, quoted[1]), resolveInclude(root, quoted[1])].find((p): p is WsPath => !!p && files.has(p));
+      const hit = findQuotedInclude(dir, quoted[1], (p) => files.has(p), root);
       const inner = hit ? walkToBits(hit, files, root, seen, false) : "clean";
       if (inner !== "clean") return inner === "bits" && depth > 0 ? "unsafe" : inner;
     } else if (name === "if" || name === "ifdef" || name === "ifndef") {

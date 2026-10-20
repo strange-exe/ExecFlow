@@ -1,10 +1,11 @@
 /* The top bar's sync status button (src/ui/sync-status.ts): an icon AND words for every state, the
    icon coloured by its tone, the words in the chrome's text colours. Part of the first-visit shell
    (the dialogs' styles load with the sync screens: sync-dialogs.css). */
+/* Sync and save state are shown here only (layout v2): the status bar has no copy. */
 .sync-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s2);
   min-width: 0;
   max-width: min(46vw, 460px);
   height: var(--tool);
@@ -12,8 +13,8 @@
   border: 0;
   border-radius: var(--r-control);
   background: none;
-  color: var(--text-muted);
-  font: 500 var(--text-xs)/1.2 var(--font-ui);
+  color: var(--text-secondary);
+  font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
   transition: background-color var(--dur), color var(--dur);
 }
 .sync-status:hover { background: var(--hover); color: var(--text); }
@@ -23,7 +24,7 @@
 .sync-status > * { pointer-events: none; }
 .sync-status .icon { width: 1rem; height: 1rem; }
 .sync-status[data-tone="success"] .icon { color: var(--success); }
-.sync-status[data-tone="accent"] .icon { color: var(--accent-ink); }
+.sync-status[data-tone="info"] .icon { color: var(--info); }
 .sync-status[data-tone="warning"] .icon { color: var(--warning); }
 .sync-status[data-tone="danger"] .icon { color: var(--danger); }
 /* States that ask for something read in the body colour, not the muted one. */
@@ -35,4 +36,8 @@
 }
 @media (pointer: coarse) {
   .sync-status { height: 44px; }
+}
+/* The narrowest phones show the icon only (app.css hides the words): still a 44 px target. */
+@media (max-width: 359px) {
+  .sync-status { min-width: var(--tool); justify-content: center; }
 }

@@ -10,7 +10,6 @@ import { nameOf, parentOf } from "../core/paths";
 import type { WsPath } from "../core/types";
 import { h, srOnly } from "./dom";
 import { icon } from "./icons";
-import { fileIcon } from "./tree";
 
 export interface TabInfo {
   id: string;
@@ -91,7 +90,6 @@ export class TabStrip {
             tabindex: selected ? "0" : "-1",
             title: t.path,
           },
-          icon(fileIcon(t.path), "tab-icon"),
           h("span", { class: "tab-name" }, name),
           folder ? h("span", { class: "tab-folder" }, folder) : null,
           t.readOnly ? h("span", { class: "tab-flag" }, icon("lock"), srOnly(", read-only")) : null,

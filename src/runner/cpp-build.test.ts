@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceFile } from "../core/types";
-import { checkBuildOptions, cOnly, DEFAULT_BUILD, includeClosure, semanticArgs, unitArgs, wantsPch } from "./cpp-build";
+import { checkBuildOptions, cOnly, DEFAULT_BUILD, findQuotedInclude, includeClosure, semanticArgs, unitArgs, wantsPch } from "./cpp-build";
 import { definesMain, includesBits, quotedIncludes, stripComments, stripCommentsAndStrings } from "./cpp-scan";
 import { normalizeMemfsPath, parseDepfile } from "./cpp-depfile";
 
@@ -54,6 +54,28 @@ describe("include closure and the precompiled header", () => {
     expect(includeClosure("p/main.cpp", files, "p")).toEqual(["p/inc/common.h", "p/inc/types.h", "p/util.h"]);
     const viaRoot = map({ "p/src/a.cpp": '#include "util.h"\n', "p/util.h": "" });
     expect(includeClosure("p/src/a.cpp", viaRoot, "p")).toEqual(["p/util.h"]);
+  });
+
+  it("takes each file's include spellings from includesOf when given (the editor's syntax trees), with the same rule", () => {
+    const spellings: Record<string, string[]> = { "p/main.cpp": ["inc/types.h", "util.h"], "p/inc/types.h": ["../util.h"] };
+    const asked: string[] = [];
+    const closure = includeClosure("p/main.cpp", files, "p", (file) => {
+      asked.push(file.path);
+      return spellings[file.path] ?? [];
+    });
+    // Not common.h, which only the text includes; util.h once, though named twice.
+    expect(closure).toEqual(["p/inc/types.h", "p/util.h"]);
+    expect(asked).toEqual(["p/main.cpp", "p/inc/types.h", "p/util.h"]);
+  });
+
+  it("findQuotedInclude: beside the includer first, then the root; never above the workspace", () => {
+    const has = (p: string) => ["p/util.h", "p/src/util.h", "p/inc/types.h", "top.h"].includes(p);
+    expect(findQuotedInclude("p/src", "util.h", has, "p")).toBe("p/src/util.h");
+    expect(findQuotedInclude("p/inc", "util.h", has, "p")).toBe("p/util.h");
+    expect(findQuotedInclude("p/src", "../inc/types.h", has, "p")).toBe("p/inc/types.h");
+    expect(findQuotedInclude("p", "../top.h", has, "p")).toBe("top.h");
+    expect(findQuotedInclude("", "../top.h", has, "")).toBeNull();
+    expect(findQuotedInclude("p", "missing.h", has, "p")).toBeNull();
   });
 
   it("uses the PCH only for C++ units that reach bits/stdc++.h", () => {

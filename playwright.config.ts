@@ -9,6 +9,15 @@ const OUT_DIR = process.env.PW_OUTDIR;
 // tried 127.0.0.1 for "localhost" and got "connection refused" mid-run.
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const serve = `npx vite preview --host 127.0.0.1 --port ${PORT} --strictPort`;
+/**
+ * The typing-speed test measures typing latency and main-thread work (a lab INP estimate, and long
+ * tasks against suggestions off), so it runs alone: in its own project, after every test of the
+ * three engines has finished (dependencies), never next to them (e2e/speed.spec.ts).
+ * Playwright doesn't run a project whose dependencies had a failing test, and naming the spec or
+ * the project runs those dependencies first (playwright.dev/docs/test-projects); to run it by
+ * itself: npm run e2e:speed (--project=speed --no-deps)
+ */
+const SPEED = /speed\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "e2e",
@@ -19,9 +28,10 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
   use: { baseURL: ORIGIN },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: SPEED },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] }, testIgnore: SPEED },
+    { name: "webkit", use: { ...devices["Desktop Safari"] }, testIgnore: SPEED },
+    { name: "speed", use: { ...devices["Desktop Chrome"] }, testMatch: SPEED, dependencies: ["chromium", "firefox", "webkit"] },
   ],
   // Tests run against the production build: the CSP, service worker and precache only exist there.
   webServer: {

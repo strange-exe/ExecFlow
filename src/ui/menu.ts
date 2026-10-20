@@ -1,7 +1,8 @@
 // Menus (WAI-ARIA APG menu and menu button patterns, https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/):
 // role="menu" with role="menuitem" buttons, focus on the first item when opened, Up/Down/Home/End
 // and first-letter keys move, Enter/Space choose, Escape or Tab close, and focus returns to what
-// opened it. Used for the file tree's context menu and its "More actions" button.
+// opened it. Groups are split by role="separator" lines, which are not focusable: the arrow keys
+// move between the items only. Used for the file tree's context menu and its "More actions" button.
 import { h } from "./dom";
 import { icon, type IconName } from "./icons";
 
@@ -11,6 +12,8 @@ export interface MenuItem {
   /** Shown on the right, e.g. "F2". */
   shortcut?: string;
   danger?: boolean;
+  /** Starts a new group: a separator line above it (none above the first item). */
+  separatorBefore?: boolean;
   run(): void;
 }
 
@@ -41,7 +44,11 @@ export function openMenu(items: readonly MenuItem[], anchor: HTMLElement | { x: 
       item.shortcut ? h("kbd", { class: "keycap" }, item.shortcut) : null,
     ),
   );
-  const menu = h("div", { class: "menu", role: "menu", "aria-label": options.label }, ...buttons);
+  const menu = h(
+    "div",
+    { class: "menu", role: "menu", "aria-label": options.label },
+    ...buttons.flatMap((b, i) => (i > 0 && items[i].separatorBefore ? [h("div", { class: "menu-sep", role: "separator" }), b] : [b])),
+  );
   document.body.append(menu);
 
   // Position: below the anchor, or at the pointer, kept inside the viewport.

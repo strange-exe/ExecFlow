@@ -29,6 +29,13 @@ describe("sync status words", () => {
     expect(describeStatus({ ...base, phase: "synced" }).words).toBe("Not synced yet");
   });
 
+  it("while not connected, says where the files are kept (sync and save state are shown only here)", () => {
+    const view = describeStatus({ ...base, phase: "not-connected" });
+    expect(view.note).toBe("Your files are saved on this computer.");
+    // Only that state carries a note: the others say it in their words.
+    for (const phase of PHASES.filter((p) => p !== "not-connected")) expect(describeStatus({ ...base, phase }).note, phase).toBeUndefined();
+  });
+
   it("says how long ago, in plain units", () => {
     const now = 10_000_000;
     expect(ago(now - 10_000, now)).toBe("just now");

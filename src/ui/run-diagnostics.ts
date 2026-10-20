@@ -10,7 +10,9 @@ export const MAX_CALL_MARKS = 20;
 /**
  * For every error with a call stack, an "info" mark on each workspace frame that led to it (not
  * the error's own line), one per file and line. The frames are the tool's, so they are trusted as
- * much as the error itself: same paths, same checks downstream.
+ * much as the error itself: same paths, same checks downstream. Each mark has the role
+ * "call-site", so the editor draws it as a call site (dashed outline, gutter arrow) rather than an
+ * info square; its severity and message stay, so the Problems row and screen readers say the same.
  */
 export function callSiteMarks(list: readonly ToolDiagnostic[]): ToolDiagnostic[] {
   const out: ToolDiagnostic[] = [];
@@ -32,6 +34,7 @@ export function callSiteMarks(list: readonly ToolDiagnostic[]): ToolDiagnostic[]
         source: d.source,
         code: d.code,
         message: `This call led to ${what} in ${nameOf(d.path)}, line ${d.line}.`,
+        role: "call-site",
       });
       if (out.length >= MAX_CALL_MARKS) return out;
     }

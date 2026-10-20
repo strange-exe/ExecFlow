@@ -31,7 +31,9 @@ const directives = (connect: string) =>
     "script-src 'self' 'wasm-unsafe-eval'",
     // CodeMirror injects its stylesheet at run time.
     "style-src 'self' 'unsafe-inline'",
-    // Lint underlines are data: SVGs.
+    // data: images, all built in (none from user content): CodeMirror's lint underlines, and two
+    // CSS masks drawn in a theme colour, the call-site arrow (src/editor/extensions.ts ARROW_MASK)
+    // and the suggestion list's keyword key (src/editor/highlight.ts KEY_MASK).
     "img-src 'self' data:",
     "font-src 'self'",
     `connect-src ${connect}`,
@@ -169,8 +171,9 @@ export default defineConfig(({ mode }) => ({
         name: "CodeEditor",
         short_name: "CodeEditor",
         description: "A personal editor that runs Python, C and C++ in the browser.",
-        theme_color: "#0e1217",
-        background_color: "#0e1217",
+        // Deep Field's dark chrome and code ground (the default theme).
+        theme_color: "#152a22",
+        background_color: "#13201b",
         display: "standalone",
         start_url: "/",
         // Rasterised from public/favicon.svg's mark.

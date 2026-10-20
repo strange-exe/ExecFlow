@@ -2,8 +2,10 @@
 // string at build time (?raw); only the path data is used, drawn with createElementNS, so no SVG
 // markup is ever parsed and no icon font or runtime request is needed.
 import arrowClockwise from "@phosphor-icons/core/assets/regular/arrow-clockwise.svg?raw";
+import arrowRight from "@phosphor-icons/core/assets/regular/arrow-right.svg?raw";
 import caretDown from "@phosphor-icons/core/assets/regular/caret-down.svg?raw";
 import caretRight from "@phosphor-icons/core/assets/regular/caret-right.svg?raw";
+import caretUp from "@phosphor-icons/core/assets/regular/caret-up.svg?raw";
 import checkCircle from "@phosphor-icons/core/assets/regular/check-circle.svg?raw";
 import cloudArrowUp from "@phosphor-icons/core/assets/regular/cloud-arrow-up.svg?raw";
 import cloudCheck from "@phosphor-icons/core/assets/regular/cloud-check.svg?raw";
@@ -32,6 +34,7 @@ import paperPlaneRight from "@phosphor-icons/core/assets/regular/paper-plane-rig
 import pencilSimple from "@phosphor-icons/core/assets/regular/pencil-simple.svg?raw";
 import shieldCheck from "@phosphor-icons/core/assets/regular/shield-check.svg?raw";
 import sidebarSimple from "@phosphor-icons/core/assets/regular/sidebar-simple.svg?raw";
+import tabs from "@phosphor-icons/core/assets/regular/tabs.svg?raw";
 import terminalWindow from "@phosphor-icons/core/assets/regular/terminal-window.svg?raw";
 import trash from "@phosphor-icons/core/assets/regular/trash.svg?raw";
 import uploadSimple from "@phosphor-icons/core/assets/regular/upload-simple.svg?raw";
@@ -44,13 +47,14 @@ import stopFill from "@phosphor-icons/core/assets/fill/stop-fill.svg?raw";
 import { svg } from "./dom";
 
 const SOURCES = {
-  "arrow-clockwise": arrowClockwise, "caret-down": caretDown, "caret-right": caretRight, "check-circle": checkCircle,
+  "arrow-clockwise": arrowClockwise, "arrow-right": arrowRight, "caret-down": caretDown, "caret-right": caretRight,
+  "caret-up": caretUp, "check-circle": checkCircle,
   "cloud-arrow-up": cloudArrowUp, "cloud-check": cloudCheck, "cloud-slash": cloudSlash, "code-simple": codeSimple,
   "corners-in": cornersIn, "corners-out": cornersOut,
   "dots-three": dotsThree, "download-simple": downloadSimple, eraser, file, "file-c": fileC, "file-cpp": fileCpp,
   "file-plus": filePlus, "file-py": filePy, "file-text": fileText, folder, "folder-open": folderOpen,
   "folder-plus": folderPlus, gear, "github-logo": githubLogo, info, keyboard, lock, "paper-plane-right": paperPlaneRight,
-  "pencil-simple": pencilSimple, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple,
+  "pencil-simple": pencilSimple, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple, tabs,
   "terminal-window": terminalWindow, trash, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,
   x, "x-circle": xCircle, "play-fill": playFill, "stop-fill": stopFill,
 } as const;

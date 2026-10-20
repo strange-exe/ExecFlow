@@ -2,7 +2,8 @@
 // role tree/treeitem/group, aria-expanded on folders, aria-selected (selection follows focus),
 // one tab stop (roving tabindex), arrows/Home/End/type-ahead, Enter opens, F2 renames in place,
 // Delete asks first, Shift+F10 or the context-menu key opens the item's menu. The open file is
-// marked with aria-current, a 2 px accent bar and weight 600.
+// marked with aria-current, a 2 px location bar and weight 600. Below 900 px, where there is no tab
+// strip, files open in a tab are marked too (an icon and the description "open in a tab").
 import { detectLanguage, isHeader } from "../core/languages";
 import type { EntryMeta, WsPath } from "../core/types";
 import { h } from "./dom";
@@ -47,7 +48,10 @@ export class FileTree {
   private typed = "";
   private typedAt = 0;
   private seq = 0;
+  /** What the rows on screen were drawn from; "" once something else changed them. */
+  private drawn = "";
   private errorPaths = new Set<WsPath>();
+  private openPaths = new Set<WsPath>();
   readOnly = false;
 
   constructor(private readonly actions: TreeActions, labelledBy: string) {
@@ -59,6 +63,7 @@ export class FileTree {
       h("span", { id: "tree-desc-opaque" }, "read-only (binary or special file)"),
       h("span", { id: "tree-desc-conflict" }, "conflict copy: both versions changed, so this one was kept beside the original"),
       h("span", { id: "tree-desc-errors" }, "has errors (see Problems)"),
+      h("span", { id: "tree-desc-open" }, "open in a tab"),
     );
     this.element.addEventListener("keydown", (e) => this.onKey(e));
     this.element.addEventListener("click", (e) => this.onClick(e));
@@ -95,6 +100,13 @@ export class FileTree {
   setErrors(paths: ReadonlySet<WsPath>): void {
     if (paths.size === this.errorPaths.size && [...paths].every((p) => this.errorPaths.has(p))) return;
     this.errorPaths = new Set(paths);
+    this.render();
+  }
+
+  /** Files open in a tab, marked where no tab strip shows them (an empty set marks none). */
+  setOpenFiles(paths: ReadonlySet<WsPath>): void {
+    if (paths.size === this.openPaths.size && [...paths].every((p) => this.openPaths.has(p))) return;
+    this.openPaths = new Set(paths);
     this.render();
   }
 
@@ -141,6 +153,7 @@ export class FileTree {
   clearSelection(): void {
     if (this.editing || !this.selected) return;
     this.selected = null;
+    this.drawn = "";
     for (const li of this.element.querySelectorAll<HTMLElement>("[role=treeitem][aria-selected='true']")) li.setAttribute("aria-selected", "false");
     this.actions.selectionChanged?.(null);
   }
@@ -170,19 +183,29 @@ export class FileTree {
     const hadFocus = this.isFocused();
     const rows = visibleRows(this.roots, this.expanded);
     const tabStop = rows.find((r) => r.path === this.selected)?.path ?? rows.find((r) => r.path === this.active)?.path ?? rows[0]?.path ?? null;
+    // A redraw that would draw the same rows is skipped. Each redraw replaces every row, so one that
+    // lands between a click's mousedown and mouseup sends the click to the list, which opens
+    // nothing: re-reading the files after "Replace" redrew the unchanged tree about 200 ms later.
+    const drawn = JSON.stringify([tabStop, this.selected, this.active, rows.map((r) => [
+      r.path, r.name, r.kind, r.level, r.opaque, r.conflict, this.expanded.has(r.path), this.errorPaths.has(r.path), this.openPaths.has(r.path),
+    ])]);
+    if (drawn === this.drawn) return;
+    this.drawn = drawn;
     const draw = (list: TreeNode[]): HTMLElement[] =>
       list.map((n, i) => {
         const nameId = `tn-${++this.seq}`;
         const isDir = n.kind === "dir";
         const open = isDir && this.expanded.has(n.path);
         const errors = !isDir && this.errorPaths.has(n.path);
-        const describedBy = [n.opaque ? "tree-desc-opaque" : "", n.conflict ? "tree-desc-conflict" : "", errors ? "tree-desc-errors" : ""].filter(Boolean).join(" ");
+        const inTab = !isDir && this.openPaths.has(n.path);
+        const describedBy = [n.opaque ? "tree-desc-opaque" : "", n.conflict ? "tree-desc-conflict" : "", errors ? "tree-desc-errors" : "", inTab ? "tree-desc-open" : ""].filter(Boolean).join(" ");
         const badge = n.opaque
           ? h("span", { class: "tree-badge", title: "Read-only (binary or special file)" }, icon("lock"))
           : n.conflict
             ? h("span", { class: "tree-badge warn", title: "Conflict copy: both versions changed, so this one was kept beside the original" }, icon("warning"))
             : null;
         const errorBadge = errors ? h("span", { class: "tree-badge error", title: "Has errors (see Problems)", "data-errors": "" }, icon("x-circle")) : null;
+        const openBadge = inTab ? h("span", { class: "tree-badge open", title: "Open in a tab", "data-open": "" }, icon("tabs")) : null;
         const row = h(
           "div",
           { class: "tree-row", style: `--level: ${n.level - 1}` },
@@ -190,6 +213,7 @@ export class FileTree {
           icon(isDir ? (open ? "folder-open" : "folder") : fileIcon(n.path), "tree-icon"),
           h("span", { class: "tree-name", id: nameId }, n.name),
           errorBadge,
+          openBadge,
           badge,
         );
         const li = h("li", {
@@ -219,6 +243,7 @@ export class FileTree {
 
   private select(path: WsPath, focus = true): void {
     this.selected = path;
+    this.drawn = "";
     for (const li of this.element.querySelectorAll<HTMLElement>("[role=treeitem]")) {
       const on = li.dataset.path === path;
       li.setAttribute("aria-selected", String(on));
@@ -455,7 +480,9 @@ export class FileTree {
       const refocus = focusSelection && (this.element.contains(active) || active === document.body || active === null);
       this.editing = null;
       o.done();
-      // Redraw now: changes that arrived during the edit were held back.
+      // Redraw now: changes that arrived during the edit were held back, and the edit itself
+      // changed the rows (a folder may keep the group it was given for a new name).
+      this.drawn = "";
       this.render();
       if (refocus) (this.itemFor(this.selected) ?? this.element.querySelector<HTMLElement>("[role=treeitem]"))?.focus();
     };

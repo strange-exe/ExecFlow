@@ -18,8 +18,12 @@ import {
   appHandlers, BASE, DEFAULT_PREFS, fileConf, fileExtensions, fileIdFacet, notifyDocChanged, prefsConf, prefsExtension,
   READ_ONLY, readOnlyConf, WRITABLE, type EditorPrefs, type FileId,
 } from "./extensions";
+import { IndexSlot, libraryContext, workspaceIndex, type LibraryContext } from "./completion-context";
+import { loadCompletionCode } from "./completion-loader";
 import { viewHost, type EditorHost, type HostFactory } from "./host";
 import { clampPos } from "./positions";
+import { RUN_CHANNEL } from "./run-marks";
+import type { Scheduler } from "./workspace-index";
 
 export type { EditorPrefs, FileId };
 
@@ -34,6 +38,12 @@ export interface EditorHooks {
   onDiagnosticsChange?(): void;
   /** A file's text changed. The id comes from the state itself, so a late handler can't mix files up. */
   onDocChanged?(id: FileId, state: EditorState): void;
+  /**
+   * The active file's cursor or selection moved, or its text changed (`state` is its new state).
+   * Called in the same task as the editor's own update, so what it draws (the status bar's Ln/Col)
+   * goes into the editor's frame instead of a frame of its own. Keep it cheap: it runs on every key.
+   */
+  onSelectionChange?(id: FileId, state: EditorState): void;
   /** Mod-Enter in the editor. */
   onRun?(id: FileId): void;
   /** Mod-s in the editor. */
@@ -52,6 +62,15 @@ export interface EditorManagerOptions {
   /** The run lock, for every file. */
   readOnly?: boolean;
   maxSessions?: number;
+  /** The workspace's files and build standards, read by the import and #include suggestions. */
+  library?: LibraryContext;
+  /**
+   * Reads a stored file's text, for the names other files declare (workspace-index.ts): included
+   * headers in C and C++, imported modules in Python. Without it, only the open file's own names.
+   */
+  readFile?(path: WsPath): Promise<string>;
+  /** When the index parses (default: idle slices). Tests pass their own. */
+  indexScheduler?: Scheduler;
 }
 
 export interface OpenOptions {
@@ -63,7 +82,10 @@ export interface OpenOptions {
 
 export interface BuildTicket {
   readonly seq: number;
-  /** Diagnostics of this channel ("build" by default) are replaced when the build ends. */
+  /**
+   * Diagnostics of this channel ("build" by default) are replaced when the build ends. The run's
+   * own errors ("build") also band their line in the editor (run-marks.ts); the idle check's don't.
+   */
   readonly channel: string;
   /** The open files in the build, with their path and snapshot when it started. */
   readonly files: ReadonlyMap<FileId, { readonly path: WsPath; readonly tracker: EditTracker }>;
@@ -141,6 +163,11 @@ export class EditorManager {
   readonly host: EditorHost;
   private readonly hooks: EditorHooks;
   private readonly handlers: Extension;
+  /**
+   * Other files' names for suggestions; null without options.readFile. The index itself is made
+   * in the completion chunk the first time a suggestion needs it (workspace-index.ts indexIn).
+   */
+  readonly index: IndexSlot | null;
   private readonly maxSessions: number;
   private readonly sessions = new Map<FileId, Session>();
   /** Closed files' diagnostics: path, then channel. */
@@ -164,18 +191,28 @@ export class EditorManager {
     this.prefs = { ...DEFAULT_PREFS, ...options.prefs };
     this.prefsExt = prefsExtension(this.prefs);
     this.readOnly = options.readOnly ?? false;
-    this.handlers = appHandlers.of({
-      run: (id) => {
-        if (id != null) this.hooks.onRun?.(id);
-      },
-      save: (id) => {
-        if (id != null) this.hooks.onSave?.(id);
-      },
-      docChanged: (id, state) => this.hooks.onDocChanged?.(id, state),
-    });
+    // An open file's text is newer than storage while it is typed in: the index reads that one.
+    this.index = options.readFile ? new IndexSlot({ read: options.readFile, live: (path) => this.liveDoc(path) }, options.indexScheduler) : null;
+    this.handlers = [
+      appHandlers.of({
+        run: (id) => {
+          if (id != null) this.hooks.onRun?.(id);
+        },
+        save: (id) => {
+          if (id != null) this.hooks.onSave?.(id);
+        },
+        docChanged: (id, state) => this.hooks.onDocChanged?.(id, state),
+      }),
+      options.library ? libraryContext.of(options.library) : [],
+      this.index ? workspaceIndex.of(this.index) : [],
+    ];
     const factory = options.host ?? (options.parent ? viewHost(options.parent) : null);
     if (!factory) throw new Error("EditorManager needs a parent element or a host");
     this.host = factory(this.placeholder(), (trs, commit) => this.onTransactions(trs, commit));
+    // In the browser the suggestion code (a chunk of its own) starts loading with the editor, not
+    // with the first file shown: the editor is fetched early when the pointer heads for the file
+    // list, and a returning user's open tab is read from storage meanwhile (completion-loader.ts).
+    if (this.host.view) void loadCompletionCode();
   }
 
   // ------------------------------------------------------------------ reading
@@ -358,6 +395,8 @@ export class EditorManager {
     if (s === this.active) {
       this.host.setState(next);
       this.host.dispatch(next.update({ effects: EditorView.scrollIntoView(next.selection.main.head, { y: "center" }) }));
+      // setState is no transaction, so onTransactions didn't see the cursor land in the new text.
+      this.hooks.onSelectionChange?.(s.id, this.host.state);
     } else {
       s.state = next;
     }
@@ -430,6 +469,11 @@ export class EditorManager {
     this.reconfigureActive();
   }
 
+  /** Stored files changed (`paths`, or any file): the index reads them again when they are next needed. */
+  indexChanged(paths?: readonly WsPath[]): void {
+    this.index?.changed(paths);
+  }
+
   // ------------------------------------------------------------------ builds and diagnostics
 
   /**
@@ -438,7 +482,7 @@ export class EditorManager {
    * same channel supersedes this one.
    */
   beginBuild(ids: readonly FileId[], options: { channel?: string; paths?: readonly WsPath[] } = {}): BuildTicket {
-    const channel = options.channel ?? "build";
+    const channel = options.channel ?? RUN_CHANNEL;
     for (const old of [...this.tickets]) if (old.channel === channel) this.release(old);
     const files = new Map<FileId, { path: WsPath; tracker: EditTracker }>();
     const sources: WorkspaceFile[] = [];
@@ -570,6 +614,12 @@ export class EditorManager {
     return s === this.active ? this.host.state : s.state;
   }
 
+  /** The current text of the open file at `path`, or null when it isn't open. */
+  private liveDoc(path: WsPath): Text | null {
+    for (const s of this.sessions.values()) if (s.path === path) return this.stateOf(s).doc;
+    return null;
+  }
+
   private extensionsFor(id: FileId, path: WsPath, readOnly: boolean): Extension {
     return [
       this.handlers,
@@ -652,6 +702,7 @@ export class EditorManager {
     } finally {
       this.depth--;
     }
+    if (mine && this.active === s && trs.some((tr) => tr.selection !== undefined || tr.docChanged)) this.hooks.onSelectionChange?.(s.id, this.host.state);
     if (!mine || !trs.some((tr) => tr.docChanged) || this.sessions.get(s.id) !== s) return;
     for (const tr of trs) if (tr.docChanged) for (const tracker of trackers) tracker.add(tr.changes);
     this.afterDocChange(s, trs[0].startState, this.host.state);

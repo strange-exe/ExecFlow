@@ -71,6 +71,11 @@ export interface ToolDiagnostic extends ToolLocation {
   stack?: ToolLocation[];
   /** Located by searching the source (linker errors), not reported by the tool. */
   heuristic?: boolean;
+  /**
+   * "call-site": not the tool's own report but a call that led to an error in another place
+   * (ui/run-diagnostics.ts). The editor draws it as a dashed outline and a gutter arrow.
+   */
+  role?: "call-site";
 }
 
 // ---------------------------------------------------------------- runs

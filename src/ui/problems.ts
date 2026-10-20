@@ -1,5 +1,6 @@
-// The Problems list: every diagnostic of every file as one button (severity word, path:line:col,
-// message) that opens the file and puts the cursor on it. Problems with the program as a whole
+// The Problems list: every diagnostic of every file as one button that opens the file and puts the
+// cursor on it. A row reads left to right: icon, severity word, message, then path:line:col and the
+// tool right after the message (not pushed to the far edge). Problems with the program as a whole
 // (no file) are listed first, as plain rows.
 import type { DiagSeverity } from "../core/types";
 import type { Problem } from "../editor/editor-manager";
@@ -69,9 +70,9 @@ export class ProblemsView {
         const parts = [
           icon(SEVERITY_ICON[p.severity], "problem-icon"),
           h("span", { class: "problem-severity" }, SEVERITY_WORD[p.severity]),
-          h("span", { class: "problem-where" }, where),
           // Cut short with an ellipsis on wide screens: the tooltip has all of it.
           h("span", { class: "problem-message", title: message }, message),
+          h("span", { class: "problem-where" }, where),
           p.source ? h("span", { class: "problem-source" }, p.source) : null,
         ];
         if (!p.path) return h("li", null, h("div", { class: "problem static", "data-severity": p.severity }, ...parts));

@@ -69,9 +69,18 @@ export function sourceLabel(d: ToolDiagnostic): string {
   return d.heuristic ? `${label}, location estimated` : label;
 }
 
+/** Class of a call-site diagnostic's range (a dashed outline: extensions.ts LINT_SPEC). */
+export const CALL_SITE_CLASS = "ce-call-site";
+
+/** A call that led to an error elsewhere (ui/run-diagnostics.ts), not a report of its own. */
+export function isCallSite(d: Diagnostic): boolean {
+  return (d as EditorDiagnostic).raw?.role === "call-site";
+}
+
 function markClassOf(d: ToolDiagnostic): string {
   const source = String(d.source).toLowerCase().replace(/[^a-z0-9-]/g, "");
-  return source ? `ce-diag ce-diag-${source}` : "ce-diag";
+  const base = source ? `ce-diag ce-diag-${source}` : "ce-diag";
+  return d.role === "call-site" ? `${base} ${CALL_SITE_CLASS}` : base;
 }
 
 const WORD_CHAR = /[\p{L}\p{N}\p{M}_]/u;
@@ -147,6 +156,8 @@ export function currentDiagnostics(state: EditorState): { diagnostic: EditorDiag
  * Replaces the diagnostics of one channel (`source`, e.g. "build") with `list` and keeps every
  * other channel's diagnostics at their current positions. `list` positions are clamped to the
  * document. The ONLY caller of setDiagnostics in the app: apply the returned spec to `state`.
+ * Always a full set, even for an empty channel: an edit that deletes a diagnostic's text drops it
+ * from the lint state but not from the gutter, and only a new set clears that stale gutter mark.
  */
 export function mergeSource(state: EditorState, source: string, list: readonly Diagnostic[]): TransactionSpec {
   const length = state.doc.length;

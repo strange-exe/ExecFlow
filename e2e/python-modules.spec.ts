@@ -1,6 +1,6 @@
 // Python modules, packages and written files as a student meets them (from the functional review, 2026-10-17).
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, run, setCode, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, openInputBox, run, setCode, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(150_000);
@@ -79,7 +79,8 @@ test("a file written in the program's own folder is offered with its folder, and
   await field.press("Enter");
   await expect(activeTitle(page)).toHaveAttribute("title", "proj/main.py");
   await setCode(page, "import sys\nwith open('data.txt', 'w') as f:\n    f.write(sys.stdin.readline())\nprint('wrote')\n");
-  await page.locator("#stdin").evaluate((el) => ((el.closest("details") as HTMLDetailsElement).open = true));
+  // The Input box sits behind the panel bar's Input toggle.
+  await openInputBox(page);
   await page.locator("#stdin").fill("first\n");
   const r1 = await run(page, { timeout: 90_000 });
   expect(r1.status, r1.output).toBe("ok");
@@ -101,7 +102,12 @@ test("a file written in the program's own folder is offered with its folder, and
   await notice.getByRole("button", { name: "Add to workspace" }).click();
   const ask = page.getByRole("alertdialog");
   await expect(ask).toBeVisible();
+  // Re-reading the files after the write changes no row, so the tree keeps its rows: a redraw in
+  // the middle of the next click would replace the row pressed and the click would open nothing.
+  await treeItem(page, "proj/data.txt").evaluate((li) => (li.dataset.probe = "kept"));
   await ask.getByRole("button", { name: "Replace" }).click();
+  await expect(notice).toContainText("Added proj/data.txt to the workspace.");
+  await expect(treeItem(page, "proj/data.txt"), "the same row node after the write").toHaveAttribute("data-probe", "kept");
   await openFromTree(page, "proj/data.txt");
   await expect(page.locator(".cm-content")).toContainText("second");
 });

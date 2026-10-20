@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, hierarchyShots, importFiles, openApp, openFromTree, run, showView, test, waitReady } from "./helpers";
+import { expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, showPanel, showView, test, waitReady } from "./helpers";
 
 // Desktop and phone, light and dark. Each test loads, emulates, reloads and
 // proves the theme is really active before checking anything. These reload right after the first
@@ -21,11 +21,19 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   await waitReady(page);
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  // And the colours really are that scheme's (CodeEditor Slate bg).
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(14, 18, 23)" : "rgb(253, 253, 255)");
+  // And the colours really are that scheme's (CodeEditor Deep Field, the default: no data-palette).
+  await expect(page.locator("html")).not.toHaveAttribute("data-palette");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(19, 32, 27)" : "rgb(248, 251, 249)");
 }
 
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+
+/** Run's painted fill (pointer moved off it first): transparent when it has stepped back to its outline style. */
+async function runFill(page: Page) {
+  await page.mouse.move(4, 4);
+  return page.locator("#run-button").evaluate((el) => getComputedStyle(el).backgroundColor);
+}
+const TRANSPARENT = /^(transparent|rgba\(0, 0, 0, 0\))$/;
 
 async function axe(page: Page, label: string) {
   const result = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
@@ -40,10 +48,14 @@ for (const vp of viewports) {
       await page.setViewportSize(vp);
       await openThemed(page, scheme);
 
-      // 1. Empty workspace: the starters lead (reading order 4), Run steps back.
+      const narrow = vp.width < 900;
+
+      // 1. Empty workspace: the starters lead (reading order 4). Nothing competes with them: no
+      // Run (there is nothing to run) and no output panel (layout v2; v1 showed an inert Run).
       await expect(page.getByRole("heading", { name: "Create your first file" })).toBeInViewport();
       await expect(page.locator('.starter[data-language="python"]')).toBeInViewport();
-      await expect(page.locator("#run-button")).toBeInViewport();
+      await expect(page.locator("#run-button")).toBeHidden();
+      await expect(page.locator("#panel")).toBeHidden();
       expect(await noOverflow(page), "no horizontal scroll (empty)").toBe(true);
       await page.screenshot({ path: `${dir}/empty-${vp.name}-${scheme}.png`, animations: "disabled" });
       await axe(page, "empty");
@@ -56,15 +68,29 @@ for (const vp of viewports) {
       await openFromTree(page, "main.py");
       await showView(page, "code");
       await expect(page.locator(".cm-content")).toBeInViewport();
+      await expect(page.locator("#run-button")).toBeInViewport();
       expect(await noOverflow(page), "no horizontal scroll (editing)").toBe(true);
+      const editorBox = (await page.locator("#editor-panel").boundingBox())!;
+      if (narrow) {
+        // No tab strip: the code starts under the top bar (48) and the view switch (44).
+        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(92);
+      } else {
+        // Before the first run the panel is its bar: collapsed, its body hidden, the code tall.
+        await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "false");
+        await expect(page.locator("#panel-output")).toBeHidden();
+        await expect(page.locator("#panel-problems")).toBeHidden();
+        expect(editorBox.height, "code height before the first run").toBeGreaterThanOrEqual(700);
+      }
       await page.screenshot({ path: `${dir}/editor-${vp.name}-${scheme}.png`, animations: "disabled" });
       await axe(page, "editor");
 
-      // 3. Waiting for input (reading order 2): the field is focused and in view.
+      // 3. Waiting for input (reading order 2): the field is focused and in view; Run opened the panel.
       await page.locator("#run-button").click();
       await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 45_000 });
       await expect(page.locator("#live-input-field")).toBeFocused();
       await expect(page.locator("#live-input-field")).toBeInViewport();
+      if (!narrow) await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
+      await expect(page.locator("#panel-output")).toBeVisible();
       await page.screenshot({ path: `${dir}/waiting-${vp.name}-${scheme}.png`, animations: "disabled" });
       await axe(page, "waiting");
       await page.locator("#live-input-field").fill("Ada");
@@ -75,8 +101,35 @@ for (const vp of viewports) {
       await axe(page, "ran");
       await hierarchyShots(page, `${dir}/ran-${vp.name}-${scheme}`);
 
+      // 3b. After the failed run (reading order 1): Run steps back to its outline style.
+      await expect(page.locator("#app")).toHaveAttribute("data-last-run", "failed");
+      expect(await runFill(page), "Run has stepped back").toMatch(TRANSPARENT);
+      if (!narrow) {
+        // The error is in calc.py: the editor head's jump names it, Tab reaches it from the
+        // tabs, and it opens calc.py at line 2 with the focus in the code.
+        const jump = page.locator(".editor-head #error-jump");
+        await expect(jump).toBeVisible();
+        await expect(jump).toHaveAccessibleName("Error in calc.py, line 2");
+        await page.locator('.tabs [role=tab][aria-selected="true"]').focus();
+        await page.keyboard.press("Tab");
+        await expect(jump).toBeFocused();
+        await page.screenshot({ path: `${dir}/ran-jump-${vp.name}-${scheme}.png`, animations: "disabled" });
+        await page.keyboard.press("Enter");
+        await expect(page.locator('.cm-content[aria-label="Code editor, calc.py"]')).toBeFocused();
+        await expect(page.locator("#status-pos")).toHaveText(/^Ln 2,/);
+        await expect(jump).toBeHidden();
+      } else {
+        await showView(page, "code");
+        await page.locator(".cm-content").click();
+      }
+      // One typed character (a space at the end of the file) and Run is the filled action again.
+      await page.keyboard.press("Control+End");
+      await page.keyboard.type(" ");
+      await expect(page.locator("#app")).not.toHaveAttribute("data-last-run");
+      expect(await runFill(page), "Run is filled again after an edit").not.toMatch(TRANSPARENT);
+
       // 4. Problems.
-      await page.locator("#ptab-problems").click();
+      await showPanel(page, "problems");
       await expect(page.locator(".problem").first()).toBeVisible();
       await axe(page, "problems");
 
@@ -106,8 +159,10 @@ test("no horizontal scroll at 320 px, and the primary controls are 44 px on a ph
   await openApp(page);
   expect(await noOverflow(page)).toBe(true);
   await page.locator('.starter[data-language="cpp"]').click();
+  // Run shows once a file is open (layout v2: none on the empty workspace).
+  await expectActive(page, "main.cpp");
   expect(await noOverflow(page)).toBe(true);
-  for (const sel of ["#run-button", "#settings-button", ".drawer-toggle", "#view-code", "#view-output"]) {
+  for (const sel of ["#run-button", "#settings-button", ".drawer-toggle", "#view-code", "#view-output", "#view-problems"]) {
     const box = await page.locator(sel).boundingBox();
     expect(box!.height, sel).toBeGreaterThanOrEqual(44);
   }
@@ -117,24 +172,47 @@ test("no horizontal scroll at 320 px, and the primary controls are 44 px on a ph
 // workspace); CodeMirror (about 196 KB gzip on its own) must not be part of it, and must arrive
 // with the first file.
 test("a first visit loads only the shell, within the 200 KB gzip budget, and the editor comes with the first file", async ({ page }) => {
-  const bodies: Promise<{ url: string; gzip: number }>[] = [];
-  page.on("response", (r) => {
-    const path = new URL(r.url()).pathname;
-    if (!/^\/assets\/[^/]+\.js$/.test(path)) return; // app chunks; workers live under /assets/w/
-    bodies.push(r.body().then((b) => ({ url: path, gzip: gzipSync(b).length })));
-  });
+  // App chunks; workers live under /assets/w/. Chunks that arrive after the last check are not read
+  // to the end of the test (responseBodies).
+  const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, gzip: gzipSync(b).length }));
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
-  const first = await Promise.all(bodies);
+  const first = await bodies.settled();
   const total = first.reduce((n, s) => n + s.gzip, 0);
   expect(first.length, "scripts loaded").toBeGreaterThan(0);
   expect(total, `first-visit JS gzip: ${first.map((s) => `${s.url} ${s.gzip}`).join(", ")}`).toBeLessThan(200 * 1024);
+  test.info().annotations.push({ type: "first-visit JS gzip", description: `${total} bytes in ${first.length} chunks` });
   await expect(page.locator(".cm-editor")).toHaveCount(0);
 
-  const before = bodies.length;
+  const before = bodies.count();
   await page.locator('.starter[data-language="python"]').click();
   await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
-  expect(bodies.length, "the editor chunk loaded with the first file").toBeGreaterThan(before);
+  expect(bodies.count(), "the editor chunk loaded with the first file").toBeGreaterThan(before);
+});
+
+// The built chunks themselves (completion-chunk.test.ts models the bundler from the source): the
+// suggestion code (completion-code.ts) is a chunk of its own, which a first visit doesn't load and
+// the editor chunk doesn't contain, and the editor chunk stays within the same 200 KB gzip budget
+// (research doc section 3, "Bundle size"). The suggestion chunk is found by its content:
+// library-data.ts's error text, which only that chunk has.
+test("the suggestion code is a chunk of its own, apart from the first visit and the editor chunk, which stays within 200 KB gzip", async ({ page }) => {
+  const MARK = "not library data";
+  const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, gzip: gzipSync(b).length, suggestions: b.includes(MARK) }));
+  await openApp(page);
+  await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
+  const first = await bodies.settled();
+  expect(first.filter((c) => c.suggestions).map((c) => c.url), "suggestion code on a first visit").toEqual([]);
+  await page.locator('.starter[data-language="c"]').click();
+  // The library data is there: the suggestion code has loaded and run.
+  await expect(page.locator(".cm-editor")).toHaveAttribute("data-library", "ready");
+  const later = (await bodies.settled()).slice(first.length);
+  expect(later.length, "scripts loaded with the first file").toBeGreaterThan(0);
+  const editorChunk = later.reduce((a, b) => (b.gzip > a.gzip ? b : a));
+  const suggestions = later.filter((c) => c.suggestions);
+  test.info().annotations.push({ type: "editor chunks, gzip", description: later.map((c) => `${c.url} ${c.gzip}${c.suggestions ? " (suggestions)" : ""}`).join(", ") });
+  expect(suggestions.length, "chunks with the suggestion code").toBe(1);
+  expect(suggestions[0].url, "the suggestion code is not in the editor chunk").not.toBe(editorChunk.url);
+  expect(editorChunk.gzip, `the editor chunk ${editorChunk.url}, gzip`).toBeLessThanOrEqual(200 * 1024);
 });
 
 test("reduced motion turns transitions off", async ({ page }) => {
@@ -149,6 +227,8 @@ test("reduced motion turns transitions off", async ({ page }) => {
 test("a theme chosen in Settings applies at once, and is painted on the next load before the app's code runs", async ({ page }) => {
   await openApp(page);
   await page.locator("#settings-button").click();
+  // Dracula is a popular editor theme: folded under More themes (review D, 2026-10-18).
+  await page.getByRole("dialog", { name: "Settings" }).locator(".theme-more summary").click();
   await page.getByRole("radio", { name: "Dracula" }).check();
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(await bg()).toBe("rgb(40, 42, 54)"); // Dracula's editor background #282a36
@@ -170,6 +250,231 @@ test("a theme chosen in Settings applies at once, and is painted on the next loa
   await waitReady(page);
 });
 
+/** Reloads with every app script held back, so only public/theme-boot.js and the CSS can paint; then releases them. */
+async function reloadHeld(page: Page, check: () => Promise<void>) {
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  await page.route("**/assets/*.js", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.reload({ waitUntil: "commit" });
+  await page.locator("#app").waitFor({ state: "attached" });
+  await check();
+  release();
+  await waitReady(page);
+  await page.unroute("**/assets/*.js");
+}
+
+test("Slate stays a picker theme: chosen in Settings, painted before the app's code, and kept by a device that saved it", async ({ page }) => {
+  await openApp(page);
+  const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const html = page.locator("html");
+  await expect(html).not.toHaveAttribute("data-palette");
+  await page.locator("#settings-button").click();
+  // Slate (v1's palette) is folded under More themes (review D, 2026-10-18).
+  await page.getByRole("dialog", { name: "Settings" }).locator(".theme-more summary").click();
+  await page.getByRole("radio", { name: "CodeEditor Slate Dark" }).check();
+  expect(await bg()).toBe("rgb(14, 18, 23)"); // Slate's dark code ground #0e1217
+  await expect(html).toHaveAttribute("data-palette", "slate");
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await page.keyboard.press("Escape");
+
+  await reloadHeld(page, async () => {
+    await expect.poll(bg).toBe("rgb(14, 18, 23)");
+    await expect(html).toHaveAttribute("data-palette", "slate");
+    await expect(html).toHaveAttribute("data-theme", "dark");
+  });
+
+  // A device that saved "CodeEditor Slate (match device)" before Deep Field existed: its paint
+  // payload has no palette field. It paints Slate before any script runs, and the app keeps Slate.
+  await page.evaluate(() => {
+    localStorage.setItem("codeeditor:theme", "system");
+    localStorage.setItem("codeeditor:theme-paint", JSON.stringify({ system: true, scheme: "dark", colors: null }));
+  });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await reloadHeld(page, async () => {
+    await expect.poll(bg).toBe("rgb(14, 18, 23)");
+    await expect(html).toHaveAttribute("data-palette", "slate");
+    await expect(html).toHaveAttribute("data-theme", "dark");
+  });
+  await expect(html).toHaveAttribute("data-palette", "slate");
+  await expect(html).toHaveAttribute("data-theme-id", "system");
+  expect(await bg()).toBe("rgb(14, 18, 23)");
+});
+
+test("fonts: Source Sans 3 and Source Code Pro load at every weight used, weights really differ, and JetBrains Mono is not fetched", async ({ page }) => {
+  await openApp(page);
+  await page.locator('.starter[data-language="python"]').click();
+  await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
+  const family = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).fontFamily);
+  expect(await family("body")).toMatch(/^"?Source Sans 3"?,/);
+  expect(await family(".cm-content")).toMatch(/^"?Source Code Pro"?,/);
+
+  // document.fonts.check() is true for a family with no faces at all, so ask for each face and
+  // require that a real, loaded face answered.
+  const faces = await page.evaluate(async () => {
+    const want = [
+      ["Source Sans 3", "400", "normal"], ["Source Sans 3", "500", "normal"], ["Source Sans 3", "600", "normal"],
+      ["Source Code Pro", "400", "normal"], ["Source Code Pro", "400", "italic"], ["Source Code Pro", "600", "normal"],
+    ];
+    const out: string[] = [];
+    // The last one is a control: a family nobody declared must come out missing, or this check proves nothing.
+    for (const [fam, weight, style] of [...want, ["No Such Family", "400", "normal"]]) {
+      const loaded = await document.fonts.load(`${style} ${weight} 16px "${fam}"`);
+      const ok = loaded.some((f) => f.family.replace(/"/g, "") === fam && f.weight === weight && f.style === style && f.status === "loaded");
+      out.push(`${fam} ${weight} ${style}: ${ok ? "loaded" : `missing (${loaded.length} faces answered)`}`);
+    }
+    return out;
+  });
+  expect(faces.pop(), "the control family is reported missing").toMatch(/^No Such Family 400 normal: missing/);
+  expect(faces.filter((f) => !f.endsWith(": loaded"))).toEqual([]);
+
+  // The same 20 characters at 400 and 600 take different widths: the static 600 face is drawn, not
+  // a flattened variable font (WebKit drew Inter's weights alike; audit item 21).
+  const widths = await page.evaluate(() => {
+    const span = (weight: string) => {
+      const s = document.createElement("span");
+      s.textContent = "Waiting for input 42";
+      s.style.cssText = `font: ${weight} 15px var(--font-ui); position: absolute; white-space: nowrap; visibility: hidden;`;
+      document.body.append(s);
+      const w = s.getBoundingClientRect().width;
+      s.remove();
+      return w;
+    };
+    return [span("400"), span("600")];
+  });
+  expect(Math.abs(widths[1] - widths[0]), `400 vs 600 widths ${widths.join(" vs ")}`).toBeGreaterThan(1);
+
+  // Only "Joined symbols" uses JetBrains Mono, and it is off: no face of it was ever requested.
+  const jetbrains = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/"/g, "") === "JetBrains Mono").map((f) => `${f.weight} ${f.style} ${f.status}`));
+  expect(jetbrains.length, "JetBrains Mono is declared (for Joined symbols)").toBeGreaterThan(0);
+  expect(jetbrains.filter((f) => !f.endsWith(" unloaded"))).toEqual([]);
+});
+
+/** The load status of each face of `family` in `style` (document.fonts). */
+const faceStatus = (page: Page, family: string, style: string) =>
+  page.evaluate(([fam, st]) => [...document.fonts].filter((f) => f.family.replace(/"/g, "") === fam && f.style === st).map((f) => f.status), [family, style]);
+
+// The code font's italic is first drawn by the first edit (a dirty tab's name, the breadcrumb) or
+// a comment. Loading it then put one task of 111-161 ms into that keystroke at 4x CPU slowdown,
+// while Chromium mapped system fallback fonts (speed profile, 2026-10-19). The app loads it when
+// the page is next idle after the editor is shown (theme/fonts.ts), before anything uses it.
+test("the code font's italic face loads at idle once the editor is shown, before anything is italic", async ({ page }) => {
+  await openApp(page);
+  expect(await faceStatus(page, "Source Code Pro", "italic"), "nothing on the empty workspace uses it").toEqual(["unloaded"]);
+  await page.locator('.starter[data-language="python"]').click();
+  await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
+  // The starter has no comment and nothing is unsaved: no italic text is on the page.
+  await expect(page.locator('.tab[data-dirty="true"]')).toHaveCount(0);
+  expect(await page.locator(".cm-content").textContent()).not.toContain("#");
+  await expect.poll(() => faceStatus(page, "Source Code Pro", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+  // Only the code font in use: Joined symbols is off, so JetBrains Mono's italic is not fetched.
+  expect(await faceStatus(page, "JetBrains Mono", "italic")).toEqual(["unloaded"]);
+});
+
+// "Joined symbols" switches the code font to JetBrains Mono mid-visit: its italic then loads at idle
+// too, so the next edit's italic tab name doesn't bring that first-use task back (theme/fonts.ts).
+test("turning Joined symbols on mid-visit loads JetBrains Mono's italic at idle, before anything is italic", async ({ page }) => {
+  await openApp(page);
+  await page.locator('.starter[data-language="python"]').click();
+  await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
+  await expect.poll(() => faceStatus(page, "Source Code Pro", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+  expect(await faceStatus(page, "JetBrains Mono", "italic"), "not before the switch").toEqual(["unloaded"]);
+  await page.locator("#settings-button").click();
+  await page.getByLabel("Joined symbols in code").check();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
+  expect(await page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?JetBrains Mono"?,/);
+  // Nothing on the page is italic: no comment in the starter, nothing unsaved.
+  await expect(page.locator('.tab[data-dirty="true"]')).toHaveCount(0);
+  expect(await page.locator(".cm-content").textContent()).not.toContain("#");
+  await expect.poll(() => faceStatus(page, "JetBrains Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+});
+
+// A reload cancels a download still running (lessons.md: a lazy download right before a reload).
+// The face's response is held, so the reload is sure to come while it downloads; the fixture then
+// fails the test on any console error or failed request the cancel caused that no navigation explains.
+test("a reload while the italic face is still downloading logs no error and no failed request", async ({ page }) => {
+  await openApp(page);
+  const url = await page.evaluate(() => {
+    for (const sheet of document.styleSheets) {
+      for (const rule of sheet.cssRules) {
+        if (!(rule instanceof CSSFontFaceRule)) continue;
+        const style = rule.style;
+        if (style.getPropertyValue("font-family").includes("Source Code Pro") && style.getPropertyValue("font-style") === "italic") {
+          const src = /url\("?([^")]+)"?\)/.exec(style.getPropertyValue("src"));
+          if (src) return new URL(src[1], location.href).href;
+        }
+      }
+    }
+    return null;
+  });
+  expect(url, "the italic face's file").not.toBeNull();
+  const HOLD_MS = 2000;
+  let heldAt = 0;
+  await page.route(url!, async (route) => {
+    heldAt ||= Date.now();
+    await new Promise((done) => setTimeout(done, HOLD_MS));
+    await route.continue().catch(() => undefined); // the reload may have dropped it
+  });
+  // How engines report the cancel, for the record: Firefox NS_BINDING_ABORTED, WebKit "Load request
+  // cancelled"; Chromium reports nothing for a held request (measured 2026-10-20).
+  const cancelled: string[] = [];
+  page.on("requestfailed", (r) => {
+    if (r.url() === url) cancelled.push(r.failure()?.errorText ?? "");
+  });
+  const requested = page.waitForRequest(url!);
+  await page.locator('.starter[data-language="python"]').click();
+  await requested;
+  // The face can be asked for before the new file is open: the pointer over the starters fetches
+  // the editor, whose view loads it at the next idle moment, which a slow storage write can bring
+  // first (a full run, 2026-10-21: the reload then found no open tab, so no editor and no face).
+  await expectActive(page, "main.py");
+  const reloadAt = Date.now();
+  await reloadApp(page);
+  // The reload came while the face's response was still held (else this test proves nothing).
+  expect(heldAt, "the face's request was held").toBeGreaterThan(0);
+  expect(reloadAt - heldAt, "the reload started while the download was held").toBeLessThan(HOLD_MS);
+  test.info().annotations.push({ type: "cancel", description: cancelled.join("; ") || "no requestfailed event" });
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  // The restored tab shows the editor again, and the face loads this time.
+  await expect.poll(() => faceStatus(page, "Source Code Pro", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+});
+
+// The first suggestion list's task looked up system fallback fonts for the kind icons' glyphs and
+// built the keyword icon's SVG mask (about 60 ms of an 88-165 ms task at 4x CPU slowdown, speed
+// profile 2026-10-19). Once the editor is shown, the app lays one of each icon out unseen when the
+// page is next idle (editor/highlight.ts warmListIcons), then removes it.
+test("the suggestion icons are laid out once, unseen, at idle after the editor is shown, and nothing of it stays", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const seen = { added: 0, removed: 0, visible: [] as string[] };
+    (window as unknown as { __warm: typeof seen }).__warm = seen;
+    const isWarm = (n: Node) => n instanceof HTMLElement && !n.closest(".cm-tooltip") && n.querySelector(".cm-completionIcon-function") !== null;
+    new MutationObserver((records) => {
+      for (const r of records) {
+        for (const n of r.addedNodes) {
+          if (!isWarm(n)) continue;
+          seen.added++;
+          const el = n as HTMLElement;
+          const style = getComputedStyle(el);
+          if (style.visibility !== "hidden" || el.getAttribute("aria-hidden") !== "true") seen.visible.push(el.outerHTML.slice(0, 120));
+        }
+        for (const n of r.removedNodes) if (n instanceof HTMLElement && n.querySelector(".cm-completionIcon-function")) seen.removed++;
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  await page.locator('.starter[data-language="python"]').click();
+  await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
+  const warm = () => page.evaluate(() => (window as unknown as { __warm: { added: number; removed: number; visible: string[] } }).__warm);
+  await expect.poll(async () => (await warm()).removed, { timeout: 10_000 }).toBe(1);
+  expect(await warm()).toEqual({ added: 1, removed: 1, visible: [] });
+  // Nothing of it is left in the editor, and no suggestion list is open.
+  await expect(page.locator(".cm-editor .cm-completionIcon")).toHaveCount(0);
+  await expect(page.locator(".cm-editor")).toHaveAttribute("data-completion", "closed");
+});
+
 test("'match device' follows the system light and dark setting live", async ({ page }) => {
   await openApp(page);
   const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
@@ -179,14 +484,24 @@ test("'match device' follows the system light and dark setting live", async ({ p
   await expect.poll(theme).toBe("light");
 });
 
-test("ligatures stay off unless chosen", async ({ page }) => {
+test("ligatures stay off unless chosen, and choosing them switches the code font to JetBrains Mono", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="c"]').click();
   const lig = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontVariantLigatures);
+  const codeFont = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontFamily);
   expect(await lig()).toBe("none");
+  expect(await codeFont()).toMatch(/^"?Source Code Pro"?,/);
   await page.locator("#settings-button").click();
   await page.getByLabel("Joined symbols in code").check();
   expect(await lig()).not.toBe("none");
+  expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
+  // Now the code uses it, its regular face is fetched (so the fonts test's "unloaded" check can fail).
+  await page.evaluate(() => document.fonts.ready);
+  const regular = () => page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/"/g, "") === "JetBrains Mono" && f.weight === "400" && f.style === "normal").map((f) => f.status));
+  await expect.poll(regular).toEqual(["loaded"]);
+  await page.getByLabel("Joined symbols in code").uncheck();
+  expect(await lig()).toBe("none");
+  expect(await codeFont()).toMatch(/^"?Source Code Pro"?,/);
 });
 
 // Icons are fetched out of band, so no console error or axe rule catches a
@@ -237,9 +552,16 @@ test("the keyboard shortcuts dialog opens with ? and says how to leave the edito
   await expect(dialog).toBeVisible();
 });
 
+/** The output panel (and its splitter) exist once the workspace has a file: an empty one shows the starters only. */
+async function withAFile(page: Page) {
+  await page.locator('.starter[data-language="python"]').click();
+  await expectActive(page, "main.py");
+}
+
 test("splitters are separators with values, keyboard resizing, and remembered sizes", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
+  await withAFile(page);
   const side = page.getByRole("separator", { name: "Resize the file list" });
   await expect(side).toHaveAttribute("aria-valuenow", "248");
   await side.focus();
@@ -249,6 +571,12 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(side).toHaveAttribute("aria-valuenow", "200");
   const panel = page.getByRole("separator", { name: "Resize the output panel" });
   await panel.focus();
+  // Nothing has run, so the panel is its bar: the first key only opens it, to the height the
+  // splitter names (review B, 2026-10-18: one key did both); the next one resizes it.
+  await expect(panel).toHaveAttribute("aria-valuetext", /^Collapsed/);
+  await page.keyboard.press("ArrowUp");
+  await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(panel).toHaveAttribute("aria-valuenow", "35");
   await page.keyboard.press("ArrowUp");
   await expect(panel).toHaveAttribute("aria-valuenow", "40");
   await page.reload();
@@ -263,6 +591,7 @@ test("splitters are separators with values, keyboard resizing, and remembered si
 test("the panel and the file list resize without dragging: Maximise the panel, and Wider or Narrower file list", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
+  await withAFile(page);
   const panel = page.getByRole("separator", { name: "Resize the output panel" });
   const maximise = page.getByRole("button", { name: "Maximise the panel" });
   await expect(maximise).toHaveAttribute("aria-pressed", "false");
@@ -270,6 +599,8 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await maximise.click();
   await expect(panel).toHaveAttribute("aria-valuenow", "80");
   await expect(maximise).toHaveAttribute("aria-pressed", "true");
+  // Maximising a collapsed panel opens it.
+  await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
   await maximise.click();
   await expect(panel).toHaveAttribute("aria-valuenow", "35");
   await expect(maximise).toHaveAttribute("aria-pressed", "false");
@@ -283,7 +614,7 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await expect(side).toHaveAttribute("aria-valuenow", "248");
 });
 
-test("run results are read out, and the run state is on the status bar", async ({ page }) => {
+test("run results are read out, and the run state is beside Run", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
   const r = await run(page, { input: ["Lin"] });
@@ -291,4 +622,6 @@ test("run results are read out, and the run state is on the status bar", async (
   await expect(page.locator("[data-announcer]")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("[data-announcer]")).toHaveText(/Finished/);
   await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready");
+  // In the editor head, right before Run (desktop).
+  await expect(page.locator(".editor-head .head-tools > #status-runtime + #run-button")).toBeVisible();
 });

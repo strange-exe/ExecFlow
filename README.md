@@ -14,6 +14,8 @@ WebAssembly workers.
   point. Compiler and Python errors are marked on the line they belong to, in every file of the
   program, and listed under Problems.
 - Works offline after the first visit (a service worker keeps the app and the Python runtime).
+- Suggestions as you type: keywords and snippets, the standard library's names, and your own names
+  (see [Suggestions](#suggestions)).
 
 ## Running it
 
@@ -37,17 +39,44 @@ Other commands:
 | `npm run typecheck` | TypeScript for the app, the workers and the tooling |
 | `npm run build` | Type check, then a production build in `dist/` with a Cloudflare Pages `_headers` file |
 | `npx playwright install chromium firefox webkit` | Once, before the end-to-end tests |
-| `npm run e2e` | End-to-end tests against the production build, in Chromium, Firefox and WebKit |
+| `npm run e2e` | End-to-end tests against the production build, in Chromium, Firefox and WebKit; the typing-speed test runs last, alone |
+| `npm run e2e:speed` | Only the typing-speed test (`e2e/speed.spec.ts`, `--project=speed --no-deps`), which `npm run e2e` skips when an earlier test failed. Naming the spec file or the speed project without `--no-deps` runs every engine's tests first |
 | `node scripts/contrast-check.mjs` | WCAG contrast of every colour pair the UI draws, for every theme |
 
 ## Continuous integration
 
 GitHub Actions (`.github/workflows/ci.yml`) checks every push to `main` and every pull request.
 One job runs `npm ci --ignore-scripts`, the type check, the unit tests and `npm run build`; when
-it passes, the end-to-end suite runs in Chromium, Firefox and WebKit, one job per browser. The
+it passes, the end-to-end suite runs in Chromium, Firefox and WebKit, one job per browser (the
+Chromium job also runs the typing-speed test, with one worker as every CI job). The
 downloads in `node_modules/.cache/` are kept between runs, and a failed end-to-end job keeps its
 `test-results/` folder as an artifact for 7 days. CI doesn't hold back deploys: Cloudflare Pages
 builds every push to `main` on its own.
+
+## Suggestions
+
+A list of suggestions opens as you type. It offers keywords and snippets (`for`, `if`, `main`,
+`printf`, `class`...), the standard library's names, and your own names:
+
+- Python: module names after `import` and `from`, and a module's members after `math.` or
+  `from math import`. Your own modules (`helpers.py` beside the file) and their top-level functions,
+  classes and variables are offered too.
+- C and C++: header names after `#include <` (and your headers after `#include "`), library
+  functions and constants with their prototype or value, and `std::` names in C++. They follow the
+  C and C++ standard chosen in Settings, and a function that doesn't link here (`gets`, `system`)
+  is never offered. Your own functions, types, globals and macros come from the open file and the
+  headers it includes with quotes.
+
+The library lists are generated from the C/C++ pack's sysroot and from Pyodide
+(`scripts/gen-c-completions.mjs`, `scripts/gen-python-completions.mjs`), load the first time a file
+of that language is shown, and work offline after the first visit.
+
+- Nothing is picked when the list opens, so Enter makes a new line. Down or Up picks a suggestion,
+  then Enter accepts it. Tab never accepts one.
+- Ctrl+Space shows the list at any time (on macOS also Alt+\`). "Suggestions while typing" in
+  Settings stops the list from opening by itself.
+- Esc closes the list, or ends a snippet. Inside a snippet, Tab and Shift+Tab move between its
+  fields, except while Tab moves focus (Ctrl+M, or Shift+Alt+M on macOS): then Tab leaves the editor.
 
 ## Keeping the files on GitHub
 
@@ -81,7 +110,7 @@ repository there.
 | `src/core` | Shared types, paths, byte and text checks, languages |
 | `src/storage` | The workspace in IndexedDB, one editing tab at a time, import, zip export |
 | `src/sync` | GitHub sync (one commit per push, conflicts kept as copies) |
-| `src/editor` | CodeMirror 6 editor sessions and diagnostics |
+| `src/editor` | CodeMirror 6 editor sessions, diagnostics and suggestions (`src/editor/data`: the generated library lists) |
 | `src/runner`, `src/workers` | The Python and C/C++ runtimes and their workers |
 | `src/ui`, `src/theme`, `src/styles` | The workbench, the colour themes, the styles |
 
@@ -126,8 +155,11 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | python-dateutil 2.9.0.post0 | Apache-2.0 or BSD-3-Clause | Python package (pandas) |
 | pytz 2026.1.post1, six 1.17.0 | MIT | Python packages (pandas) |
 | [wasm-clang](https://github.com/binji/wasm-clang) (Ben Smith), vendored in `src/vendor/wasm-clang` | Apache-2.0 | C and C++ runtime glue |
-| LLVM: clang, lld, libc++ and the sysroot in the C/C++ pack | Apache-2.0 WITH LLVM-exception (`LICENSE.llvm.txt` in the pack) | C and C++ |
-| [Inter](https://rsms.me/inter/) and [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource-variable/*`) | SIL Open Font License 1.1 | Fonts |
+| LLVM: clang 8 and lld, in the C/C++ pack | Apache-2.0 WITH LLVM-exception, and the legacy University of Illinois/NCSA licence (`LICENSE.llvm.txt` in the pack) | C and C++: compiling and linking |
+| libc++ 8 and libc++abi 8 (LLVM), in the C/C++ pack's sysroot | MIT or University of Illinois/NCSA, dual licensed (`licenses/libcxx-8-LICENSE.TXT`, `licenses/libcxxabi-8-LICENSE.TXT`; the pack has no copy) | C++ standard library, and the C++ names in suggestions |
+| wasi-libc (built from musl and cloudlibc), in the C/C++ pack's sysroot | Not stated in the pack. Upstream wasi-libc today: Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT, with musl's parts MIT and cloudlibc's BSD-2-Clause; not checked for this 2019 build | C library, and the C names in suggestions |
+| [Source Sans 3](https://github.com/adobe-fonts/source-sans) and [Source Code Pro](https://github.com/adobe-fonts/source-code-pro) (`@fontsource/source-sans-3`, `@fontsource/source-code-pro`) | SIL Open Font License 1.1 | Fonts: interface, and code and output |
+| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: code with "Joined symbols" on |
 | [Phosphor Icons](https://phosphoricons.com/) (`@phosphor-icons/core`) | MIT | Icons |
 | [Workbox](https://github.com/GoogleChrome/workbox) (through `vite-plugin-pwa`) | MIT | Offline service worker |
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |

@@ -36,6 +36,21 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
       ],
     },
     {
+      title: "Suggestions",
+      rows: [
+        ["Ctrl Space", "Show suggestions"],
+        // macOS often keeps Ctrl Space for switching input sources; CodeMirror adds Alt ` there.
+        ...(mac ? [["Alt `", "Show suggestions, when Ctrl Space switches the keyboard"] as [string, string]] : []),
+        // Nothing is picked when the list opens (extensions.ts, selectOnOpen: false), so Enter
+        // makes a new line until an arrow key picks an option.
+        ["Down or Up", "Pick a suggestion"],
+        ["Enter", "Accept the picked suggestion"],
+        // In Tab-moves-focus mode (Ctrl M) Tab leaves the editor, inside a snippet too.
+        ["Tab or Shift Tab", "Next or previous field in a snippet (not in Tab-moves-focus mode)"],
+        ["Esc", "Close the list, or end the snippet"],
+      ],
+    },
+    {
       title: "Panels",
       rows: [
         [`${mod} \``, "Go to the output (or the input field, while a program waits)"],
@@ -45,21 +60,37 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
   ];
 }
 
+/**
+ * "Ctrl Shift E" as three keycaps; " then " and " or " stay words between keycaps. The split keeps
+ * the joining words (a capture group), so they come out at the odd indexes.
+ */
+export function keyParts(keys: string): { word?: string; caps?: string[] }[] {
+  return keys.split(/ (then|or) /).map((part, i) => (i % 2 ? { word: ` ${part} ` } : { caps: part.split(" ") }));
+}
+
+function keysToNodes(keys: string): (Node | string)[] {
+  return keyParts(keys).flatMap((p): (Node | string)[] => (p.word ? [p.word] : p.caps!.map((k) => h("kbd", { class: "keycap" }, k))));
+}
+
 export function createShortcutsDialog(): { open(opener?: HTMLElement): void } {
   const { dialog, body } = dialogShell("shortcuts", "Keyboard shortcuts");
+  // One grid for every group (each list is a subgrid of it), so every description starts at the
+  // same x, however wide one group's keys are.
+  const grid = h("div", { class: "shortcut-grid" });
   for (const group of shortcutGroups()) {
-    body.append(
+    grid.append(
       h("h3", { class: "section-title" }, group.title),
       h(
         "dl",
         { class: "shortcut-list" },
         ...group.rows.flatMap(([keys, what]) => [
-          // "Esc then Tab" is a sequence: keycaps with the word "then" between them.
-          h("dt", null, ...keys.split(" then ").flatMap((part, i) => [i ? " then " : "", ...part.split(" ").map((k) => h("kbd", { class: "keycap" }, k))])),
+          // "Esc then Tab" is a sequence and "Down or Up" a choice: keycaps with the word between them.
+          h("dt", null, ...keysToNodes(keys)),
           h("dd", null, what),
         ]),
       ),
     );
   }
+  body.append(grid);
   return { open: (opener) => openModal(dialog, dialog.querySelector<HTMLElement>(".icon-btn"), opener) };
 }

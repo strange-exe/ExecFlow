@@ -44,10 +44,15 @@ export interface Audit {
   fontSizes: number[];
 }
 
+/** The colour tokens recorded with each view (src/theme/contrast.ts COLOR_VARS, contract v2). */
 export const COLOR_VARS = [
-  "bg", "surface", "surface-raised", "border", "border-strong", "text", "text-muted", "gutter-text",
-  "accent", "accent-hover", "on-accent", "accent-ink", "focus", "danger", "warning", "success",
-  "selection", "active-line", "terminal-bg", "terminal-fg",
+  "bg", "surface", "surface-raised", "terminal-bg", "terminal-fg", "runlog-bg", "divider", "border", "border-strong",
+  "text", "text-secondary", "text-muted", "gutter-text",
+  "action", "action-hover", "on-action", "control-on",
+  "focus", "selection", "list-selected", "active-line", "location",
+  "danger", "warning", "success", "info",
+  "error-band", "call-site", "input-echo",
+  "link", "brand", "on-brand",
   "syn-keyword", "syn-string", "syn-number", "syn-comment", "syn-function", "syn-type", "syn-variable",
   "syn-operator", "syn-macro", "syn-punctuation",
 ];
@@ -219,7 +224,7 @@ export function audit(page: Page): Promise<Audit> {
     }
 
     // Pointer targets (2.5.8): every control drawn, with the spacing exception worked out.
-    const targetSel = "a[href], button, input:not([type=hidden]), select, textarea, summary, [role=tab], [role=menuitem], [role=treeitem] > .tree-row, [role=separator], [tabindex]:not([tabindex='-1'])";
+    const targetSel = "a[href], button, input:not([type=hidden]), select, textarea, summary, [role=tab], [role=menuitem], [role=option], [role=treeitem] > .tree-row, [role=separator], [tabindex]:not([tabindex='-1'])";
     const controls = [...scope.querySelectorAll<HTMLElement>(targetSel)].filter((el) => !el.closest(".cm-content, .cm-scroller") && visible(el) && !(el.getAttribute("role") === "treeitem"));
     const rects = controls.map((el) => {
       let r = el.getBoundingClientRect();
@@ -295,6 +300,8 @@ export interface FocusStop {
   rect: { x: number; y: number; w: number; h: number };
   outline: string;
   shadow: string;
+  /** The editor's gutter-edge focus bar (the ::after of .cm-gutters), when the editor has focus. */
+  bar: string;
   indicator: boolean;
   ringContrast: number | null;
   visible: boolean;
@@ -306,8 +313,16 @@ export interface FocusStop {
 /** What has focus now, and whether a sighted keyboard user can see where it is. */
 export function focusStop(page: Page): Promise<FocusStop> {
   return page.evaluate(async () => {
-    // CodeMirror sets .cm-focused in its next update, so let two frames pass before looking.
+    // Let two frames pass before looking. CodeMirror sets .cm-focused (which draws the editor's
+    // focus bar) from a 10 ms timer after the focus event (view 6.43.14 updateForFocusChange), and
+    // headless Firefox can run two frames sooner (measured 2026-10-19: the class came 11 ms after
+    // focus every time, two frames had passed first in 10 of 12 tries). So for the editor, wait for
+    // that state too, at most 500 ms: if it never comes, the stop is still reported without an indicator.
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const focusedEditor = document.activeElement?.classList.contains("cm-content") ? document.activeElement.closest(".cm-editor") : null;
+    for (const until = performance.now() + 500; focusedEditor && !focusedEditor.classList.contains("cm-focused") && performance.now() < until; ) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
     type RGBA = [number, number, number, number];
     const parse = (input: string): RGBA | null => {
       const c = input.trim();
@@ -351,11 +366,32 @@ export function focusStop(page: Page): Promise<FocusStop> {
       return acc;
     };
     const el = document.activeElement as HTMLElement | null;
-    const empty = { tag: el?.tagName.toLowerCase() ?? "none", id: "", cls: "", role: "", name: "", rect: { x: 0, y: 0, w: 0, h: 0 }, outline: "", shadow: "", indicator: false, ringContrast: null, visible: false, clipped: [], inDialog: false, inViewport: false };
+    const empty = { tag: el?.tagName.toLowerCase() ?? "none", id: "", cls: "", role: "", name: "", rect: { x: 0, y: 0, w: 0, h: 0 }, outline: "", shadow: "", bar: "", indicator: false, ringContrast: null, visible: false, clipped: [], inDialog: false, inViewport: false };
     if (!el || el === document.body) return empty;
     let ind: Element = el;
     if (el.getAttribute("role") === "treeitem") ind = el.querySelector(":scope > .tree-row") ?? el;
-    if (el.classList.contains("cm-content")) ind = el.closest(".cm-editor") ?? el;
+    // The output log's ring is drawn on its scroller, inset, so scrolling never cuts it (app.css).
+    if (el.id === "console") ind = el.closest(".console-scroll") ?? el;
+    // The editor's indicator is a 2 px --focus bar on the gutter's right edge, drawn as the
+    // ::after of .cm-gutters (editor/highlight.ts). It counts only when it is really drawn: generated
+    // (content not none), at least 2 px wide and opaque; its contrast is then measured against the
+    // gutter's own ground, like a ring's. Without it, the editor's own outline is what counts.
+    let bar: { c: RGBA; on: RGBA; text: string } | null = null;
+    if (el.classList.contains("cm-content")) {
+      const editor = el.closest(".cm-editor");
+      ind = editor ?? el;
+      const gutters = editor?.querySelector(":scope > .cm-scroller > .cm-gutters");
+      if (gutters) {
+        const a = getComputedStyle(gutters, "::after");
+        const c = parse(a.backgroundColor);
+        const width = parseFloat(a.width) || 0;
+        const drawn = !/^(none|normal)$/.test(a.content) && a.display !== "none" && a.visibility === "visible";
+        if (drawn && width >= 2 && c && c[3] >= 1 && gutters.getBoundingClientRect().height >= 1) {
+          bar = { c, on: bgOf(gutters), text: `${a.width} ${a.backgroundColor}` };
+          ind = gutters;
+        }
+      }
+    }
     const s = getComputedStyle(ind);
     const ow = s.outlineStyle !== "none" ? parseFloat(s.outlineWidth) || 0 : 0;
     const off = parseFloat(s.outlineOffset) || 0;
@@ -383,19 +419,19 @@ export function focusStop(page: Page): Promise<FocusStop> {
     const style = getComputedStyle(el);
     const visible = r.width >= 1 && r.height >= 1 && style.visibility === "visible" && !hidden && !el.closest(".visually-hidden");
     let ringContrast: number | null = null;
+    const contrast = (fg: RGBA, behind: RGBA) => {
+      const [x, y] = [lum(over(fg, behind)), lum(behind)].sort((p, q) => q - p);
+      return Math.round(((x + 0.05) / (y + 0.05)) * 100) / 100;
+    };
     const oc = parse(s.outlineColor);
-    if (ow > 0 && oc) {
-      const behind = off >= 0 ? bgOf(ind.parentElement) : bgOf(ind);
-      const fg = over(oc, behind);
-      const [x, y] = [lum(fg), lum(behind)].sort((p, q) => q - p);
-      ringContrast = Math.round(((x + 0.05) / (y + 0.05)) * 100) / 100;
-    }
+    if (bar) ringContrast = contrast(bar.c, bar.on);
+    else if (ow > 0 && oc) ringContrast = contrast(oc, off >= 0 ? bgOf(ind.parentElement) : bgOf(ind));
     return {
       tag: el.tagName.toLowerCase(), id: el.id, cls: typeof el.className === "string" ? el.className : "", role: el.getAttribute("role") ?? "",
       name: (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
       rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
-      outline: `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor} offset ${s.outlineOffset}`, shadow,
-      indicator: ow >= 1 || Boolean(shadow), ringContrast, visible, clipped, inDialog: Boolean(el.closest("dialog")), inViewport,
+      outline: `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor} offset ${s.outlineOffset}`, shadow, bar: bar?.text ?? "",
+      indicator: Boolean(bar) || ow >= 1 || Boolean(shadow), ringContrast, visible, clipped, inDialog: Boolean(el.closest("dialog")), inViewport,
     };
   });
 }

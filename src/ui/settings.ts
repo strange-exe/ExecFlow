@@ -10,6 +10,8 @@ export interface Settings {
   /** Code font size in px, 12 to 20. */
   codeSize: number;
   lineWrapping: boolean;
+  /** The suggestion list opens while typing; Ctrl+Space always opens it. */
+  suggestOnTyping: boolean;
   /** Running-time limit in seconds (time waiting for typed input doesn't count). */
   timeLimitS: number;
   /** Output kept before a run is stopped, in thousands of characters (1024 each). */
@@ -24,8 +26,11 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
-  codeSize: 14,
+  // 15 px: Source Code Pro is small for its size (x-height 0.486 em), so 15 keeps the line pitch.
+  // A saved size stays as saved.
+  codeSize: 15,
   lineWrapping: false,
+  suggestOnTyping: true,
   timeLimitS: 15,
   outputLimitK: 512,
   cStd: "gnu11",
@@ -61,6 +66,7 @@ export function cleanSettings(input: unknown): Settings {
   return {
     codeSize: clampInt(d.codeSize, LIMITS.codeSize, s.codeSize),
     lineWrapping: bool(d.lineWrapping, s.lineWrapping),
+    suggestOnTyping: bool(d.suggestOnTyping, s.suggestOnTyping),
     timeLimitS: clampInt(d.timeLimitS, LIMITS.timeLimitS, s.timeLimitS),
     outputLimitK: clampInt(d.outputLimitK, LIMITS.outputLimitK, s.outputLimitK),
     cStd: oneOf(C_STANDARDS, d.cStd, s.cStd),

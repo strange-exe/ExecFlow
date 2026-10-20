@@ -1,7 +1,11 @@
-// The Output view (Pocket Run pattern): an Input box for text given up front, the program's output
-// as a role="log" console, the inline field the program reads from while it waits, the receipt
-// line after each run, and the one-time C/C++ download offer. stderr is drawn in the danger colour
-// AND with a bar beside each line, and the receipt names it, so colour is never the only signal.
+// The Output view (Pocket Run pattern, layout v2): the Input box for text given up front (behind
+// the panel bar's Input toggle), the one-time C/C++ download offer, the run-log header (the current
+// run's file, its state while it runs, then the status word, exit code and times, and after a
+// failure the lifted exception as a button that opens its line), the program's output as a
+// role="log" console, and the field the program reads from while it waits, on the prompt's own
+// line. Every stderr line has a bar beside it, and one stderr line of a failed run, the error the
+// header lifts (Python's exception, or a failed build's first error), is drawn in the danger colour
+// at 600, so colour is never the only signal.
 import type { RunPhase, RunResult, RunStatus } from "../core/types";
 import { formatMs, h } from "./dom";
 import { icon, type IconName } from "./icons";
@@ -30,11 +34,28 @@ const STATUS_TONE: Record<RunStatus, "success" | "danger" | "warning"> = {
 
 const TONE_ICON: Record<"success" | "danger" | "warning", IconName> = { success: "check-circle", danger: "x-circle", warning: "warning" };
 
+/** Runs that failed: the header gets the error band, and Run steps back until the next edit or run. */
+export const FAILED: ReadonlySet<RunStatus> = new Set<RunStatus>(["error", "build-failed", "crashed", "unavailable"]);
+
 export function statusWord(r: Pick<RunResult, "status" | "exitCode">): string {
   return r.status === "error" && r.exitCode !== null ? `Exited with code ${r.exitCode}` : STATUS_WORD[r.status];
 }
 
 export type PhaseState = RunPhase | "waiting" | "idle";
+
+/**
+ * A failed run's first error, lifted into the header as one button that opens its line (as its
+ * Problems row does): "ZeroDivisionError: division by zero" and "calc.py, line 2".
+ */
+export interface LiftedError {
+  /** The exception class (or "Error"), drawn at 600. */
+  head: string;
+  /** The rest of the message after the head. */
+  rest: string;
+  /** "calc.py, line 2". */
+  where: string;
+  open(): void;
+}
 
 /** Output blocks: a new one starts after a line ends past this size, or anywhere past the max. */
 const BLOCK_CHARS = 8 * 1024;
@@ -44,11 +65,22 @@ export class OutputView {
   readonly element: HTMLElement;
   readonly stdin: HTMLTextAreaElement;
   readonly console: HTMLPreElement;
+  /** The run's phase while it runs (#run-status, data-phase), in the run-log header. */
   readonly status: HTMLElement;
-  private readonly stdinBox: HTMLDetailsElement;
+  /** The panel bar's Input toggle (the workbench puts it there): shows the Input box. */
+  readonly inputToggle: HTMLButtonElement;
+  private readonly stdinBox: HTMLElement;
+  private readonly header: HTMLElement;
+  private readonly fileName: HTMLElement;
   private readonly receipt: HTMLElement;
   private readonly liveForm: HTMLFormElement;
   private readonly liveField: HTMLInputElement;
+  private readonly livePrompt: HTMLElement;
+  private readonly endButton: HTMLButtonElement;
+  /** The prompt's text in the log while the field below repeats it (see liftPrompt). */
+  private promptTail: HTMLElement | null = null;
+  /** The lifted exception's button in the header (after #receipt, so a phone gives it a full line). */
+  private exception: HTMLElement | null = null;
   private readonly pack: HTMLElement;
   private readonly packText: HTMLElement;
   private readonly packProgress: HTMLProgressElement;
@@ -67,7 +99,6 @@ export class OutputView {
   private phaseLabel = "";
   private phaseStarted = 0;
   private tick: ReturnType<typeof setInterval> | undefined;
-  private sawStderr = false;
   onPackDownload: (() => void) | null = null;
 
   constructor() {
@@ -78,15 +109,28 @@ export class OutputView {
       spellcheck: "false",
       autocapitalize: "off",
       autocomplete: "off",
-      placeholder: "Text the program reads first, one value per line",
+      placeholder: "One value per line",
     });
     this.stdinBox = h(
-      "details",
-      { class: "stdin" },
-      h("summary", null, icon("caret-right", "summary-caret"), h("span", null, "Input"), h("span", { class: "hint" }, "given to the program first")),
-      h("label", { class: "visually-hidden", for: "stdin" }, "Program input, given first"),
+      "div",
+      { class: "stdin-box", id: "stdin-box" },
+      h("label", { class: "stdin-label", for: "stdin" }, "Input given to the program first"),
       this.stdin,
     );
+    this.stdinBox.hidden = true;
+    // Escape closes the box from inside it (the toggle then has the focus again).
+    this.stdin.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      this.showInputBox(false);
+    });
+    this.inputToggle = h(
+      "button",
+      { type: "button", class: "btn ghost small input-toggle", id: "input-toggle", "aria-expanded": "false", "aria-controls": "stdin-box", title: "Text the program reads first" },
+      icon("caret-right", "toggle-caret"),
+      "Input",
+    );
+    this.inputToggle.addEventListener("click", () => this.showInputBox(this.inputToggle.getAttribute("aria-expanded") !== "true"));
     this.packText = h("p", { class: "pack-text" });
     this.packProgress = h("progress", { max: "1", value: "0", "aria-label": "C/C++ download" });
     this.packButton = h("button", { type: "button", class: "btn", id: "pack-download" });
@@ -97,9 +141,22 @@ export class OutputView {
     // Focusable for reading once it has something to read (an empty log would be an invisible stop).
     this.console = h("pre", { class: "console", id: "console", role: "log", "aria-label": "Program output" });
     this.hint = h("p", { class: "console-hint" }, "Run a file to see its output here.");
+
+    // The run-log header: one per run, above the log. #run-status and #receipt keep their ids and
+    // data attributes; End input sits right after the waiting words.
+    this.fileName = h("span", { class: "rl-file" });
+    this.status = h("p", { class: "run-status", id: "run-status", "data-phase": "idle" });
+    this.endButton = h("button", { type: "button", class: "end-input", id: "live-input-end", title: "Send end of input (Ctrl+D)" }, "End input");
+    this.endButton.hidden = true;
+    this.endButton.addEventListener("click", () => this.send(null));
     this.receipt = h("div", { class: "receipt", id: "receipt" });
     this.receipt.hidden = true;
+    this.header = h("div", { class: "runlog", id: "runlog" }, this.fileName, this.status, this.endButton, this.receipt);
+    this.header.hidden = true;
 
+    // The field joins the prompt's line. Its name is the prompt the program printed (the visible
+    // label, so it comes first: WCAG 2.5.3) and "Input for the program".
+    this.livePrompt = h("span", { class: "live-prompt", id: "live-prompt", "aria-hidden": "true" });
     this.liveField = h("input", {
       id: "live-input-field",
       class: "live-field",
@@ -108,21 +165,20 @@ export class OutputView {
       autocapitalize: "off",
       spellcheck: "false",
       enterkeyhint: "send",
+      "aria-labelledby": "live-prompt live-label",
     });
-    const send = h("button", { type: "submit", class: "btn" }, icon("paper-plane-right"), "Send");
-    const end = h("button", { type: "button", class: "btn", id: "live-input-end", title: "Send end of input (Ctrl+D)" }, "End input", h("kbd", { class: "keycap" }, "Ctrl D"));
+    const send = h("button", { type: "submit", class: "icon-btn small live-send", "aria-label": "Send", title: "Send (Enter)" }, icon("paper-plane-right"));
     this.liveForm = h(
       "form",
       { class: "live-input", id: "live-input" },
-      h("label", { class: "live-label", for: "live-input-field" }, "Input for the program"),
-      h("div", { class: "live-row" }, this.liveField, send, end),
+      h("span", { class: "visually-hidden", id: "live-label" }, "Input for the program"),
+      h("div", { class: "live-row" }, this.livePrompt, this.liveField, send, h("span", { class: "live-hint" }, "Enter sends. Ctrl+D ends input.")),
     );
     this.liveForm.hidden = true;
     this.liveForm.addEventListener("submit", (e) => {
       e.preventDefault();
       this.send(this.liveField.value);
     });
-    end.addEventListener("click", () => this.send(null));
     this.liveField.addEventListener("keydown", (e) => {
       if (e.key.toLowerCase() === "d" && (e.ctrlKey || e.metaKey) && !e.altKey) {
         e.preventDefault(); // Ctrl+D = end of input, like a terminal
@@ -130,14 +186,25 @@ export class OutputView {
       }
     });
 
-    this.status = h("p", { class: "run-status", id: "run-status", "data-phase": "idle" });
-    const scroller = h("div", { class: "console-scroll", id: "console-scroll" }, this.hint, this.console, this.liveForm, this.receipt);
+    const scroller = h("div", { class: "console-scroll", id: "console-scroll" }, this.hint, this.console, this.liveForm);
     // Following the output is decided when the user scrolls, not by measuring before every append
     // (that measurement laid the whole console out again on every frame of a flood).
     scroller.addEventListener("scroll", () => {
       this.stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 24;
     }, { passive: true });
-    this.element = h("div", { class: "output-view" }, this.stdinBox, this.pack, scroller);
+    this.element = h("div", { class: "output-view" }, this.stdinBox, this.pack, this.header, scroller);
+  }
+
+  /**
+   * Opens or closes the Input box (the panel bar's Input toggle). Closed with the caret inside it
+   * (Escape, or a run starting with nothing typed), the focus goes back to the toggle rather than
+   * to the page. The workbench moves the caret into a box the toggle opened (it opens the panel first).
+   */
+  showInputBox(open: boolean): void {
+    const inside = this.stdinBox.contains(document.activeElement);
+    this.stdinBox.hidden = !open;
+    this.inputToggle.setAttribute("aria-expanded", String(open));
+    if (!open && inside) this.inputToggle.focus();
   }
 
   // ------------------------------------------------------------------ console text
@@ -152,17 +219,24 @@ export class OutputView {
     this.blockChars = 0;
     this.lastChar = "";
     this.stuck = true;
+    this.promptTail = null;
     this.receipt.hidden = true;
     this.receipt.replaceChildren();
     delete this.receipt.dataset.status;
+    this.exception?.remove();
+    this.exception = null;
+    // A run still going keeps its header (its state words); a finished one's goes with its output.
+    if (this.phase === "idle") {
+      this.header.hidden = true;
+      this.header.removeAttribute("data-failed");
+      this.fileName.textContent = "";
+    }
     this.hint.hidden = false;
-    this.sawStderr = false;
   }
 
   /** Program output; batched per frame so a printing loop doesn't relayout on every line. */
   write(stream: "stdout" | "stderr", text: string): void {
     if (!text) return;
-    if (stream === "stderr") this.sawStderr = true;
     this.pending.push({ stream, text });
     this.frame ||= requestAnimationFrame(() => this.flush());
   }
@@ -227,10 +301,14 @@ export class OutputView {
 
   // ------------------------------------------------------------------ run state
 
-  begin(): void {
+  /** A run starts: an empty log, and the header with the file's name and the run's state. */
+  begin(file = ""): void {
     this.clear();
-    if (!this.stdin.value) this.stdinBox.open = false;
+    if (!this.stdin.value) this.showInputBox(false);
     this.hint.hidden = true;
+    this.fileName.textContent = file;
+    this.header.removeAttribute("data-failed");
+    this.header.hidden = false;
     clearInterval(this.tick);
     this.tick = setInterval(() => this.renderPhase(), 100);
   }
@@ -248,18 +326,49 @@ export class OutputView {
       this.status.replaceChildren();
       return;
     }
-    const seconds = this.phase === "waiting" ? "" : `${((performance.now() - this.phaseStarted) / 1000).toFixed(1)} s`;
-    this.status.replaceChildren(h("span", { class: "phase-label" }, this.phaseLabel), seconds ? h("span", { class: "phase-time" }, seconds) : "");
+    // Waiting: "Waiting for input (timer paused)", the time limit doesn't count while it waits.
+    const waiting = this.phase === "waiting";
+    const seconds = waiting ? "" : `${((performance.now() - this.phaseStarted) / 1000).toFixed(1)} s`;
+    this.status.replaceChildren(
+      icon(waiting ? "keyboard" : "arrow-clockwise", "rl-icon"),
+      h("span", { class: "phase-label" }, this.phaseLabel),
+      waiting ? h("span", { class: "rl-muted" }, "(timer paused)") : "",
+      seconds ? h("span", { class: "phase-time" }, seconds) : "",
+    );
   }
 
-  /** The program waits for a line: show the field and put the cursor in it. */
+  /** The program waits for a line: show the field on the prompt's line and put the cursor in it. */
   waitInput(reply: (line: string | null) => void): void {
     this.flush();
     this.reply = reply;
+    const prompt = this.liftPrompt();
+    this.livePrompt.textContent = prompt;
+    this.livePrompt.hidden = !prompt;
     this.liveForm.hidden = false;
+    this.endButton.hidden = false;
     this.liveField.value = "";
     this.liveField.focus({ preventScroll: true });
     this.liveForm.scrollIntoView({ block: "nearest" });
+  }
+
+  /**
+   * The prompt the program just printed ("Name: ", the log's last line, with no newline yet) moves
+   * onto the input line: it stays in the log, for screen readers and in order, but is drawn only
+   * once, before the field, until the answer is echoed after it (endInput shows it again).
+   */
+  private liftPrompt(): string {
+    const last = this.block?.lastElementChild;
+    if (!(last instanceof HTMLElement) || !(last.lastChild instanceof Text)) return "";
+    if (last.dataset.stream !== "stdout" && last.dataset.stream !== "stderr") return "";
+    const text = last.lastChild.data;
+    const cut = text.lastIndexOf("\n") + 1;
+    if (cut >= text.length) return "";
+    const tail = cut > 0 ? last.lastChild.splitText(cut) : last.lastChild;
+    const span = h("span", { class: "prompt-tail lifted" });
+    tail.replaceWith(span);
+    span.append(tail);
+    this.promptTail = span;
+    return tail.data;
   }
 
   get waiting(): boolean {
@@ -277,39 +386,129 @@ export class OutputView {
   }
 
   endInput(): void {
-    const hadFocus = this.liveForm.contains(document.activeElement);
+    const active = document.activeElement;
+    const hadFocus = this.liveForm.contains(active) || active === this.endButton;
     this.reply = null;
     this.liveForm.hidden = true;
+    this.endButton.hidden = true;
+    // The prompt is drawn in the log again, now with the answer echoed after it.
+    this.promptTail?.classList.remove("lifted");
+    this.promptTail = null;
     if (hadFocus) this.console.focus({ preventScroll: true });
   }
 
-  finish(result: RunResult): void {
+  /**
+   * The header after a run: status icon and word, exit code, build and run times; after a failure
+   * the error band and the lifted exception. The duplicate chips of v1 ("error output above") are
+   * gone: the log's bars and its one danger-coloured line show the error output. `errorLine` is the
+   * lifted error's own line in the log (a failed build writes one per compiler error): that line is
+   * the danger one; without it, the last stderr line is (Python's exception, under its traceback).
+   */
+  finish(result: RunResult, lifted: LiftedError | null = null, errorLine?: string): void {
     clearInterval(this.tick);
     this.flush();
     this.endInput();
     this.setPhase("idle", "");
+    const failed = FAILED.has(result.status);
+    if (failed) this.markError(errorLine);
     const tone = STATUS_TONE[result.status];
-    const chips: HTMLElement[] = [h("span", { class: `chip ${tone}`, "data-status-chip": result.status }, icon(TONE_ICON[tone]), statusWord(result))];
-    if (result.exitCode !== null && !(result.status === "error")) chips.push(h("span", { class: "fact" }, `exit code ${result.exitCode}`));
-    if (result.ms.build !== undefined) chips.push(h("span", { class: "fact" }, `built in ${formatMs(result.ms.build)}`));
-    if (result.ms.run !== undefined) chips.push(h("span", { class: "fact" }, `ran in ${formatMs(result.ms.run)}`));
-    if (this.sawStderr) chips.push(h("span", { class: "chip danger subtle" }, icon("warning"), "error output above"));
+    const parts: HTMLElement[] = [h("span", { class: `rl-status ${tone}`, "data-status-chip": result.status }, icon(TONE_ICON[tone]), statusWord(result))];
+    const fact = (text: string) => h("span", { class: "rl-fact" }, text);
+    if (result.exitCode !== null && !(result.status === "error")) parts.push(fact(`exit code ${result.exitCode}`));
+    if (result.ms.build !== undefined) parts.push(fact(`built in ${formatMs(result.ms.build)}`));
+    if (result.ms.run !== undefined) parts.push(fact(`ran in ${formatMs(result.ms.run)}`));
     this.receipt.dataset.status = result.status;
-    this.receipt.replaceChildren(...chips);
+    this.receipt.replaceChildren(...parts);
     this.receipt.hidden = false;
+    this.exception?.remove();
+    this.exception = failed && lifted ? this.exceptionButton(lifted) : null;
+    if (this.exception) this.header.append(this.exception);
+    this.header.toggleAttribute("data-failed", failed);
+    this.header.hidden = false;
     this.hint.hidden = true;
-    this.receipt.scrollIntoView({ block: "nearest" });
   }
 
-  /** Couldn't even start a run (a thrown error): say why in the receipt. */
+  /** The lifted exception: its own danger icon and edge; the words in --text, the place secondary. */
+  private exceptionButton(l: LiftedError): HTMLButtonElement {
+    const button = h(
+      "button",
+      { type: "button", class: "exc", id: "run-exception", title: `Go to ${l.where}` },
+      icon("x-circle", "exc-icon"),
+      h("span", { class: "exc-what" }, h("span", { class: "exc-class" }, l.head), l.rest),
+      h("span", { class: "exc-where" }, l.where),
+      icon("arrow-right", "exc-go"),
+    );
+    button.addEventListener("click", () => l.open());
+    return button;
+  }
+
+  /**
+   * The lifted exception follows its error after the run: new words when its file was renamed, or
+   * gone when the file was deleted or the error is no longer in the build's results. Only a failed
+   * run's header has one to change.
+   */
+  relift(lifted: LiftedError | null): void {
+    if (!this.exception) return;
+    const hadFocus = this.exception.contains(document.activeElement);
+    const next = lifted ? this.exceptionButton(lifted) : null;
+    if (next) this.exception.replaceWith(next);
+    else this.exception.remove();
+    this.exception = next;
+    if (hadFocus) (next ?? this.console).focus();
+  }
+
+  /**
+   * Marks one stderr line of a failed run to be drawn in the danger colour at 600, the rest of the
+   * log (traceback frames, other errors) in its own colour: the first line reading exactly `line`
+   * (the lifted error's), or else the last stderr line (the exception, or the compiler's last error).
+   */
+  private markError(line?: string): void {
+    if (line) {
+      for (const err of this.console.querySelectorAll(".err")) {
+        for (const node of err.childNodes) {
+          if (!(node instanceof Text)) continue;
+          for (let at = node.data.indexOf(line); at >= 0; at = node.data.indexOf(line, at + 1)) {
+            const end = at + line.length;
+            if ((at === 0 || node.data[at - 1] === "\n") && (end === node.data.length || node.data[end] === "\n")) return this.markRange(node, at, end);
+          }
+        }
+      }
+    }
+    let last: Element | null = null;
+    for (let block = this.console.lastElementChild; block && !last; block = block.previousElementSibling) {
+      const errs = block.querySelectorAll(".err");
+      last = errs[errs.length - 1] ?? null;
+    }
+    const node = last?.lastChild;
+    if (!(node instanceof Text)) return;
+    const text = node.data;
+    const end = text.endsWith("\n") ? text.length - 1 : text.length;
+    const start = text.lastIndexOf("\n", end - 1) + 1;
+    if (end > start) this.markRange(node, start, end);
+  }
+
+  /** Wraps characters `start` to `end` of a log text node in the danger line's span. */
+  private markRange(node: Text, start: number, end: number): void {
+    const line = start > 0 ? node.splitText(start) : node;
+    if (end - start < line.data.length) line.splitText(end - start);
+    const mark = h("span", { class: "err-last" });
+    line.replaceWith(mark);
+    mark.append(line);
+  }
+
+  /** Couldn't even start a run (a thrown error): say why in the header. */
   fail(message: string): void {
     clearInterval(this.tick);
     this.flush();
     this.endInput();
     this.setPhase("idle", "");
+    this.exception?.remove();
+    this.exception = null;
     this.receipt.dataset.status = "unavailable";
-    this.receipt.replaceChildren(h("span", { class: "chip danger" }, icon("x-circle"), "Couldn't run"), h("span", { class: "fact" }, message));
+    this.receipt.replaceChildren(h("span", { class: "rl-status danger", "data-status-chip": "unavailable" }, icon("x-circle"), "Couldn't run"), h("span", { class: "rl-fact" }, message));
     this.receipt.hidden = false;
+    this.header.toggleAttribute("data-failed", true);
+    this.header.hidden = false;
   }
 
   /**

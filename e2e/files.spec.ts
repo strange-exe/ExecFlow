@@ -3,7 +3,7 @@ import { crc32, inflateRawSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, setCode, test, treeItem } from "./helpers";
+import { expect, expectActive, importFiles, openApp, openFromTree, setCode, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -138,6 +138,9 @@ test("export, then import into a fresh browser: the same files with the same byt
   const name = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await name.fill("sub/inner.c");
   await name.press("Enter");
+  // The new file opens a moment after Enter (it is stored first). Typing before then went into
+  // crlf.py, the file still shown, and left inner.c empty (WebKit, fix stage, 2026-10-19).
+  await expectActive(page, "sub/inner.c");
   await setCode(page, "int main(void) { return 0; }\n");
   await expect(page.locator('.tab[data-active="true"]')).toHaveAttribute("data-dirty", "false");
   await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });

@@ -113,3 +113,22 @@ test("C++ with several files in its own folder, and a sibling with its own main(
   expect(r.output).toContain("36");
   await expect(page.locator("#console .note")).toContainText("other.cpp");
 });
+
+// The header lifts a failed build's first error; the one line the log draws in the danger colour
+// must be that same error, not the compiler's last one (review B, 2026-10-18).
+test("a C build with two errors lifts the first, and the log's danger line is that same error", async ({ page }, info) => {
+  test.skip(info.project.name !== "chromium", "the log's text is the same in every engine: one compiler download is enough");
+  test.setTimeout(240_000);
+  await openApp(page);
+  await importFiles(page, [{ name: "two.c", text: '#include <stdio.h>\nint main(void) {\n    int a = 1, b = 2;\n    printf("%d\\n", a + b)\n    return x;\n}\n' }]);
+  await openFromTree(page, "two.c");
+  await installCpp(page);
+  const r = await run(page, { timeout: 120_000 });
+  expect(r.status, r.output).toBe("build-failed");
+  await expect(page.locator("#run-exception .exc-where")).toHaveText("two.c, line 4");
+  const last = page.locator("#console .err-last");
+  await expect(last).toHaveCount(1);
+  await expect(last).toHaveText(/^two\.c:4:\d+: error: /);
+  // Every error stays in the log, in order: the second is there, in the log's own colour.
+  await expect(page.locator("#console")).toContainText("two.c:5:");
+});

@@ -59,9 +59,11 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const picker = createThemePicker({ download: (name, text) => downloadText(name, text, "application/json") });
   const codeSize = h("input", { type: "number", id: "set-code-size", min: LIMITS.codeSize[0], max: LIMITS.codeSize[1], step: "1", inputmode: "numeric" });
   const wrap = check("Wrap long lines", s().lineWrapping, undefined, "set-wrap");
-  const ligatures = check("Joined symbols in code", ligaturesOn(), "Draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
+  const suggest = check("Suggestions while typing", s().suggestOnTyping, "Ctrl+Space always shows them.", "set-suggest");
+  const ligatures = check("Joined symbols in code", ligaturesOn(), "Switches code to JetBrains Mono, which draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
   codeSize.addEventListener("change", () => (codeSize.value = String(set({ codeSize: Number(codeSize.value) }).codeSize)));
   wrap.input.addEventListener("change", () => set({ lineWrapping: wrap.input.checked }));
+  suggest.input.addEventListener("change", () => set({ suggestOnTyping: suggest.input.checked }));
   ligatures.input.addEventListener("change", () => setLigatures(ligatures.input.checked));
 
   // ---------------------------------------------------------------- running programs
@@ -123,8 +125,14 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const section = (title: string, ...children: (HTMLElement | null)[]) =>
     h("section", { class: "settings-section" }, h("h3", { class: "section-title" }, title), ...children);
 
+  // Reading order (audit, Settings): the chosen theme, then the editor options, then run limits.
+  // Two heading levels only: the dialog's title, then each section's, and "Colour theme" is both the
+  // first section's heading and the theme radio group's name (no "Appearance" above it).
+  const themeSection = section("Colour theme", picker.element);
+  themeSection.querySelector("h3")!.id = "theme-title";
   body.append(
-    section("Appearance", h("p", { class: "field-label", id: "theme-title" }, "Colour theme"), picker.element, h("div", { class: "field-grid" }, field("Code font size (px)", codeSize)), wrap.row, ligatures.row),
+    themeSection,
+    section("Editor", h("div", { class: "field-grid" }, field("Code font size (px)", codeSize)), wrap.row, suggest.row, ligatures.row),
     section(
       "Running programs",
       h("div", { class: "field-grid" }, field("Time limit (seconds)", timeLimit, "Time waiting for typed input doesn't count."), field("Output limit (thousands)", outputLimit, "Thousands of characters a run may print.")),
@@ -146,6 +154,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       picker.render();
       codeSize.value = String(now.codeSize);
       wrap.input.checked = now.lineWrapping;
+      suggest.input.checked = now.suggestOnTyping;
       ligatures.input.checked = ligaturesOn();
       timeLimit.value = String(now.timeLimitS);
       outputLimit.value = String(now.outputLimitK);

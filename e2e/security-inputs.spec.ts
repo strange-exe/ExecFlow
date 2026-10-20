@@ -195,8 +195,14 @@ test("theme files: a markup name is cleaned, unknown keys and CSS values are ref
   const escaped = `{"name":"x","scheme":"dark","colors":${JSON.stringify(colors)},"${"\\"}u202eevil":1}`;
   await load(escaped);
   await expect(message).toHaveAttribute("data-tone", "error");
-  const inline = await page.evaluate(() => [...document.documentElement.style].map((p) => document.documentElement.style.getPropertyValue(p)));
-  for (const v of inline) expect(v).toMatch(/^#[0-9a-f]{6}$|^\d+px$/i);
+  // Only colours reach the page's inline style: #rrggbb, or #rrggbbaa for the four translucent band
+  // tokens of contract v2 (src/theme/contrast.ts isTokenValue), and pixel sizes.
+  const inline = await page.evaluate(() => [...document.documentElement.style].map((p) => [p, document.documentElement.style.getPropertyValue(p)] as const));
+  expect(inline.length, "the loaded theme's colours are inline").toBeGreaterThan(0);
+  for (const [prop, v] of inline) {
+    const band = ["--active-line", "--error-band", "--selection", "--list-selected"].includes(prop);
+    expect(v, prop).toMatch(band ? /^#[0-9a-f]{6}([0-9a-f]{2})?$/i : /^#[0-9a-f]{6}$|^\d+px$/i);
+  }
   await expectInert(page, dialogs);
   expect(await message.textContent()).not.toContain(RLO);
 });

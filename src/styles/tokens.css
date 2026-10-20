@@ -1,124 +1,268 @@
-/* CodeEditor design tokens: Slate and Signal.
-   The colour values are CodeEditor Slate from src/theme/palettes.ts (a unit test keeps them equal).
-   Palette themes from the picker override the colour variables inline on <html> (src/theme/themes.ts);
-   public/theme-boot.js sets data-theme before the first paint. Components use these variables only. */
+/* CodeEditor design tokens: Deep Field (token contract v2).
+   "Spruce is the product, brass is your hand, red is an error." The colour values are CodeEditor's
+   own palettes from src/theme/palettes.ts (a unit test keeps every block equal to it): Deep Field on
+   :root (the default; no attribute needed) and Slate, the picker theme kept from v1, under
+   [data-palette="slate"]. Palette themes from the picker override the colour variables inline on
+   <html> (src/theme/themes.ts); public/theme-boot.js sets data-theme and data-palette before the
+   first paint. Components use these variables only. */
 
-/* Self-hosted, Latin subset only (@fontsource-variable 5.3.0; SIL Open Font License 1.1). */
+/* Self-hosted, Latin subset only, static instances (WebKit drew the variable files at their
+   default instance): @fontsource/source-sans-3 5.3.1, @fontsource/source-code-pro 5.3.1 and
+   @fontsource/jetbrains-mono 5.3.0, SIL Open Font License 1.1. A face is downloaded only when
+   something on the page uses it, so JetBrains Mono loads only with "Joined symbols" on. */
 @font-face {
-  font-family: "Inter";
+  font-family: "Source Sans 3";
   font-style: normal;
   font-display: swap;
-  font-weight: 100 900;
-  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight: 400;
+  src: url("@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff2") format("woff2");
 }
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("@fontsource/source-sans-3/files/source-sans-3-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/source-sans-3/files/source-sans-3-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Code Pro";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/source-code-pro/files/source-code-pro-latin-400-normal.woff2") format("woff2");
+}
+/* Comments are italic: the real italic, not a slanted copy. */
+@font-face {
+  font-family: "Source Code Pro";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/source-code-pro/files/source-code-pro-latin-400-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Code Pro";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/source-code-pro/files/source-code-pro-latin-600-normal.woff2") format("woff2");
+}
+/* JetBrains Mono: only for "Joined symbols in code" (its ligatures); see data-ligatures below. */
 @font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
   font-display: swap;
-  font-weight: 100 800;
-  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight: 400;
+  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
 }
-/* Comments are italic: the real italic, not a slanted copy. */
 @font-face {
   font-family: "JetBrains Mono";
   font-style: italic;
   font-display: swap;
-  font-weight: 100 800;
-  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-italic.woff2") format("woff2-variations");
+  font-weight: 400;
+  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2") format("woff2");
 }
 
 :root {
   color-scheme: light;
 
-  /* ---- colour contract (src/theme/contrast.ts lists every variable), CodeEditor Slate light ---- */
-  --bg: #fdfdff;
-  --surface: #f6f8fa;
-  --surface-raised: #eff1f5;
-  --border: #d6dbe3;
-  --border-strong: #79818d;
-  --text: #1a2029;
-  --text-muted: #545b67;
-  --gutter-text: #6a727f;
-  --accent: #0062d4;
-  --accent-hover: #0052b4;
-  --on-accent: #ffffff;
-  --accent-ink: #0062d4;
-  --focus: #0062d4;
-  --danger: #be2323;
-  --warning: #915b00;
-  --success: #0a7e3a;
-  --selection: #d6e8ff;
-  --active-line: #f0f4fa;
-  --terminal-bg: #fdfdff;
-  --terminal-fg: #1a2029;
-  --syn-keyword: #7334a9;
-  --syn-string: #207029;
-  --syn-number: #974c00;
-  --syn-comment: #5c646f;
-  --syn-function: #005da1;
-  --syn-type: #7b5600;
-  --syn-variable: #232933;
-  --syn-operator: #246876;
-  --syn-macro: #9d2962;
-  --syn-punctuation: #5e646c;
+  /* ---- colour contract v2 (src/theme/contrast.ts lists every variable), CodeEditor Deep Field light ---- */
+  --bg: #f8fbf9;
+  --surface: #dbeee2;
+  --surface-raised: #fcfefd;
+  --terminal-bg: #e8f1ed;
+  --terminal-fg: #1f2421;
+  --runlog-bg: #f3f8f6;
+  --divider: #adc0b4;
+  --border: #c4d7cb;
+  --border-strong: #6d7a71;
+  --text: #1f2421;
+  --text-secondary: #4b524d;
+  --text-muted: #565d58;
+  --gutter-text: #575e59;
+  --action: #004f3a;
+  --action-hover: #00402f;
+  --on-action: #f8fbf9;
+  --control-on: #004f3a;
+  --focus: #776100;
+  --selection: #cdae5429;
+  --list-selected: #004f3a1c;
+  --active-line: #1f242108;
+  --location: #004f3a;
+  --danger: #ac262c;
+  --warning: #a05300;
+  --success: #377531;
+  --info: #2a6d9c;
+  --error-band: #ff6e823b;
+  --call-site: #ac262c;
+  --input-echo: #776100;
+  --link: #044a37;
+  --brand: #adc0b4;
+  --on-brand: #1f2421;
+  --syn-keyword: #713882;
+  --syn-string: #2b652f;
+  --syn-number: #8d400c;
+  --syn-comment: #535b54;
+  --syn-function: #265496;
+  --syn-type: #066166;
+  --syn-variable: #272d29;
+  --syn-operator: #485966;
+  --syn-macro: #8f305a;
+  --syn-punctuation: #545b56;
 
-  /* ---- derived (src/theme/contrast.ts UI_MIXES; script-checked as drawn over each surface) ---- */
-  --hover: color-mix(in srgb, var(--text) 7%, transparent);
-
-  /* ---- type: Inter for the UI, JetBrains Mono for code and output; minor third from 14 px ---- */
-  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-code: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --code-size: 14px; /* user setting, 12 to 20 */
-  --text-xs: 0.75rem;    /* 12: captions, status bar, keycaps */
-  --text-sm: 0.875rem;   /* 14: body and controls */
-  --text-md: 1.05rem;    /* 16.8: panel titles */
-  --text-lg: 1.25rem;    /* 20: dialog titles */
-  --text-xl: 1.5rem;     /* 24: empty-state heading */
-  --tracking-tight: -0.012em;
-
-  /* ---- space (4 px base), shape, depth, motion ---- */
-  --s1: 4px;
-  --s2: 8px;
-  --s3: 12px;
-  --s4: 16px;
-  --s5: 24px;
-  --s6: 32px;
-  --r-control: 6px;
-  --r-panel: 8px;
-  --r-key: 4px;
-  --ring: 2px solid var(--focus);
-  --target: 24px;        /* WCAG 2.2 minimum, everywhere */
-  --tool: 28px;          /* toolbar icon buttons */
-  --primary-h: 32px;     /* Run, Create, Connect on desktop */
-  /* One soft shadow, light mode only, for menus and dialogs (never panels). */
-  --shadow-pop: 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.08);
-  /* Behind dialogs and the narrow-screen file drawer. */
-  --scrim: rgb(15 23 42 / 0.45);
-  --dur: 140ms;
+  /* Behind dialogs and the narrow-screen file drawer (the field, veiled). */
+  --scrim: rgb(21 42 34 / 0.55);
+  /* One soft shadow, light mode only, for menus, tooltips and dialogs (never regions). */
+  --shadow-pop: 0 1px 2px rgb(21 42 34 / 0.08), 0 8px 24px rgb(21 42 34 / 0.10);
+  /* The status bar's top edge: a 2 px spruce rule in Deep Field light only (block 6 below). */
+  --status-edge: inset 0 2px 0 var(--location);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  /* CodeEditor Deep Field dark: the workbench sits in one spruce field. */
+  --bg: #13201b;
+  --surface: #152a22;
+  --surface-raised: #1e322a;
+  --terminal-bg: #0d1814;
+  --terminal-fg: #e9eae4;
+  --runlog-bg: #0d211a;
+  --divider: #3b5047;
+  --border: #2e423a;
+  --border-strong: #6d8178;
+  --text: #e9eae4;
+  --text-secondary: #bdbfb8;
+  --text-muted: #abaea5;
+  --gutter-text: #999d95;
+  --action: #b4dccb;
+  --action-hover: #caecde;
+  --on-action: #0d1814;
+  --control-on: #b4dccb;
+  --focus: #e0c262;
+  --selection: #b89c402b;
+  --list-selected: #b4dccb1c;
+  --active-line: #e9eae40a;
+  --location: #b4dccb;
+  --danger: #fc867f;
+  --warning: #faa969;
+  --success: #85cc7e;
+  --info: #7eb8e6;
+  --error-band: #ba293b5c;
+  --call-site: #fc867f;
+  --input-echo: #e0c262;
+  --link: #a8d7c4;
+  --brand: #3b5047;
+  --on-brand: #e9eae4;
+  --syn-keyword: #d9a9e8;
+  --syn-string: #99d69a;
+  --syn-number: #f6ae86;
+  --syn-comment: #afb3a8;
+  --syn-function: #9cc4f8;
+  --syn-type: #8bd7da;
+  --syn-variable: #dfe0d9;
+  --syn-operator: #adc1cf;
+  --syn-macro: #f2a3c0;
+  --syn-punctuation: #b0b2aa;
+  --scrim: rgb(13 24 20 / 0.70);
+  /* Dark mode has no shadows: grounds and lifted layers carry depth. */
+  --shadow-pop: none;
+}
+
+:root[data-palette="slate"] {
+  /* CodeEditor Slate light (the picker theme kept from v1, on contract v2). */
+  --bg: #fdfdff;
+  --surface: #f6f8fa;
+  --surface-raised: #eff1f5;
+  --terminal-bg: #fdfdff;
+  --terminal-fg: #1a2029;
+  --runlog-bg: #eff1f5;
+  --divider: #d6dbe3;
+  --border: #d6dbe3;
+  --border-strong: #79818d;
+  --text: #1a2029;
+  --text-secondary: #373e48;
+  --text-muted: #545b67;
+  --gutter-text: #5a616c;
+  --action: #0062d4;
+  --action-hover: #0052b4;
+  --on-action: #fdfdff;
+  --control-on: #0062d4;
+  --focus: #0062d4;
+  --selection: #d6e8ff;
+  --list-selected: #1a20291a;
+  --active-line: #1a202908;
+  --location: #0062d4;
+  --danger: #a21e1e;
+  --warning: #915b00;
+  --success: #0a7e3a;
+  --info: #545b67;
+  --error-band: #be232324;
+  --call-site: #be2323;
+  --input-echo: #1a2029;
+  --link: #0062d4;
+  --brand: #1a2029;
+  --on-brand: #fdfdff;
+  --syn-keyword: #7334a9;
+  --syn-string: #1d6525;
+  --syn-number: #884400;
+  --syn-comment: #4e555e;
+  --syn-function: #005899;
+  --syn-type: #755200;
+  --syn-variable: #232933;
+  --syn-operator: #205e6a;
+  --syn-macro: #9d2962;
+  --syn-punctuation: #50555c;
+  --scrim: rgb(15 23 42 / 0.45);
+  --shadow-pop: 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.08);
+}
+
+:root[data-palette="slate"][data-theme="dark"] {
+  /* CodeEditor Slate dark. */
   --bg: #0e1217;
   --surface: #14171d;
   --surface-raised: #1b1f27;
+  --terminal-bg: #0b0e14;
+  --terminal-fg: #e9ebef;
+  --runlog-bg: #1b1f27;
+  --divider: #313740;
   --border: #313740;
   --border-strong: #676f7c;
   --text: #e9ebef;
+  --text-secondary: #caced6;
   --text-muted: #abb1bc;
-  --gutter-text: #858d99;
-  --accent: #60a7ff;
-  --accent-hover: #85baff;
-  --on-accent: #0e1217;
-  --accent-ink: #60a7ff;
+  --gutter-text: #8b939e;
+  --action: #60a7ff;
+  --action-hover: #85baff;
+  --on-action: #0e1217;
+  --control-on: #60a7ff;
   --focus: #60a7ff;
+  --selection: #193a62;
+  --list-selected: #e9ebef1a;
+  --active-line: #e9ebef08;
+  --location: #60a7ff;
   --danger: #f97770;
   --warning: #f3b94c;
   --success: #64cf80;
-  --selection: #193a62;
-  --active-line: #171c23;
-  --terminal-bg: #0b0e14;
-  --terminal-fg: #e9ebef;
+  --info: #abb1bc;
+  --error-band: #ba293b5c;
+  --call-site: #f97770;
+  --input-echo: #e9ebef;
+  --link: #60a7ff;
+  --brand: #e9ebef;
+  --on-brand: #0e1217;
   --syn-keyword: #c49bf3;
   --syn-string: #90d281;
   --syn-number: #f6ab6b;
@@ -129,16 +273,79 @@
   --syn-operator: #91c8d6;
   --syn-macro: #ea91bc;
   --syn-punctuation: #a5abb5;
-  /* Dark mode has no shadows: the surface ladder and hairlines carry depth. */
-  --shadow-pop: none;
   --scrim: rgb(0 0 0 / 0.6);
+  --shadow-pop: none;
 }
 
-/* Touch screens: primary actions 44 px tall, every other target 44 px where it fits. */
+/* Every theme but Deep Field light: the status bar's top edge is the 1 px region divider. */
+:root[data-palette], :root[data-theme="dark"] { --status-edge: inset 0 1px 0 var(--divider); }
+
+:root {
+  /* ---- derived (src/theme/contrast.ts UI_MIXES; script-checked as drawn over each surface) ---- */
+  --hover: color-mix(in srgb, var(--text) 7%, transparent);
+
+  /* ---- type: Source Sans 3 for the interface, Source Code Pro for code, the log and file names ---- */
+  --font-ui: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "Source Code Pro", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-name: var(--font-code);
+  /* Three chrome tiers, each a size step and a colour step (text, text-secondary, text-muted). */
+  --fs-hint: 13px;       /* tier 3: hints, keycaps, field notes, status bar facts */
+  --lh-hint: 18px;
+  --fs-2: 14px;          /* tier 2: secondary chrome, file names in the mono */
+  --lh-2: 20px;
+  --fs-1: 15px;          /* tier 1: body and controls */
+  --lh-1: 20px;
+  --lh-prose: 23px;
+  --fs-section: 18px;    /* dialog sections, the fieldset legend */
+  --lh-section: 24px;
+  --fs-title: 22px;      /* dialog titles */
+  --lh-title: 28px;
+  --fs-display: 26px;    /* the empty-state heading only */
+  --lh-display: 30px;
+  --code-size: 15px;     /* user setting, 12 to 20 */
+  --w-label: 500;
+  --w-strong: 600;
+  --tracking-title: -0.01em;
+
+  /* ---- space (4 px base), shape, heights, motion ---- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --r-key: 4px;          /* marks: keycaps, counts, the brand tile */
+  --r-control: 8px;      /* every control, menus, tooltips */
+  --r-dialog: 12px;      /* dialogs */
+  --ring: 2px solid var(--focus);
+  --h-topbar: 40px;
+  --h-head: 40px;
+  --h-panel-bar: 36px;
+  --h-runlog: 32px;
+  --h-status: 24px;
+  --h-switch: 44px;
+  --h-row: 28px;
+  --target: 24px;        /* WCAG 2.2 minimum, everywhere */
+  --tool: 28px;          /* toolbar icon buttons */
+  --primary-h: 32px;     /* Run, Create, Connect on desktop */
+  --field-h: 32px;
+  --dur: 120ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Code shows exactly the characters typed unless "Joined symbols in code" is on: then the code font
+   is JetBrains Mono, which draws != and -> as single shapes (Source Code Pro has no such ligatures). */
+:root[data-ligatures="on"] { --font-code: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; }
+
+/* Touch screens and narrow windows: primary actions 44 px tall, every other target 44 px where it fits. */
 @media (pointer: coarse), (max-width: 899px) {
   :root {
+    --h-topbar: 48px;
+    --h-panel-bar: 44px;
+    --h-row: 44px;
     --tool: 44px;
     --primary-h: 44px;
+    --field-h: 44px;
   }
 }
 
@@ -152,9 +359,9 @@
   }
 }
 
-/* Code shows exactly the characters typed: JetBrains Mono's ligatures (!= as one symbol, -> as an
-   arrow) are off unless chosen in Settings. Set on every element, because the `font` shorthand
-   resets this property wherever it is used. */
+/* Code shows exactly the characters typed: ligatures (!= as one symbol, -> as an arrow) are off
+   unless chosen in Settings. Set on every element, because the `font` shorthand resets this
+   property wherever it is used. */
 :root:not([data-ligatures="on"]) *,
 :root:not([data-ligatures="on"]) *::before,
 :root:not([data-ligatures="on"]) *::after { font-variant-ligatures: none; }

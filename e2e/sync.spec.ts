@@ -3,7 +3,7 @@
 // data-sync-state, never on wording; the fake's own files and commits are the proof.
 import { gzipSync } from "node:zlib";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, reloadApp, setCode, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, reloadApp, responseBodies, setCode, test, treeItem } from "./helpers";
 import {
   answer,
   connectGitHub,
@@ -61,9 +61,13 @@ test.describe("an empty repository", () => {
     // The first file starts the repository (Contents API), the rest arrive as one commit.
     expect(gh.fake.writes().filter((w) => w.startsWith("PUT /contents/"))).toEqual(["PUT /contents/main.py"]);
     expect(gh.fake.writes().filter((w) => w.startsWith("PATCH /git/refs/heads/main"))).toHaveLength(1);
+    // The breadcrumb names the repository instead of the workspace: one name for one thing.
     await expect(page.locator("#repo-name")).toHaveText("me/workspace");
+    await expect(page.locator("#ws-name")).toBeHidden();
+    // Sync state is shown once, in the top bar (layout v2: the status bar's copy, #status-sync, is
+    // gone); the workbench and the sync screens both keep its count there.
     await expect(syncStatus(page)).toHaveAttribute("data-unsynced", "0");
-    await expect(page.locator("#status-sync")).toHaveAttribute("data-unsynced", "0");
+    await expect(page.locator("#status-sync")).toHaveCount(0);
     await expectNoToken(page, gh);
   });
 
@@ -235,6 +239,10 @@ test("offline: an edit waits and says so, then syncs once the connection is back
   // worker helper chunk. Offline before that (and without the blocked service worker's cache) that
   // download fails, which is the network going away, not sync: let it settle first.
   await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", /^(ready|failed)$/, { timeout: 60_000 });
+  // The same for a font face first needed after the edit: an unsaved tab's name is italic in the
+  // file-name (code) font since layout v2, and with the service worker blocked that face can't
+  // arrive once the network is gone.
+  await page.evaluate(() => document.fonts.load("italic 400 15px 'Source Code Pro'"));
   await page.waitForLoadState("networkidle");
   await context.setOffline(true);
   await setCode(page, "print('offline edit')\n");
@@ -242,10 +250,10 @@ test("offline: an edit waits and says so, then syncs once the connection is back
   await saveKey(page);
   await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "offline");
   await expect(syncStatus(page)).toHaveAccessibleName(/^Offline: changes are saved here and will sync later/);
-  // A new file counts as unsynced too (top bar and status bar).
+  // A new file counts as unsynced too (the top bar's sync status, the one place it is shown).
   await importFiles(page, [{ name: "new.py", text: "N = 1\n" }]);
   await expect(syncStatus(page)).toHaveAttribute("data-unsynced", "2");
-  await expect(page.locator("#status-sync")).toHaveAttribute("data-unsynced", "2");
+  await expect(syncStatus(page)).toHaveAccessibleName(/^Offline: changes are saved here and will sync later/);
   expect(gh.seen).toHaveLength(sent);
   await context.setOffline(false);
   await waitSync(page, n, "synced");
@@ -337,19 +345,16 @@ test.describe("remembering the token", () => {
 });
 
 test("the sync screens load only when needed: not on a first visit, but with the Connect dialog", async ({ page }) => {
-  const chunks: Promise<{ path: string; gzip: number; sync: boolean }>[] = [];
-  page.on("response", (r) => {
-    const path = new URL(r.url()).pathname;
-    if (!/^\/assets\/[^/]+\.js$/.test(path)) return;
-    chunks.push(r.body().then((b) => ({ path, gzip: gzipSync(b).length, sync: b.includes("X-GitHub-Api-Version") })));
-  });
+  // The click below also prefetches the editor chunk (the pointer is over the empty workspace), whose
+  // body can still be arriving when the test ends: responseBodies keeps that read from failing it.
+  const chunks = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ path, gzip: gzipSync(b).length, sync: b.includes("X-GitHub-Api-Version") }));
   await routeGitHub(page);
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
-  expect((await Promise.all(chunks)).filter((c) => c.sync)).toEqual([]);
+  expect((await chunks.settled()).filter((c) => c.sync)).toEqual([]);
   await page.locator('[data-empty="workspace"]').getByRole("button", { name: "Connect GitHub" }).click();
   await expect(page.locator("#connect-dialog")).toBeVisible();
-  const sync = (await Promise.all(chunks)).filter((c) => c.sync);
+  const sync = (await chunks.settled()).filter((c) => c.sync);
   expect(sync).toHaveLength(1);
   test.info().annotations.push({ type: "sync chunk gzip", description: `${sync[0].path} ${sync[0].gzip} bytes` });
   expect(sync[0].gzip).toBeLessThan(40 * 1024);

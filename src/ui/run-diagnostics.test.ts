@@ -17,7 +17,10 @@ const raised: ToolDiagnostic = {
 describe("callSiteMarks", () => {
   it("marks the call in the file that ran, not the error's own line", () => {
     expect(callSiteMarks([raised])).toEqual([
-      { ...at("main.py", 4), severity: "info", source: "python", code: "ZeroDivisionError", message: "This call led to ZeroDivisionError in calc.py, line 2." },
+      {
+        ...at("main.py", 4), severity: "info", source: "python", code: "ZeroDivisionError",
+        message: "This call led to ZeroDivisionError in calc.py, line 2.", role: "call-site",
+      },
     ]);
   });
 

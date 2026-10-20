@@ -2,7 +2,7 @@
 // Python and an installed C/C++ pack keep working offline (from the functional review, 2026-10-17).
 import { readFileSync } from "node:fs";
 import type { BrowserContext, Page } from "@playwright/test";
-import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, test, tolerating } from "./helpers";
+import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test, tolerating } from "./helpers";
 
 test.setTimeout(240_000);
 
@@ -43,6 +43,51 @@ test("after the first visit the app opens offline and runs Python with live inpu
 /** The folder vite.config.ts serves Pyodide from (version plus heap cap). */
 const PYODIDE_DIR = `${JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version}-heap${JSON.parse(readFileSync("scripts/python-heap.json", "utf8")).mb}`;
 const PROBE_WHEEL = `/pyodide/${PYODIDE_DIR}/offline-probe-0-py3-none-any.whl`;
+
+// Section 3 of the research doc: keywords, snippets and the Tier 1 data work offline, because they
+// are in or beside the precached CodeMirror chunk. From the behaviour review's probe (RB-3, 2026-10-19).
+test("after the first visit, suggestions work offline: keywords, library names and your own names", async ({ page, context }) => {
+  const editor = page.locator(".cm-editor");
+  const option = (label: string) =>
+    page.getByRole("listbox", { name: "Suggestions" }).getByRole("option")
+      .filter({ has: page.locator(".cm-completionLabel", { hasText: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) });
+  const offers = async (prefix: string, typed: string, label: string) => {
+    await setCode(page, prefix);
+    // The files a suggestion needs are read once typing pauses; this test is about offline, not timing.
+    await expect(editor).toHaveAttribute("data-index", "ready");
+    await page.keyboard.type(typed);
+    await expect(editor).toHaveAttribute("data-completion", "active");
+    await expect(option(label).first(), `${typed} offers ${label} offline`).toBeVisible();
+    await page.keyboard.press("Escape");
+  };
+  await openApp(page);
+  await page.locator('.starter[data-language="python"]').click();
+  await importFiles(page, [
+    { name: "helpers.py", text: "def greet(name):\n    return name\n" },
+    { name: "main.c", text: '#include "util.h"\nint main(void) {\n    return 0;\n}\n' },
+    { name: "util.h", text: "int helper(int x);\n" },
+  ]);
+  await openFromTree(page, "main.py");
+  await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+  await serviceWorkerActive(page);
+  await goOffline(page, context);
+  await openFromTree(page, "main.py");
+  await showView(page, "code");
+  // Neither data chunk was ever needed online after the reload: both come from the precache.
+  await expect(editor).toHaveAttribute("data-library", "ready");
+  await offers("", "pri", "print");
+  await offers("", "import ma", "math");
+  await offers("import math\n", "math.sq", "sqrt");
+  await offers("import helpers\n", "helpers.gr", "greet");
+
+  await openFromTree(page, "main.c");
+  await showView(page, "code");
+  await expect(editor).toHaveAttribute("data-library", "ready");
+  await offers("", "#include <st", "stdio.h");
+  await offers('#include "util.h"\nint main(void) {\n    ', "pri", "printf");
+  await offers('#include "util.h"\nint main(void) {\n    ', "hel", "helper");
+  await context.setOffline(false);
+});
 
 test.describe("a package never downloaded, first imported offline", () => {
   test.use(

@@ -1,7 +1,7 @@
 // Renaming and deleting files that are open, and typing just before a reload or a closed tab, as a
 // student does it (from the functional review, 2026-10-17).
 import type { Page } from "@playwright/test";
-import { expect, openApp, openFromTree, reloadApp, run, setCode, test, treeItem } from "./helpers";
+import { expect, openApp, openFromTree, openInputBox, reloadApp, run, setCode, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -127,7 +127,8 @@ test("closing the tab right after typing keeps the typing for the next visit", a
 test("text given up front in Input is read first, then the program asks for the rest live", async ({ page }) => {
   await openApp(page);
   await newFile(page, "two.py", "a = input('a? ')\nb = input('b? ')\nprint('sum', int(a) + int(b))\n");
-  await page.locator("#stdin").evaluate((el) => ((el.closest("details") as HTMLDetailsElement).open = true));
+  // The Input box sits behind the panel bar's Input toggle.
+  await openInputBox(page);
   await page.locator("#stdin").fill("40\n");
   const r = await run(page, { input: ["2"], timeout: 60_000 });
   expect(r.status, r.output).toBe("ok");

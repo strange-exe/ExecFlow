@@ -1,5 +1,7 @@
-// Colour palettes. "CodeEditor Slate" is the app's own theme (Slate and Signal); tokens.css paints the
-// same values before any script runs (a test keeps the two equal).
+// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). CodeEditor's own two
+// palettes, Deep Field (the default) and Slate, are painted by tokens.css before any script runs (a
+// unit test keeps the two files equal); both pass every pair as designed, so the guard never moves
+// them.
 //
 // The other palettes are Pocket Run's editor themes (its src/themes.ts, same author, MIT), kept as
 // their 16 base colours and expanded onto CodeEditor's variable contract
@@ -19,33 +21,81 @@
 //   Solarized         ethanschoonover.com/solarized, altercation/vim-colors-solarized (MIT)
 // Where an official colour misses a contrast pair, readablePalette() lifts it at run time.
 
-import { lift, luminance, over, type Palette } from "./contrast";
+import { lift, luminance, over, type Palette, type Scheme } from "./contrast";
 
-export type Scheme = "light" | "dark";
+export type { Scheme };
 
-/** CodeEditor Slate, light and dark. */
-export const SLATE: Record<Scheme, Palette> = {
+/**
+ * CodeEditor Deep Field, light and dark: three 12-step OKLCH scales per mode (sage-stone neutral,
+ * spruce anchor, brass accent), gamut-mapped to sRGB. "Spruce is the product, brass is your hand,
+ * red is an error": the action, location bars and links are spruce; focus, the caret, the text
+ * selection and typed input are brass; red marks errors only. The four band tokens are translucent
+ * (#rrggbbaa) so a selection shows through the cursor line and the error line.
+ */
+export const DEEP_FIELD: Record<Scheme, Palette> = {
   light: {
-    bg: "#fdfdff", surface: "#f6f8fa", "surface-raised": "#eff1f5", border: "#d6dbe3", "border-strong": "#79818d",
-    text: "#1a2029", "text-muted": "#545b67", "gutter-text": "#6a727f",
-    accent: "#0062d4", "accent-hover": "#0052b4", "on-accent": "#ffffff", "accent-ink": "#0062d4", focus: "#0062d4",
-    danger: "#be2323", warning: "#915b00", success: "#0a7e3a",
-    selection: "#d6e8ff", "active-line": "#f0f4fa", "terminal-bg": "#fdfdff", "terminal-fg": "#1a2029",
-    "syn-keyword": "#7334a9", "syn-string": "#207029", "syn-number": "#974c00", "syn-comment": "#5c646f",
-    "syn-function": "#005da1", "syn-type": "#7b5600", "syn-variable": "#232933", "syn-operator": "#246876",
-    "syn-macro": "#9d2962", "syn-punctuation": "#5e646c",
+    bg: "#f8fbf9", surface: "#dbeee2", "surface-raised": "#fcfefd", "terminal-bg": "#e8f1ed", "terminal-fg": "#1f2421", "runlog-bg": "#f3f8f6", divider: "#adc0b4", border: "#c4d7cb", "border-strong": "#6d7a71",
+    text: "#1f2421", "text-secondary": "#4b524d", "text-muted": "#565d58", "gutter-text": "#575e59",
+    action: "#004f3a", "action-hover": "#00402f", "on-action": "#f8fbf9", "control-on": "#004f3a",
+    focus: "#776100", selection: "#cdae5429", "list-selected": "#004f3a1c", "active-line": "#1f242108", location: "#004f3a",
+    danger: "#ac262c", warning: "#a05300", success: "#377531", info: "#2a6d9c",
+    "error-band": "#ff6e823b", "call-site": "#ac262c", "input-echo": "#776100",
+    link: "#044a37", brand: "#adc0b4", "on-brand": "#1f2421",
+    "syn-keyword": "#713882", "syn-string": "#2b652f", "syn-number": "#8d400c", "syn-comment": "#535b54", "syn-function": "#265496",
+    "syn-type": "#066166", "syn-variable": "#272d29", "syn-operator": "#485966", "syn-macro": "#8f305a", "syn-punctuation": "#545b56",
   },
   dark: {
-    bg: "#0e1217", surface: "#14171d", "surface-raised": "#1b1f27", border: "#313740", "border-strong": "#676f7c",
-    text: "#e9ebef", "text-muted": "#abb1bc", "gutter-text": "#858d99",
-    accent: "#60a7ff", "accent-hover": "#85baff", "on-accent": "#0e1217", "accent-ink": "#60a7ff", focus: "#60a7ff",
-    danger: "#f97770", warning: "#f3b94c", success: "#64cf80",
-    selection: "#193a62", "active-line": "#171c23", "terminal-bg": "#0b0e14", "terminal-fg": "#e9ebef",
-    "syn-keyword": "#c49bf3", "syn-string": "#90d281", "syn-number": "#f6ab6b", "syn-comment": "#a1acbb",
-    "syn-function": "#71bfff", "syn-type": "#e9c769", "syn-variable": "#dadee5", "syn-operator": "#91c8d6",
-    "syn-macro": "#ea91bc", "syn-punctuation": "#a5abb5",
+    bg: "#13201b", surface: "#152a22", "surface-raised": "#1e322a", "terminal-bg": "#0d1814", "terminal-fg": "#e9eae4", "runlog-bg": "#0d211a", divider: "#3b5047", border: "#2e423a", "border-strong": "#6d8178",
+    text: "#e9eae4", "text-secondary": "#bdbfb8", "text-muted": "#abaea5", "gutter-text": "#999d95",
+    action: "#b4dccb", "action-hover": "#caecde", "on-action": "#0d1814", "control-on": "#b4dccb",
+    focus: "#e0c262", selection: "#b89c402b", "list-selected": "#b4dccb1c", "active-line": "#e9eae40a", location: "#b4dccb",
+    danger: "#fc867f", warning: "#faa969", success: "#85cc7e", info: "#7eb8e6",
+    "error-band": "#ba293b5c", "call-site": "#fc867f", "input-echo": "#e0c262",
+    link: "#a8d7c4", brand: "#3b5047", "on-brand": "#e9eae4",
+    "syn-keyword": "#d9a9e8", "syn-string": "#99d69a", "syn-number": "#f6ae86", "syn-comment": "#afb3a8", "syn-function": "#9cc4f8",
+    "syn-type": "#8bd7da", "syn-variable": "#dfe0d9", "syn-operator": "#adc1cf", "syn-macro": "#f2a3c0", "syn-punctuation": "#b0b2aa",
   },
 };
+
+/**
+ * CodeEditor Slate (v1's own theme, "Slate and Signal"), kept as a picker theme on contract v2.
+ * Every v1 hex is kept where its role still exists (the azure Run, focus, links, location bars and
+ * calls; the slate panels; its syntax colours). Forced changes only: a translucent active line (ink
+ * at 3%, so a selection on the cursor line shows), the light Run label #fdfdff instead of pure
+ * white, and its own error band (#be2323 at 14% light, a deeper red #ba293b at 36% dark). The new
+ * roles follow expandBase()'s rules. Then the guard lifted what missed a pair on the new stacked
+ * grounds, and the result is frozen here: light danger #be2323 to #a21e1e, gutter-text #6a727f to
+ * #5a616c, and seven syntax colours by small steps (string, number, comment, function, type,
+ * operator, punctuation); dark gutter-text #858d99 to #8b939e.
+ */
+export const SLATE: Record<Scheme, Palette> = {
+  light: {
+    bg: "#fdfdff", surface: "#f6f8fa", "surface-raised": "#eff1f5", "terminal-bg": "#fdfdff", "terminal-fg": "#1a2029", "runlog-bg": "#eff1f5", divider: "#d6dbe3", border: "#d6dbe3", "border-strong": "#79818d",
+    text: "#1a2029", "text-secondary": "#373e48", "text-muted": "#545b67", "gutter-text": "#5a616c",
+    action: "#0062d4", "action-hover": "#0052b4", "on-action": "#fdfdff", "control-on": "#0062d4",
+    focus: "#0062d4", selection: "#d6e8ff", "list-selected": "#1a20291a", "active-line": "#1a202908", location: "#0062d4",
+    danger: "#a21e1e", warning: "#915b00", success: "#0a7e3a", info: "#545b67",
+    "error-band": "#be232324", "call-site": "#be2323", "input-echo": "#1a2029",
+    link: "#0062d4", brand: "#1a2029", "on-brand": "#fdfdff",
+    "syn-keyword": "#7334a9", "syn-string": "#1d6525", "syn-number": "#884400", "syn-comment": "#4e555e", "syn-function": "#005899",
+    "syn-type": "#755200", "syn-variable": "#232933", "syn-operator": "#205e6a", "syn-macro": "#9d2962", "syn-punctuation": "#50555c",
+  },
+  dark: {
+    bg: "#0e1217", surface: "#14171d", "surface-raised": "#1b1f27", "terminal-bg": "#0b0e14", "terminal-fg": "#e9ebef", "runlog-bg": "#1b1f27", divider: "#313740", border: "#313740", "border-strong": "#676f7c",
+    text: "#e9ebef", "text-secondary": "#caced6", "text-muted": "#abb1bc", "gutter-text": "#8b939e",
+    action: "#60a7ff", "action-hover": "#85baff", "on-action": "#0e1217", "control-on": "#60a7ff",
+    focus: "#60a7ff", selection: "#193a62", "list-selected": "#e9ebef1a", "active-line": "#e9ebef08", location: "#60a7ff",
+    danger: "#f97770", warning: "#f3b94c", success: "#64cf80", info: "#abb1bc",
+    "error-band": "#ba293b5c", "call-site": "#f97770", "input-echo": "#e9ebef",
+    link: "#60a7ff", brand: "#e9ebef", "on-brand": "#0e1217",
+    "syn-keyword": "#c49bf3", "syn-string": "#90d281", "syn-number": "#f6ab6b", "syn-comment": "#a1acbb", "syn-function": "#71bfff",
+    "syn-type": "#e9c769", "syn-variable": "#dadee5", "syn-operator": "#91c8d6", "syn-macro": "#ea91bc", "syn-punctuation": "#a5abb5",
+  },
+};
+
+/** CodeEditor's own palettes (painted by tokens.css), by name. */
+export type OwnPalette = "deep-field" | "slate";
+export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { "deep-field": DEEP_FIELD, slate: SLATE };
 
 /** Pocket Run's theme-file colours (a Pocket Run theme file loads here unchanged). */
 export const BASE_TOKENS = [
@@ -101,42 +151,65 @@ export const POCKET_THEMES: readonly PaletteTheme[] = [
   { id: "solarized-light", name: "Solarized Light", scheme: "light", group: "more", base: b("#fdf6e3", "#fdf6e3", "#eee8d5", "#657b83", "#93a1a1", "#eee8d5", "#268bd2", "#002b36", "#859900", "#dc322f", "#b58900", "#859900", "#2aa198", "#2aa198", "#93a1a1", "#268bd2") },
 ];
 
+/** "#rrggbb" plus an alpha byte, for the four band tokens that may be translucent. */
+const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(16).padStart(2, "0")}`;
+
 /**
- * Maps Pocket Run's 16 colours onto CodeEditor's contract. Pocket Run's "sheet" is the editor
- * (CodeEditor's --bg), "paper" the page behind it (the sidebar here), "bar" its header strips.
- * The colours Pocket Run doesn't have are derived the way CSS color-mix() would (over()):
- *   accent-hover   accent moved 15% away from its label (darker under a white label, lighter under a dark one)
- *   selection      18% accent over the editor; active-line 4% text over the editor
- *   border-strong  80% muted over the editor, lifted to 3:1
- *   syn-function   = syn-def (Pocket Run colours calls and definitions with it)
- *   syn-type/macro = syn-keyword (most of these themes colour int/char and #include like keywords)
- *   syn-variable/operator = text, syn-punctuation = muted
- * readablePalette() then lifts anything still under its contrast pair.
+ * Maps Pocket Run's 16 colours onto CodeEditor's contract v2. Pocket Run's "sheet" is the editor
+ * (CodeEditor's --bg), "paper" the page behind it (the sidebar here, and the program's terminal),
+ * "bar" its header strips (floating layers and the run-log header). The colours Pocket Run doesn't
+ * have are derived the way CSS color-mix() would (over()):
+ *   action, location, control-on   = accent; action-hover: accent moved 15% away from its label
+ *   link            accent lifted to 4.5:1 on the three panels
+ *   focus           = ink (distinct from a chromatic accent, and 3:1 or more everywhere)
+ *   text-secondary  ink 50% over muted, lifted to 4.5:1 on the three panels; info = muted
+ *   selection       18% accent over the editor (opaque); active-line ink at 4% alpha;
+ *   list-selected   ink at 10% alpha; error-band err at 14% alpha; call-site = err
+ *   input-echo, brand = ink; on-brand = sheet; divider = rule
+ *   border-strong   80% muted over the editor, lifted to 3:1
+ *   syn-function    = syn-def (Pocket Run colours calls and definitions with it)
+ *   syn-type/macro  = syn-keyword (most of these themes colour int/char and #include like keywords)
+ *   syn-variable/operator = ink, syn-punctuation = muted
+ * readablePalette() then lifts anything still under its contrast pair. The theme-file format does
+ * not change.
  */
 export function expandBase(base: BaseColors): Palette {
   const bg = base.sheet;
+  const panels = [bg, base.paper, base.bar];
   return {
     bg,
     surface: base.paper,
     "surface-raised": base.bar,
+    "terminal-bg": base.paper,
+    "terminal-fg": base.ink,
+    "runlog-bg": base.bar,
+    divider: base.rule,
     border: base.rule,
-    "border-strong": lift(over(bg, base.muted, 0.8), [bg, base.paper, base.bar], 3),
+    "border-strong": lift(over(bg, base.muted, 0.8), panels, 3),
     text: base.ink,
+    "text-secondary": lift(over(base.muted, base.ink, 0.5), panels, 4.5),
     "text-muted": base.muted,
     "gutter-text": base.muted,
-    accent: base.accent,
+    action: base.accent,
     // Away from the label, so the hovered Run button reads at least as well as the resting one.
-    "accent-hover": over(base.accent, luminance(base["on-accent"]) > 0.18 ? "#000000" : "#ffffff", 0.15),
-    "on-accent": base["on-accent"],
-    "accent-ink": base.accent,
-    focus: base.accent,
+    "action-hover": over(base.accent, luminance(base["on-accent"]) > 0.18 ? "#000000" : "#ffffff", 0.15),
+    "on-action": base["on-accent"],
+    "control-on": base.accent,
+    focus: base.ink,
+    selection: over(bg, base.accent, 0.18),
+    "list-selected": alpha(base.ink, 0.1),
+    "active-line": alpha(base.ink, 0.04),
+    location: base.accent,
     danger: base.err,
     warning: base.warn,
     success: base.ok,
-    selection: over(bg, base.accent, 0.18),
-    "active-line": over(bg, base.ink, 0.04),
-    "terminal-bg": bg,
-    "terminal-fg": base.ink,
+    info: base.muted,
+    "error-band": alpha(base.err, 0.14),
+    "call-site": base.err,
+    "input-echo": base.ink,
+    link: lift(base.accent, panels, 4.5),
+    brand: base.ink,
+    "on-brand": base.sheet,
     "syn-keyword": base["syn-keyword"],
     "syn-string": base["syn-string"],
     "syn-number": base["syn-number"],
@@ -154,7 +227,7 @@ export function expandBase(base: BaseColors): Palette {
 export function baseOf(p: Palette): BaseColors {
   return {
     paper: p.surface, sheet: p.bg, bar: p["surface-raised"], ink: p.text, muted: p["text-muted"], rule: p.border,
-    accent: p.accent, "on-accent": p["on-accent"], ok: p.success, err: p.danger, warn: p.warning,
+    accent: p.action, "on-accent": p["on-action"], ok: p.success, err: p.danger, warn: p.warning,
     "syn-keyword": p["syn-keyword"], "syn-string": p["syn-string"], "syn-number": p["syn-number"],
     "syn-comment": p["syn-comment"], "syn-def": p["syn-function"],
     "syn-type": p["syn-type"], "syn-variable": p["syn-variable"], "syn-operator": p["syn-operator"],

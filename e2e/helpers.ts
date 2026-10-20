@@ -152,6 +152,32 @@ export async function waitReady(page: Page) {
   await expect(page.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
 }
 
+/**
+ * Reads the body of every response whose path `wanted` accepts, for size and content checks.
+ * `settled()` waits for every body seen so far and fails the test if one could not be read. A
+ * response can also arrive after a test's last check: Playwright's click on a control in the empty
+ * workspace moves the pointer over it, which prefetches the editor chunk (workbench.ts), and a read
+ * still running when the test ends rejects with "Test ended" (measured in the gate run, 2026-10-18).
+ * So each read keeps its own outcome instead of rejecting where nobody awaits it.
+ */
+export function responseBodies<T>(page: Page, wanted: (path: string) => boolean, read: (path: string, body: Buffer) => T) {
+  const reads: Promise<{ path: string; value?: T; error?: string }>[] = [];
+  page.on("response", (r) => {
+    const path = new URL(r.url()).pathname;
+    if (!wanted(path)) return;
+    reads.push(r.body().then((b) => ({ path, value: read(path, b) }), (e: unknown) => ({ path, error: String(e) })));
+  });
+  return {
+    /** How many matching responses have arrived so far. */
+    count: () => reads.length,
+    async settled(): Promise<T[]> {
+      const all = await Promise.all(reads);
+      expect(all.filter((x) => x.error !== undefined).map((x) => `${x.path}: ${x.error}`), "response bodies that could not be read").toEqual([]);
+      return all.map((x) => x.value as T);
+    },
+  };
+}
+
 /** Reloads and waits for the workbench to be ready again (downloads the reload cancels don't count). */
 export async function reloadApp(page: Page) {
   await page.reload();
@@ -183,11 +209,26 @@ export async function importFiles(page: Page, files: FileSpec[]) {
 /** The tree item for a path. */
 export const treeItem = (page: Page, path: string) => page.locator(`.tree [role=treeitem][data-path="${path}"]`);
 
-/** Opens a file from the tree and waits for its tab to be the selected one. */
+/** Below 900 px the layout is the phone one (drawer, view switch, no tab strip). */
+export const isNarrow = (page: Page) => (page.viewportSize()?.width ?? 1280) < 900;
+
+/**
+ * The file is the active one: the editor is labelled with its path and shown, and its tab is the
+ * selected one. Below 900 px there is no tab strip (files switch in the drawer), so there the tab
+ * is checked as attached and selected; everywhere else it must be visible too.
+ */
+export async function expectActive(page: Page, path: string) {
+  await expect(page.locator(`.cm-content[aria-label="Code editor, ${path}"]`)).toBeVisible();
+  const tab = page.locator(`.tabs [role=tab][title="${path}"]`);
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  if (!isNarrow(page)) await expect(tab).toBeVisible();
+}
+
+/** Opens a file from the tree and waits until it is the active file. */
 export async function openFromTree(page: Page, path: string) {
   await showFiles(page);
   await treeItem(page, path).locator(":scope > .tree-row").click();
-  await expect(page.locator(`.tabs [role=tab][aria-selected="true"][title="${path}"]`)).toBeVisible();
+  await expectActive(page, path);
 }
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
@@ -220,10 +261,25 @@ export async function run(page: Page, opts: { timeout?: number; input?: string[]
   };
 }
 
-/** On narrow screens, picks Code or Output in the switch (no-op where both show). */
-export async function showView(page: Page, view: "code" | "output") {
+/** On narrow screens, picks Code, Output or Problems in the switch (no-op where all show). */
+export async function showView(page: Page, view: "code" | "output" | "problems") {
   const tab = page.locator(`#view-${view}`);
   if (await tab.isVisible()) await tab.click();
+}
+
+/**
+ * Shows Output or Problems: below 900 px with the view switch (the panel's own tabs give way to
+ * it there), elsewhere with the panel's tab (which also opens a collapsed panel).
+ */
+export async function showPanel(page: Page, tab: "output" | "problems") {
+  await page.locator(isNarrow(page) ? `#view-${tab}` : `#ptab-${tab}`).click();
+}
+
+/** Opens the Input box (text given to the program first) from the panel bar's toggle. */
+export async function openInputBox(page: Page) {
+  const toggle = page.locator("#input-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(page.locator("#stdin")).toBeVisible();
 }
 
 /** Installs the C/C++ pack the way a student does: open a C file, press Download in Output. */

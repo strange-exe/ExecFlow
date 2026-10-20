@@ -1,17 +1,18 @@
 // The theme engine (adapted from Pocket Run's src/themes.ts, same author, MIT). A theme is either
-// CodeEditor Slate (its colours live in tokens.css, so the first paint needs no script) or a
-// palette whose colours are expanded onto the variable contract, passed through the readability
-// guard and set as inline CSS variables on <html>. public/theme-boot.js repaints the saved choice
-// before the app loads, from what applyTheme() stores under PAINT_KEY.
+// one of CodeEditor's own palettes, Deep Field (the default) or Slate, whose colours live in
+// tokens.css so the first paint needs no script, or a palette whose colours are expanded onto the
+// variable contract, passed through the readability guard and set as inline CSS variables on
+// <html>. public/theme-boot.js repaints the saved choice before the app loads, from what
+// applyTheme() stores under PAINT_KEY.
 
 import { checkBytes } from "../core/safety";
 import { shown } from "../ui/dom";
-import { COLOR_VARS, HEX, readablePalette, type ColorVar, type Palette } from "./contrast";
+import { COLOR_VARS, HEX, isTokenValue, readablePalette, type ColorVar, type Palette } from "./contrast";
 import {
-  BASE_TOKENS, baseOf, expandBase, OPTIONAL_TOKENS, POCKET_THEMES, SLATE, type BaseColors, type Scheme, type ThemeGroup,
+  BASE_TOKENS, baseOf, expandBase, OPTIONAL_TOKENS, OWN, POCKET_THEMES, type BaseColors, type OwnPalette, type Scheme, type ThemeGroup,
 } from "./palettes";
 
-export type { Scheme };
+export type { OwnPalette, Scheme };
 
 export interface Theme {
   id: string;
@@ -19,20 +20,29 @@ export interface Theme {
   /** The scheme it is drawn in ("system" follows the device instead). */
   scheme: Scheme;
   group: ThemeGroup;
-  /** Undefined for CodeEditor Slate, whose colours are in tokens.css. */
+  /** CodeEditor's own palettes, whose colours are in tokens.css. */
+  own?: OwnPalette;
+  /** A palette theme's base colours (Pocket Run's format); undefined for the own palettes. */
   base?: BaseColors;
   /** Follows the device's light/dark setting. */
   system?: boolean;
   custom?: boolean;
 }
 
-export const SYSTEM_ID = "system";
-export const DEFAULT_THEME_ID = SYSTEM_ID;
+export const DEFAULT_THEME_ID = "deep-field";
+/**
+ * "CodeEditor Slate (match device)". The id is historical: before Deep Field, "system" was the
+ * default theme, so a device that saved it keeps Slate (an explicit choice is never re-pointed).
+ */
+export const SLATE_SYSTEM_ID = "system";
 
 export const BUILT_IN: readonly Theme[] = [
-  { id: SYSTEM_ID, name: "CodeEditor Slate (match device)", scheme: "light", group: "codeeditor", system: true },
-  { id: "slate-light", name: "CodeEditor Slate Light", scheme: "light", group: "codeeditor" },
-  { id: "slate-dark", name: "CodeEditor Slate Dark", scheme: "dark", group: "codeeditor" },
+  { id: DEFAULT_THEME_ID, name: "CodeEditor Deep Field (match device)", scheme: "light", group: "codeeditor", own: "deep-field", system: true },
+  { id: "deep-field-light", name: "CodeEditor Deep Field Light", scheme: "light", group: "codeeditor", own: "deep-field" },
+  { id: "deep-field-dark", name: "CodeEditor Deep Field Dark", scheme: "dark", group: "codeeditor", own: "deep-field" },
+  { id: SLATE_SYSTEM_ID, name: "CodeEditor Slate (match device)", scheme: "light", group: "codeeditor", own: "slate", system: true },
+  { id: "slate-light", name: "CodeEditor Slate Light", scheme: "light", group: "codeeditor", own: "slate" },
+  { id: "slate-dark", name: "CodeEditor Slate Dark", scheme: "dark", group: "codeeditor", own: "slate" },
   ...POCKET_THEMES,
 ];
 
@@ -40,21 +50,21 @@ export const BUILT_IN: readonly Theme[] = [
 
 const cache = new Map<string, { palette: Palette; adjusted: ColorVar[] }>();
 
-/** A palette theme's colours after the guard, plus what the guard moved. Slate is returned as designed. */
+/** A palette theme's colours after the guard, plus what the guard moved. The own palettes are returned as designed. */
 export function themePalette(theme: Theme, scheme: Scheme = theme.scheme): { palette: Palette; adjusted: ColorVar[] } {
-  if (!theme.base) return { palette: { ...SLATE[scheme] }, adjusted: [] };
+  if (!theme.base) return { palette: { ...OWN[theme.own ?? "deep-field"][scheme] }, adjusted: [] };
   const key = theme.custom ? null : theme.id;
   const hit = key ? cache.get(key) : undefined;
   if (hit) return { palette: { ...hit.palette }, adjusted: [...hit.adjusted] };
-  // A moved accent or Run label changes what is derived from them (hover fill, selection band):
-  // derive again from the moved values until they settle.
+  // A moved Run fill or label changes what is derived from them (hover fill, selection band,
+  // location and link): derive again from the moved values until they settle.
   let base = theme.base;
   let result = readablePalette(expandBase(base));
   const adjusted = new Set(result.adjusted);
   for (let round = 0; round < 4; round++) {
-    const { accent, "on-accent": label } = result.palette;
-    if (accent === base.accent && label === base["on-accent"]) break;
-    base = { ...base, accent, "on-accent": label };
+    const { action, "on-action": label } = result.palette;
+    if (action === base.accent && label === base["on-accent"]) break;
+    base = { ...base, accent: action, "on-accent": label };
     result = readablePalette(expandBase(base));
     for (const v of result.adjusted) adjusted.add(v);
   }
@@ -188,27 +198,37 @@ export function activeScheme(theme: Theme): Scheme {
 export interface Paint {
   system: boolean;
   scheme: Scheme;
-  /** Inline colours for palette themes; null for Slate (tokens.css has them). */
+  /** Which colours: one of the own palettes in tokens.css, or a palette theme's inline colours. */
+  palette: OwnPalette | "palette";
+  /** Inline colours for palette themes; null for the own palettes (tokens.css has them). */
   colors: Palette | null;
 }
 
 export function paintFor(theme: Theme): Paint {
   const scheme = activeScheme(theme);
-  return { system: Boolean(theme.system), scheme, colors: theme.base ? themePalette(theme).palette : null };
+  const system = Boolean(theme.system);
+  if (theme.base) return { system, scheme, palette: "palette", colors: themePalette(theme).palette };
+  return { system, scheme, palette: theme.own ?? "deep-field", colors: null };
 }
 
-/** Paints a theme: data-theme picks Slate light/dark; palette themes set every colour inline. */
+/**
+ * Paints a theme. data-theme picks light or dark; data-palette picks Slate's block in tokens.css
+ * ("slate") or marks a palette theme ("palette"), and is absent for Deep Field (tokens.css :root);
+ * palette themes set every colour inline, each value checked first.
+ */
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   const paint = paintFor(theme);
   for (const v of COLOR_VARS) root.style.removeProperty(`--${v}`);
   root.dataset.theme = paint.scheme;
   root.dataset.themeId = theme.id;
-  if (paint.colors) for (const v of COLOR_VARS) root.style.setProperty(`--${v}`, paint.colors[v]);
-  // The browser's toolbar colour: per scheme for "match device", the theme's own top bar otherwise.
+  if (paint.palette === "deep-field") delete root.dataset.palette;
+  else root.dataset.palette = paint.palette;
+  if (paint.colors) for (const v of COLOR_VARS) if (isTokenValue(v, paint.colors[v])) root.style.setProperty(`--${v}`, paint.colors[v]);
+  // The browser's toolbar colour: per scheme for "match device", the theme's own chrome otherwise.
   for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
     const scheme = meta.media.includes("dark") ? "dark" : "light";
-    meta.content = paint.colors ? paint.colors.surface : SLATE[paint.system ? scheme : paint.scheme].surface;
+    meta.content = paint.colors ? paint.colors.surface : OWN[paint.palette === "slate" ? "slate" : "deep-field"][paint.system ? scheme : paint.scheme].surface;
   }
   storage.set(PAINT_KEY, JSON.stringify(paint));
 }

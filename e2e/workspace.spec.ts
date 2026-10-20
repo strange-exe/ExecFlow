@@ -141,6 +141,30 @@ test("an import adds files, and replacing an existing file asks first", async ({
   await expect(page.locator(".cm-content")).toContainText("print('replaced')");
 });
 
+// Ln/Col is written from the editor's own update. A text replaced from outside (here an import's
+// Replace; a pull and a program's file go the same way) is no edit in the editor, so the editor
+// manager says so itself (before 2026-10-21 Ln/Col kept the old line).
+test("replacing the open file by an import moves Ln/Col to the cursor in the new text", async ({ page }) => {
+  await openApp(page);
+  const pick = async (files: { name: string; text: string }[]) => {
+    const chooser = page.waitForEvent("filechooser");
+    await page.locator("#file-actions").click();
+    await page.getByRole("menuitem", { name: "Import files" }).click();
+    await (await chooser).setFiles(files.map((f) => ({ name: f.name, mimeType: "text/plain", buffer: Buffer.from(f.text) })));
+  };
+  await pick([{ name: "a.py", text: "a = 1\nb = 2\nc = 3\nd = 4\n" }]);
+  await openFromTree(page, "a.py");
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  const position = page.locator("#status-pos");
+  await expect(position).toHaveText("Ln 5, Col 1");
+  await pick([{ name: "a.py", text: "x = 1\n" }]);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Replace" }).click();
+  await expect(page.locator(".cm-content")).toContainText("x = 1");
+  // The cursor keeps its place where it can: the end of the shorter text, line 2.
+  await expect(position).toHaveText("Ln 2, Col 1");
+});
+
 test("binary files and Trojan Source text are refused on import, with the reason", async ({ page }) => {
   await openApp(page);
   const chooser = page.waitForEvent("filechooser");

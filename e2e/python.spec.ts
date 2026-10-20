@@ -46,9 +46,14 @@ test("a traceback marks the right file and line, and Problems jumps there", asyn
   await openFromTree(page, "main.py");
   const r = await run(page);
   expect(r.status).toBe("error");
-  // stderr is marked by colour and a bar, and the receipt names it.
+  // stderr is marked by a bar, its last line (the exception) by colour and weight too, and the
+  // run-log header names the exception and where it was raised (v1's "error output above" chip
+  // said only that there was some).
   await expect(page.locator("#console .err").first()).toContainText("ZeroDivisionError");
-  await expect(page.locator("#receipt")).toContainText("error output above");
+  await expect(page.locator("#console .err-last")).toHaveText("ZeroDivisionError: division by zero");
+  await expect(page.locator("#runlog")).toHaveAttribute("data-failed", "");
+  await expect(page.locator("#run-exception")).toContainText("ZeroDivisionError: division by zero");
+  await expect(page.locator("#run-exception")).toContainText("calc.py, line 2");
   await expect(page.locator("[data-announcer]")).toHaveText(/ZeroDivisionError in calc\.py, line 2/);
 
   // Problems: a button per diagnostic, with the severity word and path:line.

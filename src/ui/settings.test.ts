@@ -7,7 +7,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 describe("settings", () => {
-  it("defaults are 15 s, 512 Ki characters, gnu11, c++17, -O2 and -Wall", () => {
+  it("defaults are 15 px code, 15 s, 512 Ki characters, gnu11, c++17, -O2 and -Wall", () => {
+    expect(DEFAULT_SETTINGS.codeSize).toBe(15);
     expect(runLimits(DEFAULT_SETTINGS)).toEqual({ timeoutMs: 15_000, outputCap: 512 * 1024 });
     expect(buildOptions(DEFAULT_SETTINGS)).toEqual({ cStd: "gnu11", cxxStd: "c++17", opt: "2", warnings: ["-Wall"], defines: [] });
   });
@@ -23,6 +24,16 @@ describe("settings", () => {
     expect(s).not.toHaveProperty("extra");
   });
 
+  it("keeps suggestions while typing on unless a stored false says otherwise", () => {
+    expect(DEFAULT_SETTINGS.suggestOnTyping).toBe(true);
+    expect(cleanSettings({}).suggestOnTyping).toBe(true);
+    expect(cleanSettings({ suggestOnTyping: false }).suggestOnTyping).toBe(false);
+    for (const odd of ["false", 0, null, "off"]) expect(cleanSettings({ suggestOnTyping: odd }).suggestOnTyping, String(odd)).toBe(true);
+    const storage = memoryStorage();
+    createSettingsStore(storage).update({ suggestOnTyping: false });
+    expect(createSettingsStore(storage).get().suggestOnTyping).toBe(false);
+  });
+
   it("survives broken stored data and keeps updates", () => {
     const storage = memoryStorage({ [SETTINGS_KEY]: "{not json" });
     const store = createSettingsStore(storage);
@@ -30,7 +41,7 @@ describe("settings", () => {
     let seen = 0;
     store.onChange((now, before) => {
       seen++;
-      expect(before.codeSize).toBe(14);
+      expect(before.codeSize).toBe(15);
       expect(now.codeSize).toBe(16);
     });
     store.update({ codeSize: 16, wextra: true });

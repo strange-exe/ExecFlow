@@ -3,7 +3,9 @@ import { EditorState, Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import type { ToolDiagnostic } from "../core/types";
-import { cleanText, cmSeverity, diagnosticMessage, mergeSource, sourceLabel, toCm, type EditorDiagnostic } from "./diagnostics";
+import {
+  CALL_SITE_CLASS, cleanText, cmSeverity, diagnosticMessage, isCallSite, mergeSource, sourceLabel, toCm, type EditorDiagnostic,
+} from "./diagnostics";
 
 const doc = (text: string) => Text.of(text.split("\n"));
 const clang = (over: Partial<ToolDiagnostic>): ToolDiagnostic => ({
@@ -100,6 +102,19 @@ describe("toCm text", () => {
     expect(toCm(SOURCE, clang({ source: "python", code: "ZeroDivisionError" })).markClass).toBe("ce-diag ce-diag-python");
   });
 
+  it("marks a call site's range ce-call-site and keeps its severity and words", () => {
+    const call = clang({ source: "python", severity: "info", role: "call-site", message: "This call led to ZeroDivisionError in calc.py, line 2." });
+    const d = toCm(SOURCE, call);
+    expect(d.markClass).toBe(`ce-diag ce-diag-python ${CALL_SITE_CLASS}`);
+    expect([d.severity, d.message]).toEqual(["info", "This call led to ZeroDivisionError in calc.py, line 2."]);
+    expect(isCallSite(d)).toBe(true);
+    // Only the role makes a call site: an info diagnostic of the tool's own is not one.
+    const info = toCm(SOURCE, { ...call, role: undefined });
+    expect(info.markClass).toBe("ce-diag ce-diag-python");
+    expect(isCallSite(info)).toBe(false);
+    expect(isCallSite({ from: 0, to: 1, severity: "info", message: "no raw report" })).toBe(false);
+  });
+
   it("strips colour codes, control and direction characters but keeps tabs and line breaks", () => {
     const esc = String.fromCharCode(27);
     const dirty = `${esc}[91merror${esc}[0m:\tbad${String.fromCharCode(0)}${String.fromCodePoint(0x202e)}\nnext`;
@@ -165,6 +180,16 @@ describe("mergeSource", () => {
     state = state.update(mergeSource(state, "build", [at(length + 50, length + 90, "past the end"), at(-4, 3, "before the start")])).state;
     const list = listOf(state);
     expect(list.map((d) => [d.from, d.to])).toEqual([[0, 3], [length, length]]);
+  });
+
+  it("sets the diagnostics again even when the channel is empty before and after", () => {
+    // An edit that deletes an error's text drops it from the lint state, while its gutter mark
+    // stays until the next set: skipping an "empty to empty" set left that mark behind.
+    let state = base();
+    state = state.update(mergeSource(state, "check", [at(0, 5, "syntax")])).state;
+    state = state.update({ changes: { from: 0, to: 5 } }).state;
+    expect(listOf(state)).toHaveLength(0);
+    expect(state.update(mergeSource(state, "check", [])).effects).toHaveLength(1);
   });
 
   it("installs the lint state on a state that didn't have it", () => {

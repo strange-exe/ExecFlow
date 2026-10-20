@@ -7,9 +7,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
-import { expect, importFiles, openFromTree, reloadApp, showView, test, waitReady } from "./helpers";
+import { expect, importFiles, openFromTree, openInputBox, reloadApp, showPanel, showView, test, waitReady } from "./helpers";
 import { openConnect, routeGitHub } from "./sync-fake";
 import { audit, focusStop, type Audit, type FocusStop } from "./audit";
+import { contrast, decodePng, type Pixels, type RGB } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
 
@@ -36,7 +37,9 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(reducedMotion === "reduce");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(14, 18, 23)" : "rgb(253, 253, 255)");
+  // And the colours really are that scheme's (CodeEditor Deep Field, the default: no data-palette).
+  await expect(page.locator("html")).not.toHaveAttribute("data-palette");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(19, 32, 27)" : "rgb(248, 251, 249)");
 }
 
 /**
@@ -139,18 +142,17 @@ for (const vp of viewports) {
       await expect.soft(page.locator('.tab[data-active="true"]')).toHaveAttribute("data-errors", "true");
       await record(page, dir, `error-calc-${vp.name}-${scheme}`, records);
 
-      // 5. Problems.
-      await showView(page, "output");
-      await page.locator("#ptab-problems").click();
+      // 5. Problems (phones: the view switch's Problems; the panel's own tabs give way to it there).
+      await showPanel(page, "problems");
       await expect(page.locator(".problem").first()).toBeVisible();
       await record(page, dir, `problems-${vp.name}-${scheme}`, records);
 
-      // 6. The Input box opened (its placeholder is the browser's own colour).
-      await page.locator("#ptab-output").click();
-      await page.locator(".stdin summary").click();
-      await expect(page.locator("#stdin")).toBeVisible();
+      // 6. The Input box opened (behind the panel bar's Input toggle; its placeholder is a checked colour).
+      await showPanel(page, "output");
+      await openInputBox(page);
       await record(page, dir, `input-box-${vp.name}-${scheme}`, records, false);
-      await page.locator(".stdin summary").click();
+      await page.locator("#input-toggle").click();
+      await expect(page.locator("#stdin")).toBeHidden();
 
       // 7. Settings.
       await page.locator("#settings-button").click();
@@ -204,7 +206,7 @@ for (const size of [
       await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
       await page.locator("#receipt").scrollIntoViewIfNeeded();
       await record(page, dir, `ran-${size.name}`, records, false);
-      await page.locator("#ptab-problems").click();
+      await showPanel(page, "problems");
       await expect(page.locator(".problem").first()).toBeVisible();
       await record(page, dir, `problems-${size.name}`, records, false);
       await page.locator("#settings-button").click();
@@ -352,8 +354,9 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   await page.locator("#ptab-output").focus();
   await page.keyboard.press("ArrowRight");
   await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-  // Restart Python, Clear, Maximise the panel, the Problems panel, then the first problem.
-  const panelPath = await tabPath(page, 5);
+  // The panel bar's collapse toggle, Input, Restart Python, Clear, Maximise the panel, the Problems
+  // panel, then the first problem (layout v2 added the first two to the bar).
+  const panelPath = await tabPath(page, 7);
   log.problemsPath = panelPath.map(label);
   const problem = panelPath.find((s) => s.cls.includes("problem"));
   expect.soft(problem, "Tab reaches a problem").toBeTruthy();
@@ -403,6 +406,260 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   expect.soft((await focusStop(page)).id, "Escape returns to the menu button").toBe("file-actions");
 
   save();
+});
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`the editor's focus indicator is a bar on the gutter edge (${scheme}): no frame, 3:1, and the audit sees it go`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openThemed(page, scheme);
+    await importFiles(page, FILES);
+    await openFromTree(page, "main.py");
+    await page.locator(".cm-content").click();
+    const stop = await focusStop(page);
+    expect(stop.cls).toContain("cm-content");
+    expect(stop.bar, "the gutter-edge bar is drawn").not.toBe("");
+    expect(stop.indicator).toBe(true);
+    expect(stop.ringContrast, "the bar against the gutter's ground").toBeGreaterThanOrEqual(3);
+    // No frame round the whole editor (it out-shouted the code and the gutter clipped it).
+    expect(await page.locator(".cm-editor").evaluate((e) => getComputedStyle(e).outlineStyle)).toBe("none");
+    const barStyle = () =>
+      page.locator(".cm-editor .cm-gutters").evaluate((g) => {
+        const a = getComputedStyle(g, "::after");
+        return { content: a.content, position: a.position, top: a.top, bottom: a.bottom, right: a.right, width: a.width };
+      });
+    // Full height on the gutter's right edge.
+    expect(await barStyle()).toEqual({ content: '""', position: "absolute", top: "0px", bottom: "0px", right: "0px", width: "2px" });
+    const box = (await page.locator(".cm-editor .cm-gutters").boundingBox())!;
+    await page.screenshot({
+      path: `${dirFor(info, "keyboard")}/editor-focus-bar-${scheme}.png`,
+      clip: { x: Math.max(0, box.x), y: box.y, width: box.width + 160, height: 140 },
+    });
+
+    // The audit is not vacuous: with the bar hidden, the editor's stop has no indicator.
+    const hide = await page.addStyleTag({ content: ".cm-editor .cm-gutters::after { content: none !important; }" });
+    const without = await focusStop(page);
+    expect(without.cls).toContain("cm-content");
+    expect(without.indicator, "an editor without the bar is reported").toBe(false);
+    expect(without.ringContrast).toBeNull();
+    await hide.evaluate((el) => (el as Element).remove());
+    expect((await focusStop(page)).indicator).toBe(true);
+
+    // Only focus draws it: Esc then Tab leaves the editor and the bar goes.
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Tab");
+    await expect(page.locator(".cm-content")).not.toBeFocused();
+    // (CodeMirror drops .cm-focused in its next update after the blur.)
+    await expect.poll(async () => (await barStyle()).content).toMatch(/^(none|normal)$/);
+  });
+}
+
+/**
+ * Forced colours (Windows High Contrast) replace every author background colour with a system
+ * colour (Canvas behind the gutter), so a bar painted only as a background vanishes there, while a
+ * border takes a contrasting system colour (CSS Color Adjust 1, section 3.1). The old frame, an
+ * outline, survived forced colours; the bar must too. Measured in pixels at the bar's place on the
+ * gutter edge: focused against the gutter ground beside it, and against the same place once focus
+ * has left the editor.
+ */
+for (const scheme of ["light", "dark"] as const) {
+  test(`in forced colours (${scheme}) the editor's focus bar still shows`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    await page.emulateMedia({ colorScheme: scheme, forcedColors: "active" });
+    await page.reload();
+    await waitReady(page);
+    expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches), "forced colours emulated").toBe(true);
+    await importFiles(page, FILES);
+    await openFromTree(page, "main.py");
+    await page.locator(".cm-content").click();
+    await expect(page.locator(".cm-editor")).toHaveClass(/\bcm-focused\b/);
+
+    const gutters = page.locator(".cm-editor .cm-gutters");
+    const box = (await gutters.boundingBox())!;
+    const border = await gutters.evaluate((g) => parseFloat(getComputedStyle(g).borderRightWidth) || 0);
+    // The bar is the 2 px just inside the gutter's own right border; the ground is blank gutter
+    // below the last line number.
+    const at = { x: box.x + box.width - border - 1, y: box.y + box.height * 0.6 };
+    const paint = async () => decodePng(await page.screenshot({ scale: "css", animations: "disabled" }));
+    let px = await paint();
+    const bar = px.at(at.x, at.y);
+    const ground = px.at(at.x - 8, at.y);
+    await page.screenshot({
+      path: `${dirFor(info, "keyboard")}/editor-focus-bar-forced-${scheme}.png`,
+      clip: { x: Math.max(0, box.x), y: box.y, width: box.width + 160, height: 140 },
+    });
+
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Tab");
+    await expect(page.locator(".cm-content")).not.toBeFocused();
+    await expect(page.locator(".cm-editor")).not.toHaveClass(/\bcm-focused\b/);
+    px = await paint();
+    const left = px.at(at.x, at.y);
+    info.annotations.push({ type: "forced-colour pixels", description: JSON.stringify({ at, bar, ground, left }) });
+    expect.soft(contrast(bar, ground), `bar ${bar} on the gutter ground ${ground}`).toBeGreaterThanOrEqual(3);
+    expect.soft(contrast(bar, left), `bar ${bar} against the same place unfocused ${left}`).toBeGreaterThanOrEqual(3);
+  });
+}
+
+/**
+ * Forced colours also drop author box-shadows and paint every author background as Canvas, so the
+ * indicators drawn as a fill or a shadow vanished there (review D, 2026-10-18): the selected tab's
+ * and panel tab's location bars, the open file's bar in the tree, the error jump's danger bar, the
+ * error line's gutter bar and dot, the call site's arrow, the panel splitter's focus and the picked
+ * suggestion. app.css
+ * draws them as borders (or a text arrow) in forced colours, which take a system colour. Measured in
+ * pixels: the strongest contrast in each mark's place against the same place without the mark.
+ */
+test("in forced colours the selected tab and panel tab, the open file, the error marks and the splitter's focus still show", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.emulateMedia({ colorScheme: "dark", forcedColors: "active" });
+  await page.reload();
+  await waitReady(page);
+  expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches), "forced colours emulated").toBe(true);
+  await importFiles(page, FILES);
+  await openFromTree(page, "calc.py");
+  await openFromTree(page, "main.py");
+  await page.locator("#run-button").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 60_000 });
+  await page.locator("#live-input-field").fill("Ada");
+  await page.locator("#live-input-field").press("Enter");
+  await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
+  await expect(page.locator("#error-jump")).toBeVisible();
+  await expect(page.locator(".cm-gutter-lint .cm-gutterElement.ce-call-line")).toBeVisible();
+  await page.mouse.move(1, 1);
+
+  type Box = { x: number; y: number; width: number; height: number };
+  const shot = async () => decodePng(await page.screenshot({ scale: "css", animations: "disabled" }));
+  // Every new set of diagnostics redraws the gutter's marks as new nodes (the syntax check that
+  // follows opening a Python file does it about 500 ms later), and a node replaced while it is
+  // measured has no box: measure again until the box comes from an attached node.
+  const rect = async (selector: string): Promise<Box> => {
+    const at = page.locator(selector).first();
+    const got: { box: Box | null } = { box: null };
+    await expect(async () => {
+      got.box = await at.boundingBox();
+      expect(got.box, `${selector} has a box`).not.toBeNull();
+    }).toPass({ timeout: 5_000 });
+    return got.box!;
+  };
+  const strongest = (px: Pixels, r: Box, ref: RGB) => {
+    let best = 1;
+    for (let y = Math.ceil(r.y); y < r.y + r.height; y++) for (let x = Math.ceil(r.x); x < r.x + r.width; x++) best = Math.max(best, contrast(px.at(x, y), ref));
+    return best;
+  };
+  const marks: Record<string, { marked: number; plain: number }> = {};
+  /** `marked`: where the indicator is drawn; `plain`: the same place without it (its colour is the reference). */
+  const measure = (name: string, marked: Box, plain: Box, px: Pixels, pxPlain = px) => {
+    const ref = pxPlain.at(Math.ceil(plain.x), Math.ceil(plain.y));
+    marks[name] = { marked: strongest(px, marked, ref), plain: strongest(pxPlain, plain, ref) };
+  };
+  const foot = (r: Box, inset: number): Box => ({ x: r.x + inset, y: r.y + r.height - 2, width: r.width - 2 * inset, height: 2 });
+  const lead = (r: Box, dx = 0): Box => ({ x: r.x + dx, y: r.y + 4, width: 2, height: r.height - 8 });
+  const up = (r: Box): Box => ({ ...r, y: r.y - r.height });
+
+  let px = await shot();
+  measure("selected tab", foot(await rect('.tab[data-active="true"]'), 6), foot(await rect('.tab[data-active="false"]'), 6), px);
+  measure("selected panel tab", foot(await rect("#ptab-output"), 10), foot(await rect("#ptab-problems"), 10), px);
+  measure("open file in the tree", lead(await rect('.tree [aria-current="true"] > .tree-row')), lead(await rect('.tree [data-path="calc.py"] > .tree-row')), px);
+  const jump = await rect("#error-jump");
+  measure("error jump", lead(jump), lead(jump, -8), px);
+  const header = await rect("#runlog");
+  measure("failed run's header", lead(header), lead(header, 4), px);
+  const call = await rect(".cm-gutter-lint .cm-gutterElement.ce-call-line");
+  measure("call site arrow", call, up(call), px);
+
+  // calc.py, where the error was raised: the gutter bar and the dot on line 2.
+  await page.locator("#error-jump").click();
+  await expect(page.locator(".cm-lineNumbers .cm-gutterElement.ce-error-line")).toBeVisible();
+  await page.mouse.move(1, 1);
+  px = await shot();
+  const errorCell = await rect(".cm-lineNumbers .cm-gutterElement.ce-error-line");
+  measure("error line's gutter bar", lead(errorCell), lead(up(errorCell)), px);
+  const dot = await rect(".cm-gutter-lint .cm-lint-marker-error");
+  measure("error dot", dot, up(dot), px);
+
+  // The panel splitter, reached from the code with Escape then Tab: its ring, against the same rows unfocused.
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("separator", { name: "Resize the output panel" })).toBeFocused();
+  // Past the gutter (its edge is a line of its own), over the empty end of the code.
+  const splitter = await rect(".center > .splitter");
+  const gutters = await rect(".cm-editor .cm-gutters");
+  const above: Box = { x: gutters.x + gutters.width + 40, y: splitter.y - 2, width: 200, height: 2 };
+  const focused = await shot();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("separator", { name: "Resize the output panel" })).not.toBeFocused();
+  measure("panel splitter's focus", above, above, focused, await shot());
+
+  // The suggestion list's picked option (a fill and a bar elsewhere): against an option not picked.
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("i");
+  await expect(page.locator(".cm-tooltip-autocomplete [role=option]").nth(1)).toBeVisible();
+  // A list just opened ignores keys for 75 ms (CodeMirror's interactionDelay): Down until one is picked.
+  await expect(async () => {
+    await page.keyboard.press("ArrowDown");
+    await expect(page.locator(".cm-tooltip-autocomplete [role=option][aria-selected]")).toHaveCount(1, { timeout: 500 });
+  }).toPass();
+  // The second option, away from the list's rounded corner (its border curves into the first row).
+  await page.keyboard.press("ArrowDown");
+  const options = page.locator(".cm-tooltip-autocomplete [role=option]");
+  await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
+  await page.mouse.move(1, 1);
+  // The option's own left edge only: its kind icon (an italic f on some) leans into a wider strip.
+  const edge = (r: Box): Box => ({ x: r.x, y: r.y + 2, width: 1, height: r.height - 4 });
+  measure("picked suggestion", edge((await options.nth(1).boundingBox())!), edge((await options.nth(2).boundingBox())!), await shot());
+
+  // The keyword kind icon, a key drawn as a mask over a fill (forced colours turned the fill into
+  // Canvas, so the key vanished: review RB-4, 2026-10-19): in a row that isn't picked, against the
+  // row's own left padding.
+  const keyword = await page.locator(".cm-tooltip-autocomplete [role=option]:not([aria-selected]) .cm-completionIcon-keyword").first().boundingBox();
+  const keywordRow = await page.locator(".cm-tooltip-autocomplete [role=option]:not([aria-selected])").filter({ has: page.locator(".cm-completionIcon-keyword") }).first().boundingBox();
+  expect(keyword && keywordRow, "a keyword row that isn't picked").toBeTruthy();
+  measure("keyword icon", keyword!, { x: keywordRow!.x + 1, y: keyword!.y, width: 2, height: keyword!.height }, await shot());
+
+  info.annotations.push({ type: "forced-colour marks", description: JSON.stringify(marks) });
+  for (const [name, m] of Object.entries(marks)) {
+    expect.soft(m.marked, `${name}: the mark against its place unmarked`).toBeGreaterThanOrEqual(3);
+    expect.soft(m.plain, `${name}: the unmarked place is plain`).toBeLessThan(1.5);
+  }
+  await page.screenshot({ path: `${dirFor(info, "keyboard")}/forced-marks.png` });
+});
+
+/**
+ * The output log's ring is drawn on its scroller, inset, so no side of it is ever scrolled out of
+ * view (review D, 2026-10-18: drawn on the log itself, its top and bottom were clipped whenever the
+ * log was taller than the panel), and it stays clear of the stderr bar.
+ */
+test("the output log's focus ring is drawn whole, clear of the stderr bar", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openThemed(page, "light");
+  await importFiles(page, FILES);
+  await openFromTree(page, "main.py");
+  await page.locator("#run-button").click();
+  await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 60_000 });
+  await page.locator("#live-input-field").fill("Ada");
+  await page.locator("#live-input-field").press("Enter");
+  await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
+  // The log is taller than its scroller: the case that clipped the ring.
+  expect(await page.locator("#console-scroll").evaluate((s) => s.scrollHeight > s.clientHeight + 4)).toBe(true);
+  await page.keyboard.press("Control+`");
+  const stop = await focusStop(page);
+  expect(stop.id).toBe("console");
+  expect(stop.indicator, `the log's ring: ${stop.outline}`).toBe(true);
+  expect(stop.clipped, "no side of the ring is cut off").toEqual([]);
+  expect(stop.ringContrast).toBeGreaterThanOrEqual(3);
+  const gap = await page.evaluate(() => {
+    // An inset ring (negative offset) ends that far inside the scroller's edge.
+    const scroller = document.querySelector<HTMLElement>("#console-scroll")!;
+    const inner = scroller.getBoundingClientRect().left + Math.max(0, -parseFloat(getComputedStyle(scroller).outlineOffset));
+    return document.querySelector("#console .err")!.getClientRects()[0].left - inner;
+  });
+  expect(gap, "the ring stays 8 px or more clear of the stderr bar").toBeGreaterThanOrEqual(8);
 });
 
 test("reduced motion: no transition on the drawer, no running animations; and with motion allowed there is one", async ({ page }) => {
@@ -467,4 +724,29 @@ test("palette themes: painted contrast in the error state", async ({ page }, inf
   writeFileSync(`${dirFor(info, "data")}/themes.json`, JSON.stringify(results, null, 1));
   const failing = Object.entries(results).filter(([, r]) => r.low.length || r.axe.length).map(([n, r]) => `${n}: ${[...r.low, ...r.axe].slice(0, 6).join(" | ")}`);
   expect.soft(failing, "palette themes with painted pairs under their minimum").toEqual([]);
+});
+
+// Each file tree item is named by the text in its row (aria-labelledby). Skipping the rendering of
+// rows scrolled out of view (content-visibility: auto, tried for typing speed on 2026-10-20) left
+// 23 of 100 items without a name in Chromium's accessibility tree, which axe (reading the DOM)
+// doesn't see. So this reads the browser's own tree.
+test("every file tree item has its name in the browser's accessibility tree, scrolled out of view too", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "the browser's accessibility tree is read through CDP (Accessibility.getFullAXTree), Chromium only");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await waitReady(page);
+  const files = [{ name: "main.c", text: "int main(void) {\n    return 0;\n}\n" }];
+  for (let i = 0; files.length < 100; i++) files.push({ name: `part_${String(i).padStart(3, "0")}.c`, text: `int f${i}(void) { return ${i}; }\n` });
+  await importFiles(page, files);
+  await expect(page.locator(".tree [role=treeitem]")).toHaveCount(100);
+  await openFromTree(page, "main.c");
+  // Most rows are below the fold (the list shows about 30 at this size).
+  expect(await page.locator('.tree [role=treeitem][data-path="part_098.c"]').evaluate((el) => el.getBoundingClientRect().top > innerHeight)).toBe(true);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Accessibility.enable");
+  const { nodes } = (await cdp.send("Accessibility.getFullAXTree")) as { nodes: { role?: { value: string }; name?: { value: string }; ignored?: boolean }[] };
+  const names = nodes.filter((n) => n.role?.value === "treeitem" && !n.ignored).map((n) => n.name?.value ?? "");
+  expect(names.length, "tree items in the accessibility tree").toBe(100);
+  expect(names.filter((n) => !files.some((f) => f.name === n)), "tree items without their file's name").toEqual([]);
+  await cdp.detach();
 });

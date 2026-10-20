@@ -1,4 +1,4 @@
-import { expect, importFiles, openApp, test, treeItem } from "./helpers";
+import { expect, expectActive, importFiles, openApp, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -17,6 +17,11 @@ async function setUp(page: import("@playwright/test").Page) {
   await name.fill("lib/util.py");
   await name.press("Enter");
   await expect(treeItem(page, "lib/util.py")).toBeVisible();
+  // The new file opens a moment later and takes the focus (workbench createEntry). Wait for that
+  // before a test moves the focus in the tree: in a full run (2026-10-21) Shift+F10 on beta.py
+  // opened no menu, most likely because the editor had just taken the focus.
+  await expectActive(page, "lib/util.py");
+  await expect(page.locator(".cm-content")).toBeFocused();
   // Collapse lib again and start from the list itself.
   await treeItem(page, "lib").locator(":scope > .tree-row").click();
   await expect(treeItem(page, "lib")).toHaveAttribute("aria-expanded", "false");

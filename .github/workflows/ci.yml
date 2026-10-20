@@ -41,6 +41,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # The C/C++ pack (SHA-256 checked, from the cache when it is there) before the unit tests: the
+      # test of src/editor/data/c-library.json regenerates it from the pack's sysroot, and fails in
+      # CI when the pack is missing instead of skipping.
+      - name: C/C++ pack
+        run: node scripts/fetch-clang.mjs
+
       - name: Unit tests
         run: npm test
 
@@ -53,11 +59,19 @@ jobs:
     # A commit that doesn't build never takes three runners, and the check job has filled the cache.
     needs: check
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Locally (one worker) Chromium's tests take about 16 minutes and the typing-speed test about 5
+    # more (2026-10-21); a GitHub runner is slower, by how much is not measured yet.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
+        # The typing-speed test is its own project (playwright.config.ts) that depends on all three
+        # engines; here only Chromium is installed, so it runs with Chromium's tests and --no-deps.
+        # CI uses one worker, so it never runs next to another test.
+        include:
+          - browser: chromium
+            extra: --project=speed --no-deps
     steps:
       - uses: actions/checkout@v7
 
@@ -80,7 +94,7 @@ jobs:
       # Playwright's webServer runs `npm run build` and serves the production build with the
       # deployed site's headers; with CI set it uses one worker and the github reporter.
       - name: End-to-end tests
-        run: npx playwright test --project=${{ matrix.browser }}
+        run: npx playwright test --project=${{ matrix.browser }} ${{ matrix.extra }}
 
       - name: Keep failure details
         if: failure()

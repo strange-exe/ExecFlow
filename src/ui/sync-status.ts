@@ -25,7 +25,8 @@ export type StatusIcon =
   | "wifi-slash"
   | "git-merge";
 
-export type StatusTone = "muted" | "success" | "accent" | "warning" | "danger";
+/** The icon's colour role (sync.css): "info" is unsynced work, an icon-only mark. */
+export type StatusTone = "muted" | "success" | "info" | "warning" | "danger";
 
 export interface StatusInput {
   phase: SyncPhase;
@@ -46,6 +47,8 @@ export interface StatusView {
   /** What pressing the status button does. */
   action: string;
   tone: StatusTone;
+  /** A sentence for the name and tooltip only (the save state: sync status is shown once, here). */
+  note?: string;
 }
 
 /** "just now", "4 min ago", "2 hours ago", "3 days ago". */
@@ -69,13 +72,13 @@ export function describeStatus(s: StatusInput): StatusView {
   const view = (icon: StatusIcon, words: string, action: string, tone: StatusTone): StatusView => ({ phase: s.phase, icon, words, action, tone });
   switch (s.phase) {
     case "not-connected":
-      return view("cloud-slash", "Not connected", "Connect GitHub", "muted");
+      return { ...view("cloud-slash", "Not connected", "Connect GitHub", "muted"), note: "Your files are saved on this computer." };
     case "needs-token":
       return view("key", s.error ? "Token not accepted: enter a new one" : "Enter token to sync", "Enter your GitHub token", "warning");
     case "synced":
       return view("cloud-check", s.lastSyncAt === null ? "Not synced yet" : `Synced ${ago(s.lastSyncAt, s.now)}`, "Sync now", "success");
     case "unsynced":
-      return view("cloud-arrow-up", plural(s.unsynced, "unsynced change"), "Sync now", "accent");
+      return view("cloud-arrow-up", plural(s.unsynced, "unsynced change"), "Sync now", "info");
     case "syncing":
       return view("arrow-clockwise", "Syncing...", "Syncing", "muted");
     case "failed":
@@ -97,7 +100,7 @@ export function describeStatus(s: StatusInput): StatusView {
 export function renderStatus(button: HTMLButtonElement, view: StatusView, iconFor: (name: StatusIcon) => SVGElement): void {
   button.dataset.syncState = view.phase;
   button.dataset.tone = view.tone;
-  const label = `${view.words}${/[.:]$/.test(view.words) ? "" : "."} ${view.action}`;
+  const label = `${view.words}${/[.:]$/.test(view.words) ? "" : "."} ${view.note ? `${view.note} ` : ""}${view.action}`;
   button.setAttribute("aria-label", label);
   button.title = view.phase === "syncing" ? view.words : label;
   // Unchanged content isn't redrawn (the status re-renders on a timer and when the screens load).

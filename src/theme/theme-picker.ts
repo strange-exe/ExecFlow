@@ -1,15 +1,49 @@
 // The colour theme list inside Settings (adapted from Pocket Run's src/theme-picker.ts, same author,
 // MIT). Native radio buttons: one Tab stop, arrow keys move through the themes and apply each at
-// once. "More themes" starts folded unless one of them is chosen.
+// once. Each theme is a tile round its radio: the name, and a preview drawn in that theme's own
+// colours (two lines of calc.py, the second on its error band, and a small Run), hidden from
+// assistive technology, so the radio's name stays the theme's name. Deep Field and High contrast
+// lead; "More themes" (Slate, the popular editor themes and the others) starts folded unless one of
+// them is chosen, so Settings' editor options stay on its first screen (review D, 2026-10-18: with
+// every group open they were about 1,300 px down). The list is not a scroll box of its own: the
+// dialog scrolls once.
 import { h } from "../ui/dom";
 import { icon } from "../ui/icons";
-import type { ColorVar } from "./contrast";
+import { isTokenValue, type ColorVar, type Palette } from "./contrast";
 import {
   activeScheme, allThemes, BUILT_IN, chooseTheme, chosenTheme, DEFAULT_THEME_ID, defaultTheme, deleteCustomTheme,
   MAX_THEME_BYTES, parseThemeFile, saveCustomTheme, themePalette, themeTemplate, type Theme,
 } from "./themes";
 
-const SWATCH: ColorVar[] = ["bg", "text", "accent", "syn-keyword", "syn-string"];
+/** The preview's colours: custom properties on the tile (app.css paints only var(--tile-*)). */
+const TILE_VARS: Record<string, ColorVar> = {
+  "--tile-bg": "bg",
+  "--tile-border": "border",
+  "--tile-text": "text",
+  "--tile-gutter": "gutter-text",
+  "--tile-keyword": "syn-keyword",
+  "--tile-function": "syn-function",
+  "--tile-punctuation": "syn-punctuation",
+  "--tile-band": "error-band",
+  "--tile-danger": "danger",
+  "--tile-action": "action",
+  "--tile-on-action": "on-action",
+};
+
+/** Two lines of calc.py in the theme's colours, the second on its error band (aria-hidden). */
+function preview(colors: Palette): HTMLElement {
+  const el = h(
+    "span",
+    { class: "tile-prev", "aria-hidden": "true" },
+    h("span", { class: "tp-ln" }, h("span", { class: "tp-num" }, "1"), h("span", { class: "tp-kw" }, "def"), " ", h("span", { class: "tp-fn" }, "ratio"), h("span", { class: "tp-pu" }, "("), "a, b", h("span", { class: "tp-pu" }, "):")),
+    h("span", { class: "tp-ln is-band" }, h("span", { class: "tp-num" }, "2"), "    ", h("span", { class: "tp-kw" }, "return"), " a / b"),
+    h("span", { class: "tp-run" }, icon("play-fill"), "Run"),
+  );
+  for (const [prop, name] of Object.entries(TILE_VARS)) {
+    if (isTokenValue(name, colors[name])) el.style.setProperty(prop, colors[name]); // a validated colour only
+  }
+  return el;
+}
 
 export interface ThemePicker {
   element: HTMLElement;
@@ -34,16 +68,9 @@ export function createThemePicker(options: { download(name: string, text: string
       chooseTheme(theme);
       say("");
     });
-    const colors = themePalette(theme, activeScheme(theme)).palette;
-    const swatches = h("span", { class: "swatches", "aria-hidden": "true" });
-    for (const v of SWATCH) {
-      const s = h("span");
-      s.style.background = colors[v]; // validated #rrggbb only (themes.ts)
-      swatches.append(s);
-    }
     const name = h("span", { class: "theme-name" }, theme.name);
     if (theme.id === DEFAULT_THEME_ID) name.append(" ", h("span", { class: "tag" }, "Default"));
-    const row = h("label", { class: "theme-option", "data-theme-option": theme.id }, radio, swatches, name);
+    const tile = h("label", { class: "theme-option", "data-theme-option": theme.id }, radio, name);
     if (theme.custom) {
       const remove = h("button", { type: "button", class: "btn ghost small", "aria-label": `Delete ${theme.name}` }, icon("trash"), "Delete");
       remove.addEventListener("click", (e) => {
@@ -53,29 +80,30 @@ export function createThemePicker(options: { download(name: string, text: string
         render();
         say(`Deleted "${theme.name}".`);
       });
-      row.append(remove);
+      tile.append(remove);
     }
-    return row;
+    tile.append(preview(themePalette(theme, activeScheme(theme)).palette));
+    return tile;
   }
 
   function render(): void {
     const current = chosenTheme().id;
     const heading = (text: string) => h("p", { class: "theme-group" }, text);
+    const tiles = (themes: Theme[]) => h("div", { class: "theme-grid" }, ...themes.map((t) => option(t, current)));
     const of = (group: Theme["group"]) => BUILT_IN.filter((t) => t.group === group);
-    const more = of("more");
+    // Up front: Deep Field (the default, in its three forms) and High contrast. Folded: Slate (v1's
+    // palette), the popular editor themes and the others; the fold opens when the chosen theme is in it.
+    const own = of("codeeditor");
+    const slate = own.filter((t) => t.own === "slate");
+    const popular = of("popular");
+    const others = of("more");
     const folded = h("details", { class: "theme-more" });
-    folded.open = more.some((t) => t.id === current);
-    const summary = h("summary", null, `More themes (${more.length})`);
-    folded.append(summary, ...more.map((t) => option(t, current)));
+    folded.open = [...slate, ...popular, ...others].some((t) => t.id === current);
+    const summary = h("summary", null, `More themes (${slate.length + popular.length + others.length})`);
+    folded.append(summary, heading("CodeEditor Slate"), tiles(slate), heading("Popular editor themes"), tiles(popular), heading("Other editor themes"), tiles(others));
     const yours = allThemes().filter((t) => t.custom);
-    list.replaceChildren(
-      heading("CodeEditor"),
-      ...of("codeeditor").map((t) => option(t, current)),
-      heading("Popular editor themes"),
-      ...of("popular").map((t) => option(t, current)),
-      folded,
-      ...(yours.length ? [heading("Yours"), ...yours.map((t) => option(t, current))] : []),
-    );
+    // The section's heading ("Colour theme") names the group, so the first tiles need no title of their own.
+    list.replaceChildren(tiles(own.filter((t) => t.own !== "slate")), folded, ...(yours.length ? [heading("Yours"), tiles(yours)] : []));
   }
 
   const load = h("button", { type: "button", class: "btn" }, icon("upload-simple"), "Load theme file");

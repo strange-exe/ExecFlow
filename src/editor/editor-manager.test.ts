@@ -10,7 +10,9 @@ import { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import type { ToolDiagnostic } from "../core/types";
 import { EditorManager, type EditorHooks, type EditorManagerOptions } from "./editor-manager";
+import { workspaceIndex } from "./completion-context";
 import { headlessHost } from "./host";
+import { indexIn } from "./workspace-index";
 
 function setup(options: Omit<EditorManagerOptions, "host"> = {}) {
   const events: string[] = [];
@@ -53,6 +55,42 @@ describe("opening and switching files", () => {
     expect(events).toEqual(["active a"]);
     expect(mgr.open("a", "main.c", "ignored")).toBe(false);
     expect(mgr.text("a")).toBe(MAIN);
+  });
+
+  it("says when the active file's cursor or text changes, inside the same dispatch, and never for files not shown", () => {
+    // The status bar's Ln/Col is written from this hook in the editor's own update: a separate
+    // frame per key for it doubled the page's paint work while typing (speed profile, 2026-10-19).
+    const moves: string[] = [];
+    const { mgr } = setup({ hooks: { onSelectionChange: (id, state) => moves.push(`${id} ${state.selection.main.head}`) } });
+    mgr.open("a", "main.c", MAIN);
+    mgr.open("b", "util.c", UTIL, { activate: false });
+    moves.length = 0; // opening shows the file; the workbench redraws then anyway (onActiveChange)
+    mgr.apply("a", { selection: { anchor: 4 } });
+    expect(moves, "a cursor move, before dispatch returns").toEqual(["a 4"]);
+    mgr.apply("a", { changes: { from: 0, insert: "x" } });
+    expect(moves, "an edit maps the cursor").toEqual(["a 4", "a 5"]);
+    mgr.apply("a", { effects: [] });
+    expect(moves, "a transaction that moves nothing").toEqual(["a 4", "a 5"]);
+    mgr.apply("b", { selection: { anchor: 2 } });
+    mgr.apply("b", insert(0, "y"));
+    expect(moves, "a file not shown").toEqual(["a 4", "a 5"]);
+  });
+
+  it("says so when the shown file's text is replaced from outside (a pull, an import, a program's file), not for a file not shown", () => {
+    // While a file stays shown, Ln/Col is written only from this hook. A replaced text keeps the
+    // cursor's offset where it can (clamped to the new length), so its line and column change.
+    const moves: string[] = [];
+    const { mgr } = setup({ hooks: { onSelectionChange: (id, state) => moves.push(`${id} ${state.selection.main.head} line ${state.doc.lineAt(state.selection.main.head).number}`) } });
+    mgr.open("a", "main.c", MAIN);
+    mgr.open("b", "util.c", UTIL, { activate: false });
+    mgr.apply("a", { selection: { anchor: MAIN.length } });
+    expect(moves).toEqual([`a ${MAIN.length} line 5`]);
+    moves.length = 0;
+    const next = "int main(void) { return 0; }\n";
+    expect(mgr.replaceContent("a", next)).toBe(true);
+    expect(moves, "the shown file's cursor, in its new text").toEqual([`a ${next.length} line 2`]);
+    expect(mgr.replaceContent("b", "int helper(void) { return 1; }\n")).toBe(true);
+    expect(moves, "a file not shown").toEqual([`a ${next.length} line 2`]);
   });
 
   it("refuses a second id for a path that is already open", () => {
@@ -424,7 +462,49 @@ describe("read-only lock and preferences", () => {
     expect(wraps()).toBe(false);
     mgr.setPrefs({ lineWrapping: true });
     expect(wraps()).toBe(true);
-    expect(mgr.getPrefs()).toEqual({ lineWrapping: true });
+    expect(mgr.getPrefs()).toEqual({ lineWrapping: true, suggestOnTyping: true });
+  });
+});
+
+describe("the names index", () => {
+  const soon = (slice: (more: () => boolean) => void) => void setTimeout(() => slice(() => true), 0);
+  async function settled(mgr: EditorManager) {
+    for (let i = 0; i < 1000 && mgr.index?.busy; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(mgr.index?.busy).toBe(false);
+  }
+
+  it("is made only when the app can read files, and every file's state carries it", () => {
+    expect(setup().mgr.index).toBeNull();
+    const { mgr } = setup({ readFile: () => Promise.resolve(""), indexScheduler: soon });
+    mgr.open("a", "main.c", MAIN);
+    expect(mgr.index).not.toBeNull();
+    expect(mgr.host.state.facet(workspaceIndex)).toBe(mgr.index);
+  });
+
+  it("reads an open file's current text (no storage read), stored files from storage, and forwards changes", async () => {
+    const stored: Record<string, string> = { "util.h": "int stored_name;\n", "lib.h": "int lib_name;\n" };
+    const reads: string[] = [];
+    const { mgr } = setup({ readFile: (path) => (reads.push(path), Promise.resolve(stored[path])), indexScheduler: soon });
+    mgr.open("u", "util.h", "int open_name;\n", { activate: false });
+    mgr.open("a", "main.c", MAIN);
+    // The slot's index, made here as the first suggestion would make it (in the completion chunk).
+    const names = (path: string) => indexIn(mgr.index!).get(path)?.names.map((n) => n.label) ?? null;
+    names("util.h");
+    names("lib.h");
+    await settled(mgr);
+    expect(names("util.h")).toEqual(["open_name"]);
+    expect(names("lib.h")).toEqual(["lib_name"]);
+    expect(reads).toEqual(["lib.h"]);
+    // Typing in the open header (here through apply) is what the index reads next.
+    mgr.apply("u", (state) => ({ changes: { from: state.doc.length, insert: "int typed_name;\n" } }));
+    expect(names("util.h")).toBeNull();
+    await settled(mgr);
+    expect(names("util.h")).toEqual(["open_name", "typed_name"]);
+    stored["lib.h"] = "int new_lib_name;\n";
+    mgr.indexChanged(["lib.h"]);
+    expect(names("lib.h")).toBeNull();
+    await settled(mgr);
+    expect(names("lib.h")).toEqual(["new_lib_name"]);
   });
 });
 

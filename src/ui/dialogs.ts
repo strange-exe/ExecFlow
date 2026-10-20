@@ -13,6 +13,7 @@ export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement 
   const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
   const opener = returnTo ?? active;
   if (!dialog.isConnected) document.body.append(dialog);
+  watchScroll(dialog);
   dialog.addEventListener(
     "close",
     () => {
@@ -22,6 +23,21 @@ export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement 
   );
   dialog.showModal();
   (initialFocus ?? dialog.querySelector<HTMLElement>("[autofocus]"))?.focus();
+}
+
+/**
+ * The header stays put while the body scrolls under it; once the body has scrolled, a divider
+ * rule under the header shows where the two meet (data-scrolled on .dialog-head).
+ */
+function watchScroll(dialog: HTMLDialogElement): void {
+  const head = dialog.querySelector<HTMLElement>(".dialog-head");
+  const body = dialog.querySelector<HTMLElement>(".dialog-body");
+  if (!head || !body || body.dataset.watched) return;
+  body.dataset.watched = "true";
+  const update = () => head.toggleAttribute("data-scrolled", body.scrollTop > 0);
+  body.addEventListener("scroll", update, { passive: true });
+  dialog.addEventListener("close", () => head.removeAttribute("data-scrolled"));
+  update();
 }
 
 /** A dialog shell: title, a close button, and a body. Labelled by its title. */

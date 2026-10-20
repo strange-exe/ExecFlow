@@ -55,6 +55,14 @@ export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLEl
   );
 }
 
+/**
+ * While start-up reopens the file left open last time (its editor is still loading): a quiet line,
+ * in the place the code will take, instead of a "No file open" that isn't true.
+ */
+export function openingFile(name: string): HTMLElement {
+  return h("div", { class: "empty-state compact", "data-empty": "opening" }, h("p", { class: "empty-lede" }, `Opening ${name}`));
+}
+
 export function noFileOpen(): HTMLElement {
   return h(
     "div",
