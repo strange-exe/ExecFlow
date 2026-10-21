@@ -1,12 +1,13 @@
-// Loads the completion chunk (completion-code.ts: every suggestion source, the workspace index)
-// with import() the first time a shown file or a suggestion source needs it, so it is not part of
-// the editor chunk (research doc section 3, "Bundle size"). Showing a file starts the load, so the
-// code is normally there before the first key. A query that comes before it offers nothing, without
-// validFor, and runs again once the code arrives (late-data.ts), if nothing has happened since: the
-// same text, cursor and focus, and no Escape. The service worker precaches the
-// chunk with every other one, so this works offline after the first visit. If the code can't load
-// (the network goes between the editor chunk and this one on a first visit, say), those sources
-// offer nothing, keywords included, and this code throws and logs nothing; the browser still
+// Loads the completion chunk (completion-code.ts: the library and own-name sources, the workspace
+// index) with import() the first time a shown file or a suggestion source needs it, so it is not
+// part of the editor chunk (research doc section 3, "Bundle size"). Showing a file starts the load,
+// so the code is normally there before the first key. A query that comes before it offers nothing
+// from those sources, without validFor, and runs again once the code arrives (late-data.ts), if
+// nothing has happened since: the same text, cursor and focus, and no Escape. The service worker
+// precaches the chunk with every other one, so this works offline after the first visit. If the
+// code can't load (the network goes between the editor chunk and this one on a first visit, say),
+// those sources offer nothing, the keywords and snippets (keyword-completion.ts, the editor chunk's)
+// still do, and this code throws and logs nothing; the browser still
 // reports its own failed request (Chromium in the console). A query after CODE_RETRY_MS tries
 // again, and when that load works the shown files' loaders start (Loaders). Chromium and Firefox
 // then fetch the chunk again, as the HTML Standard says (a failed fetch leaves the module map,

@@ -3,15 +3,17 @@
 //   typedefs, globals, #define macros: own-names.ts), read from its syntax tree as you type, and what
 //   the workspace headers it includes with quotes declare, transitively (the build's own include
 //   rule, cpp-build.ts includeClosure), from the workspace index. The word being typed is left out.
-// - Python: lang-python's localCompletionSource already offers the open file's names (functions,
-//   classes, assignments, parameters, loop variables and imports, with their kinds), so nothing is
-//   added for the file itself; a workspace module's members come from library-completion.ts.
+// - Python: lang-python's localCompletionSource offers the open file's names (functions, classes,
+//   assignments, parameters, loop variables and imports, with their kinds): pythonLocalNames below,
+//   where plain names fit. A workspace module's members come from library-completion.ts.
 // ownNamesLoader asks the index for those files while a file is shown, so they are usually parsed
 // before the first suggestion, and marks the editor with data-index (pending or ready) for tests.
 // A suggestion asked for before then runs again once they are (late-data.ts).
-// This file is in the completion chunk (completion-code.ts).
+// This file is in the completion chunk (completion-code.ts). Where no own name is offered, a source
+// answers null (keyword-completion.ts unless says why).
 
 import type { Completion, CompletionSource } from "@codemirror/autocomplete";
+import { localCompletionSource } from "@codemirror/lang-python";
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 import type { EditorView, PluginValue } from "@codemirror/view";
@@ -19,14 +21,27 @@ import { isConflictCopy, parentOf } from "../core/paths";
 import type { WorkspaceFile, WsPath } from "../core/types";
 import { includeClosure } from "../runner/cpp-build";
 import { filePath } from "./completion-context";
+import { plainNamesOnly, WORD } from "./keyword-completion";
 import { whenDataArrives } from "./late-data";
 import { contextOf, pythonImportedModules, workspaceModuleFile } from "./library-completion";
-import { cFileNames, ownOptions, type OwnName } from "./own-names";
+import { cFileNames, ownOptions, safeLabel, type OwnName } from "./own-names";
 import { indexOf, type WorkspaceIndex } from "./workspace-index";
 
 type Tree = ReturnType<typeof syntaxTree>;
 
-const WORD = /^\w*$/;
+/**
+ * lang-python's local names without any that hold a direction or hidden character (own-names.ts
+ * safeLabel; review finding S1): accepting one would type it, and the list wouldn't mark it.
+ * localCompletionSource answers synchronously (lang-python 6.2.1).
+ */
+const safeLocalNames: CompletionSource = (context) => {
+  const result = localCompletionSource(context);
+  if (!result || result.options.every((o) => safeLabel(o.label))) return result;
+  return { ...result, options: result.options.filter((o) => safeLabel(o.label)) };
+};
+
+/** The open Python file's own names (lang-python's local-name source), where plain names fit. */
+export const pythonLocalNames: CompletionSource = plainNamesOnly(safeLocalNames);
 
 /** The open file's names and quoted includes, per syntax tree (a new tree comes with each edit). */
 const openFiles = new WeakMap<Tree, { names: readonly OwnName[]; includes: readonly string[] }>();

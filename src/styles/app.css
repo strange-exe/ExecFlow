@@ -285,6 +285,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .tab-host { flex: 1 1 auto; align-self: stretch; min-width: 0; }
 .head-tools { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; }
 .head-tools .runtime { font-size: var(--fs-2); }
+/* Capture snippet's head button: the 16 px of Run's play icon beside it, so after a failed run it
+   stays quieter than Run's outline in the blurred check too (look gate, 2026-10-21). */
+#snippet-button .icon { width: 1rem; height: 1rem; }
 /* "Error in calc.py, line 2": the error band's fill, a 2 px danger bar, the words at 600. */
 .error-jump {
   display: inline-flex;
@@ -674,10 +677,15 @@ button.problem:hover { background: var(--hover); }
 }
 
 /* ------------------------------------------------------------------ menus */
+/* A menu taller or wider than the window scrolls inside itself (focus() scrolls the focused item into view). */
 .menu {
   position: fixed;
   z-index: 50;
   min-width: 220px;
+  max-height: calc(100dvh - 8px);
+  max-width: calc(100vw - 8px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--s1);
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
@@ -697,13 +705,30 @@ button.problem:hover { background: var(--hover); }
   color: var(--text);
   text-align: left;
 }
-.menu-item:hover, .menu-item:focus { background: var(--hover); }
+/* Focus alone fills a row: menu.ts moves focus to the row under a pointer that really moves, so the
+   fill still follows the pointer, and a menu opened under a still pointer never shows two chosen rows. */
+.menu-item:focus { background: var(--hover); }
 .menu-item:focus-visible { outline-offset: -2px; }
 .menu-item .icon { width: 1rem; height: 1rem; color: var(--text-muted); }
 .menu-item.danger, .menu-item.danger .icon { color: var(--danger); }
 .menu-label { flex: 1; }
-/* Between groups (open and close; new, rename, delete; import and export; the file list's width). */
-.menu-sep { height: 1px; margin: var(--s1) 0; background: var(--border); }
+/* Between groups (open and close; new, rename, delete; import and export; Capture snippet; the file list's width). */
+/* A border, not a fill: forced colours paint every author background as Canvas, while a border takes a system colour. */
+.menu-sep { height: 0; margin: var(--s1) 0; border-top: 1px solid var(--border); }
+/* The code menu's last line (the way back to the browser's menu): quiet, under a rule, lined up with
+   the item labels (item padding, icon, gap). Width 0 with min-width 100%: it wraps inside the items'
+   width instead of widening the menu. */
+.menu-hint {
+  width: 0;
+  min-width: 100%;
+  margin-top: var(--s1);
+  padding: var(--s1) var(--s2) 0 calc(2 * var(--s2) + 1rem);
+  border-top: 1px solid var(--border);
+  font: var(--fs-hint)/var(--lh-hint) var(--font-ui);
+  color: var(--text-muted);
+  /* Two lines of even length, never one word left alone on the second. */
+  text-wrap: balance;
+}
 
 /* ------------------------------------------------------------------ dialogs */
 .dialog {

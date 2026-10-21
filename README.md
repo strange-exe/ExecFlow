@@ -16,6 +16,9 @@ WebAssembly workers.
 - Works offline after the first visit (a service worker keeps the app and the Python runtime).
 - Suggestions as you type: keywords and snippets, the standard library's names, and your own names
   (see [Suggestions](#suggestions)).
+- Capture snippet: right-click selected code (or press Shift+F10) to make an image of those lines,
+  with a preview: copy it or download a PNG. Shift+right-click gives the browser's own menu. The
+  same command is in More file actions and, on wider screens, at the end of the editor head.
 
 ## Running it
 
@@ -62,14 +65,17 @@ A list of suggestions opens as you type. It offers keywords and snippets (`for`,
   `from math import`. Your own modules (`helpers.py` beside the file) and their top-level functions,
   classes and variables are offered too.
 - C and C++: header names after `#include <` (and your headers after `#include "`), library
-  functions and constants with their prototype or value, and `std::` names in C++. They follow the
-  C and C++ standard chosen in Settings, and a function that doesn't link here (`gets`, `system`)
-  is never offered. Your own functions, types, globals and macros come from the open file and the
-  headers it includes with quotes.
+  functions and constants with their prototype or value, and `std::` names in C++. After your own
+  `using namespace std;` the std names come without the prefix too (`vector`, `cout`), below your
+  own names, wherever C++ lets you use them: after the line, and only inside the block or namespace
+  it is in. They follow the C and C++ standard chosen in Settings, and a function that doesn't link
+  here (`gets`, `system`) is never offered. Your own functions, types, globals and macros come from
+  the open file and the headers it includes with quotes.
 
 The library lists are generated from the C/C++ pack's sysroot and from Pyodide
 (`scripts/gen-c-completions.mjs`, `scripts/gen-python-completions.mjs`), load the first time a file
-of that language is shown, and work offline after the first visit.
+of that language is shown, and work offline after the first visit. Keywords and snippets come with
+the editor itself, so they are offered even if the rest can't load yet.
 
 - Nothing is picked when the list opens, so Enter makes a new line. Down or Up picks a suggestion,
   then Enter accepts it. Tab never accepts one.

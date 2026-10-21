@@ -3,6 +3,9 @@
 import { h, isMac } from "./dom";
 import { dialogShell, openModal } from "./dialogs";
 
+/** "Snippet" also names completion templates here, so the row says what Capture snippet makes. */
+const CODE_MENU = "Menu for the selected code: Capture snippet (an image of the lines), Cut, Copy, Select all";
+
 export function shortcutGroups(mac = isMac()): { title: string; rows: [string, string][] }[] {
   const mod = mac ? "Cmd" : "Ctrl";
   return [
@@ -22,13 +25,17 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
         [`${mod} Shift E`, "Go to the file list"],
         ["F2", "Rename the chosen file or folder (in the list)"],
         ["Delete", "Delete it (asks first); on a tab, close the file"],
-        ["Shift F10", "More actions for the chosen file"],
+        ["Shift F10", "More actions for the chosen file (in the list)"],
       ],
     },
     {
       title: "Editor",
       rows: [
         ["Esc then Tab", "Leave the editor (Tab alone indents)"],
+        // The code menu (code-menu.ts). macOS has no browser keyboard menu, so no "again" row there.
+        ...(mac
+          ? [["Shift F10", CODE_MENU] as [string, string]]
+          : [["Shift F10 or Menu", CODE_MENU] as [string, string], ["Shift F10 then Shift F10", "The browser's own menu for the selected code"] as [string, string]]),
         [mac ? "Shift Alt M" : "Ctrl M", "Turn Tab-moves-focus on or off"],
         [`${mod} F`, "Find in the file"],
         [`${mod} /`, "Comment or uncomment the line"],

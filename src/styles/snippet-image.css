@@ -1,0 +1,81 @@
+/* The Capture snippet dialog (src/ui/snippet-dialog.ts, final-v3 sections 5.1 and 5.2). A lazy
+   stylesheet: the dialog's module imports it, and Vite's preload helper waits for it before the
+   module runs, so the dialog never shows unstyled. Tokens only (tokens.test.ts checks). The frame's
+   height is set in px from script, once per opening. */
+
+/* Normal mode: the body scrolls between the head and the footer, so a focused option is never under the footer. */
+.snippet-dialog .dialog-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* A wrapped title breaks into even lines ("Capture snippet of / lines 2 to 3"), never a lone "3". */
+.snippet-dialog .dialog-title { text-wrap: balance; }
+
+/* The preview: the export bitmap itself on the surface ground, shrunk to the frame's width, never enlarged. */
+.snippet-frame {
+  padding: var(--s2);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--text);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+.snippet-frame > canvas { display: block; margin: 0 auto; }
+/* The ring inside the frame's edge: the body that scrolls the frame clips anything outside its box,
+   and the frame sits flush with the body's top (as .panel-body's ring). */
+.snippet-frame:focus-visible { outline-offset: -2px; }
+.snippet-frame-text { margin: 0; padding: var(--s2); }
+
+/* Notes under the frame: an info icon and words, the field-note size. */
+.snippet-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+}
+.snippet-note .icon { margin-top: 1px; }
+
+.snippet-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--s4) var(--s5);
+  margin-top: var(--s4);
+}
+.snippet-options fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+/* Deep Field's fieldset legend: one size step above the options, never weight alone. */
+.snippet-options legend {
+  margin-bottom: var(--s1);
+  padding: 0;
+  color: var(--text);
+  font-size: var(--fs-section);
+  font-weight: var(--w-label);
+  line-height: var(--lh-section);
+}
+.snippet-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--s2);
+  min-height: var(--h-row);
+}
+.snippet-choice > label { overflow-wrap: anywhere; }
+
+/* The footer: Deep Field's rule, then the status on its own line (rendered while empty), then the buttons. */
+.snippet-actions { padding-top: var(--s3); border-top: 1px solid var(--divider); }
+.snippet-status {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-height: calc(2 * var(--lh-1));
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.snippet-status .icon { margin-top: 2px; }
+
+/* Compact mode (very short or zoomed windows): the dialog is the one scroller, and every part keeps its height. */
+.snippet-dialog[data-compact] > * { flex: none; }
+.snippet-dialog[data-compact] .dialog-body { overflow: visible; }

@@ -133,19 +133,21 @@ test("after a failed run the error jump comes first in the editor head, and it a
   await failedRun(page);
 
   // Reading order: in the editor head the jump is the first control after the tab list (one tab
-  // stop), then Run; the runtime words are not a stop.
+  // stop), then Run, then the quiet Capture snippet button; the runtime words are not a stop.
   await expect(jump).toBeVisible();
   await expect(jump).toHaveAccessibleName("Error in calc.py, line 2");
   const stops = await page.locator(".editor-head").evaluate((head) =>
     [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
   );
-  expect(stops.slice(1), `editor head stops ${stops.join(", ")}`).toEqual(["error-jump", "run-button"]);
+  expect(stops.slice(1), `editor head stops ${stops.join(", ")}`).toEqual(["error-jump", "run-button", "snippet-button"]);
   expect(stops[0]).toMatch(/^tab-/);
   await page.locator('.tabs [role=tab][aria-selected="true"]').focus();
   await page.keyboard.press("Tab");
   await expect(jump).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.locator("#run-button")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#snippet-button")).toBeFocused();
 
   // The run-log header: the error band, the facts, and the exception lifted into one button.
   const header = page.locator("#runlog");
@@ -284,9 +286,9 @@ test("the file menu is grouped by separators that are not focusable and that the
   await page.locator("#file-actions").click();
   const menu = page.getByRole("menu", { name: "File actions" });
   await expect(menu.getByRole("menuitem").first()).toBeFocused();
-  // Open, run and close | new, rename, delete | import and export | the file list's width.
+  // Open, run and close | new, rename, delete | import and export | Capture snippet | the file list's width.
   const separators = menu.getByRole("separator");
-  await expect(separators).toHaveCount(3);
+  await expect(separators).toHaveCount(4);
   for (const sep of await separators.all()) {
     expect(await sep.evaluate((el) => {
       (el as HTMLElement).focus();
@@ -294,7 +296,8 @@ test("the file menu is grouped by separators that are not focusable and that the
     }), "a separator takes no focus").toBe(false);
   }
   const labels = await menu.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector(".menu-label")!.textContent));
-  expect(labels).toEqual(["Open", "Run", "Close tab", "New file", "New folder", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Wider file list", "Narrower file list"]);
+  // Nothing is selected in main.py: the Capture snippet item names no lines (it explains on click).
+  expect(labels).toEqual(["Open", "Run", "Close tab", "New file", "New folder", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
   // Down walks every item in order, never a separator, and wraps; Up comes back over them.
   const seen: string[] = [];
   for (let i = 0; i < labels.length; i++) {
@@ -311,6 +314,37 @@ test("the file menu is grouped by separators that are not focusable and that the
   await expect(menu.getByRole("menuitem", { name: /^Close tab/ })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("#file-actions")).toBeFocused();
+});
+
+test("a menu that opens under a still pointer fills one row, the focused one; a real move hands both to the row under it", async ({ page, browserName }, info) => {
+  // 320 x 640: the file menu is taller than the room below its button, so it opens over the button,
+  // under the pointer that just clicked it.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await openApp(page);
+  await importFiles(page, FILES);
+  await openFromTree(page, "main.py");
+  await showFiles(page);
+  await page.locator("#file-actions").click();
+  const menu = page.getByRole("menu", { name: "File actions" });
+  await expect(menu.getByRole("menuitem").first()).toBeFocused();
+  const rows = () =>
+    menu.getByRole("menuitem").evaluateAll((els) =>
+      els.map((e) => ({
+        label: e.querySelector(".menu-label")!.textContent!, fill: getComputedStyle(e).backgroundColor, hovered: e.matches(":hover"), focused: e === document.activeElement,
+      })),
+    );
+  const still = await rows();
+  info.annotations.push({ type: "rows under a still pointer", description: JSON.stringify(still.filter((r) => r.hovered || r.focused)) });
+  // WebKit reports no :hover for a row that appears under a still pointer; the other two do.
+  if (browserName !== "webkit") expect(still.some((r) => r.hovered && !r.focused), "precondition: another row lies under the still pointer").toBe(true);
+  expect(still.filter((r) => !TRANSPARENT.test(r.fill)).map((r) => r.label), "filled rows").toEqual(["Open"]);
+  // A real move onto another row: focus and the fill go there together.
+  const target = menu.getByRole("menuitem", { name: /^Rename/ });
+  const b = (await target.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 4 });
+  await expect(target).toBeFocused();
+  // Polled: the fill changes over the 120 ms state transition.
+  await expect.poll(async () => (await rows()).filter((r) => !TRANSPARENT.test(r.fill)).map((r) => r.label), { message: "filled rows after the move" }).toEqual(["Rename"]);
 });
 
 test("the shortcuts dialog lines every description up on one x", async ({ page }) => {

@@ -506,6 +506,35 @@ test("C++ headers come in two groups whose headings are for the eye only; axe is
   await page.screenshot({ path: `${process.env.SHOTS_DIR ?? "e2e/shots"}/suggestions/cpp-headers-${test.info().project.name}.png`, animations: "disabled" });
 });
 
+// Design decision 17 (review RB-7); the scope rules are in using-std.test.ts.
+test("after using namespace std; std names come without the prefix, below your own names; without it they don't", async ({ page }) => {
+  await openApp(page);
+  await emptyStarter(page, "cpp");
+  await setCode(page, "#include <vector>\nusing namespace std;\nint vec_total;\n\nint main() {\n    ");
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("vec");
+  const vector = option(page, "vector");
+  await expect(vector).toBeVisible();
+  await expect(vector.locator(".cm-completionIcon")).toHaveClass(/cm-completionIcon-class/);
+  // Your own vec_total matches as well (a prefix) and comes first.
+  expect((await order(page)).slice(0, 2)).toEqual(["vec_total", "vector"]);
+  await pastInteractionDelay(page);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("vector");
+  await expect(picked(page)).toHaveAccessibleDescription("std::vector, declared in <vector>");
+  await page.keyboard.press("Enter");
+  expect((await lines(page)).at(-1)).toBe("    vector");
+
+  // Without the directive: no std name without the prefix.
+  await setCode(page, "#include <vector>\nint vec_total;\n\nint main() {\n    ");
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("vec");
+  await expect(option(page, "vec_total")).toBeVisible();
+  await expect(page.locator(".cm-editor")).toHaveAttribute("data-completion", "active");
+  await expect(option(page, "vector")).toHaveCount(0);
+});
+
 test("Suggestions while typing: off, typing opens no list but Ctrl+Space does, and it stays off after a reload", async ({ page }) => {
   await openApp(page);
   await emptyStarter(page, "python");
@@ -574,13 +603,14 @@ test("the library data is not part of the first visit: each part loads when a fi
   expect((await loaded()).sort()).toEqual(["c", "python"]);
 });
 
-// The suggestion code is a chunk of its own (completion-loader.ts). On a first visit its request can
-// fail after the editor chunk came (the network goes, a deploy replaced the files). Typing then
-// offers nothing and nothing throws; the browser reports only its own failed request. A query after
-// the retry window loads it, where the browser fetches it again (Chromium and Firefox, as the HTML
-// Standard says), and the shown file's loaders start then; a reload works too. Playwright 1.64's
-// WebKit never asked for the chunk again in that browser context, in the page or after two reloads
-// (aborted or answered 404, measured 2026-10-21), so there only the quiet failure is checked.
+// The library and own-name suggestions are a chunk of their own (completion-loader.ts). On a first
+// visit its request can fail after the editor chunk came (the network goes, a deploy replaced the
+// files). Typing then offers the keywords and snippets, which are the editor chunk's, and nothing
+// else, and nothing throws; the browser reports only its own failed request. A query after the retry
+// window loads it, where the browser fetches it again (Chromium and Firefox, as the HTML Standard
+// says), and the shown file's loaders start then; a reload works too. Playwright 1.64's WebKit never
+// asked for the chunk again in that browser context, in the page or after two reloads (aborted or
+// answered 404, measured 2026-10-21), so there only the failure is checked.
 test.describe("when the suggestion chunk can't load on a first visit", () => {
   test.use(
     tolerating(
@@ -590,7 +620,7 @@ test.describe("when the suggestion chunk can't load on a first visit", () => {
     ),
   );
 
-  test("typing offers nothing and nothing throws; a later try and a reload bring the suggestions and the loaders back", async ({ page, browserName }) => {
+  test("typing offers only keywords and snippets and nothing throws; a later try and a reload bring the library names and the loaders back", async ({ page, browserName }) => {
     // library-data.ts's error text: only the suggestion chunk has it (design.spec finds it the same way).
     const MARK = "not library data";
     let failing = true;
@@ -617,25 +647,38 @@ test.describe("when the suggestion chunk can't load on a first visit", () => {
       await expect(editor).toHaveAttribute("data-completion", /^(closed|active)$/);
     };
 
+    /** The option whose detail is exactly `detail`: the printf snippet's is "statement", the library function's its prototype. */
+    const withDetail = (detail: string) => list(page).getByRole("option").filter({ has: page.locator(".cm-completionDetail", { hasText: new RegExp(`^${detail.replace(/[()*.]/g, "\\$&")}$`) }) });
+    const PRINTF = "int printf(const char *, ...)";
+
     await openApp(page);
     await page.locator('.starter[data-language="c"]').click();
     await expect(editor).toHaveAttribute("data-library", "failed");
     expect(failed, "the suggestion chunk's request was made to fail").toHaveLength(1);
     await setCode(page, "int main(void) {\n    ");
     await page.keyboard.press("Control+End");
+    // The keywords and snippets are the editor chunk's: offered while the chunk is missing.
     await typeWord("ret");
-    await expect(list(page)).toHaveCount(0);
+    await expect(option(page, "return")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await setCode(page, "int main(void) {\n    ");
+    await page.keyboard.press("Control+End");
+    await typeWord("pri");
+    await expect(withDetail("statement"), "the printf snippet").toBeVisible();
+    // Nothing from the chunk that failed: no library function, nor the file's own main.
+    await expect(withDetail(PRINTF)).toHaveCount(0);
+    await expect(list(page).locator(".cm-completionIcon-function")).toHaveCount(0);
     await page.keyboard.press("Control+Space");
-    await expect(editor).toHaveAttribute("data-completion", "closed");
-    await expect(list(page)).toHaveCount(0);
+    await expect(editor).toHaveAttribute("data-completion", "active");
+    await expect(list(page).locator(".cm-completionIcon-function")).toHaveCount(0);
 
     if (browserName === "webkit") return; // see above: WebKit doesn't fetch it again in this context
 
     // The network is back and the retry window has passed: the next query loads the chunk.
     failing = false;
     await page.evaluate(() => void ((window as unknown as { __later: number }).__later = 31_000));
-    await page.keyboard.type("u", { delay: 100 });
-    await expect(option(page, "return")).toBeVisible();
+    await page.keyboard.type("n", { delay: 100 });
+    await expect(withDetail(PRINTF)).toBeVisible();
     // The shown file's loaders started too: the library data and its headers' names.
     await expect(editor).toHaveAttribute("data-library", "ready");
     await expect(editor).toHaveAttribute("data-index", "ready");
@@ -648,8 +691,8 @@ test.describe("when the suggestion chunk can't load on a first visit", () => {
     await page.locator(".cm-content").click();
     await page.keyboard.press("Control+End");
     await page.keyboard.press("Enter");
-    await page.keyboard.type("ret", { delay: 100 });
-    await expect(option(page, "return")).toBeVisible();
+    await page.keyboard.type("pri", { delay: 100 });
+    await expect(withDetail(PRINTF)).toBeVisible();
   });
 });
 

@@ -769,6 +769,16 @@ const GUARD_VERSION = { "c++17": "14", "c++2a": "17" };
 /** C header folders a student would use: sys/ only (see the summary for what the others are). */
 const C_FOLDERS = ["sys"];
 
+/**
+ * C headers left out of the list although they build here, because a beginner never includes them
+ * (design decision 17, 2026-10-19: Hick's law, fewer choices in the list). Each must exist.
+ */
+const C_LEFT_OUT = {
+  "stdc-predef.h": "only predefines __STDC_ISO_10646__ and __STDC_IEC_559__ for the compiler; GCC includes it on its own, a program never does",
+  "stdio_ext.h": "glibc's extensions for looking inside a FILE's buffer, such as __fpending and __freadahead",
+  "libintl.h": "message translation with gettext and its family, of which one function links here: review finding F2",
+};
+
 /** The first standard libc++ 8's synopsis comment gives a name: a bare "// C++14" or "// C++17" marks an addition. */
 function synopsisSince(text, name, kind) {
   const start = text.indexOf("/*");
@@ -814,14 +824,20 @@ export function collect(sysroot) {
     }
   };
 
-  // C headers: top-level include/*.h and include/sys/*.h, minus private ones, ones that fail in
-  // the default mode, and ones that declare functions of which none links.
+  // C headers: top-level include/*.h and include/sys/*.h, minus private ones, the ones a beginner
+  // never includes (C_LEFT_OUT), ones that fail in the default mode, and ones that declare
+  // functions of which none links.
   const cCandidates = sysroot.paths().filter((p) => /^include\/[^/]+\.h$/.test(p) || C_FOLDERS.some((d) => p.startsWith(`include/${d}/`) && /\.h$/.test(p) && p.split("/").length === 3));
-  const cFilter = { private: [], fails: [], nothingLinks: [], kept: [], ownLinking: [] };
+  for (const h of Object.keys(C_LEFT_OUT)) if (!cCandidates.includes(`include/${h}`)) throw new Error(`C_LEFT_OUT names <${h}>, which the C library doesn't have`);
+  const cFilter = { private: [], leftOut: [], fails: [], nothingLinks: [], kept: [], ownLinking: [] };
   for (const path of sortStrings(cCandidates)) {
     const header = path.slice("include/".length);
     if (header.split("/").at(-1).startsWith("__")) {
       cFilter.private.push(header);
+      continue;
+    }
+    if (Object.hasOwn(C_LEFT_OUT, header)) {
+      cFilter.leftOut.push(`${header} (${C_LEFT_OUT[header]})`);
       continue;
     }
     let lines;
@@ -1038,6 +1054,7 @@ function summary({ text, data, result }) {
     "",
     `headers.c: ${data.headers.c.length} kept`,
     `  left out, private (__*.h): ${r.cFilter.private.length}`,
+    `  left out, a beginner never includes them: ${r.cFilter.leftOut.join("; ")}`,
     `  left out, fails in ${DEFAULT_MODE}: ${r.cFilter.fails.length}: ${r.cFilter.fails.join("; ")}`,
     `  left out, declares functions but none links: ${r.cFilter.nothingLinks.length}: ${r.cFilter.nothingLinks.join("; ")}`,
     `  kept with fewer than half of their own functions linking: ${r.cFilter.ownLinking.filter((s) => { const [a, b] = s.split(": ")[1].split("/").map(Number); return a * 2 < b; }).join("; ") || "none"}`,

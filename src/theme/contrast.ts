@@ -329,9 +329,9 @@ function added(): Pair[] {
 
   // The error-line band (code and its gutter cell) after a failed run.
   for (const t of SYNTAX_VARS) add(t, "error-band@bg", TEXT, `${t} on the error line`);
-  add("text", "error-band@bg", TEXT, "untokenised text and the current line number on the error line");
+  add("text", "error-band@bg", TEXT, "untokenised text and the current line number on the error line; the Connect dialog's error message");
   add("gutter-text", "error-band@bg", TEXT, "line number on the error line");
-  add("danger", "error-band@bg", UI, "error squiggle and gutter marker on the error line");
+  add("danger", "error-band@bg", UI, "error squiggle and gutter marker on the error line; the Connect dialog's error icon and bar");
 
   // Selected text on the cursor line and on the error line: CodeMirror draws the selection under
   // the line backgrounds, so what shows is the band painted over the selection.

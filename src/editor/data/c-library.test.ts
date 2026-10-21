@@ -116,6 +116,14 @@ describe("c-library.json", () => {
     expect(data.headers.c).toEqual(expect.arrayContaining(["stdio.h", "stdlib.h", "string.h", "math.h", "sys/socket.h"]));
   });
 
+  it("leaves out headers a beginner never includes, with their names (design decision 17)", () => {
+    for (const h of ["stdc-predef.h", "stdio_ext.h", "libintl.h"]) {
+      expect(data.headers.c, h).not.toContain(h);
+      expect(data.functions.filter((f) => f.header === h).map((f) => f.name), h).toEqual([]);
+      expect(data.macros.filter((m) => m.header === h).map((m) => m.name), h).toEqual([]);
+    }
+  });
+
   it("gives every std:: name a kind, a listed header and a first standard", () => {
     expect(data.std.length).toBeGreaterThan(0);
     for (const s of data.std) {

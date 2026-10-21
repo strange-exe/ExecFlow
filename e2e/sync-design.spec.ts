@@ -10,7 +10,8 @@ import { answer, fillConnect, githubNoise, openConnect, routeGitHub, saveKey, sy
 
 test.use({ serviceWorkers: "block" });
 // A server error (retried), a missing permission (stops) and a revoked token are shown on purpose.
-test.use(syncNoise(...githubNoise(500, "/git/ref/heads/main"), ...githubNoise(403, "/git/ref/heads/main"), ...githubNoise(401, "/git/ref/heads/main")));
+// The Connect dialog's result line is shown with a repository read answered 404.
+test.use(syncNoise(...githubNoise(500, "/git/ref/heads/main"), ...githubNoise(403, "/git/ref/heads/main"), ...githubNoise(401, "/git/ref/heads/main"), ...githubNoise(404)));
 
 const SHOTS = process.env.SHOTS_DIR ?? "e2e/shots";
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -84,8 +85,23 @@ for (const vp of viewports) {
       await fillConnect(page, { owner: "me", token: "not a token" });
       await page.locator("#connect-submit").click();
       await expect(dialog).toHaveAttribute("data-state", "invalid");
+      await expect(page.locator("#connect-token")).toBeFocused();
+      expect(await noOverflow(page)).toBe(true);
       await shot("connect-error");
+      // The error leads that state (decision 13): its gray and blur shots are judged against reading order 4.
+      await hierarchyShots(page, `${dir}/sync-connect-error-${vp.name}-${scheme}`);
       await axe(page, "connect error");
+      // An error that belongs to no field: the result line above Connect (a missing repository).
+      gh.fake.interceptors.push((req) => (req.method === "GET" && req.path === "" ? answer(404, "Not Found") : undefined));
+      await fillConnect(page, {});
+      await page.locator("#connect-submit").click();
+      await expect(dialog).toHaveAttribute("data-state", "failed");
+      await expect(page.locator("#connect-result")).toHaveAttribute("data-tone", "error");
+      expect(await noOverflow(page)).toBe(true);
+      await shot("connect-failed");
+      await hierarchyShots(page, `${dir}/sync-connect-failed-${vp.name}-${scheme}`);
+      await axe(page, "connect failed");
+      gh.fake.interceptors.length = 0;
 
       // 2. First connect: both sides have different files.
       const n = await syncCount(page);

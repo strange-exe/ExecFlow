@@ -10,6 +10,7 @@ import { toLineCol } from "../editor/positions";
 import { deleteAllLocalData, isVersionError, openWorkspaceDb, StorageError, type UiState, type WorkspaceDb, type WorkspaceRecord } from "../storage/db";
 import { createTabCoordinator, relayChanges, type ReadOnlyReason, type TabCoordinator } from "../storage/tabs";
 import { createWorkspaceStore, type WorkspaceStore } from "../storage/workspace";
+import { attachCodeMenu } from "./code-menu";
 import { confirmDialog } from "./dialogs";
 import { h, isMac, isTyping, listNames, plural } from "./dom";
 import { noEditor, type Editors } from "./editors";
@@ -17,7 +18,7 @@ import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
 import { exportZip, pickFiles } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
-import { createLayout } from "./layout";
+import { createLayout, NARROW } from "./layout";
 import { menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
 import { FAILED, OutputView, statusWord, type LiftedError } from "./output";
@@ -27,6 +28,7 @@ import { dropStash, readStash, textHash, writeStash } from "./recover";
 import { callSiteMarks } from "./run-diagnostics";
 import { buildOptions, createSettingsStore, runLimits } from "./settings";
 import { createShortcutsDialog } from "./shortcuts";
+import { createSnippetCapture } from "./snippet-image";
 import { mountSync, type SyncHooks } from "./sync-entry";
 import { TabStrip } from "./tabs";
 import { FileTree } from "./tree";
@@ -105,7 +107,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const problemsView = new ProblemsView();
   L.problemsPanel.append(problemsView.element);
   L.editorPanel.append(
-    h("span", { id: "editor-help", hidden: true }, `Tab indents. To move on, press Escape and then Tab, or press ${isMac() ? "Shift Option M" : "Control M"} so that Tab moves the focus.`),
+    h("span", { id: "editor-help", hidden: true }, `Tab indents. To move on, press Escape and then Tab, or press ${isMac() ? "Shift Option M" : "Control M"} so that Tab moves the focus. With code selected, Shift F10 opens its menu.`),
   );
   root.style.setProperty("--code-size", `${settings.get().codeSize}px`);
   try {
@@ -294,12 +296,31 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   L.sidebarActions.append(newFileButton, newFolderButton, moreButton);
   newFileButton.addEventListener("click", () => startCreate("file"));
   newFolderButton.addEventListener("click", () => startCreate("dir"));
-  // Grouped by separators: open and close; new, rename, delete; import and export; the file list's width.
+  // Capture snippet (an image of the selected lines, .claude/design/snippet-image/final-v3.md): the
+  // file menu's item, the editor head's button and the code menu share one entry. `narrow` asks the
+  // window now: where focus goes at close follows the width the student sees, and the layout's own
+  // query can lag a resize until the next frame (WebKit kept it wide, so focus went to the hidden list).
+  const snippet = createSnippetCapture({
+    root, notice, editors: () => editors, view: () => manager?.view ?? null, fileOf,
+    narrow: () => matchMedia(NARROW).matches, closeDrawer: () => L.closeDrawer(), filesButton: L.drawerToggle, fileActions: moreButton,
+  });
+  // The editor context menu: a right-click on selected code (or Shift+F10 with code selected).
+  attachCodeMenu(L.editorHost, {
+    view: () => manager?.view ?? null, activeId: () => editors.activeId, capture: (opener) => snippet.open(opener, "context"),
+    notice, explainReadOnly, canWrite, mac: isMac(), root,
+  });
+  L.snippetButton.addEventListener("click", (e) => {
+    // The second click of a double click does nothing (the Run rule).
+    if (e.detail > 1) return;
+    snippet.open(L.snippetButton, e.detail > 0 ? "head-pointer" : "head-key");
+  });
+  // Grouped by separators: open and close; new, rename, delete; import and export; Capture snippet; the file list's width.
   menuButton(moreButton, "File actions", () => [
     ...menuFor(tree.selectedNode()),
     { label: "Import files", icon: "upload-simple", separatorBefore: true, run: () => void importFrom(false, targetDir()) },
     { label: "Import a folder", icon: "folder-plus", run: () => void importFrom(true, targetDir()) },
     { label: "Export workspace (.zip)", icon: "download-simple", run: () => void exportWorkspace() },
+    ...snippet.menuItems(),
     ...widthItems(),
   ]);
 
@@ -1680,6 +1701,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (e.defaultPrevented) return;
     const mod = isMac() ? e.metaKey : e.ctrlKey;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    // A modal dialog or an open menu owns the keyboard: nothing behind it runs, closes or moves (APG;
+    // native menus do the same). Mod+S still keeps the browser's own Save page dialog away.
+    if (document.querySelector("dialog[open], .menu")) {
+      if (mod && !e.altKey && !e.shiftKey && key === "s") e.preventDefault();
+      return;
+    }
     if (mod && !e.altKey && key === "Enter") {
       e.preventDefault();
       void run({ repeat: e.repeat, key: true });

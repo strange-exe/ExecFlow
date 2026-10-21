@@ -631,6 +631,52 @@ test("in forced colours the selected tab and panel tab, the open file, the error
 });
 
 /**
+ * The menus' separators split their groups (the file menu's five; the code menu's Capture snippet
+ * from Cut, Copy and Select all, reading order 9). A 1 px background vanished in forced colours (it
+ * turns into Canvas like the menu); drawn as a border it takes a system colour. Measured in pixels:
+ * the strongest contrast along each separator against the menu's ground just above it.
+ */
+test("in forced colours the menus' separators still show", async ({ page, browserName }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.emulateMedia({ colorScheme: "dark", forcedColors: "active" });
+  await page.reload();
+  await waitReady(page);
+  expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches), "forced colours emulated").toBe(true);
+  await importFiles(page, FILES);
+  await openFromTree(page, "main.py");
+  await page.locator("#file-actions").click();
+  const menu = page.getByRole("menu", { name: "File actions" });
+  await expect(menu.getByRole("menuitem").first()).toBeFocused();
+  // Only an engine that really paints forced colours can show this (Playwright's WebKit matches the
+  // media query but keeps the author colours: the menu stayed --surface-raised, measured 2026-10-21).
+  const painted = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.background = "Canvas";
+    document.body.append(probe);
+    const canvas = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return { canvas, menu: getComputedStyle(document.querySelector(".menu")!).backgroundColor };
+  });
+  test.skip(painted.menu !== painted.canvas, `${browserName} keeps author colours under forced-colors emulation (${JSON.stringify(painted)})`);
+  await page.mouse.move(1, 1);
+  const px = decodePng(await page.screenshot({ scale: "css", animations: "disabled" }));
+  const seps = await menu.locator(".menu-sep").evaluateAll((els) => els.map((e) => {
+    const r = e.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }));
+  expect(seps, "the file menu's separators").toHaveLength(4);
+  const shown = seps.map((s) => {
+    const ref = px.at(Math.ceil(s.x + 4), Math.floor(s.y) - 2);
+    let best = 1;
+    for (let y = Math.floor(s.y); y < Math.ceil(s.y + Math.max(s.height, 1)); y++) for (let x = Math.ceil(s.x + 2); x < s.x + s.width - 2; x++) best = Math.max(best, contrast(px.at(x, y), ref));
+    return Math.round(best * 100) / 100;
+  });
+  info.annotations.push({ type: "forced-colour separators", description: JSON.stringify({ seps, shown }) });
+  for (const [i, c] of shown.entries()) expect.soft(c, `separator ${i + 1} against the menu's ground`).toBeGreaterThanOrEqual(3);
+});
+
+/**
  * The output log's ring is drawn on its scroller, inset, so no side of it is ever scrolled out of
  * view (review D, 2026-10-18: drawn on the log itself, its top and bottom were clipped whenever the
  * log was taller than the panel), and it stays clear of the stderr bar.

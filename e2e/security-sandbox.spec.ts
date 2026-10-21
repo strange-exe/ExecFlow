@@ -31,7 +31,7 @@ function servedPaths(): string[] {
     "/sw.js",
     "/theme-boot.js",
     "/manifest.webmanifest",
-    "/favicon.svg",
+    "/icons/mark-v2.svg",
     "/some/deep/route",
     ...list("assets").filter((f) => f !== "w").map((f) => `/assets/${f}`),
     ...list("assets/w").map((f) => `/assets/w/${f}`),

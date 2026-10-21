@@ -7,9 +7,16 @@ import { icon } from "./icons";
 /**
  * Opens a modal dialog and puts focus back once it closes: on `returnTo` (the button that opened
  * it; WebKit doesn't focus a button on click, so the active element can be just the body), else on
- * whatever had focus.
+ * whatever had focus. `returnTo` can also be a function, asked at close (the opener may be hidden
+ * by then); one that returns null has done its own focusing (the code, through view.focus()).
+ *
+ * The close event comes a task after the dialog closed (HTML: it is queued), and by then the browser
+ * has already put focus back on the element focused at showModal. A key handled in between can have
+ * moved focus on: Chromium handled Shift+F10 before the close event (it fires after Escape's keyup
+ * there), opened the item's menu, and this focus() then took the menu's focus and closed it. So
+ * focus is put back only while it still sits where the close left it.
  */
-export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement | null, returnTo?: HTMLElement | null): void {
+export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement | null, returnTo?: HTMLElement | (() => HTMLElement | null) | null): void {
   const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
   const opener = returnTo ?? active;
   if (!dialog.isConnected) document.body.append(dialog);
@@ -17,7 +24,11 @@ export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement 
   dialog.addEventListener(
     "close",
     () => {
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
+      const now = document.activeElement;
+      const untouched = !now || now === document.body || now === active || dialog.contains(now);
+      if (!untouched) return;
+      const target = typeof opener === "function" ? opener() : opener;
+      if (target?.isConnected) target.focus({ preventScroll: true });
     },
     { once: true },
   );
@@ -51,12 +62,26 @@ export function dialogShell(id: string, title: string, options: { wide?: boolean
     body,
   );
   close.addEventListener("click", () => dialog.close());
-  // A click on the backdrop (outside the dialog box) closes it, like Escape.
-  dialog.addEventListener("click", (e) => {
-    if (e.target !== dialog) return;
+  // A click on the backdrop (outside the dialog box) closes it, like Escape; but never the second
+  // click of a double click (the first may have opened this dialog), and never a press that began
+  // inside the box (a text selection or a scrollbar drag released outside).
+  const outside = (e: MouseEvent) => {
     const r = dialog.getBoundingClientRect();
-    const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-    if (!inside) dialog.close();
+    return !(e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
+  };
+  let pressedOutside = false;
+  dialog.addEventListener("pointerdown", (e) => {
+    pressedOutside = e.target === dialog && outside(e);
+  });
+  // A press on the backdrop never takes the focus from the dialog's control (Firefox moved it off Copy
+  // when the second click of the double click that opened this dialog landed there); a click still closes.
+  dialog.addEventListener("mousedown", (e) => {
+    if (e.target === dialog && outside(e)) e.preventDefault();
+  });
+  dialog.addEventListener("click", (e) => {
+    const backdrop = e.target === dialog && e.detail <= 1 && pressedOutside && outside(e);
+    pressedOutside = false;
+    if (backdrop) dialog.close();
   });
   return { dialog, body, close };
 }

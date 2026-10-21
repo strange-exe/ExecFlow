@@ -1,5 +1,5 @@
 // The workbench skeleton (layout v2): the top bar with the breadcrumb, the file sidebar, the editor
-// column (an editor head holding the tabs, the error jump, the runtime state and Run; the editor;
+// column (an editor head holding the tabs, the error jump, the runtime state, Run and Capture snippet; the editor;
 // the bottom panel with Output and Problems) and one status bar that also hosts notices, on one
 // grid with shared edges and the height tokens of tokens.css. Below 900 px the sidebar becomes a
 // drawer, one Code / Output / Problems switch replaces the panel's tabs, the tab strip is hidden
@@ -49,6 +49,8 @@ export interface Layout {
   /** "Error in calc.py, line 2" in the editor head: hidden until a run fails in another file. */
   errorJump: HTMLButtonElement;
   errorJumpWords: HTMLElement;
+  /** Capture snippet of the selected lines: the editor head's last control, after Run (desktop only: phones have no head). */
+  snippetButton: HTMLButtonElement;
   editorPanel: HTMLElement;
   editorHost: HTMLElement;
   emptyHost: HTMLElement;
@@ -139,9 +141,12 @@ export function createLayout(root: HTMLElement): Layout {
   const errorJumpWords = h("span", { class: "jump-words" });
   const errorJump = h("button", { type: "button", class: "error-jump", id: "error-jump" }, icon("x-circle"), errorJumpWords);
   errorJump.hidden = true;
-  // The editor head: the tabs on the left; the error jump, the runtime state and Run on the right
-  // (desktop: place() moves the last two in).
-  const headTools = h("div", { class: "head-tools" }, errorJump);
+  // Capture snippet (an image of the selected lines): quiet, after Run, in the quiet tier with the
+  // sidebar's icon buttons. Its name is static: the selection changes on every keystroke.
+  const snippetButton = h("button", { type: "button", class: "icon-btn", id: "snippet-button", "aria-label": "Capture snippet of the selected lines", title: "Capture snippet of the selected lines" }, icon("image"));
+  // The editor head: the tabs on the left; the error jump, the runtime state, Run and Capture
+  // snippet on the right (desktop: place() moves the runtime state and Run in before it).
+  const headTools = h("div", { class: "head-tools" }, errorJump, snippetButton);
   const editorHead = h("div", { class: "editor-head" }, tabHost, headTools);
   const editorHost = h("div", { class: "editor-host", id: "editor-host" });
   const emptyHost = h("div", { class: "editor-empty", id: "editor-empty" });
@@ -260,7 +265,7 @@ export function createLayout(root: HTMLElement): Layout {
       topbar.insertBefore(runButton, settingsButton);
       statusbar.insertBefore(status.runtime, noticeHost);
     } else {
-      headTools.append(status.runtime, runButton);
+      headTools.append(status.runtime, runButton, snippetButton);
     }
     if (hadFocus && document.activeElement !== runButton) runButton.focus({ preventScroll: true });
   }
@@ -439,6 +444,7 @@ export function createLayout(root: HTMLElement): Layout {
     tabHost,
     errorJump,
     errorJumpWords,
+    snippetButton,
     editorPanel,
     editorHost,
     emptyHost,

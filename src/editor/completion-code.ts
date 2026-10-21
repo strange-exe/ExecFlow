@@ -1,8 +1,9 @@
-// The completion chunk's entry: every suggestion source and the loaders that go with them
+// The completion chunk's entry: the library and own-name sources and the loaders that go with them
 // (completion-loader.ts loads this module with import(); language-support.ts picks from it).
-// Rolldown makes this module and everything only it reaches one lazy chunk: keywords and
-// snippets, the library and own-name sources, the workspace index and the syntax-tree walks. The
-// library data (library-data.ts) are lazy chunks of their own again.
+// Rolldown makes this module and everything only it reaches one lazy chunk: the library and
+// own-name sources, the workspace index and the syntax-tree walks. The library data
+// (library-data.ts) are lazy chunks of their own again. Keywords and snippets
+// (keyword-completion.ts) are the editor chunk's, so they are offered even when this chunk can't load.
 //
 // The completion code runs only inside the editor, and this import says so to the bundler: it
 // depends on the editor chunk's entry, so every module the editor uses stays in the editor chunk.
@@ -13,6 +14,7 @@
 // when this chunk loads, so the import runs nothing. completion-chunk.test.ts checks it is here.
 import "./editor-manager";
 
-export { C_KEYWORDS, cKeywords, CPP_KEYWORDS, cppKeywords, pythonGlobals, pythonLocalNames, wordSource } from "./keyword-completion";
-export { cLibrarySource, includeLineSource, includeSource, libraryLoader, pythonMemberSource, pythonModuleSource, stdSource } from "./library-completion";
-export { cOwnSource, ownNamesLoader } from "./own-completion";
+export {
+  cLibrarySource, includeSource, libraryLoader, pythonBuiltins, pythonMemberSource, pythonModuleSource, stdSource, usingStdSource,
+} from "./library-completion";
+export { cOwnSource, ownNamesLoader, pythonLocalNames } from "./own-completion";

@@ -176,11 +176,13 @@ export default defineConfig(({ mode }) => ({
         background_color: "#13201b",
         display: "standalone",
         start_url: "/",
-        // Rasterised from public/favicon.svg's mark.
+        // Mark v2, rasterised from public/icons/mark-v2.svg (.claude/design/make-icons.mjs). Relative
+        // to the manifest's URL (start_url, the manifest link and the navigate fallback are still root
+        // paths); the maskable icon keeps the glyph inside the safe zone (e2e/icons.spec.ts checks the pixels).
         icons: [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "icons/mark-v2-192.png", sizes: "192x192", type: "image/png" },
+          { src: "icons/mark-v2-512.png", sizes: "512x512", type: "image/png" },
+          { src: "icons/mark-v2-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
       workbox: {

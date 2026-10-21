@@ -47,15 +47,19 @@ export function srOnly(text: string): HTMLSpanElement {
   return h("span", { class: "visually-hidden" }, text);
 }
 
-/** Saves a file to the device's Downloads folder. */
-export function downloadBlob(name: string, blob: Blob): void {
+/**
+ * Saves a file to the device's Downloads folder. `parent`: where the hidden link goes (inside an
+ * open modal dialog, since the rest of the page is inert then); `keepMs`: how long the blob URL
+ * lives (iOS fetches it only after its download prompt).
+ */
+export function downloadBlob(name: string, blob: Blob, { keepMs = 1000, parent = document.body }: { keepMs?: number; parent?: ParentNode } = {}): void {
   const url = URL.createObjectURL(blob);
   const a = h("a", { href: url, download: name, rel: "noopener" });
   a.hidden = true;
-  document.body.append(a);
+  parent.append(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), keepMs);
 }
 
 export function downloadText(name: string, text: string, type = "text/plain;charset=utf-8"): void {

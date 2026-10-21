@@ -10,7 +10,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { libraryContext, type LibraryContext } from "./completion-context";
 import { loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
-import { C_SNIPPETS, CPP_SNIPPETS, pythonImportContext, pythonImports, workspaceHeaders, workspaceModules } from "./library-completion";
+import { C_SNIPPETS, CPP_SNIPPETS, pythonImportContext } from "./keyword-completion";
+import { pythonImports, workspaceHeaders, workspaceModules } from "./library-completion";
 import { library, libraryStatus, loadLibrary } from "./library-data";
 
 // The completion code (completion-code.ts) as the app has it once a file has been shown; loading
@@ -37,10 +38,13 @@ function stateFor(path: string, doc: string, setup: Setup = {}): EditorState {
   return state;
 }
 
+/**
+ * The answers that offer something (a source with nothing to offer at `pos` answers null).
+ */
 async function results(state: EditorState, pos: number, explicit = true): Promise<CompletionResult[]> {
   const sources = state.languageDataAt<CompletionSource>("autocomplete", pos);
   const all = await Promise.all(sources.map((source) => source(new CompletionContext(state, pos, explicit))));
-  return all.filter((r): r is CompletionResult => r != null);
+  return all.filter((r): r is CompletionResult => r != null && r.options.length > 0);
 }
 
 /** Every option at the end of `marker` (the cursor right after what was typed). */

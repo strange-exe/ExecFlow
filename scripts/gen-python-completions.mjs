@@ -37,6 +37,8 @@ const MAX_SIGNATURE = 120;
  * twice over: Pyodide lists sockets as "included but not working"
  * (https://pyodide.org/en/stable/usage/wasm-constraints.html), and the worker removes fetch,
  * XMLHttpRequest and WebSocket before user code runs (src/workers/lockdown.ts).
+ * Also listed: internal helpers a program never imports itself (design decision 17, 2026-10-19:
+ * Hick's law, fewer choices in the list).
  * Kept on purpose: http, urllib and wsgiref, whose network parts fail but whose pure-Python parts
  * (http.HTTPStatus, urllib.parse, wsgiref.util) work. Not listed: test (CPython's own test suite), because
  * sys.stdlib_module_names leaves test modules out
@@ -50,6 +52,7 @@ const EXCLUDED = {
   idlelib: "the IDLE desktop editor, built on tkinter; Pyodide leaves it out",
   imaplib: "an IMAP mail client: needs network sockets, and the Python worker has no network",
   multiprocessing: "starts processes, which Pyodide cannot [Process().start(): No module named '_multiprocessing']",
+  nturl2path: "an internal helper of urllib.request for Windows paths, which a program never imports itself",
   poplib: "a POP3 mail client: needs network sockets, and the Python worker has no network",
   pty: "needs a pseudo-terminal [pty.openpty(): out of pty devices]",
   smtplib: "an SMTP mail client: needs network sockets, and the Python worker has no network",

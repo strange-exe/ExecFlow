@@ -7,9 +7,18 @@
 // submit is always cancelled, so it can't end up in a URL. It is read once per attempt and the
 // field is cleared once it has been used or the dialog closes; it never goes into an attribute,
 // a message or the log. The dialog is built fresh for every opening and removed when it closes.
+//
+// The error state (DESIGN.md decision 13) leads with the error. A field's message sits right under
+// it, before its hint, on the error band with a danger bar; the field gets aria-invalid and
+// aria-describedby (message first). Focus moves to the first field in error (W3C WAI forms
+// tutorial, "User Notifications"), which reads that description; when focus is already there, the
+// dialog's live region says the message instead, so it is heard once either way. A failure that
+// belongs to no field (offline, a missing repository, a rate limit...) is the result line above
+// Connect, said by the same live region; focus stays where it was.
 import { validateTokenShape } from "../sync/token-store";
 import { h } from "./dom";
 import { openModal } from "./dialogs";
+import { createAnnouncer } from "./notice";
 import { branchProblem, ownerProblem, parseRepoInput, repoProblem, tokenPageUrl } from "./sync-form";
 import { syncIcon } from "./sync-icons";
 
@@ -45,6 +54,15 @@ interface TextField {
   setNote(message: string, tone?: "warning"): void;
 }
 
+/** The dialog's live region: what a failed attempt found, said once (notice.ts's clear-then-say). */
+function connectAnnouncer() {
+  const announcer = createAnnouncer();
+  announcer.element.id = "connect-announce";
+  // The workbench's own announcer is the one [data-announcer] on the page.
+  announcer.element.removeAttribute("data-announcer");
+  return announcer;
+}
+
 function textField(id: string, label: string, options: { type?: "text" | "password"; hint?: string; placeholder?: string } = {}): TextField {
   const input = h("input", {
     type: options.type ?? "text",
@@ -57,20 +75,21 @@ function textField(id: string, label: string, options: { type?: "text" | "passwo
   });
   const note = h("p", { class: "field-note", id: `${id}-note` }, options.hint ?? "");
   note.hidden = !options.hint;
-  const error = h("p", { class: "field-note field-error", id: `${id}-error`, "data-tone": "error" });
+  const error = h("p", { class: "field-error", id: `${id}-error`, "data-tone": "error" });
   error.hidden = true;
+  // The message leads: read first, and drawn first, right under the field (the hint follows it).
   const describe = () => {
-    const ids = [!note.hidden && note.id, !error.hidden && error.id].filter(Boolean).join(" ");
+    const ids = [!error.hidden && error.id, !note.hidden && note.id].filter(Boolean).join(" ");
     if (ids) input.setAttribute("aria-describedby", ids);
     else input.removeAttribute("aria-describedby");
   };
   describe();
-  const row = h("div", { class: "field" }, h("label", { for: id }, label), input, note, error);
+  const row = h("div", { class: "field" }, h("label", { for: id }, label), input, error, note);
   return {
     row,
     input,
     setError(message) {
-      error.replaceChildren(...(message ? [syncIcon("warning-circle"), message] : []));
+      error.replaceChildren(...(message ? [syncIcon("warning-circle", "error-icon"), h("span", null, message)] : []));
       error.hidden = !message;
       if (message) input.setAttribute("aria-invalid", "true");
       else input.removeAttribute("aria-invalid");
@@ -143,8 +162,10 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
     };
     refreshSteps();
 
-    // One live line for what the check found (a failure, or the public-repository warning).
-    const result = h("p", { class: "connect-result", id: "connect-result", role: "status" });
+    // One line for what the check found when it belongs to no field (a failure, or the
+    // public-repository warning). The live region below says it; this line only shows it.
+    const result = h("p", { class: "connect-result", id: "connect-result" });
+    const announcer = connectAnnouncer();
 
     const cancel = h("button", { type: "button", class: "btn" }, "Cancel");
     const submitLabel = h("span", null, "Connect");
@@ -183,6 +204,7 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       { class: "dialog wide sync-dialog", id, "aria-labelledby": `${id}-title`, "aria-describedby": "connect-lede", "data-state": "idle" },
       h("div", { class: "dialog-head" }, h("h2", { id: `${id}-title`, class: "dialog-title" }, "Connect GitHub"), close),
       form,
+      announcer.element,
     );
 
     let busy = false;
@@ -200,9 +222,34 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       result.replaceChildren(...(message && tone ? [syncIcon(tone === "error" ? "warning-circle" : "warning", "result-icon"), h("span", null, message)] : message ? [message] : []));
       if (tone) result.dataset.tone = tone;
       else delete result.dataset.tone;
-      if (message) result.scrollIntoView({ block: "nearest" });
+      if (!message) {
+        // A new attempt: the last spoken sentence is stale (emptying the region is not announced).
+        announcer.say("");
+        return;
+      }
+      result.scrollIntoView({ block: "nearest" });
+      announcer.say(message);
+      dialog.dataset.announce = "live";
     };
     const fields: Record<ConnectField, TextField> = { owner, repo, branch, token };
+    // An edit makes the last spoken error stale too: empty the live region, so reading on through the
+    // dialog never meets it. (The result line keeps showing what the last attempt found.)
+    form.addEventListener("input", () => announcer.say(""));
+    /** Shows a field's error and leads with it: focus on the field (its description reads the message), else the live region. */
+    const fieldError = (name: ConnectField, message: string) => {
+      const f = fields[name];
+      f.setError(message);
+      // data-announce says which of the two spoke (the tests wait on it, never on timing).
+      if (document.activeElement === f.input) {
+        announcer.say(message);
+        dialog.dataset.announce = "live";
+      } else {
+        f.input.focus({ preventScroll: true });
+        dialog.dataset.announce = "focus";
+      }
+      // The label, the field and its message in view (on a phone the body scrolls under the header).
+      f.row.scrollIntoView({ block: "nearest" });
+    };
 
     // Pasting "owner/repo" or a GitHub URL into either repository field fills both.
     for (const f of [owner, repo]) {
@@ -226,15 +273,18 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       token.setNote(shape.ok && shape.warning ? shape.warning : tokenHint, shape.ok && shape.warning ? "warning" : undefined);
     });
 
+    // data-attempts counts finished attempts, so a test knows the next result is in.
+    let attempts = 0;
     form.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (!busy) void attempt();
+      if (!busy) void attempt().finally(() => (dialog.dataset.attempts = String(++attempts)));
     });
     cancel.addEventListener("click", () => dialog.close());
     close.addEventListener("click", () => dialog.close());
 
     async function attempt() {
       say("");
+      delete dialog.dataset.announce;
       const input: ConnectInput = {
         owner: owner.input.value.trim(),
         repo: repo.input.value.trim(),
@@ -250,10 +300,10 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       const shape = validateTokenShape(token.input.value);
       problems.push(["token", shape.ok ? null : shape.reason]);
       for (const [name, message] of problems) fields[name].setError(message);
-      const first = problems.find(([, message]) => message !== null);
+      const first = problems.find((p): p is [ConnectField, string] => p[1] !== null);
       if (first) {
         setState("invalid");
-        fields[first[0]].input.focus();
+        fieldError(first[0], first[1]);
         return;
       }
       if (!shape.ok) return;
@@ -266,10 +316,8 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       if (!checked.ok) {
         setState("failed");
         if (checked.clearToken) token.input.value = "";
-        if (checked.field) {
-          fields[checked.field].setError(checked.message);
-          fields[checked.field].input.focus();
-        } else say(checked.message, "error");
+        if (checked.field) fieldError(checked.field, checked.message);
+        else say(checked.message, "error");
         return;
       }
       if (!checked.private && publicConfirmed !== target) {

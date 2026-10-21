@@ -348,6 +348,11 @@
     --field-h: 44px;
   }
 }
+/* Touch screens 900 px and wider: the editor head (and the sidebar head beside it) holds Run and the
+   44 px icon buttons inside it. Phones have no editor head; the drawer's head shows only below 900 px. */
+@media (pointer: coarse) and (min-width: 900px) {
+  :root { --h-head: 48px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   :root { --dur: 0ms; }

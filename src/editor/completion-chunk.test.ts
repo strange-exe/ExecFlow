@@ -1,7 +1,9 @@
-// Every suggestion source (keywords and snippets, library names, your own names, the workspace
-// index) is in its own lazy chunk (completion-code.ts): the editor chunk reaches it only through
-// import(), so it never makes the editor chunk bigger (research doc section 3, "Bundle size"; the
-// editor chunk grew from 197.50 to 205.58 kB gzip with Tier 1 before the split, 2026-10-19).
+// The library names, your own names and the workspace index are in their own lazy chunk
+// (completion-code.ts): the editor chunk reaches them only through import(), so they never make the
+// editor chunk bigger (research doc section 3, "Bundle size"; the editor chunk grew from 197.50 to
+// 205.58 kB gzip with Tier 1 before the split, 2026-10-19). Keywords and snippets
+// (keyword-completion.ts) are the editor chunk's, as C and C++ keywords were before Tier 1, so they
+// are offered even when that chunk can't load: they import nothing from it.
 // This models the bundler from the source text; design.spec.ts checks the built chunks themselves.
 // Rolldown puts a module in the chunk of every entry that imports it statically, so this follows
 // the static imports from the editor chunk's entry (editor-manager.ts, which workbench.ts imports
@@ -64,7 +66,6 @@ const EDITOR = "editor/editor-manager.ts";
 /** The modules that belong in the completion chunk only. */
 const COMPLETION_ONLY = [
   "editor/completion-code.ts",
-  "editor/keyword-completion.ts",
   "editor/library-completion.ts",
   "editor/library-data.ts",
   "editor/own-completion.ts",
@@ -83,6 +84,14 @@ describe("the editor chunk and the completion chunk", () => {
   it("the editor chunk imports none of the completion code statically", () => {
     const editor = closure(EDITOR);
     expect(COMPLETION_ONLY.filter((id) => editor.has(id))).toEqual([]);
+  });
+
+  it("keywords and snippets are in the editor chunk, and reach none of the completion code", () => {
+    expect(closure(EDITOR)).toContain("editor/keyword-completion.ts");
+    const reached = closure("editor/keyword-completion.ts");
+    expect(COMPLETION_ONLY.filter((id) => reached.has(id))).toEqual([]);
+    // language-support.ts places them itself, not through the completion chunk (lazySource).
+    expect(staticImports("editor/language-support.ts", sources["editor/language-support.ts"])).toContain("editor/keyword-completion.ts");
   });
 
   it("the completion code is loaded with import() from the editor chunk, in one place", () => {

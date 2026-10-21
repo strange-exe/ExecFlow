@@ -5,7 +5,7 @@ import type { EditorView } from "@codemirror/view";
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
-import { C_KEYWORDS, CPP_KEYWORDS, PYTHON_GLOBALS, PYTHON_KEYWORDS } from "./keyword-completion";
+import { C_KEYWORDS, CPP_KEYWORDS, PYTHON_KEYWORDS, PYTHON_WORDS } from "./keyword-completion";
 import { languageForPath, languageSupport } from "./language-support";
 import { loadLibrary } from "./library-data";
 
@@ -121,7 +121,7 @@ describe("Python completion", () => {
     const missing = ["return", "elif", "else", "pass", "break", "continue", "lambda", "with", "yield", "raise", "except", "finally",
       "global", "nonlocal", "assert", "del", "in", "is", "not", "and", "or", "async", "await", "match", "case"];
     for (const word of missing) {
-      const option = PYTHON_GLOBALS.find((o) => o.label === word);
+      const option = PYTHON_WORDS.find((o) => o.label === word);
       expect(option?.type, word).toBe("keyword");
       expect(option?.apply, `${word} is a plain keyword, not a snippet`).toBeUndefined();
     }

@@ -18,8 +18,9 @@ async function setUp(page: import("@playwright/test").Page) {
   await name.press("Enter");
   await expect(treeItem(page, "lib/util.py")).toBeVisible();
   // The new file opens a moment later and takes the focus (workbench createEntry). Wait for that
-  // before a test moves the focus in the tree: in a full run (2026-10-21) Shift+F10 on beta.py
-  // opened no menu, most likely because the editor had just taken the focus.
+  // before a test moves the focus in the tree. (The Shift+F10 that opened no menu in full runs on
+  // 2026-10-21 was the delete question's late close event: see "a menu opened before the delete
+  // question's close event keeps its focus".)
   await expectActive(page, "lib/util.py");
   await expect(page.locator(".cm-content")).toBeFocused();
   // Collapse lib again and start from the list itself.
@@ -116,6 +117,36 @@ test("F2, Delete and the context menu work from the keyboard, and focus comes ba
   await page.keyboard.press("Escape");
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute("aria-expanded", "false");
+});
+
+test("a menu opened before the delete question's close event keeps its focus", async ({ page }) => {
+  // The close event comes a task after the dialog closes (HTML queues it), once the browser has put
+  // focus back on the item. Chromium fires it after Escape's keyup, so a key can come first: under load
+  // a Shift+F10 opened the item's menu, then the dialog's own focus-back took the menu's focus and
+  // closed it (the previous test, 2026-10-21 and 2026-10-22). Here the key comes in that gap on purpose.
+  await setUp(page);
+  await treeItem(page, "beta.py").focus();
+  await page.keyboard.press("Delete");
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  const seen = await page.evaluate(async () => {
+    const dialog = document.querySelector<HTMLDialogElement>("dialog[role=alertdialog]")!;
+    const closeEvent = new Promise((resolve) => dialog.addEventListener("close", resolve, { once: true }));
+    dialog.close();
+    const back = (document.activeElement as HTMLElement | null)?.dataset.path ?? null;
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "F10", shiftKey: true, bubbles: true, cancelable: true }));
+    const menuOpened = document.querySelector("[role=menu]") !== null;
+    await closeEvent;
+    // A task later: every close listener has run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return { back, menuOpened };
+  });
+  expect(seen, "the browser put focus back on the item, and Shift+F10 there opened its menu").toEqual({ back: "beta.py", menuOpened: true });
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(treeItem(page, "beta.py")).toBeFocused();
 });
 
 test("a read-only file from GitHub is marked and explained, and conflict copies are flagged", async ({ page }) => {

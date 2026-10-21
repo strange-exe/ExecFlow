@@ -150,6 +150,48 @@ test("a header that is not open and changes in storage (an import replaces it) i
   await expect(option(page, "helper_four")).toBeVisible();
 });
 
+// Another tab's saves reach this one as a stale signal (storage/tabs.ts onStale), and taking
+// editing back reloads too: both re-read storage (workbench.ts reloadFromStorage), which tells the
+// names index that any stored file may have changed (EditorManager.indexChanged with no paths).
+// util.h is never open in this tab, so only that tells the index to read it again.
+test("a header another tab changes is read again here: its new function is offered once this tab edits again", async ({ page, context }) => {
+  await openApp(page);
+  await importFiles(page, [
+    { name: "main.c", text: MAIN_C },
+    { name: "util.h", text: UTIL_H },
+    { name: "types.h", text: TYPES_H },
+  ]);
+  await openFromTree(page, "main.c");
+  await showView(page, "code");
+  await setCode(page, MAIN_C);
+  await namesReady(page);
+  await page.keyboard.type("helper");
+  await expect(option(page, "helper")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Another tab takes over editing and saves a new function into util.h.
+  const second = await context.newPage();
+  await openApp(second);
+  await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
+  await second.locator("#read-only-banner").getByRole("button", { name: "Edit here" }).click();
+  await expect(second.locator("#app")).toHaveAttribute("data-role", "writer", { timeout: 10_000 });
+  await expect(page.locator("#app")).toHaveAttribute("data-role", "reader", { timeout: 10_000 });
+  await openFromTree(second, "util.h");
+  await showView(second, "code");
+  await setCode(second, UTIL_H.replace("#endif", "int helper_five(void);\n#endif"));
+  await expect(second.locator('.tab[data-dirty="true"]')).toHaveCount(0, { timeout: 10_000 });
+
+  // This tab edits again: the index has been told, and reads util.h again.
+  await page.locator("#read-only-banner").getByRole("button", { name: "Edit here" }).click();
+  await expect(page.locator("#app")).toHaveAttribute("data-role", "writer", { timeout: 10_000 });
+  await expectActive(page, "main.c");
+  await setCode(page, MAIN_C);
+  await namesReady(page);
+  await page.keyboard.type("helper_f");
+  await expect(option(page, "helper_five")).toBeVisible();
+  await second.close();
+});
+
 test("helpers. lists a def from your helpers.py, with its kind", async ({ page }) => {
   await openApp(page);
   await importFiles(page, [

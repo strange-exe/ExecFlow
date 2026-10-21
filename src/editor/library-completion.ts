@@ -5,18 +5,19 @@
 //   the detail. For your own module (`import helpers`) the members are its top-level defs, classes
 //   and assignments, read from its syntax tree by the workspace index (workspace-index.ts).
 // - C and C++: header names on `#include <` and `#include "` lines, library functions and macros
-//   (detail: the prototype or value; info: our own one line naming the header), std:: names in
-//   C++ (grouped by header), and snippets. Common names rank first among equal matches (BEGINNER).
+//   (detail: the prototype or value; info: our own one line naming the header), and std:: names in
+//   C++ (grouped by header). Common names rank first among equal matches (BEGINNER). Keywords and
+//   snippets are keyword-completion.ts's, in the editor chunk; Python's built-in names are here.
 // This file is in the completion chunk (completion-code.ts), which the editor chunk loads with
 // import() (completion-loader.ts). language-support.ts puts each source in a file's own language
 // data, inside writable(), so a read-only file has none. Nothing here offers a word inside a string
 // or a comment. Every list is filtered by CodeMirror's matcher; sources return validFor, so typing
 // inside a word refilters without a new query, except for a list built while data it needs was
 // missing (late-data.ts: the next key asks again, and the query runs again once the data is there).
+// Where a source has nothing to offer (not an #include line, no `std::`), it answers null
+// (keyword-completion.ts unless says why).
 
-import {
-  snippetCompletion, type Completion, type CompletionContext, type CompletionResult, type CompletionSection, type CompletionSource,
-} from "@codemirror/autocomplete";
+import type { Completion, CompletionContext, CompletionResult, CompletionSection, CompletionSource } from "@codemirror/autocomplete";
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 import type { EditorView, PluginValue } from "@codemirror/view";
@@ -25,6 +26,10 @@ import { isConflictCopy, nameOf, parentOf } from "../core/paths";
 import type { WsPath } from "../core/types";
 import { DEFAULT_BUILD, findQuotedInclude } from "../runner/cpp-build";
 import { filePath, libraryContext, type LibraryContext } from "./completion-context";
+import {
+  BEGINNER_C_NAMES, boosted, C_COMMENTS, CPP_KEYWORDS, inside, lineBefore, PY_IDENT, PY_TEXT, pythonImportContext, pythonWordSource,
+  unless, WORD, type CLang, type Nothing,
+} from "./keyword-completion";
 import { whenDataArrives } from "./late-data";
 import { library, libraryStatus, loadLibrary, type CLibrary, type LibraryId, type PythonKind, type PythonLibrary } from "./library-data";
 import { ownOptions } from "./own-names";
@@ -61,21 +66,6 @@ export function libraryLoader(view: EditorView, id: LibraryId): PluginValue {
 
 // ---------------------------------------------------------------- shared helpers
 
-type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]>;
-
-/** Whether `pos` is inside (or at the end of) a node named in `names`. */
-function inside(state: EditorState, pos: number, names: readonly string[]): boolean {
-  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); node; node = node.parent) {
-    if (names.includes(node.name)) return true;
-  }
-  return false;
-}
-
-/** The current line up to `pos`. */
-function lineBefore(state: EditorState, pos: number): string {
-  return state.sliceDoc(state.doc.lineAt(pos).from, pos);
-}
-
 /**
  * The library's data, or null: then the load starts, the source offers nothing from it (and no
  * validFor), and the query runs again once the data is there (late-data.ts).
@@ -86,7 +76,7 @@ function loaded<K extends LibraryId>(id: K, context: CompletionContext) {
   return data;
 }
 
-/** A result for `options` from `from`, refiltered as typed (validFor) only when nothing was missing. */
+/** A result for `options` from `from`, refiltered as typed (validFor) only when nothing was missing; null with no option. */
 function result(from: number, options: readonly Completion[], complete: boolean, validFor: RegExp = WORD): CompletionResult | null {
   return options.length ? { from, options: [...options], ...(complete ? { validFor } : {}) } : null;
 }
@@ -117,89 +107,72 @@ function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
-const WORD = /^\w*$/;
-
 // ---------------------------------------------------------------- ranking
 
 /**
  * The names a beginner reaches for most, most common first: our own short lists, from what
  * introductory courses use first. CodeMirror ranks options by how well they match what was typed
  * (a whole name, then a prefix, then letters in order with gaps: steps of 100 and more), then by
- * label. A boost is added to that score (-99 to 99), so these lead the options that match equally
- * well (`str`: strlen before strcat and struct; `import ma`: math before mailbox and marshal) and
- * never pass a better match. Library names carry no section in mixed lists (only the C++ header
- * groups and std:: names have one), because CodeMirror puts every option without a section above
- * every option with one, however well it matches (review finding RB-2, 2026-10-19).
+ * label. A boost is added to that score (-99 to 99, keyword-completion.ts boosted), so these lead
+ * the options that match equally well (`str`: strlen before strcat and struct; `import ma`: math
+ * before mailbox and marshal) and never pass a better match. Library names carry no section in
+ * mixed lists (only the C++ header groups and std:: names have one), because CodeMirror puts every
+ * option without a section above every option with one, however well it matches (review finding
+ * RB-2, 2026-10-19). cNames is keyword-completion.ts's, which the C snippets rank with too.
  */
 export const BEGINNER: Readonly<Record<"pyModules" | "cHeaders" | "cNames" | "cppHeaders" | "stdNames", readonly string[]>> = {
   pyModules: ["math", "random", "string", "time", "datetime", "collections", "sys", "os"],
   cHeaders: ["stdio.h", "stdlib.h", "string.h", "math.h", "ctype.h", "stdbool.h", "time.h"],
-  cNames: [
-    "main", "printf", "scanf", "puts", "strlen", "strcpy", "strcmp", "strcat", "getchar", "putchar", "fgets", "malloc", "free",
-    "rand", "srand", "sqrt", "pow", "abs", "exit",
-  ],
+  cNames: BEGINNER_C_NAMES,
   cppHeaders: ["iostream", "string", "vector", "algorithm", "cmath"],
   stdNames: ["cout", "cin", "endl", "string", "vector", "getline", "sort", "max", "min", "swap", "to_string"],
 };
 
-/** The first name's boost; each later one gets one less. Below 100: a better match still wins. */
-const BOOST_TOP = 90;
-
-const BOOSTS = new Map<readonly string[], ReadonlyMap<string, number>>(
-  Object.values(BEGINNER).map((names) => [names, new Map(names.map((name, i) => [name, BOOST_TOP - i]))]),
-);
-
-/** `option` with its boost when its label is in the beginner list `names`. */
-function boosted<T extends Completion>(names: readonly string[], option: T): T {
-  const boost = BOOSTS.get(names)?.get(option.label);
-  return boost === undefined ? option : { ...option, boost };
-}
-
 // ---------------------------------------------------------------- Python
+// (pythonImportContext, what an import statement wants at the cursor, is keyword-completion.ts's.)
 
-/** Nodes where no Python name fits (lang-python 6.2.1 names). */
-const PY_TEXT: readonly string[] = ["String", "FormatString", "Comment"];
-/** A module name Python can import (ASCII names; that is every standard one). */
-const PY_IDENT = /^[A-Za-z_]\w*$/;
+// lang-python 6.2.1's built-in names, copied as it lists them (its arrays aren't exported), without
+// False, None and True (keywords: keyword-completion.ts, in the editor chunk).
+const PYTHON_CONSTANTS = [
+  "__annotations__", "__builtins__", "__debug__", "__doc__", "__import__", "__name__", "__loader__", "__package__",
+  "__spec__",
+];
+const PYTHON_TYPES = [
+  "ArithmeticError", "AssertionError", "AttributeError", "BaseException", "BlockingIOError", "BrokenPipeError",
+  "BufferError", "BytesWarning", "ChildProcessError", "ConnectionAbortedError", "ConnectionError",
+  "ConnectionRefusedError", "ConnectionResetError", "DeprecationWarning", "EOFError", "Ellipsis", "EncodingWarning",
+  "EnvironmentError", "Exception", "FileExistsError", "FileNotFoundError", "FloatingPointError", "FutureWarning",
+  "GeneratorExit", "IOError", "ImportError", "ImportWarning", "IndentationError", "IndexError", "InterruptedError",
+  "IsADirectoryError", "KeyError", "KeyboardInterrupt", "LookupError", "MemoryError", "ModuleNotFoundError",
+  "NameError", "NotADirectoryError", "NotImplemented", "NotImplementedError", "OSError", "OverflowError",
+  "PendingDeprecationWarning", "PermissionError", "ProcessLookupError", "RecursionError", "ReferenceError",
+  "ResourceWarning", "RuntimeError", "RuntimeWarning", "StopAsyncIteration", "StopIteration", "SyntaxError",
+  "SyntaxWarning", "SystemError", "SystemExit", "TabError", "TimeoutError", "TypeError", "UnboundLocalError",
+  "UnicodeDecodeError", "UnicodeEncodeError", "UnicodeError", "UnicodeTranslateError", "UnicodeWarning", "UserWarning",
+  "ValueError", "Warning", "ZeroDivisionError",
+];
+const PYTHON_CLASSES = [
+  "bool", "bytearray", "bytes", "classmethod", "complex", "float", "frozenset", "int", "list", "map", "memoryview",
+  "object", "range", "set", "staticmethod", "str", "super", "tuple", "type",
+];
+const PYTHON_FUNCTIONS = [
+  "abs", "aiter", "all", "anext", "any", "ascii", "bin", "breakpoint", "callable", "chr", "compile", "delattr", "dict",
+  "dir", "divmod", "enumerate", "eval", "exec", "exit", "filter", "format", "getattr", "globals", "hasattr", "hash",
+  "help", "hex", "id", "input", "isinstance", "issubclass", "iter", "len", "license", "locals", "max", "min", "next",
+  "oct", "open", "ord", "pow", "print", "property", "quit", "repr", "reversed", "round", "setattr", "slice", "sorted",
+  "sum", "vars", "zip",
+];
 
-export type PythonImportContext =
-  /** A (sub)module name after `import` or `from`: `parent` is the dotted part before it. */
-  | { kind: "module"; parent: readonly string[]; from: number }
-  /** A name after `from module import`. */
-  | { kind: "member"; module: string; from: number }
-  /** An alias after `as`, or a relative import: no name from any list fits. */
-  | { kind: "none" };
+/** Python's built-in names (the builtins module, as lang-python lists it). */
+export const PYTHON_BUILTINS: readonly Completion[] = [
+  ...PYTHON_CONSTANTS.map((label) => ({ label, type: "constant" })),
+  ...PYTHON_TYPES.map((label) => ({ label, type: "type" })),
+  ...PYTHON_CLASSES.map((label) => ({ label, type: "class" })),
+  ...PYTHON_FUNCTIONS.map((label) => ({ label, type: "function" })),
+];
 
-const ALIAS = /^\s*(?:from\s+\S+\s+)?import\s.*\bas\s+\w*$/;
-const IMPORT_LIST = /^\s*import\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*([\w.]*)$/;
-const FROM_MODULE = /^\s*from\s+([\w.]*)$/;
-const FROM_NAMES = /^\s*from\s+([\w.]+)\s+import\s+\(?\s*(?:\w+(?:\s+as\s+\w+)?\s*,\s*)*(\w*)$/;
-
-/**
- * What an import statement wants at `pos`, or null outside one (and inside strings and comments).
- * Read from the line's text, which an unfinished statement still has; one statement per line.
- */
-export function pythonImportContext(state: EditorState, pos: number): PythonImportContext | null {
-  if (inside(state, pos, PY_TEXT)) return null;
-  const before = lineBefore(state, pos);
-  if (ALIAS.test(before)) return { kind: "none" };
-  const modules = IMPORT_LIST.exec(before) ?? FROM_MODULE.exec(before);
-  if (modules) {
-    const parts = modules[1].split(".");
-    const word = parts.pop()!;
-    // ".x" or "a..b": a relative import, which the run's single search folder can't serve.
-    if (parts.some((p) => !PY_IDENT.test(p))) return { kind: "none" };
-    return { kind: "module", parent: parts, from: pos - word.length };
-  }
-  const names = FROM_NAMES.exec(before);
-  if (names) return names[1].split(".").every((p) => PY_IDENT.test(p)) ? { kind: "member", module: names[1], from: pos - names[2].length } : { kind: "none" };
-  return null;
-}
-
-/** After a dot (`math.`, `"a".`, `1.`): no plain name fits there, only a member. */
-export function afterDot(state: EditorState, pos: number): boolean {
-  return /\.\w*$/.test(lineBefore(state, pos));
-}
+/** Python's built-in names, where the keywords go (keyword-completion.ts pythonWordSource). */
+export const pythonBuiltins: CompletionSource = pythonWordSource(PYTHON_BUILTINS);
 
 /**
  * The names this file's import statements bind, anywhere in it, to the module path each stands
@@ -422,8 +395,14 @@ function ownModuleOption(m: WorkspaceModule): Completion {
   return { label: m.name, type: "namespace", detail: shown, info: m.folder ? `Your folder ${m.path}/` : `Your file ${m.path}` };
 }
 
+/** Outside an import statement, or where no name from any list fits in one (an alias). */
+const notInImport: Nothing = (state, pos) => {
+  const at = pythonImportContext(state, pos);
+  return !at || at.kind === "none";
+};
+
 /** Module names after `import` and `from`; names after `from X import`. */
-export const pythonModuleSource: CompletionSource = (context: CompletionContext) => {
+export const pythonModuleSource: CompletionSource = unless(notInImport, (context: CompletionContext) => {
   const { state } = context;
   const at = pythonImportContext(state, context.pos);
   if (!at || at.kind === "none") return null;
@@ -460,17 +439,19 @@ export const pythonModuleSource: CompletionSource = (context: CompletionContext)
     }
   }
   return result(at.from, options, complete);
-};
+});
 
 const MEMBER = /(?:^|[^\w.])([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\.(\w*)$/;
+
+/** Not after `name.` (in text, in an import statement, or with no dotted name before the cursor). */
+const notAfterName: Nothing = (state, pos) => inside(state, pos, PY_TEXT) || pythonImportContext(state, pos) !== null || !MEMBER.test(lineBefore(state, pos));
 
 /**
  * Members after `mod.` (or `mod.sub.`) where this file imported `mod`: a standard module's from
  * the library data, your own module's (`import helpers`, then `helpers.`) from its syntax tree.
  */
-export const pythonMemberSource: CompletionSource = (context: CompletionContext) => {
+export const pythonMemberSource: CompletionSource = unless(notAfterName, (context: CompletionContext) => {
   const { state, pos } = context;
-  if (inside(state, pos, PY_TEXT) || pythonImportContext(state, pos)) return null;
   const m = MEMBER.exec(lineBefore(state, pos));
   if (!m) return null;
   const [head, ...rest] = m[1].split(".");
@@ -493,14 +474,11 @@ export const pythonMemberSource: CompletionSource = (context: CompletionContext)
     complete = lib !== null;
   }
   return result(pos - m[2].length, options, complete);
-};
+});
 
 // ---------------------------------------------------------------- C and C++
 
-export type CLang = "c" | "cpp";
-
-/** @lezer/cpp 1.1.6 comment nodes, and the text nodes no name goes in. */
-const C_COMMENTS: readonly string[] = ["LineComment", "BlockComment"];
+/** @lezer/cpp 1.1.6 text nodes no name goes in (comments, strings, characters). */
 const C_TEXT: readonly string[] = [...C_COMMENTS, "String", "RawString", "ConcatenatedString", "CharLiteral"];
 
 const SYSTEM_INCLUDE = /^\s*#\s*include\s*<([^<>"\s]*)$/;
@@ -637,11 +615,16 @@ function stdOptions(lib: CLibrary, std: string): readonly Completion[] {
   });
 }
 
+/** Not on an unfinished `#include <` or `#include "` line (or in a comment). */
+const notAnInclude: Nothing = (state, pos) => {
+  const before = lineBefore(state, pos);
+  return !(SYSTEM_INCLUDE.test(before) || QUOTED_INCLUDE.test(before)) || inside(state, pos, C_COMMENTS);
+};
+
 /** Header names on `#include <` and the workspace's own headers on `#include "`. */
 export function includeSource(lang: CLang): CompletionSource {
-  return (context) => {
+  return unless(notAnInclude, (context) => {
     const { state, pos } = context;
-    if (inside(state, pos, C_COMMENTS)) return null;
     const before = lineBefore(state, pos);
     const system = SYSTEM_INCLUDE.exec(before);
     if (system) {
@@ -663,7 +646,7 @@ export function includeSource(lang: CLang): CompletionSource {
       options: headers.map((h, i) => ({ label: h.spelling, type: "namespace", apply: h.spelling + close, sortText: String(i).padStart(5, "0") })),
       validFor: /^[^"]*$/,
     };
-  };
+  });
 }
 
 /**
@@ -685,58 +668,161 @@ export function cLibrarySource(lang: CLang, keywords: readonly string[] = []): C
 
 const STD_SCOPE = /(?:^|[^\w:])(?:::)?std::(\w*)$/;
 
+/** Not right after `std::` (or in a comment, a string or a character). */
+const notAfterStd: Nothing = (state, pos) => !STD_SCOPE.test(lineBefore(state, pos)) || inside(state, pos, C_TEXT);
+
 /** Names after `std::`, as the file's C++ standard (Settings) has them. */
-export const stdSource: CompletionSource = (context) => {
+export const stdSource: CompletionSource = unless(notAfterStd, (context) => {
   const { state, pos } = context;
-  if (inside(state, pos, C_TEXT)) return null;
-  const m = STD_SCOPE.exec(lineBefore(state, pos));
-  if (!m) return null;
+  const m = STD_SCOPE.exec(lineBefore(state, pos))!;
   const lib = loaded("c", context);
   if (!lib) return null;
   return { from: pos - m[1].length, options: [...stdOptions(lib, contextOf(state).standards().cpp)], validFor: WORD };
-};
+});
 
-// A tab after a newline is one indent unit past the first line's; ${name} fields with the same
-// name are edited together (the loop variable). "\\n" is a backslash and n in the inserted code.
-const LOOPS_AND_BLOCKS: readonly Completion[] = [
-  snippetCompletion("for (int ${i} = 0; ${i} < ${n}; ${i}++) {\n\t${}\n}", { label: "for", detail: "loop", type: "keyword" }),
-  snippetCompletion("while (${condition}) {\n\t${}\n}", { label: "while", detail: "loop", type: "keyword" }),
-  snippetCompletion("if (${condition}) {\n\t${}\n}", { label: "if", detail: "block", type: "keyword" }),
-  snippetCompletion("if (${condition}) {\n\t${}\n} else {\n\t${}\n}", { label: "if", detail: "/ else block", type: "keyword" }),
-  snippetCompletion("switch (${expression}) {\ncase ${constant}:\n\t${}\n\tbreak;\ndefault:\n\tbreak;\n}", { label: "switch", detail: "block", type: "keyword" }),
-  snippetCompletion("struct ${Name} {\n\t${}\n};", { label: "struct", detail: "definition", type: "keyword" }),
-  // With the library's printf and scanf boost (BEGINNER): the statement keeps its place just above the function.
-  snippetCompletion('printf("${}\\n");', boosted(BEGINNER.cNames, { label: "printf", detail: "statement", type: "keyword" })),
-  snippetCompletion('scanf("${%d}", &${variable});', boosted(BEGINNER.cNames, { label: "scanf", detail: "statement", type: "keyword" })),
-];
+// ---------------------------------------------------------------- C++: after `using namespace std;`
+// Design decision 17 (review RB-7): std names without the prefix where the file's own
+// `using namespace std;` is in scope, by the C++ standard's rule. A using-directive may appear at
+// namespace scope or block scope, never class scope, and the namespace's names can be used in the
+// scope where it appears, after it ([namespace.udir]/2-3, eel.is/c++draft/namespace.udir). A
+// namespace's scope is every body of that namespace ([basic.scope.namespace]/1), the file's is the
+// global namespace's, and a block is a compound statement: a function or lambda body, or a block
+// inside one ([basic.scope.block]/1). `extern "C++" { }` makes no scope, and a directive in the
+// unnamed namespace or an inline one counts in the namespace around it (namespaceName). Not
+// followed: a directive in an included header, a member function defined outside its namespace
+// (`void app::f() {}` sees app's directives), a directive naming a namespace that itself uses std
+// (`using namespace app;`: transitive, so std's names count), an inline namespace opened again
+// without `inline` (its directives count only in it), and #if: a directive in a branch that is not
+// compiled still counts.
 
-/** Snippets for C files, offered with the keywords (and under the same guard). */
-export const C_SNIPPETS: readonly Completion[] = [
-  snippetCompletion("int main(void) {\n\t${}\n\treturn 0;\n}", boosted(BEGINNER.cNames, { label: "main", detail: "function", type: "keyword" })),
-  ...LOOPS_AND_BLOCKS,
-];
+/** `using namespace std;` or `using namespace ::std;`, as its node's text. */
+const USING_STD = /^using\s+namespace\s+(?:::\s*)?std\s*;$/;
 
-/** Snippets for C++ files and headers. */
-export const CPP_SNIPPETS: readonly Completion[] = [
-  snippetCompletion("int main() {\n\t${}\n}", boosted(BEGINNER.cNames, { label: "main", detail: "function", type: "keyword" })),
-  ...LOOPS_AND_BLOCKS,
-  snippetCompletion("class ${Name} {\npublic:\n\t${}\n};", { label: "class", detail: "definition", type: "keyword" }),
-];
+type CppNode = ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]>;
 
-const INCLUDE_LINES: Readonly<Record<CLang, readonly Completion[]>> = {
-  c: [snippetCompletion("#include <stdio.h>", { label: "#include <stdio.h>", type: "keyword" })],
-  cpp: [snippetCompletion("#include <iostream>", { label: "#include <iostream>", type: "keyword" })],
-};
-
-const DIRECTIVE_START = /^\s*(#\s*(\w*))$/;
-
-/** The common #include line, while `#include` is being typed at the start of a line ("#", "#in"). */
-export function includeLineSource(lang: CLang): CompletionSource {
-  return (context) => {
-    const { state, pos } = context;
-    if (inside(state, pos, C_COMMENTS)) return null;
-    const m = DIRECTIVE_START.exec(lineBefore(state, pos));
-    if (!m || !"include".startsWith(m[2])) return null;
-    return { from: pos - m[1].length, options: [...INCLUDE_LINES[lang]], validFor: (text) => /^#\s*(\w*)$/.test(text) && "include".startsWith(text.replace(/^#\s*/, "")) };
-  };
+function isUsingStd(state: EditorState, node: CppNode): boolean {
+  return node.name === "UsingDeclaration" && USING_STD.test(state.sliceDoc(node.from, node.to));
 }
+
+/**
+ * A namespace definition's name, part by part (`a::b` is two parts), as unqualified lookup sees it:
+ * without the unnamed namespace and without an inline part (`inline namespace v1` is [],
+ * `a::inline b` is [a]). The namespace around either one uses it as if by a using-directive
+ * ([namespace.unnamed]/1, eel.is/c++draft/namespace.unnamed; [namespace.def.general]/6,
+ * eel.is/c++draft/namespace.def.general), and using-directives are transitive for unqualified
+ * lookup ([namespace.udir], Note 4), so a `using namespace std;` in it counts in the namespace
+ * around it, and the namespace around it counts in it as for any namespace inside another.
+ */
+function namespaceName(state: EditorState, ns: CppNode): string[] {
+  const parts: string[] = [];
+  let inline = false;
+  for (let c = ns.firstChild; c; c = c.nextSibling) {
+    if (c.name === "inline") inline = true;
+    else if (c.name === "Identifier") {
+      if (!inline) parts.push(state.sliceDoc(c.from, c.to));
+      inline = false;
+    }
+  }
+  return parts;
+}
+
+/** Where a namespace-scope directive ends, and the namespace whose scope it is in ([] for the file's). */
+interface NamespaceDirective {
+  end: number;
+  namespace: readonly string[];
+}
+
+const namespaceDirectives = new WeakMap<ReturnType<typeof syntaxTree>, readonly NamespaceDirective[]>();
+
+/**
+ * The file's directives at namespace scope: its own items, and those of namespace and linkage
+ * bodies, never inside a function or a class. Once per syntax tree.
+ */
+function directivesAtNamespaceScope(state: EditorState): readonly NamespaceDirective[] {
+  const tree = syntaxTree(state);
+  let found = namespaceDirectives.get(tree);
+  if (found) return found;
+  const out: NamespaceDirective[] = [];
+  const scan = (scope: CppNode, namespace: readonly string[]) => {
+    for (let c = scope.firstChild; c; c = c.nextSibling) {
+      if (isUsingStd(state, c)) out.push({ end: c.to, namespace });
+      else if (c.name === "NamespaceDefinition" || c.name === "LinkageSpecification") {
+        const body = c.getChild("CompoundStatement");
+        if (body) scan(body, c.name === "NamespaceDefinition" ? [...namespace, ...namespaceName(state, c)] : namespace);
+      }
+    }
+  };
+  scan(tree.topNode, []);
+  namespaceDirectives.set(tree, (found = out));
+  return found;
+}
+
+/** Whether `pos` is inside a compound statement's braces (one still open at the end of the file counts). */
+function within(node: CppNode, pos: number): boolean {
+  return pos > node.from && (pos < node.to || node.lastChild?.name !== "}");
+}
+
+/** Whether the file's own `using namespace std;` is in scope at `pos` (see above). */
+export function usingStdAt(state: EditorState, pos: number): boolean {
+  const namespace: string[] = [];
+  for (let n: CppNode | null = syntaxTree(state).resolveInner(pos, -1); n; n = n.parent) {
+    if (n.name !== "CompoundStatement" || !within(n, pos)) continue;
+    const owner = n.parent?.name;
+    if (owner === "NamespaceDefinition") {
+      namespace.unshift(...namespaceName(state, n.parent!));
+    } else if (owner !== "LinkageSpecification") {
+      // A block: a directive among its own statements before the cursor.
+      for (let c = n.firstChild; c && c.to <= pos; c = c.nextSibling) if (isUsingStd(state, c)) return true;
+    }
+  }
+  return directivesAtNamespaceScope(state).some(
+    (d) => d.end <= pos && d.namespace.length <= namespace.length && d.namespace.every((part, i) => part === namespace[i]),
+  );
+}
+
+/** <cmath>, <cstdlib>...: a C header's C++ name, whose functions are the C library's own. */
+function cWrapper(lib: CLibrary, header: string): boolean {
+  return header.startsWith("c") && lib.headers.c.includes(`${header.slice(1)}.h`);
+}
+
+/**
+ * std names without the prefix, as the C++ standard `std` has them: no section, so they rank with
+ * the other names by how well they match (review finding RB-2), each a little below the names that
+ * match as well (your own names, keywords and the C library's have boosts of 0 and up), the
+ * beginner's first (BEGINNER.stdNames). Left out: keywords, and the C library's functions that a
+ * C header's C++ name brings into std (sqrt from <cmath>), which the C list offers already.
+ */
+function usingStdOptions(lib: CLibrary, std: string): readonly Completion[] {
+  return cachedC(lib, `using-std:${std}`, () => {
+    const order = lib.header.modes.cpp;
+    const limit = cxxLevel(lib, std);
+    const cNames = new Set([...lib.functions.map((f) => f.name), ...lib.macros.map((m) => m.name)]);
+    const keywords = new Set(CPP_KEYWORDS);
+    return lib.std
+      .filter((s) => order.includes(s.since) && order.indexOf(s.since) <= limit)
+      .filter((s) => !keywords.has(s.name) && !(cNames.has(s.name) && cWrapper(lib, s.header)))
+      .map((s) => {
+        const newer = s.since !== order[0] ? `C++${s.since.slice(3)}` : null;
+        const rank = BEGINNER.stdNames.indexOf(s.name);
+        return {
+          label: s.name, type: s.kind, ...(newer ? { detail: newer } : {}), boost: rank >= 0 ? -1 - rank : -20,
+          info: `std::${s.name}, declared in <${s.header}>${newer ? `, since ${newer}` : ""}`,
+        };
+      });
+  });
+}
+
+/**
+ * std names without the prefix, for a word being typed (or Ctrl-Space) where the file's own
+ * `using namespace std;` is in scope (usingStdAt). language-support.ts adds the keyword guard (no
+ * names after `.`, `->` or `::`, on preprocessor lines, in strings and comments). Without one in
+ * scope it answers null (keyword-completion.ts unless says why).
+ */
+export const usingStdSource: CompletionSource = (context) => {
+  const word = context.matchBefore(/\w+$/);
+  if (!word && !context.explicit) return null;
+  if (!usingStdAt(context.state, context.pos)) return null;
+  const lib = loaded("c", context);
+  if (!lib) return null;
+  return { from: word ? word.from : context.pos, options: [...usingStdOptions(lib, contextOf(context.state).standards().cpp)], validFor: WORD };
+};

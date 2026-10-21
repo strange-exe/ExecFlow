@@ -67,6 +67,13 @@ describe("src/editor/data/python-stdlib.json", () => {
     }
   });
 
+  it("leaves out internal modules no program imports, and os's members, keeping os.path (design decision 17)", () => {
+    expect(data.modules).not.toContain("nturl2path");
+    expect(data.modules).toContain("os");
+    expect(Object.keys(data.members)).not.toContain("os");
+    expect(data.members["os.path"]?.function?.join, "os.path.join").toBeDefined();
+  });
+
   it("has no name that starts with an underscore", () => {
     const names = [...data.modules, ...Object.keys(data.members).flatMap((m) => m.split(".")), ...entries.map((e) => e.name)];
     expect(names.length).toBeGreaterThan(500);

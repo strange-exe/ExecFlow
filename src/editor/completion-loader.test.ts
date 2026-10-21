@@ -1,8 +1,9 @@
-// The time before the completion chunk (completion-code.ts) has arrived: every suggestion source
-// in a file's language data is a stand-in (completion-loader.ts lazySource). A query then offers
-// nothing and starts the load; where its source would offer names it runs again once the code is
-// there, and the sources answer from then on. A failed load (offline before the chunk was ever
-// cached) is quiet and is tried again later. This file's fresh module has not loaded the code.
+// The time before the completion chunk (completion-code.ts) has arrived: every library and own-name
+// source in a file's language data is a stand-in (completion-loader.ts lazySource). A query then
+// offers only the keywords and snippets (keyword-completion.ts, in the editor chunk) and starts the
+// load; where a stand-in's source would offer names it runs again once the code is there, and the
+// sources answer from then on. A failed load (offline before the chunk was ever cached) is quiet
+// and is tried again later. This file's fresh module has not loaded the code.
 // The view is a stand-in, as in late-data.test.ts: a state with autocompletion, focus and dispatch.
 import { autocompletion, CompletionContext, completionStatus, type CompletionResult, type CompletionSource } from "@codemirror/autocomplete";
 import { ensureSyntaxTree } from "@codemirror/language";
@@ -69,7 +70,7 @@ describe("before the completion code has arrived", () => {
 
 describe("the first query, before the code is there", () => {
   // vi.resetModules gives this describe a module graph where the code has not loaded yet.
-  it("offers nothing, runs again once the code arrives where it would offer names, and then offers keywords", async () => {
+  it("offers only keywords and snippets, runs again once the code arrives where it would offer names, and then offers your own names too", async () => {
     vi.resetModules();
     const loader = await import("./completion-loader");
     const extensions = await import("./extensions");
@@ -88,13 +89,17 @@ describe("the first query, before the code is there", () => {
       return { view, asView: view as unknown as EditorView };
     };
     // A word typed: the keyword and name sources would offer names, so the query runs again.
-    const typed = make("main.c", "int main(void) {\n    ret");
+    const typed = make("main.c", "int total;\nint main(void) {\n    ret");
     // After `= ` nothing is typed and the list wasn't asked for: no source offers anything there.
     const between = make("main.c", "int main(void) {\n    int x = ");
     // `#include <`: the header source would offer names.
     const include = make("main.c", "#include <");
     const python = make("main.py", "import math\nmath.");
-    for (const v of [typed, between, include, python]) expect(labels(await ask(v.view, v.asView)), "nothing before the code").toEqual([]);
+    // The keywords and snippets are the editor chunk's: offered at once, and nothing else is.
+    const first = (await ask(typed.view, typed.asView)).flatMap((r) => r?.options ?? []);
+    expect(first.map((o) => o.label), "keywords before the code").toContain("return");
+    expect(first.filter((o) => o.type === "function" || o.type === "variable").map((o) => o.label), "no own or library name before the code").toEqual([]);
+    for (const v of [between, include, python]) expect(labels(await ask(v.view, v.asView)), "nothing before the code").toEqual([]);
     expect(completionStatus(typed.view.state)).toBeNull();
     await until(() => loader.completionCode() !== null, "the code loads (the first query started it)");
     await until(() => completionStatus(typed.view.state) === "pending", "a typed word's query runs again");
@@ -102,8 +107,10 @@ describe("the first query, before the code is there", () => {
     await until(() => completionStatus(python.view.state) === "pending", "math.'s query runs again");
     for (let i = 0; i < 5; i++) await tick();
     expect(completionStatus(between.view.state), "no query runs again where none would offer names").toBeNull();
-    // From now on the sources answer at once: the keywords and snippets are there.
-    expect(labels(await ask(typed.view, typed.asView))).toContain("return");
+    // From now on the sources answer at once: the file's own total is there with the keywords.
+    const then = (await ask(typed.view, typed.asView)).flatMap((r) => r?.options ?? []);
+    expect(then.map((o) => o.label)).toContain("return");
+    expect(then.some((o) => o.label === "total" && o.type === "variable"), "the file's own total").toBe(true);
   });
 });
 
