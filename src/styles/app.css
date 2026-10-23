@@ -47,6 +47,10 @@ h1, h2, h3 { letter-spacing: var(--tracking-title); }
 .btn:disabled { color: var(--text-muted); border-color: var(--border); }
 .btn.primary { background: var(--action); border-color: var(--action); color: var(--on-action); font-weight: var(--w-strong); }
 .btn.primary:hover:not(:disabled) { background: var(--action-hover); border-color: var(--action-hover); }
+/* A filled button's label colour changes at once, so its fill does too: with the fill fading for
+   --dur, a theme switch (or Sign in stepping back to outline) showed the new label on a half-way,
+   low-contrast fill, as Run's note below says. */
+.btn.primary, .signin-btn { transition: none; }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .btn.ghost { border-color: transparent; }
 /* Toolbar text buttons (Input, Restart Python, Clear): the secondary chrome tier. */

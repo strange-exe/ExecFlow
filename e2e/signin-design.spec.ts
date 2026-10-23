@@ -84,6 +84,37 @@ test("A, the token form opened: Sign in steps back to the outline style", async 
   await matrix(page, "a-token-open");
 });
 
+test("a filled button's fill changes with its label, in the same frame: on a theme switch and when Sign in steps back", async ({ page }) => {
+  await setUp(page);
+  await openConnect(page);
+  // Read in the same task as the change: a transition would still report the old fill.
+  const sameFrame = (id: string, change: string) =>
+    page.evaluate(
+      ([id, change]) =>
+        new Promise<{ now: string; later: string }>((resolve) => {
+          const b = document.getElementById(id)!;
+          const html = document.documentElement;
+          const from = html.dataset.theme!;
+          if (change === "theme") html.dataset.theme = from === "dark" ? "light" : "dark";
+          else document.getElementById("connect-use-token")!.click();
+          const now = getComputedStyle(b).backgroundColor;
+          setTimeout(() => {
+            const later = getComputedStyle(b).backgroundColor;
+            if (change === "theme") html.dataset.theme = from;
+            resolve({ now, later });
+          }, 400);
+        }),
+      [id, change],
+    );
+  const signin = await sameFrame("connect-signin", "theme");
+  expect(signin.now, "Sign in on a theme switch").toBe(signin.later);
+  const back = await sameFrame("connect-signin", "token");
+  expect(back.now, "Sign in stepping back to outline").toBe(back.later);
+  await expect(page.locator("#connect-signin")).not.toHaveClass(/\bprimary\b/);
+  const submit = await sameFrame("connect-submit", "theme");
+  expect(submit.now, "Connect on a theme switch").toBe(submit.later);
+});
+
 test("redirecting: Going to GitHub", async ({ page }) => {
   // The page is held just before it leaves: the PKCE digest waits for the test. (Holding the
   // navigation itself doesn't work: measured 2026-10-23, Chromium holds every page.evaluate until a

@@ -103,7 +103,10 @@ export const test = base.extend<{ consoleErrors: string[]; tolerate: RegExp[] }>
       });
       await use(errors);
       for (const c of cancelled) {
-        if (!navigations.some((t) => t >= c.started && t <= c.failed + 2000)) errors.push(c.text);
+        if (navigations.some((t) => t >= c.started && t <= c.failed + 2000)) continue;
+        // The timings say why no navigation explains it (ms from the first navigation).
+        const zero = navigations[0] ?? c.started;
+        errors.push(`${c.text} (started ${c.started - zero}, failed ${c.failed - zero}, navigations ${navigations.map((t) => t - zero).join(" ")})`);
       }
       for (const m of ifNavigated) {
         if (!navigations.some((t) => t >= m.at - 2000 && t <= m.at + 2000)) errors.push(m.text);
