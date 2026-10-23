@@ -78,6 +78,22 @@ describe("built-in themes", () => {
     }
   });
 
+  it("offers the themes added after Pocket Run's, each in its scheme and next to its family", () => {
+    const added = {
+      "tokyo-night-storm": "dark", "catppuccin-macchiato": "dark", "catppuccin-frappe": "dark", "rose-pine-moon": "dark",
+      "kanagawa-dragon": "dark", "kanagawa-lotus": "light", "everforest-light": "light", "ayu-light": "light", vesper: "dark",
+      poimandres: "dark", "vitesse-dark": "dark", "vitesse-light": "light", "flexoki-dark": "dark", "flexoki-light": "light", nightfox: "dark",
+    } as const;
+    for (const [id, scheme] of Object.entries(added)) expect(byId(id), id).toMatchObject({ scheme });
+    // Pocket Run's 21 (High contrast among them) and these 15; the README's theme table names the same 36.
+    expect(POCKET_THEMES).toHaveLength(36);
+    const order = POCKET_THEMES.map((t) => t.id);
+    for (const [family, member] of [["tokyo-night", "tokyo-night-storm"], ["catppuccin-mocha", "catppuccin-macchiato"], ["rose-pine", "rose-pine-moon"], ["kanagawa", "kanagawa-dragon"], ["everforest-dark", "everforest-light"], ["ayu-mirage", "ayu-light"]]) {
+      expect(order.indexOf(member), member).toBe(order.indexOf(family) + 1);
+      expect(byId(member).group, member).toBe(byId(family).group);
+    }
+  });
+
   it("a palette theme paints inline colours and its own scheme", () => {
     const tokyo = byId("tokyo-night");
     const paint = paintFor(tokyo);

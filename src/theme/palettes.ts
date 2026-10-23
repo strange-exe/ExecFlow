@@ -19,6 +19,29 @@
 //   Ayu               github.com/ayu-theme/vscode-ayu (MIT)
 //   Night Owl         github.com/sdras/night-owl-vscode-theme (MIT)
 //   Solarized         ethanschoonover.com/solarized, altercation/vim-colors-solarized (MIT)
+// Added in CodeEditor, in the same 16-colour format and the same role mapping as their family's
+// existing entry (fetched 2026-10-23 from each repository's own palette file; licence read in its
+// LICENSE file):
+//   Tokyo Night Storm         folke/tokyonight.nvim lua/tokyonight/colors/storm.lua (Apache-2.0)
+//   Catppuccin Macchiato, Frappe  catppuccin/palette palette.json (MIT)
+//   Rose Pine Moon            rose-pine/rose-pine-palette source/index.ts (MIT)
+//   Kanagawa Dragon, Lotus    rebelot/kanagawa.nvim lua/kanagawa/colors.lua and themes.lua (MIT)
+//   Everforest Light          sainnhe/everforest autoload/everforest.vim, "medium" (MIT)
+//   Ayu Light                 ayu-theme/vscode-ayu ayu-light.json (MIT)
+//   Vesper                    raunofreiberg/vesper themes/Vesper-dark-color-theme.json (MIT)
+//   Poimandres                drcmda/poimandres-theme themes/poimandres-color-theme.json (MIT)
+//   Vitesse Dark, Light       antfu/vscode-theme-vitesse scripts/colors.ts (MIT)
+//   Flexoki Dark, Light       kepano/flexoki vscode/Flexoki-*-color-theme.json (MIT)
+//   Nightfox                  EdenEast/nightfox.nvim lua/nightfox/palette/nightfox.lua (MIT)
+// The format holds opaque colours only, so a source colour with an alpha byte is stored as it paints
+// over the ground its theme draws it on (over()): Ayu Light's border #6b7d8f1f on #fcfcfc is
+// #eaedef; Vesper's comment #8b8b8b94 on #101010 is #575757; Poimandres' raised layer #30334080 and
+// comment #767c9db0 on #1b1e28 are #262934 and #5a5f79; Vitesse Dark's text #dbd7caee, secondary
+// text #dedcd590 and comment #758575dd on #121212 are #cecabe, #858480 and #687668; Vitesse Light's
+// secondary text #393a3490 on #ffffff is #8f908c. Two picks where the source has no single colour:
+// Poimandres' Run is its link and info blue #add7ff (its own button is a grey #303340) and its
+// keywords are its storage blue #91b4d5 (plain keywords are body-text grey there); Nightfox's
+// functions use blue #719cd6, the base its plugin brightens at run time.
 // Where an official colour misses a contrast pair, readablePalette() lifts it at run time.
 
 import { lift, luminance, over, type Palette, type Scheme } from "./contrast";
@@ -134,21 +157,36 @@ export const POCKET_THEMES: readonly PaletteTheme[] = [
   { id: "one-dark-pro", name: "One Dark Pro", scheme: "dark", group: "popular", base: b("#21252b", "#282c34", "#1d1f23", "#abb2bf", "#7f848e", "#3e4452", "#61afef", "#282c34", "#8cc265", "#c24038", "#d19a66", "#c678dd", "#98c379", "#d19a66", "#7f848e", "#61afef") },
   { id: "dracula", name: "Dracula", scheme: "dark", group: "popular", base: b("#21222c", "#282a36", "#343746", "#f8f8f2", "#6272a4", "#44475a", "#bd93f9", "#282a36", "#50fa7b", "#ff5555", "#ffb86c", "#ff79c6", "#f1fa8c", "#ffb86c", "#6272a4", "#50fa7b") },
   { id: "tokyo-night", name: "Tokyo Night", scheme: "dark", group: "popular", base: b("#16161e", "#1a1b26", "#292e42", "#c0caf5", "#a9b1d6", "#3b4261", "#7aa2f7", "#1a1b26", "#9ece6a", "#db4b4b", "#e0af68", "#9d7cd8", "#9ece6a", "#ff9e64", "#565f89", "#7aa2f7") },
+  { id: "tokyo-night-storm", name: "Tokyo Night Storm", scheme: "dark", group: "popular", base: b("#1f2335", "#24283b", "#292e42", "#c0caf5", "#a9b1d6", "#3b4261", "#7aa2f7", "#24283b", "#9ece6a", "#db4b4b", "#e0af68", "#9d7cd8", "#9ece6a", "#ff9e64", "#565f89", "#7aa2f7") },
   { id: "tokyo-night-day", name: "Tokyo Night Day", scheme: "light", group: "popular", base: b("#d0d5e3", "#e1e2e7", "#c4c8da", "#3760bf", "#6172b0", "#a8aecb", "#2e7de9", "#e1e2e7", "#587539", "#c64343", "#8c6c3e", "#7847bd", "#587539", "#b15c00", "#848cb5", "#2e7de9") },
   { id: "catppuccin-mocha", name: "Catppuccin Mocha", scheme: "dark", group: "popular", base: b("#11111b", "#1e1e2e", "#181825", "#cdd6f4", "#a6adc8", "#313244", "#cba6f7", "#11111b", "#a6e3a1", "#f38ba8", "#f9e2af", "#cba6f7", "#a6e3a1", "#fab387", "#9399b2", "#89b4fa") },
+  { id: "catppuccin-macchiato", name: "Catppuccin Macchiato", scheme: "dark", group: "popular", base: b("#181926", "#24273a", "#1e2030", "#cad3f5", "#a5adcb", "#363a4f", "#c6a0f6", "#181926", "#a6da95", "#ed8796", "#eed49f", "#c6a0f6", "#a6da95", "#f5a97f", "#939ab7", "#8aadf4") },
+  { id: "catppuccin-frappe", name: "Catppuccin Frappe", scheme: "dark", group: "popular", base: b("#232634", "#303446", "#292c3c", "#c6d0f5", "#a5adce", "#414559", "#ca9ee6", "#232634", "#a6d189", "#e78284", "#e5c890", "#ca9ee6", "#a6d189", "#ef9f76", "#949cbb", "#8caaee") },
   { id: "catppuccin-latte", name: "Catppuccin Latte", scheme: "light", group: "popular", base: b("#dce0e8", "#eff1f5", "#e6e9ef", "#4c4f69", "#6c6f85", "#ccd0da", "#8839ef", "#eff1f5", "#40a02b", "#d20f39", "#df8e1d", "#8839ef", "#40a02b", "#fe640b", "#7c7f93", "#1e66f5") },
   { id: "rose-pine", name: "Rose Pine", scheme: "dark", group: "more", base: b("#191724", "#191724", "#1f1d2e", "#e0def4", "#908caa", "#403d52", "#ebbcba", "#191724", "#9ccfd8", "#eb6f92", "#f6c177", "#31748f", "#f6c177", "#ebbcba", "#6e6a86", "#ebbcba") },
+  { id: "rose-pine-moon", name: "Rose Pine Moon", scheme: "dark", group: "more", base: b("#232136", "#232136", "#2a273f", "#e0def4", "#908caa", "#44415a", "#ea9a97", "#232136", "#9ccfd8", "#eb6f92", "#f6c177", "#3e8fb0", "#f6c177", "#ea9a97", "#6e6a86", "#ea9a97") },
   { id: "rose-pine-dawn", name: "Rose Pine Dawn", scheme: "light", group: "more", base: b("#faf4ed", "#faf4ed", "#fffaf3", "#464261", "#797593", "#dfdad9", "#d7827e", "#faf4ed", "#56949f", "#b4637a", "#ea9d34", "#286983", "#ea9d34", "#d7827e", "#9893a5", "#d7827e") },
   { id: "nord", name: "Nord", scheme: "dark", group: "more", base: b("#2e3440", "#2e3440", "#3b4252", "#d8dee9", "#616e88", "#4c566a", "#88c0d0", "#2e3440", "#a3be8c", "#bf616a", "#ebcb8b", "#81a1c1", "#a3be8c", "#b48ead", "#616e88", "#88c0d0") },
   { id: "gruvbox-dark", name: "Gruvbox Dark", scheme: "dark", group: "more", base: b("#1d2021", "#282828", "#3c3836", "#ebdbb2", "#a89984", "#504945", "#fe8019", "#282828", "#b8bb26", "#fb4934", "#fabd2f", "#fb4934", "#b8bb26", "#d3869b", "#928374", "#b8bb26") },
   { id: "gruvbox-light", name: "Gruvbox Light", scheme: "light", group: "more", base: b("#f9f5d7", "#fbf1c7", "#ebdbb2", "#3c3836", "#7c6f64", "#d5c4a1", "#af3a03", "#fbf1c7", "#79740e", "#9d0006", "#b57614", "#9d0006", "#79740e", "#8f3f71", "#928374", "#79740e") },
   { id: "kanagawa", name: "Kanagawa", scheme: "dark", group: "more", base: b("#16161d", "#1f1f28", "#2a2a37", "#dcd7ba", "#c8c093", "#363646", "#7e9cd8", "#16161d", "#98bb6c", "#e82424", "#ff9e3b", "#957fb8", "#98bb6c", "#d27e99", "#727169", "#7e9cd8") },
+  { id: "kanagawa-dragon", name: "Kanagawa Dragon", scheme: "dark", group: "more", base: b("#0d0c0c", "#181616", "#282727", "#c5c9c5", "#c8c093", "#393836", "#8ba4b0", "#0d0c0c", "#98bb6c", "#e82424", "#ff9e3b", "#8992a7", "#8a9a7b", "#a292a3", "#737c73", "#8ba4b0") },
+  { id: "kanagawa-lotus", name: "Kanagawa Lotus", scheme: "light", group: "more", base: b("#d5cea3", "#f2ecbc", "#e7dba0", "#545464", "#43436c", "#e4d794", "#4d699b", "#d5cea3", "#6f894e", "#e82424", "#e98a00", "#624c83", "#6f894e", "#b35b79", "#8a8980", "#4d699b") },
   { id: "everforest-dark", name: "Everforest Dark", scheme: "dark", group: "more", base: b("#232a2e", "#2d353b", "#343f44", "#d3c6aa", "#9da9a0", "#4f585e", "#a7c080", "#2d353b", "#a7c080", "#e67e80", "#dbbc7f", "#e67e80", "#a7c080", "#d699b6", "#859289", "#a7c080") },
+  { id: "everforest-light", name: "Everforest Light", scheme: "light", group: "more", base: b("#efebd4", "#fdf6e3", "#f4f0d9", "#5c6a72", "#829181", "#e0dcc7", "#8da101", "#fdf6e3", "#8da101", "#f85552", "#dfa000", "#f85552", "#8da101", "#df69ba", "#939f91", "#8da101") },
   { id: "ayu-dark", name: "Ayu Dark", scheme: "dark", group: "more", base: b("#0d1017", "#10141c", "#141821", "#bfbdb6", "#5a6378", "#1b1f29", "#e6b450", "#765b24", "#70bf56", "#d95757", "#e6b450", "#ff8f40", "#aad94c", "#d2a6ff", "#5a6673", "#ffb454") },
   { id: "ayu-mirage", name: "Ayu Mirage", scheme: "dark", group: "more", base: b("#1f2430", "#242936", "#282e3b", "#cccac2", "#707a8c", "#171b24", "#ffcc66", "#735923", "#87d96c", "#ff6666", "#ffcc66", "#ffa659", "#d5ff80", "#dfbfff", "#6e7c8f", "#ffcd66") },
+  { id: "ayu-light", name: "Ayu Light", scheme: "light", group: "more", base: b("#f8f9fa", "#fcfcfc", "#fafafa", "#5c6166", "#828e9f", "#eaedef", "#f29718", "#7e4b01", "#6cbf43", "#e65050", "#f29718", "#fa8532", "#86b300", "#a37acc", "#adaeb1", "#eba400") },
   { id: "night-owl", name: "Night Owl", scheme: "dark", group: "more", base: b("#011627", "#011627", "#0b2942", "#d6deeb", "#89a4bb", "#5f7e97", "#7e57c2", "#ffffff", "#22da6e", "#ef5350", "#ffeb95", "#c792ea", "#ecc48d", "#f78c6c", "#637777", "#82aaff") },
   { id: "solarized-dark", name: "Solarized Dark", scheme: "dark", group: "more", base: b("#002b36", "#002b36", "#073642", "#839496", "#586e75", "#073642", "#268bd2", "#002b36", "#859900", "#dc322f", "#b58900", "#859900", "#2aa198", "#2aa198", "#586e75", "#268bd2") },
   { id: "solarized-light", name: "Solarized Light", scheme: "light", group: "more", base: b("#fdf6e3", "#fdf6e3", "#eee8d5", "#657b83", "#93a1a1", "#eee8d5", "#268bd2", "#002b36", "#859900", "#dc322f", "#b58900", "#859900", "#2aa198", "#2aa198", "#93a1a1", "#268bd2") },
+  { id: "vesper", name: "Vesper", scheme: "dark", group: "more", base: b("#101010", "#101010", "#161616", "#ffffff", "#a0a0a0", "#282828", "#ffc799", "#000000", "#99ffe4", "#ff8080", "#ffc799", "#a0a0a0", "#99ffe4", "#ffc799", "#575757", "#ffc799") },
+  { id: "poimandres", name: "Poimandres", scheme: "dark", group: "more", base: b("#1b1e28", "#1b1e28", "#262934", "#a6accd", "#767c9d", "#303340", "#add7ff", "#1b1e28", "#5de4c7", "#d0679d", "#fffac2", "#91b4d5", "#5de4c7", "#5de4c7", "#5a5f79", "#add7ff") },
+  { id: "vitesse-dark", name: "Vitesse Dark", scheme: "dark", group: "more", base: b("#121212", "#121212", "#181818", "#cecabe", "#858480", "#191919", "#4d9375", "#121212", "#4d9375", "#cb7676", "#d4976c", "#4d9375", "#c98a7d", "#4c9a91", "#687668", "#80a665") },
+  { id: "vitesse-light", name: "Vitesse Light", scheme: "light", group: "more", base: b("#ffffff", "#ffffff", "#f7f7f7", "#393a34", "#8f908c", "#f0f0f0", "#1c6b48", "#ffffff", "#1e754f", "#ab5959", "#a65e2b", "#1e754f", "#b56959", "#2f798a", "#a0ada0", "#59873a") },
+  { id: "flexoki-dark", name: "Flexoki Dark", scheme: "dark", group: "more", base: b("#100f0f", "#100f0f", "#1c1b1a", "#cecdc3", "#878580", "#343331", "#3aa99f", "#100f0f", "#879a39", "#d14d41", "#da702c", "#879a39", "#3aa99f", "#8b7ec8", "#878580", "#da702c") },
+  { id: "flexoki-light", name: "Flexoki Light", scheme: "light", group: "more", base: b("#fffcf0", "#fffcf0", "#f2f0e5", "#100f0f", "#6f6e69", "#dad8ce", "#24837b", "#fffcf0", "#66800b", "#af3029", "#bc5215", "#66800b", "#24837b", "#5e409d", "#6f6e69", "#bc5215") },
+  { id: "nightfox", name: "Nightfox", scheme: "dark", group: "more", base: b("#131a24", "#192330", "#212e3f", "#cdcecf", "#aeafb0", "#39506d", "#719cd6", "#131a24", "#81b29a", "#c94f6d", "#dbc074", "#9d79d6", "#81b29a", "#f4a261", "#738091", "#719cd6") },
 ];
 
 /** "#rrggbb" plus an alpha byte, for the four band tokens that may be translucent. */

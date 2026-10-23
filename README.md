@@ -223,22 +223,27 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto
-CodeEditor's colours and adjusted where a colour pair would be hard to read. The table lists all 21
+CodeEditor's colours and adjusted where a colour pair would be hard to read. The table lists all 36
 palette themes; High contrast, like CodeEditor Deep Field and CodeEditor Slate, is CodeEditor's own:
 
 | Theme | Source | Licence |
 |---|---|---|
-| Tokyo Night, Tokyo Night Day | [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim) | Apache-2.0 |
-| Catppuccin Mocha, Catppuccin Latte | [catppuccin/palette](https://github.com/catppuccin/palette) | MIT |
+| Tokyo Night, Tokyo Night Storm, Tokyo Night Day | [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim) | Apache-2.0 |
+| Catppuccin Mocha, Catppuccin Macchiato, Catppuccin Frappe, Catppuccin Latte | [catppuccin/palette](https://github.com/catppuccin/palette) | MIT |
 | Dracula | [draculatheme.com/spec](https://draculatheme.com/spec) | MIT |
 | GitHub-style Dark, GitHub-style Light | [primer/github-vscode-theme](https://github.com/primer/github-vscode-theme) | MIT |
 | One Dark Pro | [Binaryify/OneDark-Pro](https://github.com/Binaryify/OneDark-Pro) | MIT |
-| Rose Pine, Rose Pine Dawn | [rose-pine/rose-pine-palette](https://github.com/rose-pine/rose-pine-palette) | MIT |
+| Rose Pine, Rose Pine Moon, Rose Pine Dawn | [rose-pine/rose-pine-palette](https://github.com/rose-pine/rose-pine-palette) | MIT |
 | Nord | [nordtheme/nord](https://github.com/nordtheme/nord) | MIT |
 | Gruvbox Dark, Gruvbox Light | [morhetz/gruvbox](https://github.com/morhetz/gruvbox) | MIT |
-| Kanagawa | [rebelot/kanagawa.nvim](https://github.com/rebelot/kanagawa.nvim) | MIT |
-| Everforest Dark | [sainnhe/everforest](https://github.com/sainnhe/everforest) | MIT |
-| Ayu Dark, Ayu Mirage | [ayu-theme/vscode-ayu](https://github.com/ayu-theme/vscode-ayu) | MIT |
+| Kanagawa, Kanagawa Dragon, Kanagawa Lotus | [rebelot/kanagawa.nvim](https://github.com/rebelot/kanagawa.nvim) | MIT |
+| Everforest Dark, Everforest Light | [sainnhe/everforest](https://github.com/sainnhe/everforest) | MIT |
+| Ayu Dark, Ayu Mirage, Ayu Light | [ayu-theme/vscode-ayu](https://github.com/ayu-theme/vscode-ayu) | MIT |
 | Night Owl | [sdras/night-owl-vscode-theme](https://github.com/sdras/night-owl-vscode-theme) | MIT |
 | Solarized Dark, Solarized Light | [altercation/vim-colors-solarized](https://github.com/altercation/vim-colors-solarized) | MIT |
+| Vesper | [raunofreiberg/vesper](https://github.com/raunofreiberg/vesper) | MIT |
+| Poimandres | [drcmda/poimandres-theme](https://github.com/drcmda/poimandres-theme) | MIT |
+| Vitesse Dark, Vitesse Light | [antfu/vscode-theme-vitesse](https://github.com/antfu/vscode-theme-vitesse) | MIT |
+| Flexoki Dark, Flexoki Light | [kepano/flexoki](https://github.com/kepano/flexoki) ([stephango.com/flexoki](https://stephango.com/flexoki)) | MIT |
+| Nightfox | [EdenEast/nightfox.nvim](https://github.com/EdenEast/nightfox.nvim) | MIT |
 | High contrast | CodeEditor (this repository) | MIT (`LICENSE`) |
