@@ -1885,6 +1885,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       body: [
         "This removes every file, setting and saved GitHub token CodeEditor keeps in this browser, then reloads the page.",
         "Files already synced to GitHub stay in the repository. Anything not synced is lost: export it first if you need it.",
+        "On a shared computer, also sign out of github.com: the browser's GitHub session isn't CodeEditor's and stays signed in.",
       ],
       confirm: "Clear this computer",
       danger: true,

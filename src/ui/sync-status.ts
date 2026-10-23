@@ -38,6 +38,8 @@ export interface StatusInput {
   /** waiting: when the next try starts. */
   retryAt?: number | null;
   now: number;
+  /** needs-token: "app" connections sign in again instead of pasting a token. */
+  auth?: "pat" | "app";
 }
 
 export interface StatusView {
@@ -74,6 +76,7 @@ export function describeStatus(s: StatusInput): StatusView {
     case "not-connected":
       return { ...view("cloud-slash", "Not connected", "Connect GitHub", "muted"), note: "Your files are saved on this computer." };
     case "needs-token":
+      if (s.auth === "app") return view("key", "Sign in again", "Sign in with GitHub to sync", "warning");
       return view("key", s.error ? "Token not accepted: enter a new one" : "Enter token to sync", "Enter your GitHub token", "warning");
     case "synced":
       return view("cloud-check", s.lastSyncAt === null ? "Not synced yet" : `Synced ${ago(s.lastSyncAt, s.now)}`, "Sync now", "success");

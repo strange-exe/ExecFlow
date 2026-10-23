@@ -151,6 +151,142 @@ export async function expectNoToken(page: Page, gh: GitHubRoute) {
   }
 }
 
+// ---------------------------------------------------------------- "Sign in with GitHub"
+// The sign-in relay (/api/auth/*, a Cloudflare Pages Function that `vite preview` doesn't run) and
+// GitHub's authorize page, both served with page.route: the tests never reach real GitHub. The
+// authorize page is a stand-in document (not a redirect: Playwright's WebKit refuses to fulfill
+// one), so a test reads the state from its URL and then opens /auth-callback itself, in the same tab.
+
+export const APP = { clientId: "Iv23liFAKEclient01", appSlug: "codeeditor-sync" };
+/** Fake GitHub App tokens (ghu_ access, ghr_ refresh), never real ones. */
+export const GHU1 = "ghu_FAKEaccessONE0123456789abcdefghij";
+export const GHU2 = "ghu_FAKEaccessTWO0123456789abcdefghij";
+export const GHR1 = "ghr_FAKErefreshONE0123456789abcdefghijklmnopqrstuvwxyzABCDEFGH";
+export const GHR2 = "ghr_FAKErefreshTWO0123456789abcdefghijklmnopqrstuvwxyzABCDEFGH";
+export const tokenPair = (access: string, refresh: string) => ({ access_token: access, expires_in: 28800, refresh_token: refresh, refresh_token_expires_in: 15897600 });
+
+export interface RelayCall {
+  route: string;
+  method: string;
+  body: Record<string, unknown>;
+  headers: Record<string, string>;
+}
+
+export interface FakeRepo {
+  id: number;
+  owner: string;
+  name: string;
+  private?: boolean;
+}
+
+export interface SignInOptions {
+  /** /api/auth/config: the relay's JSON (default), its 404, or nothing routed (the app's own page answers). */
+  config?: "available" | "404" | "none";
+  /** Answers per route (default: a token pair for token and refresh, 204 for revoke). */
+  answer?: Partial<Record<"token" | "refresh" | "revoke", (call: RelayCall) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>>>;
+  /** What GET /user/installations/{id}/repositories lists (default: me/workspace). */
+  repos?: FakeRepo[];
+  login?: string;
+}
+
+/** Routes the relay, GitHub's authorize page and the account endpoints. Call after routeGitHub. */
+export async function routeSignIn(page: Page, o: SignInOptions = {}) {
+  const calls: RelayCall[] = [];
+  const authorize: string[] = [];
+  let repos = o.repos ?? [{ id: 4242, owner: "me", name: "workspace" }];
+  const userCalls: string[] = [];
+  if ((o.config ?? "available") !== "none") {
+    await page.route("**/api/auth/config", (route) =>
+      o.config === "404" ? route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"not_configured"}' }) : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(APP) }),
+    );
+  }
+  for (const name of ["token", "refresh", "revoke"] as const) {
+    await page.route(`**/api/auth/${name}`, async (route) => {
+      const req = route.request();
+      const call: RelayCall = { route: name, method: req.method(), body: JSON.parse(req.postData() ?? "{}"), headers: await req.allHeaders() };
+      calls.push(call);
+      const fallback = name === "revoke" ? { status: 204 } : { status: 200, body: name === "token" ? tokenPair(GHU1, GHR1) : tokenPair(GHU2, GHR2) };
+      const out = (await o.answer?.[name]?.(call)) ?? fallback;
+      await route.fulfill({ status: out.status, contentType: "application/json", body: out.body === undefined ? "" : JSON.stringify(out.body) });
+    });
+  }
+  await page.route("https://github.com/login/oauth/authorize**", (route) => {
+    authorize.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>GitHub stand-in</title><p>Authorize CodeEditor (test stand-in)</p>" });
+  });
+  // The account endpoints (registered after routeGitHub's catch-all, so these win).
+  const cors = { "access-control-allow-origin": "*", "content-type": "application/json; charset=utf-8" };
+  await page.route(/^https:\/\/api\.github\.com\/user(\/installations.*|\?.*)?$/, async (route) => {
+    const req = route.request();
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "Authorization, X-GitHub-Api-Version", "access-control-allow-methods": "GET" } });
+    const url = new URL(req.url());
+    userCalls.push(`${url.pathname} ${req.headers().authorization ?? ""}`);
+    if (url.pathname === "/user") return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ login: o.login ?? "me" }) });
+    if (url.pathname === "/user/installations") {
+      return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ total_count: 1, installations: [{ id: 77, account: { login: o.login ?? "me" }, html_url: "https://github.com/settings/installations/77", app_slug: APP.appSlug }] }) });
+    }
+    const list = repos.map((r) => ({ id: r.id, name: r.name, full_name: `${r.owner}/${r.name}`, owner: { login: r.owner }, private: r.private ?? true, default_branch: "main" }));
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ total_count: list.length, repositories: list }) });
+  });
+  return {
+    calls,
+    authorize,
+    userCalls,
+    setRepos(next: FakeRepo[]) {
+      repos = next;
+    },
+    /** The state and PKCE challenge of the last trip to GitHub. */
+    lastAuthorize() {
+      const url = new URL(authorize.at(-1)!);
+      return { url, state: url.searchParams.get("state")!, challenge: url.searchParams.get("code_challenge")! };
+    },
+  };
+}
+
+export type SignInRoute = Awaited<ReturnType<typeof routeSignIn>>;
+
+/** Presses Sign in with GitHub and waits for the stand-in authorize page; returns its state. */
+export async function goToGitHub(page: Page, si: SignInRoute, o: { remember?: boolean } = {}) {
+  const open = page.locator("#connect-dialog");
+  const dialog = (await open.isVisible()) ? open : await openConnect(page);
+  await expect(dialog).toHaveAttribute("data-view", "start");
+  if (o.remember === false) await page.locator("#connect-signin-remember").uncheck();
+  await page.locator("#connect-signin").click();
+  await page.waitForURL(/^https:\/\/github\.com\/login\/oauth\/authorize/);
+  return si.lastAuthorize();
+}
+
+/** The full round trip: GitHub sends the student back with `code`, and the repository list shows. */
+export async function signInAndPick(page: Page, si: SignInRoute, o: { remember?: boolean; view?: "pick" | "pick-empty" } = {}) {
+  const { state } = await goToGitHub(page, si, o);
+  await page.goto(`/auth-callback?code=fakecode0123456789&state=${state}`);
+  const dialog = page.locator("#connect-dialog");
+  await expect(dialog).toHaveAttribute("data-state", o.view ?? "pick", { timeout: 30_000 });
+  return dialog;
+}
+
+/** What the sign-in stored: whether the sealed record exists and whether a token shows in clear. */
+export async function appSecrets(page: Page, tokens: string[]) {
+  return page.evaluate(async (ts) => {
+    const db: IDBDatabase = await new Promise((resolve, reject) => {
+      const open = indexedDB.open("codeeditor-secrets", 1);
+      open.onupgradeneeded = () => open.result.createObjectStore("secrets");
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    const get = (key: string) =>
+      new Promise<unknown>((resolve, reject) => {
+        const r = db.transaction("secrets").objectStore("secrets").get(key);
+        r.onsuccess = () => resolve(r.result);
+        r.onerror = () => reject(r.error);
+      });
+    const [key, sealed] = (await Promise.all([get("app-key"), get("app-tokens")])) as [unknown, { ct?: ArrayBuffer } | undefined];
+    db.close();
+    const text = sealed?.ct ? new TextDecoder("latin1").decode(sealed.ct) : "";
+    return { hasKey: key instanceof CryptoKey, extractable: key instanceof CryptoKey ? key.extractable : null, hasTokens: Boolean(sealed?.ct), clear: ts.some((t) => text.includes(t)) };
+  }, tokens);
+}
+
 /** What "Remember on this computer" stored: the records' names, and whether the token shows in clear. */
 export async function secrets(page: Page, token: string) {
   return page.evaluate(async (t) => {

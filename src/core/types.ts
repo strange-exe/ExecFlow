@@ -158,6 +158,10 @@ export interface RemoteMeta {
   lastSyncAt: number | null;
   lastError: string | null;
   deviceName: string;
+  /** How this computer connected: a pasted token, or "Sign in with GitHub" (missing: "pat"). */
+  auth?: "pat" | "app";
+  /** GitHub's id of the repository (sign-in only): a later sign-in narrows its token to it. */
+  repoId?: number;
 }
 
 export interface LocalFileState {

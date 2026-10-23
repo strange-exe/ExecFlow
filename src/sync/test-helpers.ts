@@ -203,6 +203,8 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
   const repo = options.repo ?? "workspace";
   const branch = options.branch ?? "main";
   const token = options.token ?? TEST_TOKEN;
+  /** Tokens GitHub accepts now: a sign-in's token expires (rejectToken) and its refresh is accepted. */
+  const accepted = new Set<string>([token]);
   const blobs = new Map<string, Uint8Array>();
   const trees = new Map<string, Map<string, FakeEntry>>();
   const commits = new Map<string, { tree: string; parents: string[]; message: string }>();
@@ -401,7 +403,8 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
       const answer = await intercept(req);
       if (answer) return answer;
     }
-    if (headers.get("authorization") !== `Bearer ${token}`) return json(401, { message: "Bad credentials" });
+    const bearer = headers.get("authorization") ?? "";
+    if (!bearer.startsWith("Bearer ") || !accepted.has(bearer.slice(7))) return json(401, { message: "Bad credentials" });
     if (headers.get("x-github-api-version") !== "2026-03-10") return json(400, { message: "Unsupported API version" });
     return handle(req);
   }
@@ -470,6 +473,8 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
       return maxBlobsInFlight;
     },
     writes: () => log.filter((l) => !l.startsWith("GET")),
+    acceptToken: (t: string) => void accepted.add(t),
+    rejectToken: (t: string) => void accepted.delete(t),
   };
 }
 

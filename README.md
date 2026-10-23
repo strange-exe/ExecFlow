@@ -2,8 +2,10 @@
 
 A personal code editor for Python, C and C++ that runs programs in the browser. Files live in
 folders in a workspace kept in the browser's storage (IndexedDB), and can be kept in a private
-GitHub repository. There is no server: compiling and running happen on your own computer, in
-WebAssembly workers.
+GitHub repository. Compiling and running happen on your own computer, in WebAssembly workers. The
+only server-side piece is a small sign-in relay on the same site for "Sign in with GitHub"
+(`functions/api/auth/`, see [Keeping the files on GitHub](#keeping-the-files-on-github)); it stores
+and logs nothing, and syncing never goes through it.
 
 - **Python 3.14** through [Pyodide](https://pyodide.org/) 314.0.7, with numpy and pandas (downloaded
   the first time a program imports them).
@@ -75,8 +77,9 @@ Other commands:
 
 | Command | What it does |
 |---|---|
-| `npm test` | Unit tests (Vitest) |
-| `npm run typecheck` | TypeScript for the app, the workers and the tooling |
+| `npm test` | Unit tests (Vitest): the app (`src/`), then the sign-in relay (`server/`) |
+| `npm run typecheck` | TypeScript for the app, the workers, the tooling and the sign-in relay (`functions/`, `server/`) |
+| `npm run dev:pages` | After `npm run build`: the built site plus the sign-in relay on http://127.0.0.1:8788 (Wrangler; needs a `.dev.vars`, see below) |
 | `npm run build` | Type check, then a production build in `dist/` with a Cloudflare Pages `_headers` file |
 | `npx playwright install chromium firefox webkit` | Once, before the end-to-end tests |
 | `npm run e2e` | End-to-end tests against the production build, in Chromium, Firefox and WebKit; the typing-speed test runs last, alone |
@@ -139,10 +142,41 @@ know first, with Cmd for Ctrl on macOS:
 ## Keeping the files on GitHub
 
 Connect from the sync status in the top bar ("Not connected"), the empty workspace, or Settings.
-You need a repository (private: a public one gets a warning first) and a fine-grained personal
-access token for that one repository with **Contents: Read and write**. The Connect dialog links to
-GitHub's new-token page with the name, Contents and a 90-day expiry filled in; you pick the
-repository there.
+You need a repository (private: a public one gets a warning first).
+
+**Sign in with GitHub** (where the site owner has set it up, below). Once:
+
+1. Connect GitHub, then Sign in with GitHub. GitHub asks you to pick an account and to authorize
+   CodeEditor: choose Authorize.
+2. Back in CodeEditor, if no repository is listed: choose "Choose a repository on GitHub", pick your
+   account, choose **Only select repositories**, pick one repository (private; it can be empty),
+   then Install. Come back to the CodeEditor tab: the repository shows up.
+3. Pick it and choose Connect. A repository owned by an organisation may need the organisation's
+   owner to approve CodeEditor first.
+
+- CodeEditor is a GitHub App that asks only for **Contents: Read and write** (and the Metadata read
+  GitHub adds). It reaches only the repositories you installed it on, and only if you can reach
+  them too; the list warns when it can reach more than one.
+- The sign-in lasts 8 hours and renews itself (GitHub's refresh token lasts 6 months and changes at
+  every renewal). "Remember on this device" is on by default and keeps the sign-in encrypted
+  (AES-GCM with a non-extractable key) in its own IndexedDB database; untick it on a shared
+  computer, and the sign-in is then forgotten when the tab closes. Disconnect asks GitHub to revoke
+  this device's token and deletes it here; if GitHub can't be reached, the token stops working by
+  itself within 8 hours, or you can revoke CodeEditor in your GitHub settings (Applications,
+  Authorized GitHub Apps). On a shared computer, also sign out of github.com: your GitHub session in the browser
+  isn't CodeEditor's.
+- What the relay sees: to sign in and to renew, the browser sends the one-time code (with the PKCE
+  verifier) or the refresh token to `/api/auth/*` on this same site, which adds the app's client
+  secret, asks GitHub, and passes the tokens back. It stores and logs nothing. Syncing goes straight
+  from the browser to `https://api.github.com`. GitHub lists CodeEditor under your Authorized
+  GitHub Apps, and the app's owner can see which accounts installed it; the owner has no private
+  key for the app, so they can't act on your repositories without your token. Install apps only
+  from owners you trust.
+
+**Use a token instead**: the Connect dialog's other path (and the only one where the relay isn't
+set up, e.g. a fork or `npm run preview`). Make a fine-grained personal access token for that one
+repository with **Contents: Read and write**. The Connect dialog links to GitHub's new-token page
+with the name, Contents and a 90-day expiry filled in; you pick the repository there.
 
 - The token goes only to `https://api.github.com`, in the Authorization header. By default it is
   kept in the tab's memory and forgotten when the tab closes. "Remember on this computer" stores it
@@ -161,13 +195,69 @@ repository there.
 - Offline, changes stay here and sync once the connection is back. When GitHub limits requests,
   CodeEditor waits as long as GitHub says, then twice as long, and stops after 3 tries.
 
+### Setting up Sign in with GitHub (the site's owner, once)
+
+Without these steps the site still works: the Connect dialog shows only the token path.
+
+On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
+([GitHub's guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)).
+
+1. **Name**: unique on GitHub, at most 34 characters (e.g. "CodeEditor Sync" and your name).
+   **Description**: "Keeps your CodeEditor workspace in one repository you choose." **Homepage URL**: the
+   production site.
+2. **Callback URL**: exactly `https://<production origin>/auth-callback`, one URL only. Leave any
+   option that allows matching other URLs (wildcards, subdomains, paths) off.
+3. **Expire user authorization tokens**: on (the default).
+4. **Request user authorization (OAuth) during installation**: off. **Enable Device Flow**: off.
+5. **Setup URL**: empty; **Redirect on update**: off. **Webhook**: untick Active.
+6. **Permissions**: Repository, Contents: **Read and write**; check that Metadata shows Read-only.
+   Everything else No access (no Organization or Account permissions, no Workflows).
+7. **Where can this GitHub App be installed**: **Any account** (classmates install it on their own
+   repositories).
+8. Create the app. Note its **Client ID** and its **slug** (the last part of its public page,
+   `https://github.com/apps/<slug>`). Generate a **client secret** and paste it straight into
+   Cloudflare (step 10), never into a file, a chat or the repository. Don't generate a private key:
+   sign-in doesn't need one, and it would let its holder act on every repository the app is
+   installed on.
+
+On Cloudflare: Workers & Pages, the project, Settings, Variables and Secrets
+([Cloudflare's guide](https://developers.cloudflare.com/pages/functions/bindings/)), in the
+**Production** environment only:
+
+9. `GITHUB_CLIENT_ID` (text), `GITHUB_APP_SLUG` (text), `ALLOWED_ORIGIN` (text): the exact production
+   origin, `https://` and the custom domain, no trailing slash.
+10. `GITHUB_CLIENT_SECRET`, type **Secret**. Not in Preview: preview deployments are public, and their
+    origin differs from `ALLOWED_ORIGIN`, so they refuse sign-in anyway.
+11. Check the build's root directory is the repository root (so `functions/` is deployed with the
+    site), then redeploy: secrets apply from the next deployment.
+12. Optional, with the custom domain on a Cloudflare zone: one WAF rate-limiting rule for paths
+    starting with `/api/auth/` (for example more than 20 requests in 10 seconds from one IP: block).
+13. If the secret may have leaked: generate a new one on GitHub, set it in Cloudflare, redeploy, then
+    delete the old one on GitHub. After a security fix to the relay, delete old production
+    deployments (their URLs stay reachable).
+
+**Local testing with a separate dev app.** Register a second, private GitHub App the same way, with
+the callback `http://127.0.0.1:8788/auth-callback`, so the production app keeps its one exact
+callback. Put its values in a `.dev.vars` file at the repository root (ignored by git, never
+committed):
+
+```sh
+GITHUB_CLIENT_ID=<the dev app's client ID>
+GITHUB_CLIENT_SECRET=<the dev app's client secret>
+GITHUB_APP_SLUG=<the dev app's slug>
+ALLOWED_ORIGIN=http://127.0.0.1:8788
+```
+
+Then `npm run build` and `npm run dev:pages`, and open http://127.0.0.1:8788.
+
 ## How it is put together
 
 | Folder | |
 |---|---|
 | `src/core` | Shared types, paths, byte and text checks, languages, the error help table (`error-help.ts`, checked against `__fixtures__/error-help.json`) |
 | `src/storage` | The workspace in IndexedDB, one editing tab at a time, import, zip export |
-| `src/sync` | GitHub sync (one commit per push, conflicts kept as copies) |
+| `src/sync` | GitHub sync (one commit per push, conflicts kept as copies), Sign in with GitHub (PKCE, the token source, the repository list) |
+| `server`, `functions/api/auth` | The sign-in relay: its logic and tests (`server/github-auth.ts`), and the four Cloudflare Pages Function routes that call it |
 | `src/editor` | CodeMirror 6 editor sessions, diagnostics and suggestions (`src/editor/data`: the generated library lists) |
 | `src/runner`, `src/workers` | The Python and C/C++ runtimes and their workers |
 | `src/ui`, `src/theme`, `src/styles` | The workbench, the colour themes, the styles |

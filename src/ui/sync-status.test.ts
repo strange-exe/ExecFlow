@@ -17,6 +17,12 @@ describe("sync status words", () => {
     expect(icons.size).toBe(PHASES.length);
   });
 
+  it("a sign-in connection that needs a new token says Sign in again (a pasted one keeps its words)", () => {
+    expect(describeStatus({ ...base, phase: "needs-token", auth: "app", error: "x" })).toMatchObject({ words: "Sign in again", action: "Sign in with GitHub to sync", icon: "key" });
+    expect(describeStatus({ ...base, phase: "needs-token", auth: "pat", error: "x" }).words).toBe("Token not accepted: enter a new one");
+    expect(describeStatus({ ...base, phase: "needs-token" }).words).toBe("Enter token to sync");
+  });
+
   it("uses the words of the brief", () => {
     expect(describeStatus({ ...base, phase: "synced", lastSyncAt: base.now - 2 * 60_000 }).words).toBe("Synced 2 min ago");
     expect(describeStatus({ ...base, phase: "unsynced", unsynced: 3 }).words).toBe("3 unsynced changes");

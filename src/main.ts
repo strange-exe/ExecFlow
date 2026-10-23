@@ -3,9 +3,12 @@
 import "./styles/app.css";
 import { registerSW } from "virtual:pwa-register";
 import { state as pythonState, onState as onPythonState } from "./runner/python-runner";
+import { captureCallback } from "./sync/auth-callback";
 import { applyTheme, chosenTheme, followDevice } from "./theme/themes";
 import { startWorkbench } from "./ui/workbench";
 
+// Back from "Sign in with GitHub": the one-time code leaves the address bar and history first.
+captureCallback();
 applyTheme(chosenTheme());
 followDevice();
 

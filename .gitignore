@@ -16,5 +16,7 @@ e2e/shots/
 .env
 .env.*
 !.env.example
+# Wrangler's local secrets for `wrangler pages dev` (the sign-in relay's dev app)
+.dev.vars*
 # Tool state
 .wrangler/

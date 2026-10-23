@@ -189,12 +189,16 @@ export default defineConfig(({ mode }) => ({
         // The Python runtime is precached so the app works offline after the first visit.
         globPatterns: ["**/*.{js,mjs,css,html,svg,png,woff2,wasm,zip,json}"],
         // The C/C++ pack (~20 MB) is downloaded by the compiler worker into its own cache when first needed.
-        globIgnores: ["clang/**"],
+        // _routes.json is Cloudflare's (which paths run the sign-in function), not the app's.
+        globIgnores: ["clang/**", "_routes.json"],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Versioned or hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the
         // service worker can reuse what the page already downloaded (no second 6 MB download).
         dontCacheBustURLsMatching: /^(assets|pyodide\/\d+\.\d+\.\d+-heap\d+)\//,
         navigateFallback: "/index.html",
+        // The sign-in relay (functions/api/auth/*) always answers from the network, never from the
+        // precache. /auth-callback keeps the fallback: it is an app route.
+        navigateFallbackDenylist: [/^\/api\//],
         // numpy, pandas and their helpers (~7.5 MB, scripts/fetch-pyodide-packages.mjs) are not precached:
         // they download the first time a program imports them, then keep working offline. The folder is
         // versioned, so cached wheels never go stale; Pyodide also checks each one's sha256 (SRI).

@@ -15,12 +15,27 @@ import { nameOf } from "../core/paths";
 import type { RemoteMeta, WsPath } from "../core/types";
 import { StorageError } from "../storage/db";
 import { createSyncStore } from "../storage/sync-store";
+import type { AuthCallback } from "../sync/auth-callback";
 import { SyncError, sync as runSync, type SyncReport } from "../sync/engine";
 import { createClient, GitHubError, type GitHubClient } from "../sync/github";
-import { checkAccess, explainError } from "../sync/repo-check";
-import { forgetToken, loadToken, rememberToken } from "../sync/token-store";
+import {
+  checkCallback,
+  clearPending,
+  createAppTokenSource,
+  exchange,
+  fetchConfig,
+  revokeToken,
+  SignInError,
+  startSignIn,
+  takePending,
+  type AppTokenSource,
+  type ConfigState,
+} from "../sync/github-app-auth";
+import { listReachable } from "../sync/installations";
+import { checkAccess, explainError, type AuthKind } from "../sync/repo-check";
+import { forgetAppTokens, forgetToken, loadAppTokens, loadToken, rememberAppTokens, rememberToken } from "../sync/token-store";
 import { confirmDialog } from "./dialogs";
-import { openConnectDialog, type CheckResult, type ConnectInput } from "./sync-connect";
+import { openConnectDialog, type CheckResult, type ConnectInput, type PickRepo, type ReachResult, type SignInDeps } from "./sync-connect";
 import type { SyncHost } from "./sync-entry";
 import { askFirstConnect, FirstConnectCancelled, showConflicts } from "./sync-first-connect";
 import { deviceName } from "./sync-form";
@@ -42,6 +57,40 @@ export interface SyncController {
   connected(): boolean;
   describe(): string;
   signOut(): Promise<void>;
+  /** GitHub sent the student back (src/sync/auth-callback.ts): finish signing in. */
+  finishSignIn(callback: AuthCallback): Promise<void>;
+}
+
+/**
+ * GitHub's Applications settings, whose Authorized GitHub Apps tab ends CodeEditor's sign-in
+ * (docs: Settings, Integrations, Applications, Authorized GitHub Apps; the docs give no direct URL).
+ * https://docs.github.com/en/apps/using-github-apps/reviewing-and-revoking-authorization-of-github-apps
+ */
+const AUTHORIZED_APPS_URL = "https://github.com/settings/applications";
+/** Revoking is best effort: Disconnect and sign-out never wait longer than this for it. */
+const REVOKE_WAIT_MS = 5000;
+
+const OFFLINE_SIGN_IN = "This device is offline, so signing in has to wait until you're online. Your files are saved here in the meantime.";
+
+/** One sentence per way signing in can fail; `openToken` opens the token form beside it. */
+function signInFailure(error: unknown): { ok: false; message: string; openToken?: boolean } {
+  const kind = error instanceof SignInError ? error.kind : "unavailable";
+  switch (kind) {
+    case "bad_verification_code":
+      return { ok: false, message: "The sign-in from GitHub expired or was already used, so sign in again." };
+    case "unverified_user_email":
+      return { ok: false, message: "GitHub lets apps sign in only for accounts with a verified email address: verify yours in GitHub's email settings, then sign in again." };
+    case "access_denied":
+      return { ok: false, message: "Signing in was cancelled on GitHub, so CodeEditor isn't connected. Sign in again when you're ready." };
+    case "network":
+      return { ok: false, message: "CodeEditor couldn't reach its sign-in service, so check the internet connection and sign in again." };
+    default:
+      return { ok: false, message: "Signing in with GitHub isn't working on this site right now, so use a token instead.", openToken: true };
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([promise, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))]);
 }
 
 /** An automatic sync reached the first-connect question: only the user starts that sync. */
@@ -53,13 +102,13 @@ function retryable(error: unknown): boolean {
   return error instanceof SyncError && error.kind === "remote-moving";
 }
 
-function sentenceFor(error: unknown): string {
+function sentenceFor(error: unknown, auth: AuthKind): string {
   if (error instanceof StorageError) {
     return error.code === "read-only"
       ? "this tab became read-only (another tab is editing), so it didn't save what it synced; nothing was lost."
       : error.message;
   }
-  return explainError(error);
+  return explainError(error, auth);
 }
 
 const sameRepo = (a: RemoteMeta | null, owner: string, repo: string, branch: string) =>
@@ -70,7 +119,14 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   const device = deviceName(navigator.userAgent, navigator.platform ?? "");
   let remote: RemoteMeta | null = null;
   let client: GitHubClient | null = null;
+  /** The sign-in behind `client`, for an "app" connection (revoked on Disconnect). */
+  let appSource: AppTokenSource | null = null;
+  /** Signed in, repository not chosen yet: revoked if the dialog closes without connecting. */
+  let signedIn: AppTokenSource | null = null;
+  /** /api/auth/config, read once per visit ("unreachable" is asked again next time). */
+  let authConfig: ConfigState | null = null;
   let remembered = false;
+  const authKind = (): AuthKind => remote?.auth ?? "pat";
   let phase: SyncPhase = "not-connected";
   /** The failure shown with "failed" (and "Token not accepted" for needs-token). */
   let error: string | null = null;
@@ -108,7 +164,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
 
   function render() {
     const shown: SyncPhase = phase === "failed" && scheduler.retryAt !== null ? "waiting" : phase;
-    const view = describeStatus({ phase: shown, unsynced, lastSyncAt: remote?.lastSyncAt ?? null, error, retryAt: scheduler.retryAt, now: Date.now() });
+    const view = describeStatus({ phase: shown, unsynced, lastSyncAt: remote?.lastSyncAt ?? null, error, retryAt: scheduler.retryAt, now: Date.now(), auth: authKind() });
     renderStatus(button, view, syncIcon);
     button.dataset.syncs = String(syncs);
     button.dataset.unsynced = String(unsynced);
@@ -231,18 +287,20 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       phase = "offline";
       return { kind: "offline" };
     }
-    const sentence = sentenceFor(e);
+    const sentence = sentenceFor(e, authKind());
     void recordError(sentence);
     if (e instanceof GitHubError && e.kind === "auth") {
       // A rejected token is never tried again (repeated bad credentials lock the account out for a while).
       client = null;
+      appSource = null;
+      const app = authKind() === "app";
       if (remembered) {
         remembered = false;
-        void forgetToken().catch(() => {});
+        void (app ? forgetAppTokens() : forgetToken()).catch(() => {});
       }
       phase = "needs-token";
       error = sentence;
-      host.notice.show(`Sync failed: ${sentence}`, { action: { label: "Enter a new token", run: () => void openConnect(button) } });
+      host.notice.show(`Sync failed: ${sentence}`, { action: { label: app ? "Sign in again" : "Enter a new token", run: () => void openConnect(button) } });
       return { kind: "stop" };
     }
     phase = "failed";
@@ -282,10 +340,16 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       return fail("This token can't be used: check that exactly the token was copied.", "token");
     }
     if (!navigator.onLine) return fail("This computer is offline, so GitHub can't check the token now. Connect again once you're online.");
-    const access = await checkAccess(c);
-    if (!access.ok) return c.tokenRejected ? fail(access.reason, "token", true) : fail(access.reason);
-    const branch = input.branch || access.defaultBranch;
-    const repo = `${input.owner}/${input.repo}`;
+    return verify(c, input.owner, input.repo, input.branch, "pat");
+  }
+
+  /** Reads the repository and the branch with a new client (a pasted token or a sign-in). */
+  async function verify(c: GitHubClient, owner: string, name: string, wanted: string, auth: AuthKind): Promise<{ result: CheckResult; client: GitHubClient | null }> {
+    const fail = (message: string, field?: "branch" | "token", clearToken = false) => ({ result: { ok: false as const, message, field, clearToken }, client: null });
+    const access = await checkAccess(c, auth);
+    if (!access.ok) return c.tokenRejected && auth === "pat" ? fail(access.reason, "token", true) : fail(access.reason);
+    const branch = wanted || access.defaultBranch;
+    const repo = `${owner}/${name}`;
     try {
       const ref = await c.getRef(branch);
       if (ref.state === "empty" && branch !== access.defaultBranch) {
@@ -294,9 +358,38 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     } catch (e) {
       if (e instanceof GitHubError && e.kind === "not-found") return fail(`${repo} has no branch called ${branch}. Leave the field empty for the default branch, ${access.defaultBranch}.`, "branch");
       if (e instanceof TypeError) return fail("This isn't a valid branch name. Leave it empty to use the repository's default branch.", "branch");
-      return fail(explainError(e));
+      return fail(explainError(e, auth));
     }
     return { result: { ok: true, private: access.private, branch }, client: c };
+  }
+
+  /** Writes the connection; the same repository and branch keep their sync position (signing in again). */
+  async function keepRemote(owner: string, repo: string, branch: string, auth: AuthKind, repoId?: number): Promise<string | null> {
+    try {
+      const rec = await host.store.getWorkspace(host.ws);
+      const prev = rec?.remote ?? null;
+      const base: RemoteMeta = sameRepo(prev, owner, repo, branch)
+        ? { ...prev!, lastError: null, deviceName: device }
+        : { provider: "github", owner, repo, branch, baseCommit: null, baseTree: null, refEtag: null, lastSyncAt: null, lastError: null, deviceName: device };
+      const next: RemoteMeta = { ...base, auth };
+      if (repoId !== undefined) next.repoId = repoId;
+      else delete next.repoId;
+      await host.store.setRemote(host.ws, next);
+      remote = next;
+      return null;
+    } catch (e) {
+      return e instanceof StorageError ? e.message : "The connection couldn't be saved on this computer.";
+    }
+  }
+
+  async function connected(c: GitHubClient, keep: boolean, warning: string) {
+    client = c;
+    remembered = keep && !warning;
+    error = null;
+    phase = idlePhase();
+    await host.refreshWorkspaceInfo();
+    await refreshCounts();
+    if (warning) host.notice.show(warning, { tone: "warning" });
   }
 
   async function save(input: ConnectInput, c: GitHubClient): Promise<string | null> {
@@ -308,34 +401,123 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     } catch {
       if (input.remember) warning = "The token couldn't be stored on this computer, so it is kept for this tab only.";
     }
-    try {
-      const rec = await host.store.getWorkspace(host.ws);
-      const prev = rec?.remote ?? null;
-      // The same repository and branch keep their sync position (a token entered again).
-      const next: RemoteMeta = sameRepo(prev, input.owner, input.repo, input.branch)
-        ? { ...prev!, lastError: null, deviceName: device }
-        : { provider: "github", owner: input.owner, repo: input.repo, branch: input.branch, baseCommit: null, baseTree: null, refEtag: null, lastSyncAt: null, lastError: null, deviceName: device };
-      await host.store.setRemote(host.ws, next);
-      remote = next;
-    } catch (e) {
+    const problem = await keepRemote(input.owner, input.repo, input.branch, "pat");
+    if (problem) {
       // Not connected after all: a token remembered a moment ago would be kept for nothing.
       if (input.remember) await forgetToken().catch(() => {});
-      return e instanceof StorageError ? e.message : "The connection couldn't be saved on this computer.";
+      return problem;
     }
-    client = c;
-    remembered = input.remember && !warning;
-    error = null;
-    phase = idlePhase();
-    await host.refreshWorkspaceInfo();
-    await refreshCounts();
-    if (warning) host.notice.show(warning, { tone: "warning" });
+    // A sign-in this one replaces: end it, and drop its sealed tokens.
+    const old = appSource;
+    appSource = null;
+    if (old) void revokeToken(old.tokens().access);
+    void forgetAppTokens().catch(() => {});
+    await connected(c, input.remember, warning);
     return null;
   }
 
-  async function openConnect(returnFocus?: HTMLElement | null) {
+  // ---------------------------------------------------------------- signing in with GitHub
+  async function readConfig(): Promise<ConfigState> {
+    if (authConfig && authConfig.state !== "unreachable") return authConfig;
+    authConfig = await fetchConfig();
+    return authConfig;
+  }
+
+  const installUrl = () => (authConfig?.state === "available" ? `https://github.com/apps/${authConfig.config.appSlug}/installations/new` : "https://github.com/settings/installations");
+
+  async function reachFor(source: AppTokenSource): Promise<ReachResult> {
+    if (!navigator.onLine) return { ok: false, message: OFFLINE_SIGN_IN };
+    try {
+      const found = await listReachable(await source.current());
+      const repos: PickRepo[] = found.repos.map((r) => ({ id: r.id, owner: r.owner, name: r.name, private: r.private }));
+      return { ok: true, reach: { login: found.login, repos, settingsUrl: found.installations.length === 1 ? found.installations[0].settingsUrl : null, installUrl: installUrl() } };
+    } catch (e) {
+      return { ok: false, message: explainError(e, "app") };
+    }
+  }
+
+  async function startRedirect(remember: boolean): Promise<{ message: string; openToken?: boolean }> {
+    if (!navigator.onLine) return { message: OFFLINE_SIGN_IN };
+    const config = await readConfig();
+    if (config.state === "absent") return { message: "Signing in with GitHub isn't set up on this site, so use a token instead.", openToken: true };
+    if (config.state === "unreachable") return { message: "CodeEditor couldn't reach its sign-in service, so check the internet connection and try again, or use a token instead." };
+    // Everything typed is saved before the page leaves for GitHub (the workspace is in IndexedDB).
+    await host.flushSaves().catch(() => {});
+    let url: string;
+    try {
+      url = await startSignIn({ config: config.config, origin: location.origin, ws: host.ws, remember, repoId: remote?.auth === "app" ? remote.repoId : undefined });
+    } catch {
+      return { message: "This browser blocks the storage signing in needs (a private window can do this), so use a token instead.", openToken: true };
+    }
+    location.assign(url);
+    // The page is leaving: nothing more to say.
+    return new Promise(() => {});
+  }
+
+  function abandonSignIn() {
+    const s = signedIn;
+    signedIn = null;
+    if (s) void revokeToken(s.tokens().access);
+  }
+
+  async function signInDeps(callback: (() => Promise<ReachResult>) | null, message?: string): Promise<SignInDeps | undefined> {
+    const config = await readConfig();
+    const offline = !navigator.onLine;
+    if (!callback && !message && config.state !== "available" && !(config.state === "unreachable" && offline)) return undefined;
+    let pending: GitHubClient | null = null;
+    return {
+      message,
+      offline,
+      // A connection made with a pasted token asks for one again, in the form it was made with.
+      openToken: !callback && !message && remote !== null && authKind() === "pat",
+      start: startRedirect,
+      resume: callback,
+      reach: () => (signedIn ? reachFor(signedIn) : Promise.resolve({ ok: false, message: "The sign-in has ended, so sign in again." })),
+      async check(repo, branch) {
+        pending = null;
+        if (!signedIn) return { ok: false, message: "The sign-in has ended, so sign in again." };
+        if (!navigator.onLine) return { ok: false, message: "This device is offline, so GitHub can't check the repository now. Connect again once you're online." };
+        const { result, client: c } = await verify(createClient({ source: signedIn, owner: repo.owner, repo: repo.name }), repo.owner, repo.name, branch, "app");
+        pending = c;
+        return result;
+      },
+      async save(repo, branch) {
+        const source = signedIn;
+        if (!pending || !source) return "Choose the repository again, then connect.";
+        if (!host.tab.canWrite()) return "This tab became read-only (another tab is editing), so it can't connect.";
+        let warning = "";
+        try {
+          if (source.remembered) await rememberAppTokens(source.tokens());
+          else await forgetAppTokens();
+        } catch {
+          if (source.remembered) warning = "The sign-in couldn't be stored on this device, so it is kept for this tab only.";
+        }
+        const problem = await keepRemote(repo.owner, repo.name, branch, "app", repo.id);
+        if (problem) {
+          if (source.remembered) await forgetAppTokens().catch(() => {});
+          return problem;
+        }
+        await forgetToken().catch(() => {});
+        const old = appSource;
+        signedIn = null;
+        appSource = source;
+        if (old && old !== source) void revokeToken(old.tokens().access);
+        await connected(pending, source.remembered, warning);
+        return null;
+      },
+      current: remote ? { owner: remote.owner, repo: remote.repo } : null,
+      abandon: abandonSignIn,
+    };
+  }
+
+  async function openConnect(returnFocus?: HTMLElement | null, signIn?: { resume: (() => Promise<ReachResult>) | null; message?: string }) {
     if (!host.tab.canWrite()) {
       host.notice.show("This tab is read-only: connect GitHub from the tab that edits this workspace, or choose Edit here first.", { tone: "info" });
       return;
+    }
+    // A sign-in that ended (8 h token, refresh refused): the dialog says so above Sign in.
+    if (!signIn && remote && !client && authKind() === "app") {
+      signIn = { resume: null, message: "Your GitHub sign-in on this device has ended, so sign in again. Your files here are kept and sync once you're back." };
     }
     let pending: GitHubClient | null = null;
     const ok = await openConnectDialog({
@@ -347,6 +529,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         return result;
       },
       save: (input) => (pending ? save(input, pending) : Promise.resolve("Check the repository again, then connect.")),
+      signIn: await signInDeps(signIn?.resume ?? null, signIn?.message),
     });
     // The opener (an empty-state button) may be gone once files arrive: keep focus in the top bar.
     if (!document.activeElement || document.activeElement === document.body) button.focus();
@@ -355,14 +538,57 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     await scheduler.request("connect");
   }
 
+  /** GitHub sent the student back: the record of this tab must match before anything is sent. */
+  async function finishSignIn(cb: AuthCallback) {
+    const checked = checkCallback(cb, takePending(), host.ws);
+    if (!checked.ok) {
+      const message =
+        checked.reason === "state"
+          ? "This sign-in wasn't started in this tab (or took longer than 10 minutes), so it was ignored. Sign in again."
+          : checked.reason === "denied"
+            ? signInFailure(new SignInError("access_denied")).message
+            : "GitHub couldn't finish signing in, so sign in again.";
+      await openConnect(button, { resume: null, message });
+      return;
+    }
+    const { code, pending } = checked;
+    await openConnect(button, {
+      resume: async () => {
+        if (!navigator.onLine) return { ok: false, message: OFFLINE_SIGN_IN };
+        let source: AppTokenSource;
+        try {
+          source = createAppTokenSource({ tokens: await exchange(code, pending.verifier, pending.repoId), remember: pending.remember });
+        } catch (e) {
+          return signInFailure(e);
+        }
+        signedIn = source;
+        return reachFor(source);
+      },
+    });
+  }
+
+  /** Ends this device's sign-in on GitHub (this one token only), at most REVOKE_WAIT_MS. */
+  async function revokeCurrent(): Promise<boolean | null> {
+    const source = appSource ?? signedIn;
+    appSource = null;
+    signedIn = null;
+    if (!source) return null;
+    return withTimeout(revokeToken(source.tokens().access), REVOKE_WAIT_MS, false);
+  }
+
   async function disconnect() {
     if (!remote) return;
     const repo = repoName();
+    const app = authKind() === "app";
     const ok = await confirmDialog({
       title: `Disconnect ${repo}?`,
       body: [
         "This computer stops syncing with the repository. Your files stay here and on GitHub.",
-        remembered ? "The token remembered on this computer is deleted." : "The token is forgotten.",
+        app
+          ? "The GitHub sign-in on this device ends: CodeEditor asks GitHub to revoke its token and deletes it here."
+          : remembered
+            ? "The token remembered on this computer is deleted."
+            : "The token is forgotten.",
       ],
       confirm: "Disconnect",
     });
@@ -379,7 +605,9 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       host.notice.show(`Disconnecting didn't work: ${e instanceof Error ? e.message : "try again."}`);
       return;
     }
+    const revoked = await revokeCurrent();
     await forgetToken().catch(() => {});
+    await forgetAppTokens().catch(() => {});
     remote = null;
     client = null;
     remembered = false;
@@ -388,6 +616,14 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     scheduler.reset();
     await host.refreshWorkspaceInfo();
     render();
+    if (revoked === false) {
+      // Offline, or the sign-in service didn't answer: the token is gone from here, not from GitHub yet.
+      host.notice.show(
+        `Disconnected from ${repo}. GitHub couldn't be reached to end the sign-in, so it stops working by itself within 8 hours; to end it now, revoke CodeEditor in GitHub's settings (Applications, Authorized GitHub Apps).`,
+        { tone: "warning", action: { label: "Open GitHub settings", run: () => void open(AUTHORIZED_APPS_URL, "_blank", "noopener,noreferrer") } },
+      );
+      return;
+    }
     host.notice.show(`Disconnected from ${repo}. Your files stay on this computer and in the repository.`, { tone: "info" });
   }
 
@@ -397,7 +633,11 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     if (!client) {
       if (reason === "button") return openConnect(button);
       if (reason === "key") {
-        host.notice.show("Saved on this computer. Enter your GitHub token to sync it too.", { tone: "info", action: { label: "Enter token", run: () => void openConnect(button) } });
+        const app = authKind() === "app";
+        host.notice.show(app ? "Saved on this computer. Sign in with GitHub again to sync it too." : "Saved on this computer. Enter your GitHub token to sync it too.", {
+          tone: "info",
+          action: { label: app ? "Sign in" : "Enter token", run: () => void openConnect(button) },
+        });
       }
       return Promise.resolve();
     }
@@ -451,7 +691,19 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   async function init() {
     const rec = await host.store.getWorkspace(host.ws).catch(() => null);
     remote = rec?.remote ?? null;
-    if (remote) {
+    if (remote?.auth === "app") {
+      const tokens = await loadAppTokens().catch(() => null);
+      if (tokens) {
+        try {
+          appSource = createAppTokenSource({ tokens, remember: true });
+          client = createClient({ source: appSource, owner: remote.owner, repo: remote.repo });
+          remembered = true;
+        } catch {
+          client = null;
+          appSource = null;
+        }
+      }
+    } else if (remote) {
       let saved: string | null = null;
       try {
         saved = await loadToken();
@@ -493,15 +745,29 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     connected: () => remote !== null,
     describe() {
       if (!remote) return "Not connected. Files are saved only on this computer.";
-      const token = remembered ? "The token is remembered on this computer (encrypted)." : client ? "The token is kept in this tab only." : "Enter the token again to sync.";
+      const token =
+        authKind() === "app"
+          ? remembered
+            ? "Signed in with GitHub; the sign-in is remembered on this device (encrypted)."
+            : client
+              ? "Signed in with GitHub in this tab only."
+              : "Sign in with GitHub again to sync."
+          : remembered
+            ? "The token is remembered on this computer (encrypted)."
+            : client
+              ? "The token is kept in this tab only."
+              : "Enter the token again to sync.";
       return `Connected to ${repoName()}, branch ${remote.branch}. ${token}`;
     },
     async signOut() {
       scheduler.stop();
       // A sync in flight can take a while to give up; clearing this computer doesn't wait for long.
       await Promise.race([scheduler.idle(), new Promise((resolve) => setTimeout(resolve, 5000))]);
+      clearPending();
+      await revokeCurrent();
       client = null;
       remembered = false;
     },
+    finishSignIn,
   };
 }

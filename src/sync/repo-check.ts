@@ -14,24 +14,38 @@ export type AccessResult =
  * ok: the caller warns, because student code is meant to stay private. Write access can't be
  * tested without writing; the first sync reports it if it is missing.
  */
-export async function checkAccess(client: GitHubClient): Promise<AccessResult> {
+export async function checkAccess(client: GitHubClient, auth: AuthKind = "pat"): Promise<AccessResult> {
   try {
     const repo = await client.getRepo();
     return { ok: true, private: repo.private, defaultBranch: repo.defaultBranch };
   } catch (error) {
-    return { ok: false, reason: explainError(error) };
+    return { ok: false, reason: explainError(error, auth) };
   }
 }
+
+/** How the connection was made: a pasted token, or "Sign in with GitHub" (a GitHub App). */
+export type AuthKind = "pat" | "app";
 
 const minutes = (ms: number) => Math.max(1, Math.ceil(ms / 60_000));
 
 /** Requests that only read from GitHub: when one is refused, nothing was ever going to be saved. */
-const READS: ReadonlySet<GitHubOp> = new Set<GitHubOp>(["getRepo", "getRef", "getCommit", "getTree", "getBlob", "compare"]);
+const READS: ReadonlySet<GitHubOp> = new Set<GitHubOp>(["getRepo", "getRef", "getCommit", "getTree", "getBlob", "compare", "getUser", "listInstallations", "listRepos"]);
 
 /** One plain sentence explaining why GitHub access or a sync failed. */
-export function explainError(error: unknown): string {
+export function explainError(error: unknown, auth: AuthKind = "pat"): string {
   if (error instanceof SyncError) return error.message;
   if (!(error instanceof GitHubError)) return "Something went wrong while talking to GitHub, so try again.";
+  if (auth === "app") {
+    if (error.kind === "auth") return "Your GitHub sign-in has ended or was revoked, so sign in again. Your files here are kept and sync once you're back.";
+    if (error.kind === "forbidden" || (error.kind === "not-found" && error.op !== "getRef")) {
+      return "CodeEditor isn't allowed in this repository any more: sign in again and choose it on GitHub.";
+    }
+    if (error.via === "sign-in") {
+      return error.kind === "network"
+        ? "CodeEditor couldn't reach its sign-in service to renew your GitHub sign-in, so check the internet connection and try again."
+        : "CodeEditor's sign-in service couldn't renew your GitHub sign-in just now, so try again in a few minutes; your files here are unchanged.";
+    }
+  }
   switch (error.kind) {
     case "auth":
       return "GitHub didn't accept this token: it may be mistyped, expired or revoked, so create a new one and paste it here.";

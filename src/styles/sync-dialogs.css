@@ -60,6 +60,31 @@
 .connect-result[data-tone="warning"] { background: var(--surface); box-shadow: inset 2px 0 0 var(--warning); }
 .connect-result[data-tone="warning"] .result-icon { color: var(--warning); }
 
+/* Sign in with GitHub (sync-connect.ts signInViews): the button leads, its note and Remember follow;
+   "Use a token instead" opens today's form under a rule. No new colour pairs: the button is the
+   primary (or, with the token form open, the outline) style; notes are --text-secondary. */
+.signin { margin: 0 0 var(--s3); }
+.signin-start { display: grid; justify-items: start; row-gap: var(--s2); }
+.signin-start > .field-note { margin: 0; }
+.signin-start > .check { margin-top: var(--s2); }
+.signin-btn { min-height: 44px; padding-inline: var(--s4); }
+.signin-busy, .signin-who { margin: 0 0 var(--s2); }
+.signin-who { color: var(--text-secondary); }
+.signin-empty-title { margin: 0 0 var(--s2); font-weight: var(--w-label); }
+.signin-steps { margin: 0 0 var(--s3); padding-left: 1.4em; }
+.signin-steps li + li { margin-top: 4px; }
+.signin-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.signin-actions .btn { min-height: 44px; text-decoration: none; }
+.signin-pick .choice-list { margin-top: 0; }
+.signin-pick .repo-name { font-family: var(--font-code); overflow-wrap: anywhere; }
+.signin-pick .choice .field-note { margin: 0; }
+.signin-pick .pick-many { margin: var(--s2) 0 0; }
+.signin-pick .field { margin-top: var(--s3); max-width: calc(50% - var(--s3)); }
+.signin .connect-result[data-tone] { margin-top: var(--s3); }
+.token-toggle-row { margin: 0 0 var(--s2); padding-top: var(--s3); border-top: 1px solid var(--border); }
+/* Body text, not the code face the conflict list's link buttons use. */
+.link-btn.token-toggle { font: var(--fs-1)/var(--lh-prose) var(--font-ui); }
+
 .token-steps { margin: var(--s4) 0 var(--s2); padding-top: var(--s3); border-top: 1px solid var(--border); }
 .token-steps ol { margin: 0; padding-left: 1.4em; }
 .token-steps li + li { margin-top: 4px; }
@@ -94,6 +119,8 @@
   .repo-row { grid-template-columns: minmax(0, 1fr); row-gap: var(--s3); }
   .repo-slash { display: none; }
   .repo-fields > .field { max-width: none; }
+  .signin-pick .field { max-width: none; }
+  .signin-btn { width: 100%; justify-content: center; }
 }
 @media (pointer: coarse) {
   .link-btn { min-height: 44px; }

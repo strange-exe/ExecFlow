@@ -45,9 +45,15 @@ export type GitHubOp =
   | "createTree"
   | "createCommit"
   | "updateRef"
-  | "putFile";
+  | "putFile"
+  | "getUser"
+  | "listInstallations"
+  | "listRepos";
 
 const OP_LABEL: Record<GitHubOp, string> = {
+  getUser: "Reading your GitHub account",
+  listInstallations: "Reading where CodeEditor is installed",
+  listRepos: "Reading the repositories CodeEditor can reach",
   getRepo: "Reading the repository",
   getRef: "Reading the branch",
   getCommit: "Reading a commit",
@@ -71,6 +77,8 @@ export class GitHubError extends Error {
     message: string,
     /** Rate limits only: how long to wait before trying again. */
     readonly retryAfterMs?: number,
+    /** "sign-in": the token couldn't be renewed (CodeEditor's sign-in relay), GitHub wasn't asked. */
+    readonly via?: "sign-in",
   ) {
     super(message);
   }
@@ -184,8 +192,35 @@ export interface GitHubClient {
   putFile(path: string, bytes: Uint8Array, message: string): Promise<{ commit: string; blob: string }>;
 }
 
+/**
+ * Where the client gets its access token. A pasted token ("pat") never changes. A GitHub App
+ * sign-in ("app") expires after 8 hours: current() refreshes it first when it is about to, and
+ * after a 401 the client asks refresh() once, then retries that one request once.
+ */
+export interface TokenSource {
+  readonly kind: "pat" | "app";
+  /** The token to send now. Throws TokenUnavailable when there is none (sign-in ended, offline). */
+  current(): Promise<string>;
+  /** GitHub refused `stale` (401): resolves true when a different token is ready to try. */
+  refresh?(stale: string): Promise<boolean>;
+  /** Every secret the source holds (access and refresh tokens), scrubbed from all messages. */
+  secrets(): readonly string[];
+}
+
+/** A token source couldn't give a token: "auth" means sign in again, the others may pass. */
+export class TokenUnavailable extends Error {
+  override name = "TokenUnavailable";
+  constructor(readonly kind: "auth" | "network" | "server") {
+    super(kind === "auth" ? "the GitHub sign-in has ended" : kind === "network" ? "the sign-in service couldn't be reached" : "the sign-in service had a problem");
+  }
+}
+
+export const patSource = (token: string): TokenSource => ({ kind: "pat", current: async () => token, secrets: () => [token] });
+
 export interface ClientOptions {
-  token: string;
+  /** A pasted token; or `source`. */
+  token?: string;
+  source?: TokenSource;
   owner: string;
   repo: string;
   /** Defaults to the global fetch (tests pass a fake). */
@@ -250,9 +285,14 @@ interface RequestOptions {
 }
 
 export function createClient(options: ClientOptions): GitHubClient {
-  const { token, owner, repo } = options;
-  const problem = tokenProblem(token);
-  if (problem) throw new TypeError(`GitHub client: ${problem}`);
+  const { owner, repo } = options;
+  if (options.token !== undefined) {
+    const problem = tokenProblem(options.token);
+    if (problem) throw new TypeError(`GitHub client: ${problem}`);
+  }
+  const source = options.source ?? (options.token !== undefined ? patSource(options.token) : null);
+  if (!source) throw new TypeError("GitHub client: there is no token");
+  const again = source.kind === "app" ? "sign in again" : "enter a new one";
   if (!OWNER.test(owner)) throw new TypeError(`GitHub client: "${owner}" isn't a valid account name`);
   if (!REPO.test(repo) || repo === "." || repo === "..") throw new TypeError(`GitHub client: "${repo}" isn't a valid repository name`);
 
@@ -261,10 +301,14 @@ export function createClient(options: ClientOptions): GitHubClient {
   const root = `${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   let rejected = false;
 
-  /** Keeps the token out of any text that leaves this module. */
+  /** Every token this client has sent: scrubbed from messages even after a refresh replaced it. */
+  const used = new Set<string>();
+  /** Keeps the tokens out of any text that leaves this module. */
   function clean(text: string): string {
+    let scrubbed = text;
+    for (const secret of [...used, ...source!.secrets()]) if (secret) scrubbed = scrubbed.split(secret).join("[token]");
     let out = "";
-    for (const ch of text.split(token).join("[token]")) {
+    for (const ch of scrubbed) {
       const code = ch.codePointAt(0)!;
       out += code < 0x20 || code === 0x7f ? " " : ch;
     }
@@ -286,9 +330,58 @@ export function createClient(options: ClientOptions): GitHubClient {
   const unexpected = (op: GitHubOp, status: number) =>
     new GitHubError("server", status, op, `${OP_LABEL[op]} failed: GitHub sent an answer CodeEditor couldn't read`);
 
+  /** The source's error as a GitHubError of the same meaning ("auth" stops this client for good). */
+  function unavailable(op: GitHubOp, error: unknown): GitHubError {
+    if (error instanceof GitHubError) return error;
+    const kind = error instanceof TokenUnavailable ? error.kind : "server";
+    if (kind === "auth") {
+      rejected = true;
+      return new GitHubError("auth", 401, op, `${OP_LABEL[op]} wasn't tried: the GitHub sign-in has ended, so ${again}`);
+    }
+    return kind === "network"
+      ? new GitHubError("network", 0, op, `${OP_LABEL[op]} failed: CodeEditor's sign-in service couldn't be reached`, undefined, "sign-in")
+      : new GitHubError("server", 502, op, `${OP_LABEL[op]} failed: CodeEditor's sign-in service had a problem`, undefined, "sign-in");
+  }
+
+  async function currentToken(op: GitHubOp): Promise<string> {
+    let token: string;
+    try {
+      token = await source!.current();
+    } catch (error) {
+      throw unavailable(op, error);
+    }
+    const problem = tokenProblem(token);
+    if (problem) throw unavailable(op, new TokenUnavailable("auth"));
+    used.add(token);
+    return token;
+  }
+
   async function request(op: GitHubOp, method: string, path: string, opts: RequestOptions = {}): Promise<Answer> {
+    // An app token GitHub refuses gets one refresh and this request one retry; a second 401 stops.
+    for (let attempt = 0; ; attempt++) {
+      const token = await currentToken(op);
+      const answer = await send(op, method, path, token, opts);
+      if (!("unauthorized" in answer)) return answer;
+      if (attempt === 0 && source!.refresh) {
+        let fresh = false;
+        try {
+          fresh = await source!.refresh(token);
+        } catch (error) {
+          const e = unavailable(op, error);
+          // Offline or the relay down: this token is still refused, but a later sync may refresh it.
+          if (e.kind !== "auth") throw e;
+        }
+        if (fresh && !rejected) continue;
+      }
+      rejected = true;
+      throw answer.unauthorized;
+    }
+  }
+
+  /** One request with `token`. A 401 comes back as `unauthorized` so request() can refresh once. */
+  async function send(op: GitHubOp, method: string, path: string, token: string, opts: RequestOptions): Promise<Answer | { unauthorized: GitHubError }> {
     if (rejected) {
-      throw new GitHubError("auth", 401, op, `${OP_LABEL[op]} wasn't tried: GitHub rejected this token earlier, so enter a new one`);
+      throw new GitHubError("auth", 401, op, `${OP_LABEL[op]} wasn't tried: GitHub rejected this token earlier, so ${again}`);
     }
     const headers: Record<string, string> = {
       Accept: opts.raw ? RAW_TYPE : JSON_TYPE,
@@ -323,7 +416,7 @@ export function createClient(options: ClientOptions): GitHubClient {
         // No readable body: the status and headers still classify the error.
       }
       const error = classify(op, res.status, res.headers, message);
-      if (error.kind === "auth") rejected = true;
+      if (error.kind === "auth") return { unauthorized: error };
       throw error;
     }
     let data: unknown;

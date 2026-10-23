@@ -5,6 +5,7 @@
 // Connect dialog opens, so a first visit doesn't download them.
 import "../styles/sync.css";
 import type { RemoteMeta, WsPath } from "../core/types";
+import { takeCallback } from "../sync/auth-callback";
 import type { WorkspaceDb } from "../storage/db";
 import type { TabCoordinator } from "../storage/tabs";
 import type { WorkspaceStore } from "../storage/workspace";
@@ -108,6 +109,10 @@ export function mountSync(host: SyncHost): SyncHooks {
   const prefetch = () => void load().catch(() => {});
   button.addEventListener("pointerover", prefetch, { once: true });
   button.addEventListener("click", () => withController((c) => c.pressStatus()));
+
+  // GitHub sent the student back from "Sign in with GitHub" (main.ts took the code off the URL).
+  const callback = takeCallback();
+  if (callback) withController((c) => c.finishSignIn(callback));
 
   void (async () => {
     const rec = await host.store.getWorkspace(host.ws).catch(() => null);

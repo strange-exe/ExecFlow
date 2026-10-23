@@ -119,6 +119,83 @@ export async function forgetToken(): Promise<void> {
   });
 }
 
+// ---------------------------------------------------------------- "Sign in with GitHub" tokens
+// The same protection for the GitHub App's tokens, in records of their own: their own key, a new
+// AAD (so a PAT record can never be read as app tokens, or the reverse) and one sealed payload
+// with both tokens and their expiry times. Every refresh rotates the pair, so every refresh seals
+// it again (new key, new IV).
+
+const APP_KEY_ID = "app-key";
+const APP_TOKENS_ID = "app-tokens";
+const APP_AAD = new TextEncoder().encode("codeeditor/github-app-tokens/v1");
+
+/** A signed-in GitHub App user: access token (ghu_, 8 h) and refresh token (ghr_, 6 months). */
+export interface AppTokens {
+  access: string;
+  /** ms since the epoch */
+  accessExpiresAt: number;
+  refresh: string;
+  refreshExpiresAt: number;
+}
+
+const isAppTokens = (v: unknown): v is AppTokens => {
+  if (!v || typeof v !== "object") return false;
+  const t = v as Record<string, unknown>;
+  return (
+    typeof t.access === "string" &&
+    t.access.startsWith("ghu_") &&
+    typeof t.refresh === "string" &&
+    t.refresh.startsWith("ghr_") &&
+    typeof t.accessExpiresAt === "number" &&
+    Number.isFinite(t.accessExpiresAt) &&
+    typeof t.refreshExpiresAt === "number" &&
+    Number.isFinite(t.refreshExpiresAt)
+  );
+};
+
+/** Seals and stores the pair, replacing any remembered one (new key and IV every time). */
+export async function rememberAppTokens(tokens: AppTokens): Promise<void> {
+  if (!isAppTokens(tokens)) throw new TypeError("There are no sign-in tokens to remember.");
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const payload = JSON.stringify({ v: 1, access: tokens.access, accessExpiresAt: tokens.accessExpiresAt, refresh: tokens.refresh, refreshExpiresAt: tokens.refreshExpiresAt });
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: APP_AAD }, key, new TextEncoder().encode(payload));
+  const sealed: SealedToken = { v: 1, iv, ct, savedAt: Date.now() };
+  await withDb(async (db) => {
+    const tx = db.transaction(STORE, "readwrite");
+    await Promise.all([tx.store.put(key, APP_KEY_ID), tx.store.put(sealed, APP_TOKENS_ID), tx.done]);
+  });
+}
+
+/** The remembered pair, or null (none, or it can't be decrypted any more: then it is dropped). */
+export async function loadAppTokens(): Promise<AppTokens | null> {
+  const [key, sealed] = await withDb(async (db) => {
+    const tx = db.transaction(STORE, "readonly");
+    const values = await Promise.all([tx.store.get(APP_KEY_ID), tx.store.get(APP_TOKENS_ID)]);
+    await tx.done;
+    return values;
+  });
+  if (!isAesKey(key) || !isSealed(sealed)) return null;
+  try {
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: sealed.iv, additionalData: APP_AAD }, key, sealed.ct);
+    const data: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plain));
+    if (!data || typeof data !== "object" || (data as { v?: unknown }).v !== 1 || !isAppTokens(data)) throw new TypeError("damaged");
+    const t = data as AppTokens;
+    return { access: t.access, accessExpiresAt: t.accessExpiresAt, refresh: t.refresh, refreshExpiresAt: t.refreshExpiresAt };
+  } catch {
+    await forgetAppTokens();
+    return null;
+  }
+}
+
+/** Deletes the remembered pair and its key (one transaction). */
+export async function forgetAppTokens(): Promise<void> {
+  await withDb(async (db) => {
+    const tx = db.transaction(STORE, "readwrite");
+    await Promise.all([tx.store.delete(APP_KEY_ID), tx.store.delete(APP_TOKENS_ID), tx.done]);
+  });
+}
+
 /** Deletes the whole secrets database ("Sign out and clear this computer"). */
 export async function deleteSecretsDb(): Promise<void> {
   await deleteDB(SECRETS_DB);

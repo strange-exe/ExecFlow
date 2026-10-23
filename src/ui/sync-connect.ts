@@ -45,6 +45,48 @@ export interface ConnectDeps {
   /** Keeps the connection (after a successful check). Returns a sentence if that failed. */
   save(input: ConnectInput): Promise<string | null>;
   returnFocus?: HTMLElement | null;
+  /** "Sign in with GitHub": absent when this site has no sign-in relay (then only the token form shows). */
+  signIn?: SignInDeps;
+}
+
+/** A repository the GitHub App can reach for the signed-in student. */
+export interface PickRepo {
+  id: number;
+  owner: string;
+  name: string;
+  private: boolean;
+}
+
+export interface ReachView {
+  login: string;
+  repos: PickRepo[];
+  /** Where the student changes which repositories CodeEditor can reach (one installation), if known. */
+  settingsUrl: string | null;
+  /** github.com/apps/<slug>/installations/new */
+  installUrl: string;
+}
+
+export type ReachResult = { ok: true; reach: ReachView } | { ok: false; message: string; openToken?: boolean };
+
+export interface SignInDeps {
+  /** The sentence to lead with when the dialog opens (a sign-in that was ignored, cancelled or ended). */
+  message?: string;
+  /** This device was offline when the dialog opened. */
+  offline: boolean;
+  /** Open the token form at once (a connection made with a pasted token needs one again). */
+  openToken: boolean;
+  /** Leaves for GitHub (after saving the files). Resolves only when it couldn't, with why. */
+  start(remember: boolean): Promise<{ message: string; openToken?: boolean }>;
+  /** Set when GitHub has just sent the student back: finishes signing in and lists the repositories. */
+  resume: (() => Promise<ReachResult>) | null;
+  /** Lists the repositories again ("Check again", and when the window regains focus). */
+  reach(): Promise<ReachResult>;
+  check(repo: PickRepo, branch: string): Promise<CheckResult>;
+  save(repo: PickRepo, branch: string): Promise<string | null>;
+  /** The connected repository: chosen already in the list after signing in again. */
+  current: { owner: string; repo: string } | null;
+  /** The dialog closed after signing in but without connecting: the unused token is revoked. */
+  abandon(): void;
 }
 
 interface TextField {
@@ -172,33 +214,35 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
     const submit = h("button", { type: "submit", class: "btn primary", id: "connect-submit" }, syncIcon("github-logo"), submitLabel);
     const close = h("button", { type: "button", class: "icon-btn", "aria-label": "Close", title: "Close (Esc)" }, syncIcon("x"));
 
-    const form = h(
-      "form",
-      { class: "dialog-form", novalidate: true, autocomplete: "off" },
+    // Today's token form, unchanged. With sign-in available it sits behind "Use a token instead".
+    const tokenPanel = h(
+      "div",
+      { class: "token-panel", id: "connect-token-panel" },
       h(
-        "div",
-        { class: "dialog-body" },
-        h("p", { class: "connect-lede", id: "connect-lede" }, "Connecting keeps this workspace in a private GitHub repository. Each sync uploads your changes as one commit and brings in changes made on GitHub or on other computers."),
-        h(
-          "p",
-          { class: "connect-where" },
-          syncIcon("lock", "where-icon"),
-          h("span", null, "CodeEditor sends the token only to api.github.com, from this browser. It stays in this tab's memory and is forgotten when you close the tab, unless you choose Remember below."),
-        ),
-        h(
-          "fieldset",
-          { class: "repo-fields" },
-          h("legend", { class: "steps-title" }, "GitHub repository"),
-          h("div", { class: "repo-row" }, owner.row, h("span", { class: "repo-slash", "aria-hidden": "true" }, "/"), repo.row),
-          branch.row,
-        ),
-        token.row,
-        result,
-        steps,
-        rememberRow,
+        "p",
+        { class: "connect-where" },
+        syncIcon("lock", "where-icon"),
+        h("span", null, "CodeEditor sends the token only to api.github.com, from this browser. It stays in this tab's memory and is forgotten when you close the tab, unless you choose Remember below."),
       ),
-      h("div", { class: "dialog-actions" }, cancel, submit),
+      h(
+        "fieldset",
+        { class: "repo-fields" },
+        h("legend", { class: "steps-title" }, "GitHub repository"),
+        h("div", { class: "repo-row" }, owner.row, h("span", { class: "repo-slash", "aria-hidden": "true" }, "/"), repo.row),
+        branch.row,
+      ),
+      token.row,
+      result,
+      steps,
+      rememberRow,
     );
+    const body = h(
+      "div",
+      { class: "dialog-body" },
+      h("p", { class: "connect-lede", id: "connect-lede" }, "Connecting keeps this workspace in a private GitHub repository. Each sync uploads your changes as one commit and brings in changes made on GitHub or on other computers."),
+      tokenPanel,
+    );
+    const form = h("form", { class: "dialog-form", novalidate: true, autocomplete: "off" }, body, h("div", { class: "dialog-actions" }, cancel, submit));
     const dialog = h(
       "dialog",
       { class: "dialog wide sync-dialog", id, "aria-labelledby": `${id}-title`, "aria-describedby": "connect-lede", "data-state": "idle" },
@@ -277,6 +321,11 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
     let attempts = 0;
     form.addEventListener("submit", (e) => {
       e.preventDefault();
+      if (signIn?.picking()) {
+        if (!signIn.busy()) void signIn.connect().finally(() => (dialog.dataset.attempts = String(++attempts)));
+        return;
+      }
+      if (tokenPanel.hidden) return;
       if (!busy) void attempt().finally(() => (dialog.dataset.attempts = String(++attempts)));
     });
     cancel.addEventListener("click", () => dialog.close());
@@ -338,16 +387,350 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       dialog.close();
     }
 
+    const signIn = deps.signIn
+      ? signInViews(deps.signIn, {
+          dialog,
+          body,
+          tokenPanel,
+          submit,
+          submitLabel,
+          announcer,
+          onConnected: () => {
+            connected = true;
+            dialog.close();
+          },
+          isClosed: () => closed,
+        })
+      : null;
+
     dialog.addEventListener(
       "close",
       () => {
         closed = true;
         token.input.value = "";
+        signIn?.closed(connected);
         dialog.remove();
         resolve(connected);
       },
       { once: true },
     );
-    openModal(dialog, deps.initial ? token.input : owner.input, deps.returnFocus);
+    const first = deps.initial ? token.input : owner.input;
+    openModal(dialog, signIn ? signIn.initialFocus(first) : first, deps.returnFocus);
+    signIn?.opened();
   });
+}
+
+interface ViewHost {
+  dialog: HTMLDialogElement;
+  body: HTMLElement;
+  tokenPanel: HTMLElement;
+  submit: HTMLButtonElement;
+  submitLabel: HTMLElement;
+  announcer: { say(text: string): void };
+  onConnected(): void;
+  isClosed(): boolean;
+}
+
+/**
+ * The sign-in views (design: .claude/design/signin.md section 4), drawn above the token form in
+ * the same dialog. data-view says which one shows: "start" (Sign in with GitHub, Remember, Use a
+ * token instead), "busy" (finishing sign-in after GitHub sent the student back), "pick" (the
+ * repositories the app can reach) and "empty" (none yet: choose one on GitHub). data-state
+ * carries the step tests wait on: redirecting, signing-in, pick, pick-empty, signin-failed.
+ * Every sentence comes from the controller or fixed text here; no token ever reaches the DOM.
+ */
+function signInViews(deps: SignInDeps, host: ViewHost) {
+  const { dialog, body, tokenPanel, submit, submitLabel, announcer } = host;
+  type View = "start" | "busy" | "pick" | "empty";
+  let view: View = "start";
+  let busy = false;
+  let reach: ReachView | null = null;
+  let publicConfirmed: number | null = null;
+
+  const section = h("section", { class: "signin", id: "connect-signin-section", "aria-label": "Sign in with GitHub" });
+  const signInResult = h("p", { class: "connect-result", id: "connect-signin-result" });
+  const say = (message: string, tone?: "error" | "warning") => {
+    signInResult.replaceChildren(...(message && tone ? [syncIcon(tone === "error" ? "warning-circle" : "warning", "result-icon"), h("span", null, message)] : message ? [message] : []));
+    if (tone) signInResult.dataset.tone = tone;
+    else delete signInResult.dataset.tone;
+    announcer.say(message);
+    if (message) {
+      signInResult.scrollIntoView({ block: "nearest" });
+      dialog.dataset.announce = "live";
+    }
+  };
+
+  // ---- start
+  const signInLabel = h("span", null, "Sign in with GitHub");
+  const signInButton = h("button", { type: "button", class: "btn primary signin-btn", id: "connect-signin", "aria-describedby": "connect-signin-note" }, syncIcon("github-logo"), signInLabel);
+  const remember = h("input", { type: "checkbox", id: "connect-signin-remember", "aria-describedby": "connect-signin-remember-note" });
+  // The owner's choice (2026-10-23): on by default; the note says when to untick it.
+  remember.checked = true;
+  const startView = h(
+    "div",
+    { class: "signin-start" },
+    signInButton,
+    h("p", { class: "field-note", id: "connect-signin-note" }, "You go to GitHub to allow CodeEditor, then come back here. Your files are saved first."),
+    h(
+      "div",
+      { class: "check" },
+      remember,
+      h("label", { for: "connect-signin-remember" }, "Remember on this device"),
+      h(
+        "p",
+        { class: "field-note", id: "connect-signin-remember-note" },
+        "On: the sign-in is stored encrypted in this browser until you disconnect, so the next visit syncs by itself. Untick it on a shared computer (a college lab): then it is kept only until you close the tab.",
+      ),
+    ),
+  );
+  const toggle = h("button", { type: "button", class: "link-btn token-toggle", id: "connect-use-token", "aria-expanded": "false", "aria-controls": "connect-token-panel" }, "Use a token instead");
+  const toggleRow = h("p", { class: "token-toggle-row" }, toggle);
+
+  // ---- busy
+  const busyView = h("p", { class: "signin-busy", id: "connect-signin-busy" }, "Finishing sign-in...");
+
+  // ---- pick and empty
+  const whoView = h("p", { class: "signin-who", id: "connect-signin-who" });
+  const pickView = h("div", { class: "signin-pick" });
+  const emptyView = h("div", { class: "signin-empty" });
+  const pickBranch = textField("connect-pick-branch", "Branch (optional)", { hint: "Empty: the repository's default branch." });
+  pickBranch.input.addEventListener("input", () => pickBranch.setError(null));
+
+  section.append(startView, busyView, whoView, pickView, emptyView, signInResult);
+  body.insertBefore(section, tokenPanel);
+  body.insertBefore(toggleRow, tokenPanel);
+
+  const setTokenOpen = (open: boolean) => {
+    tokenPanel.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    // One filled action at a time: with the token form open, Sign in steps back to the outline style.
+    signInButton.classList.toggle("primary", !open);
+    render();
+  };
+  toggle.addEventListener("click", () => {
+    const open = toggle.getAttribute("aria-expanded") !== "true";
+    setTokenOpen(open);
+    if (open) tokenPanel.querySelector<HTMLInputElement>("input")?.focus();
+  });
+
+  function render() {
+    dialog.dataset.view = view;
+    startView.hidden = view !== "start";
+    busyView.hidden = view !== "busy";
+    whoView.hidden = view !== "pick" && view !== "empty";
+    pickView.hidden = view !== "pick";
+    emptyView.hidden = view !== "empty";
+    toggleRow.hidden = view !== "start";
+    if (view !== "start") tokenPanel.hidden = true;
+    // Connect is the footer's action for the token form and for the repository list.
+    submit.hidden = !(view === "pick" || (view === "start" && !tokenPanel.hidden));
+    if (view === "pick") submitLabel.textContent = busy ? "Connecting..." : dialog.dataset.state === "public" ? "Connect anyway" : "Connect";
+  }
+
+  const radios = () => [...pickView.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+  const chosen = (): PickRepo | null => {
+    const id = Number(radios().find((r) => r.checked)?.value ?? NaN);
+    return reach?.repos.find((r) => r.id === id) ?? null;
+  };
+
+  function showReach(next: ReachView) {
+    reach = next;
+    whoView.textContent = `Signed in as @${next.login}.`;
+    if (next.repos.length === 0) {
+      view = "empty";
+      dialog.dataset.state = "pick-empty";
+      const install = h("a", { href: next.installUrl, target: "_blank", rel: "noopener noreferrer", class: "btn primary", id: "connect-install" }, "Choose a repository on GitHub", syncIcon("arrow-square-out", "ext-icon"));
+      const recheck = h("button", { type: "button", class: "btn", id: "connect-recheck" }, "Check again");
+      recheck.addEventListener("click", () => void again());
+      emptyView.replaceChildren(
+        h("p", { class: "signin-empty-title" }, "CodeEditor can't reach any repository yet."),
+        h(
+          "ol",
+          { class: "signin-steps" },
+          h("li", null, "Choose a repository on GitHub (it opens in a new tab)."),
+          h("li", null, "Pick your account, choose Only select repositories, pick one repository (private; it can be empty), then Install."),
+          h("li", null, "Come back to this tab: the repository shows up here."),
+        ),
+        h("div", { class: "signin-actions" }, install, recheck),
+      );
+      render();
+      return;
+    }
+    view = "pick";
+    dialog.dataset.state = "pick";
+    const current = deps.current;
+    const preset =
+      next.repos.find((r) => current && r.owner.toLowerCase() === current.owner.toLowerCase() && r.name.toLowerCase() === current.repo.toLowerCase()) ??
+      (next.repos.length === 1 ? next.repos[0] : null);
+    const rows = next.repos.map((r, i) => {
+      const input = h("input", { type: "radio", name: "connect-pick", id: `connect-pick-${i}`, value: String(r.id), "aria-describedby": `connect-pick-${i}-note` });
+      input.checked = r === preset;
+      input.addEventListener("change", () => {
+        publicConfirmed = null;
+        if (dialog.dataset.state === "public") dialog.dataset.state = "pick";
+        say("");
+        render();
+      });
+      return h(
+        "div",
+        { class: "choice", "data-repo": `${r.owner}/${r.name}` },
+        input,
+        h("label", { for: input.id, class: "repo-name" }, `${r.owner}/${r.name}`),
+        h("p", { class: "field-note", id: `${input.id}-note` }, r.private ? "Private" : "Public: anyone can read the code in it"),
+      );
+    });
+    const parts: HTMLElement[] = [
+      h("h3", { class: "steps-title", id: "connect-pick-title" }, "Choose the repository for this workspace"),
+      h("fieldset", { class: "choice-list", id: "connect-pick-list" }, h("legend", { class: "visually-hidden" }, "Repository for this workspace"), ...rows),
+    ];
+    if (next.repos.length > 1) {
+      const where = next.settingsUrl ?? next.installUrl;
+      parts.push(
+        h(
+          "p",
+          { class: "field-note pick-many", id: "connect-pick-many", "data-tone": "warning" },
+          `CodeEditor can reach ${next.repos.length} repositories for you. One is safer: let it reach only the repository you sync (`,
+          h("a", { href: where, target: "_blank", rel: "noopener noreferrer", class: "ext-link" }, "change it on GitHub", syncIcon("arrow-square-out", "ext-icon")),
+          ").",
+        ),
+      );
+    }
+    parts.push(pickBranch.row);
+    pickView.replaceChildren(...parts);
+    render();
+  }
+
+  async function again() {
+    if (busy || host.isClosed()) return;
+    busy = true;
+    dialog.dataset.rechecks = String(Number(dialog.dataset.rechecks ?? 0) + 1);
+    const result = await deps.reach();
+    busy = false;
+    if (host.isClosed()) return;
+    if (!result.ok) return say(result.message, "error");
+    const before = reach?.repos.length ?? 0;
+    showReach(result.reach);
+    if (view === "pick") {
+      say(result.reach.repos.length === 1 ? `CodeEditor can reach ${result.reach.repos[0].owner}/${result.reach.repos[0].name} now.` : `CodeEditor can reach ${result.reach.repos.length} repositories now.`);
+      (radios().find((r) => r.checked) ?? radios()[0])?.focus();
+    } else if (before === 0) say("Still no repository: install CodeEditor on one on GitHub, then come back.", "warning");
+  }
+  // Back from GitHub's install page in the other tab: look again by itself.
+  const onFocus = () => {
+    if (view === "empty") void again();
+  };
+  addEventListener("focus", onFocus);
+
+  async function connect() {
+    say("");
+    pickBranch.setError(null);
+    const repo = chosen();
+    if (!repo) {
+      say("Choose the repository to sync with first.", "error");
+      radios()[0]?.focus();
+      return;
+    }
+    const branchText = pickBranch.input.value.trim();
+    const branchError = branchProblem(branchText);
+    if (branchError) {
+      pickBranch.setError(branchError);
+      pickBranch.input.focus();
+      dialog.dataset.announce = "focus";
+      return;
+    }
+    busy = true;
+    render();
+    const checked = await deps.check(repo, branchText);
+    if (host.isClosed()) return;
+    if (!checked.ok) {
+      busy = false;
+      dialog.dataset.state = "signin-failed";
+      render();
+      if (checked.field === "branch") {
+        pickBranch.setError(checked.message);
+        pickBranch.input.focus();
+        dialog.dataset.announce = "focus";
+      } else say(checked.message, "error");
+      return;
+    }
+    if (!checked.private && publicConfirmed !== repo.id) {
+      busy = false;
+      publicConfirmed = repo.id;
+      dialog.dataset.state = "public";
+      render();
+      say("This repository is public: anyone can read the code in it. Make it private on GitHub (the repository's Settings, General, Danger Zone, Change visibility), or choose Connect anyway.", "warning");
+      return;
+    }
+    submitLabel.textContent = "Connecting...";
+    const problem = await deps.save(repo, checked.branch);
+    busy = false;
+    if (host.isClosed()) return;
+    if (problem) {
+      dialog.dataset.state = "signin-failed";
+      render();
+      say(problem, "error");
+      return;
+    }
+    host.onConnected();
+  }
+
+  signInButton.addEventListener("click", () => {
+    if (busy) return;
+    busy = true;
+    dialog.dataset.state = "redirecting";
+    signInLabel.textContent = "Going to GitHub...";
+    say("");
+    void deps.start(remember.checked).then((failure) => {
+      // Still here: the page didn't leave for GitHub.
+      busy = false;
+      signInLabel.textContent = "Sign in with GitHub";
+      if (host.isClosed()) return;
+      dialog.dataset.state = "signin-failed";
+      say(failure.message, "error");
+      if (failure.openToken) setTokenOpen(true);
+    });
+  });
+
+  setTokenOpen(deps.openToken);
+  if (deps.message) {
+    dialog.dataset.state = "signin-failed";
+    say(deps.message, "error");
+  } else if (deps.offline && !deps.resume) say("This device is offline: sign in once you're online. Your files are saved here in the meantime.", "warning");
+
+  return {
+    picking: () => view === "pick",
+    busy: () => busy,
+    connect,
+    initialFocus: (tokenFirst: HTMLElement) => (deps.resume ? null : deps.openToken ? tokenFirst : signInButton),
+    opened() {
+      if (!deps.resume) return;
+      const resume = deps.resume;
+      view = "busy";
+      busy = true;
+      dialog.dataset.state = "signing-in";
+      render();
+      announcer.say("Finishing sign-in...");
+      void resume().then((result) => {
+        busy = false;
+        if (host.isClosed()) return;
+        if (result.ok) {
+          showReach(result.reach);
+          if (view === "pick") (radios().find((r) => r.checked) ?? radios()[0])?.focus();
+          else dialog.querySelector<HTMLElement>("#connect-install")?.focus();
+          announcer.say(`Signed in as @${result.reach.login}.`);
+          return;
+        }
+        view = "start";
+        dialog.dataset.state = "signin-failed";
+        render();
+        signInButton.focus();
+        say(result.message, "error");
+        if (result.openToken) setTokenOpen(true);
+      });
+    },
+    closed(connected: boolean) {
+      removeEventListener("focus", onFocus);
+      if (!connected && reach) deps.abandon();
+    },
+  };
 }
