@@ -13,6 +13,13 @@ WebAssembly workers.
 - Programs read typed input while they run (`input()`, `scanf`, `std::cin`), and Stop works at any
   point. Compiler and Python errors are marked on the line they belong to, in every file of the
   program, and listed under Problems.
+- Error help in plain English for the errors beginners meet most (65 message shapes, such as
+  a `NameError` with a suggested name, `str + int`, a missing colon or bracket, an undeclared
+  identifier, a missing `#include` or `;`, a printf or scanf format mismatch, a crash): what the
+  message means, with the names from it filled in, and one or two things to check. It shows under
+  the failed run's error in Output and under the first Problems row of each kind. It comes from a
+  table in the app, checked against messages the real Python and compiler printed; nothing is sent
+  anywhere, and no AI writes it.
 - Command-line arguments: the Input box (the Output panel's Input button) has an Arguments field
   beside the Input text, kept for each file (it follows a rename and goes with a delete). Words
   split at spaces; `"two words"` or `'two words'` in quotes stay one argument and `""` is an empty
@@ -148,7 +155,7 @@ repository there.
 
 | Folder | |
 |---|---|
-| `src/core` | Shared types, paths, byte and text checks, languages |
+| `src/core` | Shared types, paths, byte and text checks, languages, the error help table (`error-help.ts`, checked against `__fixtures__/error-help.json`) |
 | `src/storage` | The workspace in IndexedDB, one editing tab at a time, import, zip export |
 | `src/sync` | GitHub sync (one commit per push, conflicts kept as copies) |
 | `src/editor` | CodeMirror 6 editor sessions, diagnostics and suggestions (`src/editor/data`: the generated library lists) |

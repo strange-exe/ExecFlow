@@ -93,6 +93,8 @@ export class OutputView {
   private promptTail: HTMLElement | null = null;
   /** The lifted exception's button in the header (after #receipt, so a phone gives it a full line). */
   private exception: HTMLElement | null = null;
+  /** The error help under it (or under a crash's status), last in the header: see setHelp. */
+  private help: { element: HTMLElement; describedBy: string } | null = null;
   private readonly pack: HTMLElement;
   private readonly packText: HTMLElement;
   private readonly packProgress: HTMLProgressElement;
@@ -294,6 +296,7 @@ export class OutputView {
     delete this.receipt.dataset.status;
     this.exception?.remove();
     this.exception = null;
+    this.setHelp(null);
     // A run still going keeps its header (its state words); a finished one's goes with its output.
     if (this.phase === "idle") {
       this.header.hidden = true;
@@ -493,6 +496,7 @@ export class OutputView {
     this.exception?.remove();
     this.exception = failed && lifted ? this.exceptionButton(lifted) : null;
     if (this.exception) this.header.append(this.exception);
+    this.setHelp(null);
     this.header.toggleAttribute("data-failed", failed);
     this.header.hidden = false;
     this.hint.hidden = true;
@@ -524,7 +528,29 @@ export class OutputView {
     if (next) this.exception.replaceWith(next);
     else this.exception.remove();
     this.exception = next;
+    // The help explains that error: it goes with it, and follows it to the new button.
+    if (!next) this.setHelp(null);
+    else this.describeException();
     if (hadFocus) (next ?? this.console).focus();
+  }
+
+  /**
+   * The plain-language help for the failed run's error (error-help-view.ts, a lazy chunk), as the
+   * header's last line, under the lifted exception (or under a crash's status, which has no
+   * place to open). The exception button takes its words (`describedBy`) as its description.
+   * null removes it.
+   */
+  setHelp(help: { element: HTMLElement; describedBy: string } | null): void {
+    this.help?.element.remove();
+    this.help = help;
+    if (help) this.header.append(help.element);
+    this.describeException();
+  }
+
+  private describeException(): void {
+    if (!this.exception) return;
+    if (this.help) this.exception.setAttribute("aria-describedby", this.help.describedBy);
+    else this.exception.removeAttribute("aria-describedby");
   }
 
   /**
@@ -574,6 +600,7 @@ export class OutputView {
     this.setPhase("idle", "");
     this.exception?.remove();
     this.exception = null;
+    this.setHelp(null);
     this.receipt.dataset.status = "unavailable";
     this.receipt.replaceChildren(h("span", { class: "rl-status danger", "data-status-chip": "unavailable" }, icon("x-circle"), "Couldn't run"), h("span", { class: "rl-fact" }, message));
     this.receipt.hidden = false;

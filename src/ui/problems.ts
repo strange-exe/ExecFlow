@@ -1,7 +1,9 @@
 // The Problems list: every diagnostic of every file as one button that opens the file and puts the
 // cursor on it. A row reads left to right: icon, severity word, message, then path:line:col and the
 // tool right after the message (not pushed to the far edge). Problems with the program as a whole
-// (no file) are listed first, as plain rows.
+// (no file) are listed first, as plain rows. Under the first row of each kind the error help
+// explains it (a lazy chunk: see useHelp), as the row's description.
+import type { HelpSubject } from "../core/error-help";
 import type { DiagSeverity } from "../core/types";
 import type { Problem } from "../editor/editor-manager";
 import { h, plural } from "./dom";
@@ -38,12 +40,18 @@ export function describeCounts(c: ProblemCounts): string {
   return parts.join(", ");
 }
 
+/** Draws the help for a diagnostic (ui/error-help-view.ts renderHelp). */
+export type RenderHelp = (d: HelpSubject, id: string) => { kind: string; element: HTMLElement; describedBy: string } | null;
+
 export class ProblemsView {
   readonly element: HTMLElement;
   private readonly list: HTMLUListElement;
   private readonly empty: HTMLElement;
   /** The rows' keys, in order (null before the first list). */
   private keys: string[] | null = null;
+  /** The rows' problems, in order. */
+  private rows: readonly Problem[] = [];
+  private renderHelp: RenderHelp | null = null;
   onOpen: ((p: Problem) => void) | null = null;
 
   constructor() {
@@ -61,6 +69,7 @@ export class ProblemsView {
     // else the row now in its place, else the panel (measured: a check landing mid-Tab lost it).
     const focusedAt = [...this.list.children].findIndex((row) => row.contains(document.activeElement));
     this.keys = keys;
+    this.rows = problems;
     this.empty.hidden = problems.length > 0;
     this.list.hidden = problems.length === 0;
     this.list.replaceChildren(
@@ -81,11 +90,42 @@ export class ProblemsView {
         return h("li", null, button);
       }),
     );
+    this.addHelp();
     if (focusedAt < 0 || !old) return;
     const same = keys.indexOf(old[focusedAt]!);
     const row = this.list.children[same >= 0 ? same : Math.min(focusedAt, keys.length - 1)];
     const target = row?.querySelector("button") ?? this.list.querySelector("button");
     (target ?? this.element.closest<HTMLElement>("[tabindex]"))?.focus();
+  }
+
+  /** Whether any row could have help (an error or a warning from a tool), so the chunk is worth loading. */
+  get wantsHelp(): boolean {
+    return !this.renderHelp && this.rows.some((p) => p.diag && (p.severity === "error" || p.severity === "warning"));
+  }
+
+  /**
+   * The error help arrived: rows get their help without being rebuilt, so the focus stays put.
+   * Each kind of error is explained once, under its first row (ten "undeclared identifier" rows
+   * get one explanation); the row's button names it as its description.
+   */
+  useHelp(render: RenderHelp): void {
+    this.renderHelp = render;
+    this.addHelp();
+  }
+
+  private addHelp(): void {
+    const render = this.renderHelp;
+    if (!render) return;
+    const seen = new Set<string>();
+    [...this.list.children].forEach((row, i) => {
+      row.querySelector(":scope > .err-help")?.remove();
+      const d = this.rows[i]?.diag;
+      const view = d ? render(d, `problem-help-${i}`) : null;
+      if (!view || seen.has(view.kind)) return;
+      seen.add(view.kind);
+      row.append(view.element);
+      row.querySelector("button.problem")?.setAttribute("aria-describedby", view.describedBy);
+    });
   }
 
   focusFirst(): boolean {

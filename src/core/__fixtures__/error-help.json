@@ -1,0 +1,1571 @@
+{
+ "about": "Diagnostics captured on 2026-10-23 by running each program through CodeEditor's own runners (src/runner/python-runner.ts with Pyodide 314.0.7, src/runner/cpp-workers.ts with clang and wasm-ld 8 from binji/wasm-clang 648c4a89) in Chromium, with the app's default build settings (gnu11, c++17, -O2, -Wall). Keys with @firefox or @webkit are runs whose words differed in that engine. Never edited by hand.",
+ "cases": {
+  "py-name-suggest": {
+   "files": {
+    "main.py": "total = 5\nprint(totl)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "NameError",
+     "message": "NameError: name 'totl' is not defined. Did you mean: 'total'?",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-name": {
+   "files": {
+    "main.py": "print(answer)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "NameError",
+     "message": "NameError: name 'answer' is not defined",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-concat": {
+   "files": {
+    "main.py": "age = 15\nprint(\"Age: \" + age)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: can only concatenate str (not \"int\") to str",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-operand": {
+   "files": {
+    "main.py": "count = 3\nprint(count + \"1\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: unsupported operand type(s) for +: 'int' and 'str'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-args-many": {
+   "files": {
+    "main.py": "def greet(name):\n    print(\"Hi\", name)\n\ngreet(\"Ann\", \"Bob\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: greet() takes 1 positional argument but 2 were given",
+     "path": "main.py",
+     "line": 4
+    }
+   ]
+  },
+  "py-args-missing": {
+   "files": {
+    "main.py": "def area(width, height):\n    return width * height\n\nprint(area(4))\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: area() missing 1 required positional argument: 'height'",
+     "path": "main.py",
+     "line": 4
+    }
+   ]
+  },
+  "py-index": {
+   "files": {
+    "main.py": "marks = [70, 80, 90]\nprint(marks[3])\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndexError",
+     "message": "IndexError: list index out of range",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-index-str": {
+   "files": {
+    "main.py": "word = \"cat\"\nprint(word[5])\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndexError",
+     "message": "IndexError: string index out of range",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-key": {
+   "files": {
+    "main.py": "ages = {\"ann\": 12}\nprint(ages[\"bob\"])\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "KeyError",
+     "message": "KeyError: 'bob'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-int": {
+   "files": {
+    "main.py": "n = int(input())\nprint(n * 2)\n"
+   },
+   "stdin": "abc\n",
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ValueError",
+     "message": "ValueError: invalid literal for int() with base 10: 'abc'",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-int-float": {
+   "files": {
+    "main.py": "n = int(\"3.5\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ValueError",
+     "message": "ValueError: invalid literal for int() with base 10: '3.5'",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-float": {
+   "files": {
+    "main.py": "x = float(\"ten\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ValueError",
+     "message": "ValueError: could not convert string to float: 'ten'",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-zero-div": {
+   "files": {
+    "main.py": "total = 10\ncount = 0\nprint(total / count)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ZeroDivisionError",
+     "message": "ZeroDivisionError: division by zero",
+     "path": "main.py",
+     "line": 3
+    }
+   ]
+  },
+  "py-zero-floordiv": {
+   "files": {
+    "main.py": "print(10 // 0)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ZeroDivisionError",
+     "message": "ZeroDivisionError: division by zero",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-zero-mod": {
+   "files": {
+    "main.py": "print(10 % 0)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ZeroDivisionError",
+     "message": "ZeroDivisionError: division by zero",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-zero-float": {
+   "files": {
+    "main.py": "print(1.5 / 0)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ZeroDivisionError",
+     "message": "ZeroDivisionError: division by zero",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-indent-expected": {
+   "files": {
+    "main.py": "x = 3\nif x > 1:\nprint(\"big\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndentationError",
+     "message": "IndentationError: expected an indented block after 'if' statement on line 2",
+     "path": "main.py",
+     "line": 3
+    }
+   ]
+  },
+  "py-indent-expected-def": {
+   "files": {
+    "main.py": "def hello():\nprint(1)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndentationError",
+     "message": "IndentationError: expected an indented block after function definition on line 1",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-indent-unexpected": {
+   "files": {
+    "main.py": "x = 1\n    y = 2\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndentationError",
+     "message": "IndentationError: unexpected indent",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-indent-unindent": {
+   "files": {
+    "main.py": "if True:\n    x = 1\n  y = 2\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndentationError",
+     "message": "IndentationError: unindent does not match any outer indentation level",
+     "path": "main.py",
+     "line": 3
+    }
+   ]
+  },
+  "py-tab": {
+   "files": {
+    "main.py": "if True:\n\tx = 1\n        y = 2\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TabError",
+     "message": "TabError: inconsistent use of tabs and spaces in indentation",
+     "path": "main.py",
+     "line": 3
+    }
+   ]
+  },
+  "py-colon": {
+   "files": {
+    "main.py": "x = 3\nif x > 1\n    print(\"big\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: expected ':'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-colon-for": {
+   "files": {
+    "main.py": "for i in range(3)\n    print(i)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: expected ':'",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-unclosed": {
+   "files": {
+    "main.py": "print(\"hi\"\nx = 2\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: '(' was never closed",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-unclosed-list": {
+   "files": {
+    "main.py": "nums = [1, 2, 3\nprint(nums)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: '[' was never closed",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-unmatched": {
+   "files": {
+    "main.py": "print(\"hi\"))\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: unmatched ')'",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-assign-if": {
+   "files": {
+    "main.py": "x = 3\nif x = 3:\n    print(x)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-unterminated": {
+   "files": {
+    "main.py": "print(\"hi)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: unterminated string literal (detected at line 1)",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-none-attr": {
+   "files": {
+    "main.py": "nums = [3, 1, 2].sort()\nnums.append(4)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "AttributeError",
+     "message": "AttributeError: 'NoneType' object has no attribute 'append'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-attr": {
+   "files": {
+    "main.py": "name = \"Ann\"\nname.push(\"e\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "AttributeError",
+     "message": "AttributeError: 'str' object has no attribute 'push'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-module": {
+   "files": {
+    "main.py": "import requests\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ModuleNotFoundError",
+     "message": "ModuleNotFoundError: No module named 'requests'\nNo requests.py is next to the file you run, and CodeEditor can't install packages. Besides the standard library, programs can import: dateutil, numpy, pandas, pytz, six.",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-module-importlib": {
+   "files": {
+    "main.py": "import importlib\nnp = importlib.import_module(\"numpy\")\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ModuleNotFoundError",
+     "message": "ModuleNotFoundError: No module named 'numpy'\nnumpy is available, but it wasn't loaded for this run. It is loaded when a file of the program has 'import numpy' or 'from numpy import ...'; imports made through importlib or __import__ can't be seen ahead of time.",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-module-elsewhere": {
+   "files": {
+    "main.py": "import helper\n",
+    "lib/helper.py": "X = 1\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "ModuleNotFoundError",
+     "message": "ModuleNotFoundError: No module named 'helper'\nThe workspace has lib/helper.py, but Python only finds modules in the folder of the file you run (the workspace's top folder).",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-recursion": {
+   "files": {
+    "main.py": "def count(n):\n    return count(n + 1)\n\ncount(0)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "RecursionError",
+     "message": "RecursionError: maximum recursion depth exceeded",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-unbound": {
+   "files": {
+    "main.py": "score = 0\n\ndef add():\n    score += 1\n\nadd()\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "UnboundLocalError",
+     "message": "UnboundLocalError: cannot access local variable 'score' where it is not associated with a value",
+     "path": "main.py",
+     "line": 4
+    }
+   ]
+  },
+  "py-eof": {
+   "files": {
+    "main.py": "name = input(\"Name: \")\nage = input(\"Age: \")\n"
+   },
+   "inputs": [
+    "Ann",
+    null
+   ],
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "EOFError",
+     "message": "EOFError: EOF when reading a line",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-not-callable": {
+   "files": {
+    "main.py": "x = 5\nprint(x(2))\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: 'int' object is not callable",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-str-index-type": {
+   "files": {
+    "main.py": "nums = [1, 2]\nprint(nums[\"0\"])\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: list indices must be integers or slices, not str",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-operand-none": {
+   "files": {
+    "main.py": "def double(x):\n    x * 2\n\nprint(double(3) + 1)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: unsupported operand type(s) for +: 'NoneType' and 'int'",
+     "path": "main.py",
+     "line": 4
+    }
+   ]
+  },
+  "py-attr-suggest": {
+   "files": {
+    "main.py": "name = \"ann\"\nprint(name.uper())\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "AttributeError",
+     "message": "AttributeError: 'str' object has no attribute 'uper'. Did you mean: 'upper'?",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-index-assign": {
+   "files": {
+    "main.py": "nums = []\nnums[0] = 5\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndexError",
+     "message": "IndexError: list assignment index out of range",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-method-self": {
+   "files": {
+    "main.py": "class Dog:\n    def bark():\n        print(\"Woof\")\n\nDog().bark()\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: Dog.bark() takes 0 positional arguments but 1 was given",
+     "path": "main.py",
+     "line": 5
+    }
+   ]
+  },
+  "py-name-module": {
+   "files": {
+    "main.py": "print(math.sqrt(16))\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "NameError",
+     "message": "NameError: name 'math' is not defined. Did you forget to import 'math'?",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-args-missing-two": {
+   "files": {
+    "main.py": "def box(w, h, d):\n    return w * h * d\n\nbox(1)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: box() missing 2 required positional arguments: 'h' and 'd'",
+     "path": "main.py",
+     "line": 4
+    }
+   ]
+  },
+  "py-unterminated-triple": {
+   "files": {
+    "main.py": "text = \"\"\"hello\nprint(text)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: unterminated triple-quoted string literal (detected at line 2)",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "py-key-int": {
+   "files": {
+    "main.py": "stock = {\"1\": 5}\nprint(stock[1])\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "KeyError",
+     "message": "KeyError: 1",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "py-operand-list": {
+   "files": {
+    "main.py": "nums = [1, 2, 3]\nprint(nums - 1)\n"
+   },
+   "status": "error",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TypeError",
+     "message": "TypeError: unsupported operand type(s) for -: 'list' and 'int'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "c-undeclared": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int total = 5;\n  printf(\"%d\\n\", totl);\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "use of undeclared identifier 'totl'; did you mean 'total'?",
+     "notes": [
+      "'total' declared here"
+     ],
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-undeclared-plain": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  printf(\"%d\\n\", count);\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "use of undeclared identifier 'count'",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "cpp-cout": {
+   "files": {
+    "main.cpp": "#include <iostream>\nint main() {\n  cout << \"Hi\" << endl;\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 2 errors in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "use of undeclared identifier 'cout'; did you mean 'std::cout'?",
+     "notes": [
+      "<iostream>:54: 'std::cout' declared here"
+     ],
+     "path": "main.cpp",
+     "line": 3
+    },
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "use of undeclared identifier 'endl'; did you mean 'std::endl'?",
+     "notes": [
+      "<ostream>:1000: 'std::endl' declared here"
+     ],
+     "path": "main.cpp",
+     "line": 3
+    }
+   ]
+  },
+  "cpp-string": {
+   "files": {
+    "main.cpp": "#include <string>\nint main() {\n  string name = \"Ann\";\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "unknown type name 'string'; did you mean 'std::string'?",
+     "notes": [
+      "<iosfwd>:211: 'std::string' declared here"
+     ],
+     "path": "main.cpp",
+     "line": 3
+    }
+   ]
+  },
+  "c-implicit-lib": {
+   "files": {
+    "main.c": "int main(void) {\n  printf(\"Hi\\n\");\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wimplicit-function-declaration",
+     "message": "implicitly declaring library function 'printf' with type 'int (const char *, ...)'",
+     "notes": [
+      "include the header <stdio.h> or explicitly provide a declaration for 'printf'"
+     ],
+     "path": "main.c",
+     "line": 2
+    }
+   ]
+  },
+  "c-implicit-lib-sqrt": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  printf(\"%f\\n\", sqrt(2.0));\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wimplicit-function-declaration",
+     "message": "implicitly declaring library function 'sqrt' with type 'double (double)'",
+     "notes": [
+      "include the header <math.h> or explicitly provide a declaration for 'sqrt'"
+     ],
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "c-implicit-fn": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  printf(\"%d\\n\", twice(4));\n  return 0;\n}\nint twice(int x) { return 2 * x; }\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wimplicit-function-declaration",
+     "message": "implicit declaration of function 'twice' is invalid in C99",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "c-semicolon": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  printf(\"Hi\\n\")\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "expected ';' after expression",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "c-semicolon-decl": {
+   "files": {
+    "main.c": "int main(void) {\n  int a = 1\n  return a;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "expected ';' at end of declaration",
+     "path": "main.c",
+     "line": 2
+    }
+   ]
+  },
+  "c-semicolon-return": {
+   "files": {
+    "main.c": "int main(void) {\n  return 0\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "expected ';' after return statement",
+     "path": "main.c",
+     "line": 2
+    }
+   ]
+  },
+  "cpp-semicolon-class": {
+   "files": {
+    "main.cpp": "struct P { int x; }\nint main() { return 0; }\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "expected ';' after struct",
+     "path": "main.cpp",
+     "line": 1
+    }
+   ]
+  },
+  "c-format": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  double price = 2.5;\n  printf(\"%d\\n\", price);\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wformat",
+     "message": "format specifies type 'int' but the argument has type 'double'",
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-format-scanf": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int n;\n  scanf(\"%d\", n);\n  printf(\"%d\\n\", n);\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wformat",
+     "message": "format specifies type 'int *' but the argument has type 'int'",
+     "path": "main.c",
+     "line": 4
+    },
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wuninitialized",
+     "message": "variable 'n' is uninitialized when used here",
+     "notes": [
+      "initialize the variable 'n' to silence this warning"
+     ],
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-format-missing-arg": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int n = 2;\n  printf(\"%d %d\\n\", n);\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wformat",
+     "message": "more '%' conversions than data arguments",
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-uninit": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int sum;\n  sum = sum + 1;\n  printf(\"%d\\n\", sum);\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wuninitialized",
+     "message": "variable 'sum' is uninitialized when used here",
+     "notes": [
+      "initialize the variable 'sum' to silence this warning"
+     ],
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-uninit-loop": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int total;\n  for (int i = 0; i < 3; i++) total += i;\n  printf(\"%d\\n\", total);\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wuninitialized",
+     "message": "variable 'total' is uninitialized when used here",
+     "notes": [
+      "initialize the variable 'total' to silence this warning"
+     ],
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-segv": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int marks[5] = {0};\n  int i;\n  scanf(\"%d\", &i);\n  marks[i] = 1;\n  printf(\"%d\\n\", marks[0]);\n  return 0;\n}\n"
+   },
+   "stdin": "100000000\n",
+   "status": "crashed",
+   "runMessage": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index).",
+   "diagnostics": [
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index)",
+     "path": null,
+     "line": 1
+    }
+   ]
+  },
+  "c-null": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int *p = NULL;\n  *p = 5;\n  printf(\"%d\\n\", *p);\n  return 0;\n}\n"
+   },
+   "status": "crashed",
+   "runMessage": "The program crashed: aborted (abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with).",
+   "diagnostics": [
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: aborted (abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with)",
+     "path": null,
+     "line": 1
+    }
+   ]
+  },
+  "c-stack": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint depth(int n) {\n  char buf[64];\n  sprintf(buf, \"%d\", n);\n  return depth(n + 1) + buf[0];\n}\nint main(void) {\n  printf(\"%d\\n\", depth(0));\n  return 0;\n}\n"
+   },
+   "status": "crashed",
+   "runMessage": "The program crashed: stack overflow (infinite or very deep recursion?).",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Winfinite-recursion",
+     "message": "all paths through this function will call itself",
+     "path": "main.c",
+     "line": 2
+    },
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: stack overflow (infinite or very deep recursion?)",
+     "path": null,
+     "line": 1
+    }
+   ]
+  },
+  "c-div-zero": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  int a, b;\n  scanf(\"%d %d\", &a, &b);\n  printf(\"%d\\n\", a / b);\n  return 0;\n}\n"
+   },
+   "stdin": "10 0\n",
+   "status": "crashed",
+   "runMessage": "The program crashed: integer division by zero.",
+   "diagnostics": [
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: integer division by zero",
+     "path": null,
+     "line": 1
+    }
+   ]
+  },
+  "c-return": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint sign(int x) {\n  if (x > 0) return 1;\n}\nint main(void) {\n  printf(\"%d\\n\", sign(2));\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wreturn-type",
+     "message": "control may reach end of non-void function",
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-return-none": {
+   "files": {
+    "main.c": "int answer(void) {\n  int x = 42;\n}\nint main(void) {\n  return answer();\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wunused-variable",
+     "message": "unused variable 'x'",
+     "path": "main.c",
+     "line": 2
+    },
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wreturn-type",
+     "message": "control reaches end of non-void function",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "cpp-return": {
+   "files": {
+    "main.cpp": "int sign(int x) {\n  if (x > 0) return 1;\n}\nint main() { return sign(2); }\n"
+   },
+   "status": "error",
+   "runMessage": "The program exited with code 1.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wreturn-type",
+     "message": "control may reach end of non-void function",
+     "path": "main.cpp",
+     "line": 3
+    }
+   ]
+  },
+  "c-ptr": {
+   "files": {
+    "main.c": "int main(void) {\n  int x = 1;\n  double *p = &x;\n  return (int)*p;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wincompatible-pointer-types",
+     "message": "incompatible pointer types initializing 'double *' with an expression of type 'int *'",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "c-ptr-pass": {
+   "files": {
+    "main.c": "void fill(int *a) { a[0] = 1; }\nint main(void) {\n  double d[3];\n  fill(d);\n  return 0;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wincompatible-pointer-types",
+     "message": "incompatible pointer types passing 'double [3]' to parameter of type 'int *'",
+     "notes": [
+      "passing argument to parameter 'a' here"
+     ],
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "c-int-ptr": {
+   "files": {
+    "main.c": "int main(void) {\n  int x = 5;\n  int *p = x;\n  return *p;\n}\n"
+   },
+   "status": "ok",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wint-conversion",
+     "message": "incompatible integer to pointer conversion initializing 'int *' with an expression of type 'int'; take the address with &",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "c-member": {
+   "files": {
+    "main.c": "struct point { int x, y; };\nint main(void) {\n  struct point p;\n  p.z = 1;\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no member named 'z' in 'struct point'",
+     "path": "main.c",
+     "line": 4
+    }
+   ]
+  },
+  "cpp-member": {
+   "files": {
+    "main.cpp": "#include <string>\nint main() {\n  std::string s = \"hi\";\n  return s.lenght();\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no member named 'lenght' in 'std::__2::basic_string<char>'; did you mean 'length'?",
+     "notes": [
+      "<string>:955: 'length' declared here"
+     ],
+     "path": "main.cpp",
+     "line": 4
+    }
+   ]
+  },
+  "c-member-ptr": {
+   "files": {
+    "main.c": "struct point { int x, y; };\nint main(void) {\n  struct point p = {1, 2};\n  struct point *q = &p;\n  return q.x;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "member reference type 'struct point *' is a pointer; did you mean to use '->'?",
+     "path": "main.c",
+     "line": 5
+    }
+   ]
+  },
+  "c-link": {
+   "files": {
+    "main.c": "int helper(int x);\nint main(void) {\n  return helper(2);\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't link: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "wasm-ld",
+     "severity": "error",
+     "message": "undefined symbol: helper",
+     "path": "main.c",
+     "line": 3
+    },
+    {
+     "source": "hint",
+     "severity": "info",
+     "code": "never-defined",
+     "message": "Tip: helper is declared but never defined. Write its body in one of the program's .c or .cpp files, with exactly the same name and parameter types as the declaration.",
+     "path": "main.c",
+     "line": 1
+    }
+   ]
+  },
+  "cpp-link": {
+   "files": {
+    "main.cpp": "int helper(int x);\nint main() {\n  return helper(2);\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't link: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "wasm-ld",
+     "severity": "error",
+     "message": "undefined symbol: helper(int)",
+     "path": "main.cpp",
+     "line": 3
+    },
+    {
+     "source": "hint",
+     "severity": "info",
+     "code": "never-defined",
+     "message": "Tip: helper is declared but never defined. Write its body in one of the program's .c or .cpp files, with exactly the same name and parameter types as the declaration.",
+     "path": "main.cpp",
+     "line": 1
+    }
+   ]
+  },
+  "c-link-typo": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint main(void) {\n  prinft(\"Hi\\n\");\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't link: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Wimplicit-function-declaration",
+     "message": "implicit declaration of function 'prinft' is invalid in C99",
+     "path": "main.c",
+     "line": 3
+    },
+    {
+     "source": "wasm-ld",
+     "severity": "error",
+     "message": "undefined symbol: prinft",
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "cpp-no-match": {
+   "files": {
+    "main.cpp": "#include <iostream>\nvoid show(int a, int b) { std::cout << a + b; }\nint main() {\n  show(1);\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no matching function for call to 'show'",
+     "notes": [
+      "candidate function not viable: requires 2 arguments, but 1 was provided"
+     ],
+     "path": "main.cpp",
+     "line": 4
+    }
+   ]
+  },
+  "cpp-no-match-type": {
+   "files": {
+    "main.cpp": "#include <string>\nint twice(int x) { return 2 * x; }\nint main() {\n  std::string s = \"3\";\n  return twice(s);\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no matching function for call to 'twice'",
+     "notes": [
+      "candidate function not viable: no known conversion from 'std::string' (aka 'basic_string<char, char_traits<char>, allocator<char> >') to 'int' for 1st argument"
+     ],
+     "path": "main.cpp",
+     "line": 5
+    }
+   ]
+  },
+  "c-few-args": {
+   "files": {
+    "main.c": "int add(int a, int b) { return a + b; }\nint main(void) {\n  return add(1);\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "too few arguments to function call, expected 2, have 1",
+     "notes": [
+      "'add' declared here"
+     ],
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "c-many-args": {
+   "files": {
+    "main.c": "int add(int a, int b) { return a + b; }\nint main(void) {\n  return add(1, 2, 3);\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "too many arguments to function call, expected 2, have 3",
+     "notes": [
+      "'add' declared here"
+     ],
+     "path": "main.c",
+     "line": 3
+    }
+   ]
+  },
+  "cpp-no-match-many": {
+   "files": {
+    "main.cpp": "int add(int a, int b) { return a + b; }\nint main() {\n  return add(1, 2, 3);\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no matching function for call to 'add'",
+     "notes": [
+      "candidate function not viable: requires 2 arguments, but 3 were provided"
+     ],
+     "path": "main.cpp",
+     "line": 3
+    }
+   ]
+  },
+  "cpp-no-match-max": {
+   "files": {
+    "main.cpp": "#include <algorithm>\n#include <iostream>\nint main() {\n  std::cout << std::max(1, 2.5) << std::endl;\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.cpp.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no matching function for call to 'max'",
+     "notes": [
+      "<algorithm>:2529: candidate template ignored: deduced conflicting types for parameter '_Tp' ('int' vs. 'double')",
+      "<algorithm>:2539: candidate template ignored: could not match 'initializer_list<type-parameter-0-0>' against 'int'",
+      "<algorithm>:2521: candidate function template not viable: requires 3 arguments, but 2 were provided",
+      "<algorithm>:2547: candidate function template not viable: requires single argument '__t', but 2 arguments were provided"
+     ],
+     "path": "main.cpp",
+     "line": 4
+    }
+   ]
+  },
+  "check:py-colon": {
+   "files": {
+    "main.py": "x = 3\nif x > 1\n    print(\"big\")\n"
+   },
+   "status": "check",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: expected ':'",
+     "path": "main.py",
+     "line": 2
+    }
+   ]
+  },
+  "check:py-unclosed": {
+   "files": {
+    "main.py": "print(\"hi\"\nx = 2\n"
+   },
+   "status": "check",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "SyntaxError",
+     "message": "SyntaxError: '(' was never closed",
+     "path": "main.py",
+     "line": 1
+    }
+   ]
+  },
+  "check:py-indent-expected": {
+   "files": {
+    "main.py": "x = 3\nif x > 1:\nprint(\"big\")\n"
+   },
+   "status": "check",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "IndentationError",
+     "message": "IndentationError: expected an indented block after 'if' statement on line 2",
+     "path": "main.py",
+     "line": 3
+    }
+   ]
+  },
+  "check:py-tab": {
+   "files": {
+    "main.py": "if True:\n\tx = 1\n        y = 2\n"
+   },
+   "status": "check",
+   "diagnostics": [
+    {
+     "source": "python",
+     "severity": "error",
+     "code": "TabError",
+     "message": "TabError: inconsistent use of tabs and spaces in indentation",
+     "path": "main.py",
+     "line": 3
+    }
+   ]
+  },
+  "c-stack@webkit": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint depth(int n) {\n  char buf[64];\n  sprintf(buf, \"%d\", n);\n  return depth(n + 1) + buf[0];\n}\nint main(void) {\n  printf(\"%d\\n\", depth(0));\n  return 0;\n}\n"
+   },
+   "status": "crashed",
+   "runMessage": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index).",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "warning",
+     "code": "-Winfinite-recursion",
+     "message": "all paths through this function will call itself",
+     "path": "main.c",
+     "line": 2
+    },
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index)",
+     "path": null,
+     "line": 1
+    }
+   ]
+  }
+ }
+}

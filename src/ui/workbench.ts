@@ -23,7 +23,7 @@ import { menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
 import type { PaletteApi } from "./palette-model";
 import { FAILED, OutputView, statusWord, type LiftedError } from "./output";
-import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD } from "./problems";
+import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD, type RenderHelp } from "./problems";
 import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
 import { dropStash, readStash, textHash, writeStash } from "./recover";
 import { callSiteMarks } from "./run-diagnostics";
@@ -910,6 +910,36 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     }
   }
 
+  // ---------------------------------------------------------------- error help (a lazy chunk)
+  let helpChunk: Promise<RenderHelp> | null = null;
+  let renderHelp: RenderHelp | null = null;
+  /**
+   * The plain-language error help (error-help-view.ts and its table), loaded once a run starts or
+   * a problem is listed. It only adds words under an error: if it can't load, the errors show as
+   * before, and the next run or problem tries again.
+   */
+  function loadHelp(): Promise<RenderHelp> {
+    helpChunk ??= import("./error-help-view").then(
+      (m) => (renderHelp = m.renderHelp),
+      (e: unknown) => {
+        helpChunk = null;
+        throw e;
+      },
+    );
+    return helpChunk;
+  }
+  /** Counts runs, so help that arrives late is never added to a newer run's header. */
+  let runSerial = 0;
+  function showRunHelp(d: ToolDiagnostic | undefined) {
+    if (!d) return;
+    const serial = runSerial;
+    const show = (render: RenderHelp) => {
+      if (serial === runSerial) output.setHelp(render(d, "run-help"));
+    };
+    if (renderHelp) show(renderHelp);
+    else loadHelp().then(show, () => {});
+  }
+
   // ---------------------------------------------------------------- problems and the Python check
   let problemsFrame = 0;
   function scheduleProblems() {
@@ -917,6 +947,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       problemsFrame = 0;
       const list = editors.problems();
       problemsView.set(list);
+      if (problemsView.wantsHelp) loadHelp().then((render) => problemsView.useHelp(render), () => {});
       const withErrors = new Set(list.filter((p) => p.severity === "error" && p.path).map((p) => p.path!));
       if (withErrors.size !== errorPaths.size || [...withErrors].some((p) => !errorPaths.has(p))) {
         errorPaths = withErrors;
@@ -1159,7 +1190,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const byPath = new Map(files.map((f) => [f.path, f]));
     for (const s of ticket.sources) byPath.set(s.path, { path: s.path, text: s.text });
     const current = settings.get();
+    runSerial++;
     output.begin(nameOf(file.path), args.shown);
+    // Ready before the run can fail, so its help shows with the error (a failed load says nothing).
+    loadHelp().catch(() => {});
     // The panel opens on Run (to its remembered height) and shows Output.
     L.showPanelTab("output");
     if (L.narrow()) L.showView("output");
@@ -1224,6 +1258,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       // A failed build wrote a line per compiler error: the danger line in the log is the lifted
       // (first) error's own line, not the last one (review B, 2026-10-18).
       output.finish(result, first && runError ? liftError(runError, first.code) : null, result.status === "build-failed" && first ? diagnosticLine(first) : undefined);
+      // The help explains the lifted error, or an error of the whole program (a crash) when no
+      // error has a place.
+      showRunHelp(failed ? (first ?? marks.find((d) => d.severity === "error")) : undefined);
       setLastRun(failed);
       announcer.say(announcement(result, summary, file.path, current.timeLimitS));
       void offerWritten(result.written);

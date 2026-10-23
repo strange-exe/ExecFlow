@@ -562,6 +562,19 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .exc-icon { color: var(--danger); }
 .exc-class { font-weight: var(--w-strong); }
 .exc-where, .exc-go { color: var(--text-secondary); }
+/* The error help (error-help-view.ts): what the error means in --text, then what to check in
+   --text-secondary, beside a lightbulb in --text-secondary; names and snippets from the message in
+   the code font (same size: both faces share an x-height). It is the failed header's last line, or
+   sits under the first Problems row of its kind, lined up with the severity word. No new colour
+   pair: text and text-secondary on error-band@runlog-bg and on bg are rows already. */
+.err-help { display: grid; grid-template-columns: 1rem minmax(0, 1fr); column-gap: var(--s2); align-items: start; color: var(--text); font: var(--fs-2)/var(--lh-2) var(--font-ui); }
+.err-help-icon { width: 1rem; height: 1rem; margin-top: calc((var(--lh-2) - 1rem) / 2); color: var(--text-secondary); }
+.err-help-text { max-width: 80ch; }
+.err-help p { margin: 0; }
+.err-help-tips { color: var(--text-secondary); }
+.err-help code { font-family: var(--font-code); overflow-wrap: anywhere; }
+.runlog > .err-help { flex: 1 1 100%; padding-block: var(--s1); }
+.problems > li > .err-help { padding: 0 var(--s3) var(--s2) calc(var(--s3) + 1rem + var(--s2)); }
 
 /* The log. Its focus ring is drawn on the scroller, inset, so scrolling never cuts its top or bottom
    (drawn on the log itself it was clipped whenever the log outgrew the panel), 10 px clear of the

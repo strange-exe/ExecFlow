@@ -115,6 +115,8 @@ export interface Problem {
   to?: number;
   /** Located by searching the source (linker errors). */
   heuristic: boolean;
+  /** The tool's own report, as it arrived (the error help reads its message, source and notes). */
+  diag?: ToolDiagnostic;
 }
 
 interface Session {
@@ -147,6 +149,7 @@ function rawProblem(d: ToolDiagnostic, path: WsPath | null, channel: string): Pr
     channel,
     line: Math.max(1, Math.trunc(d.line) || 1),
     heuristic: Boolean(d.heuristic),
+    diag: d,
   };
 }
 
@@ -582,6 +585,7 @@ export class EditorManager {
           from,
           to,
           heuristic: Boolean(diagnostic.raw?.heuristic),
+          ...(diagnostic.raw ? { diag: diagnostic.raw } : {}),
         });
       }
     }
