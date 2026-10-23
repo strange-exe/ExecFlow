@@ -94,7 +94,8 @@ const derivedSize = (page: Page) =>
     const s = getComputedStyle(el);
     const c = document.createElement("canvas").getContext("2d")!;
     c.font = `400 ${s.fontSize} ${s.fontFamily}`;
-    const ch = c.measureText("0").width;
+    // On the 1/64 px grid, as the renderer does (onGrid: Linux WebKit measured 9.00006 at 15 px).
+    const ch = Math.round(c.measureText("0").width * 64) / 64;
     const size = parseFloat(s.fontSize);
     const lineH = size * 1.5;
     const [E, P, V, G, HG, PAD] = [1, 16, 12, 16, 8, 32];

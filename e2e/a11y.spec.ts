@@ -550,16 +550,37 @@ test("in forced colours the selected tab and panel tab, the open file, the error
     }).toPass({ timeout: 5_000 });
     return got.box!;
   };
+  /** The strongest contrast against `ref` in the box, and where it is (for the failure message). */
   const strongest = (px: Pixels, r: Box, ref: RGB) => {
-    let best = 1;
-    for (let y = Math.ceil(r.y); y < r.y + r.height; y++) for (let x = Math.ceil(r.x); x < r.x + r.width; x++) best = Math.max(best, contrast(px.at(x, y), ref));
+    let best = { ratio: 1, at: "" };
+    for (let y = Math.ceil(r.y); y < r.y + r.height; y++) {
+      for (let x = Math.ceil(r.x); x < r.x + r.width; x++) {
+        const ratio = contrast(px.at(x, y), ref);
+        if (ratio > best.ratio) best = { ratio, at: `(${x}, ${y}) ${px.at(x, y).join(",")}` };
+      }
+    }
     return best;
   };
-  const marks: Record<string, { marked: number; plain: number }> = {};
-  /** `marked`: where the indicator is drawn; `plain`: the same place without it (its colour is the reference). */
+  /** The box's most common colour: its ground, whatever a pixel at its corner happens to be. */
+  const groundOf = (px: Pixels, r: Box): RGB => {
+    const counts = new Map<string, { rgb: RGB; n: number }>();
+    for (let y = Math.ceil(r.y); y < r.y + r.height; y++) {
+      for (let x = Math.ceil(r.x); x < r.x + r.width; x++) {
+        const rgb = px.at(x, y);
+        const k = rgb.join(",");
+        const c = counts.get(k) ?? { rgb, n: 0 };
+        c.n++;
+        counts.set(k, c);
+      }
+    }
+    return [...counts.values()].reduce((a, b) => (b.n > a.n ? b : a)).rgb;
+  };
+  const marks: Record<string, { marked: number; plain: number; where: string }> = {};
+  /** `marked`: where the indicator is drawn; `plain`: the same place without it (its ground is the reference). */
   const measure = (name: string, marked: Box, plain: Box, px: Pixels, pxPlain = px) => {
-    const ref = pxPlain.at(Math.ceil(plain.x), Math.ceil(plain.y));
-    marks[name] = { marked: strongest(px, marked, ref), plain: strongest(pxPlain, plain, ref) };
+    const ref = groundOf(pxPlain, plain);
+    const p = strongest(pxPlain, plain, ref);
+    marks[name] = { marked: strongest(px, marked, ref).ratio, plain: p.ratio, where: `ground ${ref.join(",")}, strongest ${p.at}` };
   };
   const foot = (r: Box, inset: number): Box => ({ x: r.x + inset, y: r.y + r.height - 2, width: r.width - 2 * inset, height: 2 });
   const lead = (r: Box, dx = 0): Box => ({ x: r.x + dx, y: r.y + 4, width: 2, height: r.height - 8 });
@@ -631,7 +652,7 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   info.annotations.push({ type: "forced-colour marks", description: JSON.stringify(marks) });
   for (const [name, m] of Object.entries(marks)) {
     expect.soft(m.marked, `${name}: the mark against its place unmarked`).toBeGreaterThanOrEqual(3);
-    expect.soft(m.plain, `${name}: the unmarked place is plain`).toBeLessThan(1.5);
+    expect.soft(m.plain, `${name}: the unmarked place is plain (${m.where})`).toBeLessThan(1.5);
   }
   await page.screenshot({ path: `${dirFor(info, "keyboard")}/forced-marks.png` });
 });

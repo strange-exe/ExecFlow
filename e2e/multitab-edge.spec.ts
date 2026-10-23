@@ -50,6 +50,9 @@ test("a read-only tab coming into view leaves the writer's stashed typing for Ed
     return Object.keys(localStorage).filter((k) => k.startsWith("codeeditor:recover:"));
   });
   expect(stashedByWriter, "the writer stashed its typing").toHaveLength(1);
+  // And really goes away: a writer that is still there drops its own stash when it is shown again,
+  // as it should (Linux WebKit showed it again while the test moved to the reader: CI, 2026-10-23).
+  await page.close();
 
   // Closing the writer shows the reader, which must not throw that stash away.
   const seen = await second.evaluate(() => {
