@@ -5,11 +5,11 @@
 // bitmap that won't be shown is freed (width and height 0). Lazy (the dialog's chunk).
 import { findClusterBreak, type EditorState } from "@codemirror/state";
 import { fitCut, ELLIPSIS, type LineSpan } from "../core/snippet";
-import { PADDING, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
+import { CREDIT_TEXT, PADDING, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { IMAGE_MIXES, over } from "../theme/contrast";
 import type { Drawn, RenderOutcome, RenderSignal } from "../ui/snippet-flow";
 import {
-  cardRect, chooseScale, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimRuns, windowBarGround, wrapRows,
+  cardRect, chooseScale, creditInk, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimRuns, windowBarGround, wrapRows,
   type ImageLayout, type Metrics, type Row,
 } from "./snippet-render";
 
@@ -75,8 +75,8 @@ export interface DrawnImage extends Drawn {
 }
 
 /** The layout options of a set of image options. */
-export const layoutOf = (o: Pick<ImageOptions, "numbers" | "name" | "frame" | "background" | "padding">) =>
-  ({ numbers: o.numbers, name: o.name, frame: o.frame, pad: o.background ? PADDING[o.padding] : 0 }) as const;
+export const layoutOf = (o: Pick<ImageOptions, "numbers" | "name" | "frame" | "background" | "padding" | "mark">) =>
+  ({ numbers: o.numbers, name: o.name, frame: o.frame, pad: o.background ? PADDING[o.padding] : 0, credit: o.mark }) as const;
 
 /** A rectangle with its own radius per corner (top-left, top-right, bottom-right, bottom-left), as a path. */
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: readonly [number, number, number, number]): void {
@@ -204,6 +204,13 @@ function nameUnits(name: string): { text: string; special: boolean }[] {
     }
   }
   return units;
+}
+
+/** The "Made with CodeEditor" line, right-aligned at its place (card coordinates, under the drawing's scale). */
+function drawCredit(ctx: CanvasRenderingContext2D, at: { top: number; right: number; size: number }, font: CodeFont, ink: string): void {
+  ctx.font = fontOf(font, at.size, false);
+  ctx.fillStyle = ink;
+  ctx.fillText(CREDIT_TEXT, at.right - ctx.measureText(CREDIT_TEXT).width, baselineIn(at.top, at.size * 1.5, vertical(ctx, at.size)));
 }
 
 /**
@@ -344,6 +351,7 @@ export async function drawImage(
         ctx.fillText(text, layout.codeX + x, y);
       });
     }
+    if (layout.credit) drawCredit(ctx, layout.credit, font, creditInk(colors, options.background));
     kept = true;
     return { ok: true, value: { canvas, colors, t, layout, scale: s, metrics, readback } };
   } catch {

@@ -32,6 +32,8 @@ export interface StoredOptions {
   readonly padding: Padding;
   /** Window: a title bar with the file name instead of the plain header. */
   readonly frame: Frame;
+  /** The "Made with CodeEditor" line under the card (inside its bottom edge without a background). On by default. */
+  readonly mark: boolean;
 }
 /** What one image is drawn with: the stored options and this opening's highlighted lines (sorted, unique; never stored). */
 export interface ImageOptions extends StoredOptions {
@@ -39,8 +41,10 @@ export interface ImageOptions extends StoredOptions {
 }
 
 export const DEFAULT_IMAGE_OPTIONS: StoredOptions = Object.freeze({
-  colors: "match", numbers: true, name: true, scale: 2, background: true, padding: "medium", frame: "plain",
+  colors: "match", numbers: true, name: true, scale: 2, background: true, padding: "medium", frame: "plain", mark: true,
 });
+/** The image's identifying line, worded only so (never a claim about who wrote the code). */
+export const CREDIT_TEXT = "Made with CodeEditor";
 /** CSS px around the card at scale 1. */
 export const PADDING: Readonly<Record<Padding, number>> = Object.freeze({ small: 16, medium: 32, large: 64 });
 /** One device key of its own (5.4): a per-viewer convenience, cleared by "Sign out and clear this computer". */
@@ -51,7 +55,7 @@ const oneOf = <T>(value: unknown, allowed: readonly T[], fallback: T): T => (all
 /**
  * Stored options cleaned field by field: unknown keys dropped, anything odd falls back to its
  * default. This is also the migration: a round-1 value ({colors, numbers, name}) keeps its three
- * fields and gains the defaults of the rest.
+ * fields and gains the defaults of the rest, and a round-2 value (no `mark`) gains the line, on.
  */
 export function cleanImageOptions(value: unknown): StoredOptions {
   const v = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -64,6 +68,7 @@ export function cleanImageOptions(value: unknown): StoredOptions {
     background: typeof v.background === "boolean" ? v.background : d.background,
     padding: oneOf(v.padding, ["small", "medium", "large"] as const, d.padding),
     frame: oneOf(v.frame, ["plain", "window"] as const, d.frame),
+    mark: typeof v.mark === "boolean" ? v.mark : d.mark,
   };
 }
 
@@ -85,12 +90,17 @@ export function readImageOptions(storage: Pick<OptionsStorage, "getItem"> | null
 /** The same image: every option and the same highlighted lines. */
 export function sameOptions(a: ImageOptions, b: ImageOptions): boolean {
   return a.colors === b.colors && a.numbers === b.numbers && a.name === b.name && a.scale === b.scale && a.background === b.background
-    && a.padding === b.padding && a.frame === b.frame && a.highlight.length === b.highlight.length && a.highlight.every((n, i) => n === b.highlight[i]);
+    && a.padding === b.padding && a.frame === b.frame && a.mark === b.mark && a.highlight.length === b.highlight.length && a.highlight.every((n, i) => n === b.highlight[i]);
 }
 
-/** The preview's data-preview-options: "match numbers name 2x medium plain", then " hl:3,5-7" when lines are highlighted. */
+/**
+ * The preview's data-preview-options: "match numbers name 2x medium plain", then " no-mark" with the
+ * "Made with CodeEditor" line off (the default, on, adds no word), then " hl:3,5-7" when lines are
+ * highlighted.
+ */
 export function optionsWord(o: ImageOptions): string {
   const words = [o.colors, o.numbers ? "numbers" : "no-numbers", o.name ? "name" : "no-name", `${o.scale}x`, o.background ? o.padding : "none", o.frame];
+  if (!o.mark) words.push("no-mark");
   return o.highlight.length ? `${words.join(" ")} hl:${rangesOf(o.highlight).join(",")}` : words.join(" ");
 }
 
@@ -196,6 +206,7 @@ export function previewLabel(plan: LinePlan, name: string, options: ImageOptions
     const words = rangesOf(options.highlight).map((r) => (r.includes("-") ? `lines ${r.replace("-", " to ")}` : `line ${r}`));
     look.push(`highlighted: ${words.join(", ")}`);
   }
+  if (options.mark) look.push(`"${CREDIT_TEXT}" ${options.background ? "under the card" : "at the card's foot"}`);
   const label = `Preview of ${shown(nameOf(name))}, ${lines}, ${colours}; line numbers ${options.numbers ? "shown" : "hidden"}; file name ${options.name ? "shown" : "hidden"}. ${look.join(", ")}.`;
   return partial ? `${label} Some colours are missing.` : label;
 }

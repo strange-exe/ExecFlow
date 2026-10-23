@@ -1,7 +1,7 @@
 // The Capture snippet dialog (final-v3 section 5; round 2, .claude/design/batch3/s.md), a lazy chunk
 // with its stylesheet: the preview (the export bitmap itself, named by its text alternative, centred
 // on a stage that keeps one height for the opening), the options (Colours; Show: line numbers, file
-// name; Background; Frame; Scale with the PNG's exact size; Highlight lines), and Copy image /
+// name, the "Made with CodeEditor" line; Background; Frame; Scale with the PNG's exact size; Highlight lines), and Copy image /
 // Download (.png) in a footer that never scrolls away, the status sharing the buttons' row where it
 // fits. Built per opening and removed on close, so no listener outlives it. The preview and the
 // exports run through snippet-flow.ts; results speak in the status line while open and in the page's
@@ -14,7 +14,7 @@ import type { EditorView } from "@codemirror/view";
 import { nameOf } from "../core/paths";
 import { lineWords, type CaptureMessage, type LineSpan, type PaintFamily, type Tone } from "../core/snippet";
 import {
-  captureMessage, cleanImageOptions, colorChoices, dialogTitle, downloadName, highlightHint, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING,
+  captureMessage, cleanImageOptions, colorChoices, CREDIT_TEXT, dialogTitle, downloadName, highlightHint, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING,
   parseHighlight, previewLabel, readImageOptions, sizeLine, writeImageOptions, type ImageOptions, type StoredOptions,
 } from "../core/snippet-dialog";
 import { drawImage, freeCanvas, layoutOf, prepare, readbackOk, type CodeFont, type DrawnImage, type Prepared } from "../editor/snippet-canvas";
@@ -53,7 +53,7 @@ const KEEP_MS = 60_000;
  * the tallest for the opening. A taller look shrinks to the stage (previewFit) rather than reserving
  * room that pushes the options below the fold (fix stage, 2026-10-23).
  */
-const STAGE_LAYOUTS = [true, false].flatMap((numbers) => [true, false].map((name) => ({ numbers, name, frame: "plain" as const, pad: PADDING.medium })));
+const STAGE_LAYOUTS = [true, false].flatMap((numbers) => [true, false].map((name) => ({ numbers, name, frame: "plain" as const, pad: PADDING.medium, credit: true })));
 
 /** What the document root painted, once per opening (never #app, which carries no theme attributes). */
 function readPaint(): Paint {
@@ -123,6 +123,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   const colorRadios = radios("colors", colorChoices(paint), stored.colors);
   const numbersBox = box("snippet-numbers", stored.numbers);
   const nameBox = box("snippet-name", stored.name);
+  const markBox = box("snippet-mark", stored.mark);
   const backgroundRadios = radios(
     "background",
     [{ value: "none", label: "None (the card alone)" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "large", label: "Large" }],
@@ -141,7 +142,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   const fieldset = (legend: string, rows: readonly HTMLElement[]) => h("fieldset", null, h("legend", null, legend), ...rows);
   const rowsOf = (list: readonly { row: HTMLElement }[]) => list.map((r) => r.row);
   const colours = fieldset("Colours", rowsOf(colorRadios));
-  const show = fieldset("Show", [choice(numbersBox, "Line numbers"), choice(nameBox, "File name")]);
+  const show = fieldset("Show", [choice(numbersBox, "Line numbers"), choice(nameBox, "File name"), choice(markBox, `"${CREDIT_TEXT}" line`)]);
   const scaleSet = h("fieldset", { class: "snippet-scale", "aria-describedby": "snippet-size" },
     h("legend", null, "Scale"), h("div", { class: "snippet-row" }, ...rowsOf(scaleRadios)), size);
   const highlightGroup = h("div", { class: "snippet-highlight field" }, h("label", { for: "snippet-highlight" }, "Highlight lines"), field, live, hint);
@@ -420,6 +421,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     stored = cleanImageOptions({
       colors: checkedValue(colorRadios), numbers: numbersBox.checked, name: nameBox.checked, scale: Number(checkedValue(scaleRadios)),
       background: background !== "none", padding: background === "none" ? stored.padding : background, frame: checkedValue(frameRadios),
+      mark: markBox.checked,
     });
     writeImageOptions(args.storage, stored);
     request();
@@ -427,6 +429,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   for (const r of [...colorRadios, ...backgroundRadios, ...frameRadios, ...scaleRadios]) r.input.addEventListener("change", changed);
   numbersBox.addEventListener("change", changed);
   nameBox.addEventListener("change", changed);
+  markBox.addEventListener("change", changed);
 
   // Highlight lines: a valid entry applies at each keystroke and clears an error at once; an invalid
   // one is reported when committed (Tab away, Enter, a click elsewhere), never mid-typing, and a

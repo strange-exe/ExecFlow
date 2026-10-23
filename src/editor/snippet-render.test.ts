@@ -10,7 +10,7 @@ import { BUILT_IN, themePalette, type Scheme } from "../theme/themes";
 import { EXTRA_SPECIALS } from "./extensions";
 import { languageSupport } from "./language-support";
 import {
-  BAR_STEP, cardRect, chooseScale, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, windowBarGround, wrapRows,
+  BAR_STEP, cardRect, chooseScale, CREDIT, creditInk, creditSize, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, windowBarGround, wrapRows,
   type Run, type StyledLine,
 } from "./snippet-render";
 
@@ -207,6 +207,36 @@ describe("layoutImage and chooseScale (4.1, 4.5)", () => {
     expect(chooseScale(2486, 9077, 3)).toBeNull();
   });
 
+  it('the "Made with CodeEditor" line: in a background it fills a bottom band of at least its line box and 7 above and below; without one it is the card\'s last row', () => {
+    const m = { ch: 9, lineH: 22.5, widest: 144 };
+    // 15 px code: a 12 px credit on an 18 px line box, a band of 32: medium and large keep their size, small grows at its foot only.
+    for (const [pad, padBottom, height] of [[16, 32, 162.5], [32, 32, 178.5], [64, 64, 242.5]] as const) {
+      const l = layoutImage(numbered(2, 2), m, { ...plain(true, true), pad, credit: true });
+      expect([l.width, l.height, l.padBottom, l.cardHeight], `pad ${pad}`).toEqual([347 + 2 * pad, height, padBottom, 114.5]);
+      expect(l.credit).toEqual({ top: 114.5 + (padBottom - 18) / 2, right: 347, size: 12 });
+    }
+    // No background: 4 under the code, the line box, 8 and the edge; right-aligned with the code's padding.
+    const card = layoutImage(numbered(2, 2), m, { ...plain(true, true), credit: true });
+    expect(card.credit).toEqual({ top: 56.5 + 45 + 4, right: 347 - 17, size: 12 });
+    expect([card.width, card.height, card.padBottom]).toEqual([347, 56.5 + 45 + 4 + 18 + 8 + 1, 0]);
+    // Off: exactly round 2's layout.
+    const off = layoutImage(numbered(2, 2), m, { ...plain(true, true), pad: 16 });
+    expect([off.height, off.padBottom, off.credit]).toEqual([146.5, 16, null]);
+    // 20 px code: a 17 px credit on a 25.5 px box needs a 39.5 band, over medium's 32; 11 px is the floor.
+    expect(layoutImage(numbered(2, 2), { ch: 12, lineH: 30, widest: 144 }, { ...plain(true, true), pad: 32, credit: true }).padBottom).toBe(39.5);
+    expect(creditSize(18)).toBe(CREDIT.MIN_SIZE);
+  });
+
+  it("the card's place leaves the credit's taller band under it", () => {
+    const l = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, { ...plain(true, true), pad: 16, credit: true });
+    for (const s of [1, 1.5, 2, 3]) {
+      const bitmap = { width: Math.ceil(l.width * s), height: Math.ceil(l.height * s) };
+      const card = cardRect(l, bitmap, s);
+      expect(card.h, `scale ${s}`).toBe(bitmap.height - Math.round(16 * s) - Math.round(32 * s));
+      expect(Math.abs(card.h - 114.5 * s), `scale ${s}: the card's own height`).toBeLessThanOrEqual(1);
+    }
+  });
+
   it("the card sits inside the padding in whole bitmap pixels at every scale", () => {
     const l = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, { ...plain(true, true), pad: 32 });
     for (const s of [1, 1.5, 2, 3]) {
@@ -322,6 +352,12 @@ describe("the image's colours in every theme (4.6)", () => {
     expect(deltaE(bar, p.bg)).toBeGreaterThanOrEqual(deltaE(p.surface, p.bg));
     if (deltaE(p.surface, p.bg) >= BAR_STEP) expect(bar, "a chrome of its own: the bar is the chrome's ground").toBe(p.surface);
     for (const t of ["text-secondary", "danger"] as const) expect(contrast(p[t], bar), `${t} on the window bar ${bar}`).toBeGreaterThanOrEqual(4.5);
+    // Batch 4: the "Made with CodeEditor" line on its ground, the background (the mat) or the code's.
+    const mat = over(p.bg, p.action, IMAGE_MIXES.mat.pct / 100);
+    const ink = { bg: p.bg, action: p.action, "text-secondary": p["text-secondary"] };
+    expect(contrast(creditInk(ink, true), mat), `the credit ${creditInk(ink, true)} on the background ${mat}`).toBeGreaterThanOrEqual(4.5);
+    expect(creditInk(ink, false), "on the code ground the file name's own colour, unmoved").toBe(p["text-secondary"]);
+    if (contrast(p["text-secondary"], mat) >= 4.5) expect(creditInk(ink, true), "moved only when it has to").toBe(p["text-secondary"]);
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(p.divider.slice(i, i + 2), 16));
     // A white placeholder fails the readback on the edge pixels, whatever the ground (bg or the window's bar).
     expect(r >= 247 && g >= 247 && b >= 247, `divider ${p.divider} is within 8 of white`).toBe(false);
@@ -332,6 +368,8 @@ describe("source guard: the new modules", () => {
   const MODULES = [
     "src/core/snippet.ts", "src/core/snippet-dialog.ts", "src/core/code-menu.ts", "src/ui/menu-place.ts", "src/ui/code-menu.ts", "src/ui/snippet-image.ts",
     "src/ui/snippet-dialog.ts", "src/ui/snippet-flow.ts", "src/editor/snippet-render.ts", "src/editor/snippet-canvas.ts",
+    // Save as PDF (batch 4): its print-safe ink lives in src/theme/print-ink.ts only.
+    "src/core/print.ts", "src/editor/print-render.ts", "src/ui/print-dialog.ts", "src/ui/print-view.ts",
   ];
   it.each(MODULES)("%s holds no colour literal, no image element, no object URL and no HTML sink", (file) => {
     const text = readFileSync(file, "utf8");
@@ -346,6 +384,8 @@ describe("source guard: the new modules", () => {
     const text = readFileSync(file, "utf8");
     expect(text).not.toMatch(/^import (?!type )[^;]*from "(\.\.\/core\/|\.\/|\.\.\/ui\/)snippet-(dialog|flow)"/m);
     expect(text).not.toMatch(/^import (?!type )[^;]*from "(\.\.\/editor\/|\.\/)snippet-(render|canvas)"/m);
+    // Save as PDF is lazy the same way (its dialog, layout, core and renderer).
+    expect(text).not.toMatch(/^import (?!type )[^;]*from "(\.\.\/core\/|\.\.\/editor\/|\.\/)print(-dialog|-view|-render)?"/m);
   });
   it("the code menu cuts through the editor and never reads the clipboard", () => {
     const text = readFileSync("src/ui/code-menu.ts", "utf8");

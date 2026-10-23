@@ -1,0 +1,174 @@
+/* Save as PDF (src/ui/print-dialog.ts, src/ui/print-view.ts; .claude/design/pdf.md). A lazy
+   stylesheet: the print chunk imports it. Two parts: the dialog (on screen), and the print layout,
+   which exists only while the browser's print dialog is open and is never drawn on screen. Tokens
+   only (tokens.test.ts checks); the print-safe palette arrives as token values set on the layout's
+   root (src/theme/print-ink.ts), so the same rules paint both colour choices. */
+
+/* ------------------------------------------------------------------ the dialog */
+.pdf-dialog .dialog-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.pdf-dialog .dialog-title { text-wrap: balance; }
+/* The one line that says what happens next: tier 2, with an info icon. */
+.pdf-next {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+.dialog-body > .pdf-next { margin-bottom: var(--s4); }
+.pdf-next .icon { flex: none; margin-top: 1px; color: var(--info); }
+.pdf-dialog fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+/* Deep Field's fieldset legend: one size step above the choices (as the snippet dialog's). */
+.pdf-dialog legend {
+  margin-bottom: var(--s1);
+  padding: 0;
+  color: var(--text);
+  font-size: var(--fs-section);
+  font-weight: var(--w-label);
+  line-height: var(--lh-section);
+}
+.pdf-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--s2);
+  min-height: var(--h-row);
+}
+.pdf-choice > label { overflow-wrap: anywhere; }
+.pdf-hint { grid-column: 2; margin: 0 0 var(--s1); color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+/* The files: one row per file, its path in the file-name face; folders in tier 2 before the name. */
+.pdf-quick { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-bottom: var(--s1); }
+.pdf-file > label { font-family: var(--font-name); font-size: var(--fs-2); line-height: var(--lh-2); }
+.pdf-folder { color: var(--text-secondary); }
+.pdf-files-list { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: var(--s1) 0; }
+.pdf-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--s4) var(--s5);
+  margin-top: var(--s5);
+}
+/* A choice that can't go ahead: the field error look (DESIGN.md decision 13), right under the list's title. */
+.pdf-dialog .field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s1) 0 var(--s2);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--error-band);
+  box-shadow: inset 2px 0 0 var(--danger);
+  color: var(--text);
+  font: var(--w-strong) var(--fs-1)/var(--lh-prose) var(--font-ui);
+}
+.pdf-dialog .field-error .icon { flex: none; width: 1rem; height: 1rem; margin-top: calc((var(--lh-prose) - 1rem) / 2); color: var(--danger); }
+/* The footer: Deep Field's rule, the status, then Cancel and the primary action. */
+.pdf-actions { align-items: center; padding-top: var(--s3); border-top: 1px solid var(--divider); }
+.pdf-status {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  line-height: var(--lh-1);
+  overflow-wrap: anywhere;
+}
+.pdf-status .icon { flex: none; margin-top: 2px; }
+.pdf-status[data-tone="error"] .icon { color: var(--danger); }
+.pdf-status[data-tone="info"] .icon { color: var(--info); }
+@media (forced-colors: active) {
+  .pdf-dialog .field-error { border-left: 2px solid var(--danger); }
+}
+
+/* ------------------------------------------------------------------ the print layout */
+/* Never on screen: it is built when the print dialog opens and removed when it closes. */
+.print-root { display: none; }
+
+@media print {
+  /* Only the layout prints, never the app's chrome. The app fixes html and body to the window and
+     hides their overflow; paper needs them to grow, or everything after the first page is cut. */
+  html[data-printing], html[data-printing] body { height: auto; overflow: visible; background: none; }
+  html[data-printing] body > :not(.print-root) { display: none !important; }
+  html[data-printing] .print-root { display: block; }
+}
+
+.print-root {
+  color: var(--text);
+  font: 400 10pt/1.4 var(--font-ui);
+  /* The editor's colours keep their ground on paper (a background the browser would drop otherwise). */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+/* Each file starts on a new page, its path as the heading. */
+.print-file + .print-file { break-before: page; }
+.print-path {
+  margin: 0 0 6pt;
+  padding-bottom: 4pt;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font: 600 11pt/1.3 var(--font-name);
+  overflow-wrap: anywhere;
+  break-after: avoid;
+}
+.print-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.print-root[data-colours="theme"] .print-file { padding: 8pt 10pt; background: var(--bg); }
+/* One row per line: numbers in their own column (one width for the file), the code wrapping in the
+   other. 9 pt code at a 13 pt line pitch. A row breaks across pages only when it is taller than one. */
+.print-table td { padding: 0; vertical-align: top; }
+.print-line { break-inside: avoid; }
+.print-table .print-n {
+  width: 1%;
+  padding-right: 10pt;
+  color: var(--gutter-text);
+  font: 400 9pt/13pt var(--font-code);
+  text-align: right;
+  white-space: nowrap;
+}
+.print-root[data-numbers="false"] .print-n { display: none; }
+/* A long line wraps (never cut at the page's edge): its later rows hang 1.5 characters in, and each
+   carries the continuation mark, a hooked arrow drawn as a mask in the line numbers' colour (the
+   snippet image's mark; a mask, not a glyph, so copying code from the PDF never picks it up). */
+.print-table .print-c {
+  position: relative;
+  height: 13pt;
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+  font: 400 9pt/13pt var(--font-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.print-c::after {
+  content: "";
+  position: absolute;
+  top: 13pt;
+  bottom: 0;
+  left: 0;
+  width: 1.2em;
+  background-color: var(--gutter-text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 26'%3E%3Cpath d='M3 8v5.5Q3 17 6.5 17H11M8.5 14.5 11 17l-2.5 2.5' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") left top / 1.2em 13pt repeat-y;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 26'%3E%3Cpath d='M3 8v5.5Q3 17 6.5 17H11M8.5 14.5 11 17l-2.5 2.5' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") left top / 1.2em 13pt repeat-y;
+}
+/* The highlight style's colours, by token (src/editor/highlight.ts through snippet-render.ts). */
+.print-c .i { font-style: italic; }
+.print-c .t-syn-keyword { color: var(--syn-keyword); }
+.print-c .t-syn-string { color: var(--syn-string); }
+.print-c .t-syn-number { color: var(--syn-number); }
+.print-c .t-syn-comment { color: var(--syn-comment); }
+.print-c .t-syn-function { color: var(--syn-function); }
+.print-c .t-syn-type { color: var(--syn-type); }
+.print-c .t-syn-variable { color: var(--syn-variable); }
+.print-c .t-syn-operator { color: var(--syn-operator); }
+.print-c .t-syn-macro { color: var(--syn-macro); }
+.print-c .t-syn-punctuation { color: var(--syn-punctuation); }
+.print-c .t-danger { color: var(--danger); }
+/* Where the browser draws no page margin boxes (Firefox, Safari), the footer is the table's own: a
+   footer group, repeated on every page the file's table crosses where the engine repeats them. */
+.print-table .print-foot td {
+  padding-top: 6pt;
+  color: var(--text-secondary);
+  font: 400 8pt/1.3 var(--font-ui);
+}
+.print-root[data-boxes="true"] .print-foot { display: none; }

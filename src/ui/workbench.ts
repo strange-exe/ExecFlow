@@ -323,6 +323,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     { label: "Import files", icon: "upload-simple", separatorBefore: true, run: () => void importFrom(false, targetDir()) },
     { label: "Import a folder", icon: "folder-plus", run: () => void importFrom(true, targetDir()) },
     { label: "Export workspace (.zip)", icon: "download-simple", run: () => void exportWorkspace() },
+    { label: "Save as PDF...", icon: "printer", run: () => openPrint(moreButton) },
     ...snippet.menuItems(),
     ...widthItems(),
   ]);
@@ -1746,6 +1747,38 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
     );
   }
+  // Save as PDF (.claude/design/pdf.md): a lazy chunk too. The open file starts checked (else the
+  // file chosen in the list); an open file is read from its editor, unsaved typing included.
+  let printChunk: Promise<typeof import("./print-dialog")> | null = null;
+  function openPrint(opener: HTMLElement | null = focused()) {
+    printChunk ??= import("./print-dialog");
+    printChunk.then(
+      (m) => {
+        const active = fileOf(editors.activeId)?.path;
+        const chosen = tree.selectedNode();
+        let storage: Storage | null = null;
+        try {
+          storage = localStorage;
+        } catch {
+          // storage blocked: the defaults, and changes last for the opening
+        }
+        m.openPrintDialog({
+          files: entries.filter((e) => e.kind === "file" && !e.opaque).map((e) => e.path),
+          checked: active ? [active] : chosen?.kind === "file" && !chosen.opaque ? [chosen.path] : [],
+          read: async (path) => {
+            const id = editors.idForPath(path);
+            const state = id ? editors.state(id) : null;
+            return { path, state, text: state ? state.doc.toString() : await store.readFile(ws, path) };
+          },
+          app: root, notice, storage, returnTo: opener,
+        });
+      },
+      (e: unknown) => {
+        printChunk = null;
+        notice.show(`Save as PDF couldn't open: ${errorText(e)}`);
+      },
+    );
+  }
   /** Adds a file at `path` with `text` and opens it (an example). */
   async function addFile(path: WsPath, text: string) {
     if (explainReadOnly()) return;
@@ -1802,6 +1835,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       importFiles: () => void importFrom(false, ""),
       importFolder: () => void importFrom(true, ""),
       exportZip: () => void exportWorkspace(),
+      savePdf: (opener) => openPrint(opener),
       capture: (opener) => snippet.open(opener, opener.closest(".cm-editor") ? "context" : "head-key"),
       fileList: () => {
         if (L.narrow()) L.openDrawer();

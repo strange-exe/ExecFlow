@@ -6,7 +6,7 @@
 // lives in init scripts only.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { deltaE, over, UI_MIXES } from "../src/theme/contrast";
+import { contrast, deltaE, lift, over, UI_MIXES } from "../src/theme/contrast";
 import { audit } from "./audit";
 import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, reloadApp, run, test, tolerating } from "./helpers";
 import {
@@ -20,7 +20,7 @@ test.setTimeout(120_000);
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const ITEM = /^Capture snippet of main\.py, lines 2 to 3\.\.\./;
 const TITLE = "Capture snippet of lines 2 to 3";
-const DESCRIPTION = "Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.";
+const DESCRIPTION = `Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background, "Made with CodeEditor" under the card.`;
 /**
  * Default options: 822 x 357 at scale 2: round 1's card (694 x 229, final-v3 4.5's fixture row) in
  * round 2's medium background (32 CSS px, 64 bitmap px each side).
@@ -361,7 +361,7 @@ test("8: the options are remembered on this device, cleaned when read, and work 
   await expect(dialogOf(page).locator("#snippet-numbers")).not.toBeChecked();
   await expect(dialogOf(page).locator("#snippet-name")).not.toBeChecked();
   expect(await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image"))).toBe(
-    '{"colors":"light","numbers":false,"name":false,"scale":2,"background":true,"padding":"medium","frame":"plain"}',
+    '{"colors":"light","numbers":false,"name":false,"scale":2,"background":true,"padding":"medium","frame":"plain","mark":true}',
   );
   await page.keyboard.press("Escape");
 
@@ -499,7 +499,7 @@ for (const key of ["Enter", "Space"] as const) {
     if (seen.includes("dialog-body")) test.info().annotations.push({ type: "10 scroller", description: `${test.info().project.name}: the scrolling body is a Tab stop` });
     const cycle = seen.filter((s) => s !== "body" && s !== "snippet-dialog" && s !== "dialog-body");
     const order = [
-      "Close", "snippet-frame", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-background-medium", "snippet-frame-plain", "snippet-scale-2",
+      "Close", "snippet-frame", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-mark", "snippet-background-medium", "snippet-frame-plain", "snippet-scale-2",
       "snippet-highlight", "Download (.png)", ...((await canCopy(page)) ? ["Copy image"] : []),
     ];
     expect(cycle.slice(0, order.length)).toEqual(order);
@@ -806,7 +806,7 @@ test("17: a tall preview is a named, focusable image that scrolls by keyboard, a
   await previewReady(page);
   const frame = dialogOf(page).locator("#snippet-frame");
   await expect(frame).toHaveAttribute("role", "img");
-  await expect(frame).toHaveAccessibleName("Preview of b.py, lines 1 to 200, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.");
+  await expect(frame).toHaveAccessibleName(`Preview of b.py, lines 1 to 200, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background, "Made with CodeEditor" under the card.`);
   await frame.focus();
   await expect(frame).toBeFocused();
   const page0 = await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
@@ -1528,9 +1528,9 @@ test("32: an option change clears the last result without a word; it stays clear
 test("33: the dialog is described by the preview's label, and by the gaps note when ranges are far apart", async ({ page }) => {
   await openDialog(page);
   await expect(page.getByRole("dialog", { name: TITLE })).toHaveAccessibleDescription(
-    /^Preview of main\.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown\. Plain frame, medium background\./,
+    /^Preview of main\.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown\. Plain frame, medium background, "Made with CodeEditor" under the card\./,
   );
-  expect(DESCRIPTION).toBe("Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.");
+  expect(DESCRIPTION).toBe(`Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background, "Made with CodeEditor" under the card.`);
   await page.keyboard.press("Escape");
   // Line 1, then line 5 added with a modifier-drag: lines 2 to 4 lie between them.
   await page.locator(".cm-content").click();
@@ -1654,13 +1654,26 @@ test("36: the background: none is the card alone with transparent corners; small
   await openDialog(page);
   const t = await tokens(page);
   const mat = matOf(t);
-  for (const [background, size, pad] of [["none", [694, 229], 0], ["small", [758, 293], 32], ["large", [950, 485], 128], ["medium", [822, 357], 64]] as const) {
+  // Batch 4's "Made with CodeEditor" line (on by default): a 12 px line on an 18 px box. It takes a
+  // bottom band of 32 CSS px (64 bitmap px), so medium and large keep their size and small grows at
+  // its foot only (293 to 325); without a background it is the card's last row (229 to 265).
+  for (const [background, size, pad] of [["none", [694, 265], 0], ["small", [758, 325], 32], ["large", [950, 485], 128], ["medium", [822, 357], 64]] as const) {
     await setOptions(page, "match", true, true, { background });
     const png = await previewPng(page);
     const info = pngInfo(png);
     expect([info.width, info.height], background).toEqual([...size]);
     const px = decodeRgba(png);
     const [w, h] = size;
+    // The line's ink, right-aligned with the card (its padding without a background), reads at 4.5:1 on its ground.
+    const ground = background === "none" ? t.bg : mat;
+    // Bitmap px at 2x: the line is about 288 px wide ("Made with CodeEditor", 20 characters of 7.2 CSS px).
+    const right = background === "none" ? 694 - 2 * 17 : pad + 694;
+    const rows = background === "none" ? { y0: 2 * (56.5 + 45) + 2, y1: h - 2 * 9 } : { y0: pad + 229, y1: h - 1 };
+    const ink = inkOf(px, { x0: right - 320, x1: right, ...rows }, ground);
+    const expected = lift(t["text-secondary"], [ground], 4.5);
+    expect(ink && off(hexRgb(ink), expected), `${background}: the credit's ink ${ink} (${expected} on ${ground})`).toBeLessThanOrEqual(12);
+    expect(contrast(expected, ground), `${background}: the credit on its ground`).toBeGreaterThanOrEqual(4.5);
+    expect(inkOf(px, { x0: right - 600, x1: right - 330, ...rows }, ground), `${background}: right-aligned, nothing left of it`).toBeNull();
     if (background === "none") {
       // The corners outside the 16 px radius are fully transparent; the card's edge and ground are opaque.
       for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]) expect(px.at(x, y)[3], `corner ${x}, ${y}`).toBe(0);
@@ -1682,7 +1695,7 @@ test("36: the background: none is the card alone with transparent corners; small
   await setOptions(page, "match", true, true, { background: "none" });
   await expect(dialogOf(page).locator("#snippet-background-none")).toBeChecked();
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!)).toMatchObject({ background: false, padding: "medium" });
-  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/file name shown\. Plain frame, no background\.$/);
+  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/file name shown\. Plain frame, no background, "Made with CodeEditor" at the card's foot\.$/);
 });
 
 test("37: the window frame: a title bar in the chrome's ground with the file name, a rule under it; no name keeps the bar", async ({ page }) => {
@@ -1702,7 +1715,7 @@ test("37: the window frame: a title bar in the chrome's ground with the file nam
     const nameInk = inkOf(px, { x0: c + 34, x1: c + 150, y0: c + 18, y1: c + 63 }, t.surface);
     if (name) expect(nameInk && off(hexRgb(nameInk), t["text-secondary"]), `the name in the bar ${nameInk}`).toBeLessThanOrEqual(8);
     else expect(nameInk, "no name: the bar is empty").toBeNull();
-    await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(new RegExp(`file name ${name ? "shown" : "hidden"}\\. Window frame, medium background\\.$`));
+    await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(new RegExp(`file name ${name ? "shown" : "hidden"}\\. Window frame, medium background, "Made with CodeEditor" under the card\\.$`));
   }
   const d = await downloadPng(page);
   expect(d.name, "with the name hidden, the file is not named after it either").toBe("code-lines-2-3.png");
@@ -1760,7 +1773,7 @@ test("38: highlighted lines: a band behind the listed lines, nothing dimmed; the
   expect(lit && off(hexRgb(lit), t["syn-keyword"]), `"return" on the band ${lit}`).toBeLessThanOrEqual(8);
   const plainDef = inkOf(px, { x0: c + 84, x1: c + 138, y0: c + 113, y1: c + 157 }, t.bg);
   expect(plainDef && off(hexRgb(plainDef), t["syn-keyword"]), `"def" off the band ${plainDef}`).toBeLessThanOrEqual(8);
-  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/\. Plain frame, medium background, highlighted: lines 2 to 3\.$/);
+  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/\. Plain frame, medium background, highlighted: lines 2 to 3, "Made with CodeEditor" under the card\.$/);
 
   // Mid-typing an incomplete entry says nothing and keeps the band; committing (Tab) says what is wrong.
   await field.fill("2-");
@@ -1831,9 +1844,25 @@ test("39: a round-1 device's options migrate: its choices kept, the new ones at 
   await expect(dialogOf(page).locator("#snippet-numbers")).not.toBeChecked();
   await dialogOf(page).locator("#snippet-frame-window").check();
   await previewReady(page, "dark no-numbers name 2x medium window");
+  // Batch 4: the "Made with CodeEditor" line arrives on, as every new option does (its default).
+  await expect(dialogOf(page).locator("#snippet-mark")).toBeChecked();
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!)).toEqual(
-    { colors: "dark", numbers: false, name: true, scale: 2, background: true, padding: "medium", frame: "window" },
+    { colors: "dark", numbers: false, name: true, scale: 2, background: true, padding: "medium", frame: "window", mark: true },
   );
+});
+
+test('39 (b): a round-2 device gains the "Made with CodeEditor" line, on; turned off it is remembered, drawn nowhere, and named in data-preview-options', async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("codeeditor:snippet-image", '{"colors":"match","numbers":true,"name":true,"scale":2,"background":true,"padding":"small","frame":"plain"}'));
+  await openWith(page);
+  await selectFixtureLines(page);
+  await openFromFileMenu(page, ITEM);
+  await previewReady(page, "match numbers name 2x small plain");
+  await expect(dialogOf(page).getByRole("checkbox", { name: '"Made with CodeEditor" line' })).toBeChecked();
+  await dialogOf(page).locator("#snippet-mark").uncheck();
+  await previewReady(page, "match numbers name 2x small plain no-mark");
+  expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!)).toMatchObject({ padding: "small", mark: false });
+  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/file name shown\. Plain frame, small background\.$/);
 });
 
 for (const vp of [{ width: 1440, height: 900 }, { width: 600, height: 900 }, { width: 390, height: 844 }]) {

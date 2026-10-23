@@ -39,8 +39,18 @@ WebAssembly workers.
   (or none: the code card alone, with transparent corners), a plain or window frame (a title bar
   with the file name), the scale (1x, 2x or 3x; the exact pixel size is shown, and a scale too big
   for one image steps down and says so), and lines to highlight ("3-5, 8": a band behind those
-  lines; nothing else is dimmed). The options are remembered on this device; the highlighted lines
-  are not. Nothing is sent anywhere: the image is made in the browser and works offline.
+  lines; nothing else is dimmed), and a small "Made with CodeEditor" line under the card (on by
+  default; turn it off under Show). The options are remembered on this device; the highlighted
+  lines are not. Nothing is sent anywhere: the image is made in the browser and works offline.
+- Save as PDF... (in More file actions and the search): choose one or more files, then the
+  browser's print dialog opens; choose "Save as PDF" as the printer there. The code keeps the
+  editor's syntax colours, in print-safe dark ink on white by default (or the editor's own colours),
+  with line numbers (optional); long lines wrap with a continuation mark, and each file starts on a
+  new page under its path. A footer (on by default) gives the file, the date and "Made with
+  CodeEditor" on every page, and in Chrome and Edge the page number ("Page 2 of 5"). Firefox and
+  Safari can't number pages for a web page: there the footer has no page number and is printed
+  with each file's code (their print dialog can add its own page numbers). Works offline; the PDF
+  is made by the browser, so its text can be selected and searched.
 - Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
   name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).

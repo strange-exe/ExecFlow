@@ -133,6 +133,7 @@ export interface PaletteApi {
     importFiles(): void;
     importFolder(): void;
     exportZip(): void;
+    savePdf(opener: HTMLElement): void;
     capture(opener: HTMLElement): void;
     fileList(): void;
     output(): void;
@@ -235,6 +236,7 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
   add("import-files", "Files", "Import files", () => api.act.importFiles(), undefined, "upload open add");
   add("import-folder", "Files", "Import a folder", () => api.act.importFolder(), undefined, "upload directory");
   add("export", "Files", "Export workspace (.zip)", () => api.act.exportZip(), undefined, "download backup zip");
+  add("save-pdf", "Files", "Save as PDF...", (o) => api.act.savePdf(o), undefined, "print printer export paper document");
   add("file-list", "Files", "Go to the file list", () => api.act.fileList(), k.fileList, "tree explorer sidebar");
   for (const item of api.widthItems()) add(`width-${item.label}`, "Files", item.label, () => item.run(), undefined, "sidebar size");
 

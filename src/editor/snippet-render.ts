@@ -7,7 +7,7 @@ import { ensureSyntaxTree, language, syntaxTree } from "@codemirror/language";
 import { findClusterBreak, type EditorState } from "@codemirror/state";
 import { highlightCode, tagHighlighter } from "@lezer/highlight";
 import { IMAGE_TOKENS, type ImageToken } from "../core/snippet-dialog";
-import { deltaE, over, UI_MIXES } from "../theme/contrast";
+import { deltaE, IMAGE_MIXES, lift, over, TEXT, UI_MIXES } from "../theme/contrast";
 import { EXTRA_SPECIALS } from "./extensions";
 import { highlightStyle } from "./highlight";
 
@@ -257,6 +257,27 @@ export interface LayoutOptions {
   readonly frame: "plain" | "window";
   /** The background's padding around the card, CSS px (0: no background). */
   readonly pad: number;
+  /** The "Made with CodeEditor" line: under the card in the background, or inside the card's bottom edge without one. */
+  readonly credit?: boolean;
+}
+
+/**
+ * The "Made with CodeEditor" line (batch 4, .claude/design/pdf.md): the code font 3 px under the
+ * code size (11 px at least), on its own 1.5 line box. In a background it sits in the bottom
+ * padding, right-aligned with the card's edge and centred in a band of at least its line box and
+ * 7 px above and below (so a small background grows at its bottom only); without one, it is the
+ * card's last row, 4 px under the code and 8 px above the edge, right-aligned with the code's padding.
+ */
+export const CREDIT = { MIN_SIZE: 11, UNDER: 3, BAND_GAP: 7, IN_GAP: 4, IN_BOTTOM: 8 } as const;
+
+/** The credit's font size for a code line box of `lineH` (the code size times 1.5). */
+export const creditSize = (lineH: number): number => Math.max(CREDIT.MIN_SIZE, lineH / 1.5 - CREDIT.UNDER);
+
+/** The credit line's place: its line box's top and right edge (card coordinates) and its font size. */
+export interface CreditPlace {
+  readonly top: number;
+  readonly right: number;
+  readonly size: number;
 }
 
 export interface ImageLayout {
@@ -282,6 +303,10 @@ export interface ImageLayout {
   readonly barBottom: number;
   readonly codeTop: number;
   readonly rows: number;
+  /** The background's padding under the card (CSS px): `pad`, or the credit's taller band. */
+  readonly padBottom: number;
+  /** The "Made with CodeEditor" line, when it is shown. */
+  readonly credit: CreditPlace | null;
 }
 
 /**
@@ -311,13 +336,38 @@ export function layoutImage(rows: readonly { readonly number: number | null }[],
   const ruleY = windowed ? barBottom : E + V + m.lineH + HG;
   const codeTop = windowed || o.name ? ruleY + 1 + V : E + V;
   const cardWidth = codeX + Math.max(m.widest, MIN_COLS * m.ch) + P + E;
-  const cardHeight = codeTop + rows.length * m.lineH + V + E;
+  const codeBottom = codeTop + rows.length * m.lineH;
+  let cardHeight = codeBottom + V + E;
+  let padBottom = o.pad;
+  let credit: CreditPlace | null = null;
+  if (o.credit) {
+    const size = creditSize(m.lineH);
+    const box = size * 1.5;
+    if (o.pad > 0) {
+      padBottom = Math.max(o.pad, box + 2 * CREDIT.BAND_GAP);
+      credit = { top: cardHeight + (padBottom - box) / 2, right: cardWidth, size };
+    } else {
+      credit = { top: codeBottom + CREDIT.IN_GAP, right: cardWidth - E - P, size };
+      cardHeight = credit.top + box + CREDIT.IN_BOTTOM + E;
+    }
+  }
   return {
     width: cardWidth + 2 * o.pad,
-    height: cardHeight + 2 * o.pad,
+    height: cardHeight + o.pad + padBottom,
     pad: o.pad, cardWidth, cardHeight,
-    codeX, gutterRight, markRight, digits, nameTop, ruleY, barBottom, codeTop, rows: rows.length,
+    codeX, gutterRight, markRight, digits, nameTop, ruleY, barBottom, codeTop, rows: rows.length, padBottom, credit,
   };
+}
+
+/**
+ * The credit's ink: --text-secondary (the file name's tier), moved toward black or white only as
+ * far as 4.5:1 against its ground needs (contrast.ts lift). The ground is the background (the mat,
+ * IMAGE_MIXES.mat over bg) or, without one, the card's code ground. A colour for the image only:
+ * no theme token moves (in One Dark Pro and Solarized Dark even --text is under 4.5:1 on the mat).
+ */
+export function creditInk(colors: { readonly bg: string; readonly action: string; readonly "text-secondary": string }, background: boolean): string {
+  const ground = background ? over(colors.bg, colors.action, IMAGE_MIXES.mat.pct / 100) : colors.bg;
+  return lift(colors["text-secondary"], [ground], TEXT);
 }
 
 /** The lowest canvas area limit among the browsers (iOS: 4096 x 4096), and the longest side. */
@@ -363,7 +413,8 @@ export const edgeThickness = (scale: number): number => Math.max(1, Math.round(s
 /** The card's place in the bitmap: the padding in bitmap px (whole at every scale step), then the rest. */
 export function cardRect(layout: ImageLayout, bitmap: { width: number; height: number }, scale: number): { x: number; y: number; w: number; h: number; r: number } {
   const x = Math.round(layout.pad * scale);
-  return { x, y: x, w: bitmap.width - 2 * x, h: bitmap.height - 2 * x, r: R * scale };
+  // The bottom padding is the credit's band when that is taller (padBottom equals pad otherwise).
+  return { x, y: x, w: bitmap.width - 2 * x, h: bitmap.height - x - Math.round(layout.padBottom * scale), r: R * scale };
 }
 
 // ---------------------------------------------------------------- the readback (7.5)

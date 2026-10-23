@@ -67,6 +67,23 @@ describe("matchText", () => {
 });
 
 describe("the commands", () => {
+  it("Save as PDF... is there with or without a file open, found by print and pdf, and hands its opener on", () => {
+    const savePdf = vi.fn();
+    for (const fileOpen of [true, false]) {
+      const list = buildCommands(api({ fileOpen: () => fileOpen, act: { savePdf } }));
+      const command = list.find((c) => c.id === "save-pdf")!;
+      expect(command, `file open: ${fileOpen}`).toMatchObject({ label: "Save as PDF...", group: "Files" });
+      command.run(OPENER);
+    }
+    expect(savePdf).toHaveBeenCalledTimes(2);
+    expect(savePdf).toHaveBeenCalledWith(OPENER);
+    const commands = buildCommands(api());
+    for (const query of ["pdf", "print", "save as"]) {
+      const first = results(`>${query}`, [], [], null, commands).groups[0].options[0];
+      expect(first.kind === "command" && first.command.id, query).toBe("save-pdf");
+    }
+  });
+
   it("lists editor commands only with a file shown, and Stop instead of Run while a program runs", () => {
     const none = ids(buildCommands(api({ fileOpen: () => false })));
     expect(none).not.toContain("gotoLine");

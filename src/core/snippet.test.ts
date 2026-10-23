@@ -29,8 +29,8 @@ function stateWith(doc: string, ranges: [number, number][]) {
 const plan = (first: number, last: number, gaps = false): LineSpan => ({ ok: true, first, last, gaps });
 /** The round-2 defaults with no line highlighted. */
 const DEFAULTS: ImageOptions = { ...DEFAULT_IMAGE_OPTIONS, highlight: [] };
-/** Round 2's default look, as the label says it. */
-const LOOK = "Plain frame, medium background";
+/** Round 2's default look, as the label says it, with batch 4's "Made with CodeEditor" line (on by default). */
+const LOOK = 'Plain frame, medium background, "Made with CodeEditor" under the card';
 
 describe("pickLines", () => {
   it.each([
@@ -151,10 +151,14 @@ describe("previewLabel", () => {
       `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}. Some colours are missing.`,
     );
     expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, frame: "window", background: false, highlight: [3, 5, 6, 7] }, own, false)).toBe(
-      "Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Window frame, no background, highlighted: line 3, lines 5 to 7.",
+      `Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Window frame, no background, highlighted: line 3, lines 5 to 7, "Made with CodeEditor" at the card's foot.`,
     );
     expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, padding: "large", scale: 3 }, own, false)).toBe(
-      "Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Plain frame, large background.",
+      `Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Plain frame, large background, "Made with CodeEditor" under the card.`,
+    );
+    // With the line off, round 2's label exactly.
+    expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, mark: false }, own, false)).toBe(
+      "Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.",
     );
   });
 
@@ -247,7 +251,7 @@ describe("checkColors", () => {
 });
 
 describe("image options", () => {
-  const ROUND2 = { scale: 2, background: true, padding: "medium", frame: "plain" } as const;
+  const ROUND2 = { scale: 2, background: true, padding: "medium", frame: "plain", mark: true } as const;
 
   it("cleans stored values field by field", () => {
     expect(DEFAULT_IMAGE_OPTIONS).toEqual({ colors: "match", numbers: true, name: true, ...ROUND2 });
@@ -265,6 +269,8 @@ describe("image options", () => {
     for (const padding of ["small", "medium", "large"] as const) expect(cleanImageOptions({ padding }).padding).toBe(padding);
     expect(cleanImageOptions({ background: false }).background).toBe(false);
     expect(cleanImageOptions({ frame: "window" }).frame).toBe("window");
+    expect(cleanImageOptions({ mark: false }).mark).toBe(false);
+    expect(cleanImageOptions({ mark: "off" }).mark, "only a boolean turns the line off").toBe(true);
     // The highlighted lines are this opening's, never stored or read back.
     expect(cleanImageOptions({ highlight: [3] })).not.toHaveProperty("highlight");
   });
@@ -276,6 +282,15 @@ describe("image options", () => {
     expect(read).toEqual({ colors: "light", numbers: false, name: false, ...ROUND2 });
     writeImageOptions(storage, { ...read, frame: "window" });
     expect(JSON.parse(data.get(IMAGE_OPTIONS_KEY)!)).toEqual({ colors: "light", numbers: false, name: false, ...ROUND2, frame: "window" });
+  });
+
+  it("migrates a round-2 value (no mark field): every stored field kept, the line on", () => {
+    const round2 = { colors: "dark", numbers: true, name: false, scale: 3, background: false, padding: "large", frame: "window" };
+    const data = new Map([[IMAGE_OPTIONS_KEY, JSON.stringify(round2)]]);
+    const storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+    expect(readImageOptions(storage)).toEqual({ ...round2, mark: true });
+    writeImageOptions(storage, { ...readImageOptions(storage), mark: false });
+    expect(readImageOptions(storage).mark).toBe(false);
   });
 
   it("reads and writes through storage that may throw or hold junk", () => {
@@ -313,8 +328,9 @@ describe("image options", () => {
       "dark no-numbers no-name 3x none window",
     );
     expect(optionsWord({ ...DEFAULTS, padding: "small", highlight: [3, 5, 6, 7] })).toBe("match numbers name 2x small plain hl:3,5-7");
+    expect(optionsWord({ ...DEFAULTS, mark: false, highlight: [2] })).toBe("match numbers name 2x medium plain no-mark hl:2");
     expect(sameOptions(DEFAULTS, { ...DEFAULTS })).toBe(true);
-    for (const change of [{ scale: 1 }, { background: false }, { padding: "large" }, { frame: "window" }, { highlight: [2] }, { colors: "dark" }] as const) {
+    for (const change of [{ scale: 1 }, { background: false }, { padding: "large" }, { frame: "window" }, { highlight: [2] }, { colors: "dark" }, { mark: false }] as const) {
       expect(sameOptions(DEFAULTS, { ...DEFAULTS, ...change } as ImageOptions), JSON.stringify(change)).toBe(false);
     }
     expect(sameOptions({ ...DEFAULTS, highlight: [2, 3] }, { ...DEFAULTS, highlight: [2, 4] })).toBe(false);
