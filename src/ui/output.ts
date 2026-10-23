@@ -6,7 +6,11 @@
 // line. Every stderr line has a bar beside it, and one stderr line of a failed run, the error the
 // header lifts (Python's exception, or a failed build's first error), is drawn in the danger colour
 // at 600, so colour is never the only signal.
-import type { RunPhase, RunResult, RunStatus } from "../core/types";
+import { detectLanguage } from "../core/languages";
+import { nameOf } from "../core/paths";
+import type { RunPhase, RunResult, RunStatus, WsPath } from "../core/types";
+import type { RunArgsStore } from "../runner/run-args";
+import type { ArgsField, RunArgs } from "./args-field";
 import { formatMs, h } from "./dom";
 import { icon, type IconName } from "./icons";
 
@@ -69,9 +73,17 @@ export class OutputView {
   readonly status: HTMLElement;
   /** The panel bar's Input toggle (the workbench puts it there): shows the Input box. */
   readonly inputToggle: HTMLButtonElement;
+  /** The Arguments row (#args-row) beside the Input text; args-field.ts fills it (a lazy chunk). */
+  private readonly argsRow: HTMLElement;
+  private argsStore: RunArgsStore | null = null;
+  private argsChunk: Promise<ArgsField> | null = null;
+  private argsField: ArgsField | null = null;
+  /** The runnable file whose arguments the field shows (null: none, the row is hidden). */
+  private argsPath: WsPath | null = null;
   private readonly stdinBox: HTMLElement;
   private readonly header: HTMLElement;
   private readonly fileName: HTMLElement;
+  private readonly runArgs: HTMLElement;
   private readonly receipt: HTMLElement;
   private readonly liveForm: HTMLFormElement;
   private readonly liveField: HTMLInputElement;
@@ -111,22 +123,26 @@ export class OutputView {
       autocomplete: "off",
       placeholder: "One value per line",
     });
+    // The Arguments field (.claude/design/batch3/r.md), filled by args-field.ts once a file that can
+    // run is open; hidden until then.
+    this.argsRow = h("div", { class: "args-row", id: "args-row" });
+    this.argsRow.hidden = true;
     this.stdinBox = h(
       "div",
       { class: "stdin-box", id: "stdin-box" },
-      h("label", { class: "stdin-label", for: "stdin" }, "Input given to the program first"),
-      this.stdin,
+      h("div", { class: "stdin-col" }, h("label", { class: "stdin-label", for: "stdin" }, "Input given to the program first"), this.stdin),
+      this.argsRow,
     );
     this.stdinBox.hidden = true;
     // Escape closes the box from inside it (the toggle then has the focus again).
-    this.stdin.addEventListener("keydown", (e) => {
+    this.stdinBox.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       e.preventDefault();
       this.showInputBox(false);
     });
     this.inputToggle = h(
       "button",
-      { type: "button", class: "btn ghost small input-toggle", id: "input-toggle", "aria-expanded": "false", "aria-controls": "stdin-box", title: "Text the program reads first" },
+      { type: "button", class: "btn ghost small input-toggle", id: "input-toggle", "aria-expanded": "false", "aria-controls": "stdin-box", title: "Arguments and text the program reads first" },
       icon("caret-right", "toggle-caret"),
       "Input",
     );
@@ -145,6 +161,8 @@ export class OutputView {
     // The run-log header: one per run, above the log. #run-status and #receipt keep their ids and
     // data attributes; End input sits right after the waiting words.
     this.fileName = h("span", { class: "rl-file" });
+    // The run's arguments after the file's name, as a terminal shows the command line.
+    this.runArgs = h("span", { class: "rl-args", id: "run-args" });
     this.status = h("p", { class: "run-status", id: "run-status", "data-phase": "idle" });
     this.endButton = h("button", { type: "button", class: "end-input", id: "live-input-end", title: "Send end of input (Ctrl+D)" }, "End input");
     this.endButton.hidden = true;
@@ -205,6 +223,57 @@ export class OutputView {
     this.stdinBox.hidden = !open;
     this.inputToggle.setAttribute("aria-expanded", String(open));
     if (!open && inside) this.inputToggle.focus();
+  }
+
+  // ------------------------------------------------------------------ the Arguments field
+
+  /** Where each file's arguments are kept (set once the workspace is open). */
+  useArgs(store: RunArgsStore): void {
+    this.argsStore = store;
+  }
+
+  /** The Arguments field's chunk, loaded once (a failed load is tried again next time). */
+  private loadArgs(): Promise<ArgsField> {
+    this.argsChunk ??= import("./args-field").then(
+      ({ ArgsField }) => {
+        const field = new ArgsField(this.argsRow, this.argsStore);
+        field.show(this.argsPath);
+        return (this.argsField = field);
+      },
+      (e: unknown) => {
+        this.argsChunk = null;
+        throw e;
+      },
+    );
+    return this.argsChunk;
+  }
+
+  /** The field shows the arguments of the open file, and only for a file that can run. */
+  showArgsFor(path: WsPath | null): void {
+    this.argsPath = path !== null && detectLanguage(nameOf(path)) ? path : null;
+    if (this.argsField) this.argsField.show(this.argsPath);
+    else if (this.argsPath !== null) void this.loadArgs().catch(() => {}); // Run tries again and says so
+  }
+
+  /** A file or folder was renamed (`to`) or deleted (null): its arguments follow it or go. */
+  argsMoved(from: WsPath, to: WsPath | null): void {
+    const path = this.argsPath;
+    if (path !== null && (path === from || path.startsWith(`${from}/`))) this.argsPath = to === null ? null : to + path.slice(from.length);
+    this.argsField?.moved(from, to);
+  }
+
+  /** The arguments for a run of `path` (loads the field's chunk if needed). */
+  async argsFor(path: WsPath): Promise<RunArgs> {
+    return (await this.loadArgs()).argsFor(path);
+  }
+
+  /**
+   * Run was pressed with arguments that can't be split: the box opens and the field explains (see
+   * ArgsField.explain). Returns true when focus was already in the field, so the caller says it.
+   */
+  explainArgs(reason: string): boolean {
+    this.showInputBox(true);
+    return this.argsField?.explain(reason) ?? false;
   }
 
   // ------------------------------------------------------------------ console text
@@ -301,12 +370,13 @@ export class OutputView {
 
   // ------------------------------------------------------------------ run state
 
-  /** A run starts: an empty log, and the header with the file's name and the run's state. */
-  begin(file = ""): void {
+  /** A run starts: an empty log, and the header with the file's name, its arguments and the run's state. */
+  begin(file = "", args = ""): void {
     this.clear();
-    if (!this.stdin.value) this.showInputBox(false);
+    if (!this.stdin.value && !this.argsField?.hasText) this.showInputBox(false);
     this.hint.hidden = true;
-    this.fileName.textContent = file;
+    this.runArgs.textContent = args;
+    this.fileName.replaceChildren(file, ...(args ? [" ", this.runArgs] : []));
     this.header.removeAttribute("data-failed");
     this.header.hidden = false;
     clearInterval(this.tick);

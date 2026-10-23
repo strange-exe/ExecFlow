@@ -3,9 +3,11 @@
 // rendered while an export is busy), the exporter (readback, clipboard write and encode inside the
 // click), and the dialog's frame budget. The dialog (snippet-dialog.ts) supplies the canvas work and
 // the DOM through the deps; the unit tests supply fakes. Lazy (the dialog's chunk).
-import type { ColorChoice, ImageOptions, PaintInfo } from "../core/snippet";
-import { checkColors, type ImageColors } from "../core/snippet-dialog";
+import type { ColorChoice, PaintInfo } from "../core/snippet";
+import { checkColors, sameOptions, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { OWN } from "../theme/palettes";
+
+export { sameOptions };
 
 // ---------------------------------------------------------------- colours (4.3)
 
@@ -19,8 +21,6 @@ export function imageColors(choice: ColorChoice, paint: Paint): ImageColors | nu
   if (choice === "match") return checkColors(paint.computed);
   return checkColors(OWN[paint.family === "slate" ? "slate" : "deep-field"][choice]);
 }
-
-export const sameOptions = (a: ImageOptions, b: ImageOptions): boolean => a.colors === b.colors && a.numbers === b.numbers && a.name === b.name;
 
 // ---------------------------------------------------------------- the preview scheduler (7.3)
 
@@ -425,13 +425,33 @@ export function frameBudget(m: BudgetMeasures): { cap: number; compact: boolean;
   return { cap, compact, frameCap: compact ? Math.max(96, Math.round(dialogMax / 2) - 18) : Math.min(420, cap) };
 }
 
-/** The frame's content height once a render has landed: the tallest of the four layouts as fitted, from 96 to the cap, so no option moves anything. */
+/**
+ * The frame's content height once a render has landed: the tallest of the given layouts as fitted
+ * to the width, from 96 to the cap. The dialog passes the default look's layouts (medium
+ * background, plain frame, either toggle), so the stage is never sized for a rarer, taller look.
+ */
 export function frameContent(layouts: readonly { readonly width: number; readonly height: number }[], innerWidth: number, frameCap: number): number {
   const tallest = Math.max(0, ...layouts.map((l) => l.height * Math.min(1, innerWidth / l.width)));
   return Math.min(frameCap, Math.max(96, tallest));
 }
 
-/** Before the first render: the default layout's height from the line count (1, 12 and the line boxes; the header adds a line box, 8, 1 and 12). */
-export function frameEstimate(rows: number, lineH: number, header: boolean): number {
-  return 1 + 12 + (header ? lineH + 8 + 1 + 12 : 0) + rows * lineH + 12 + 1;
+/**
+ * How much the preview shrinks an image: to the frame's inner width, never enlarged, and, where the
+ * stage shows the default look whole (`stage`, its content height; null when the stage is capped
+ * and scrolls), to the stage's height as well, so a taller look (a larger background, the window
+ * frame) shrinks a little instead of scrolling or reserving room for itself.
+ */
+export function previewFit(layout: { readonly width: number; readonly height: number }, innerWidth: number, stage: number | null): number {
+  const byWidth = Math.min(1, Math.max(1, innerWidth) / layout.width);
+  // Only a look taller than the stage shrinks by height (it then fills the stage's height exactly,
+  // as the default look does); the looks that fit keep their width fit.
+  return stage !== null && layout.height * byWidth > stage ? Math.min(byWidth, stage / layout.height) : byWidth;
+}
+
+/**
+ * Before the first render: a layout's height from the line count (1, 12 and the line boxes; the
+ * header adds a line box, 8, 1 and 12; the background's padding adds itself above and below).
+ */
+export function frameEstimate(rows: number, lineH: number, header: boolean, pad = 0): number {
+  return 1 + 12 + (header ? lineH + 8 + 1 + 12 : 0) + rows * lineH + 12 + 1 + 2 * pad;
 }

@@ -280,6 +280,18 @@
 /* Every theme but Deep Field light: the status bar's top edge is the 1 px region divider. */
 :root[data-palette], :root[data-theme="dark"] { --status-edge: inset 0 1px 0 var(--divider); }
 
+/* The editor's gutter-edge focus bar (editor/highlight.ts): the focus colour, except in Deep Field
+   dark, where the full-height brass bar outranked the code (plan-v2 P2): there it is the brass at 70%
+   over the code ground, one measured step down (9.65:1 to about 5.3:1 on bg, 3:1 or more on the
+   cursor line and the error band; src/styles/focus-bar.test.ts). Light keeps --focus: 4.62:1 on the
+   error band already, so a step down there would fail 3:1. Palette and custom themes keep their own. */
+:root {
+  --focus-bar: var(--focus);
+}
+:root[data-theme="dark"]:is([data-theme-id="deep-field"], [data-theme-id="deep-field-dark"]) {
+  --focus-bar: #a2914d;
+}
+
 :root {
   /* ---- derived (src/theme/contrast.ts UI_MIXES; script-checked as drawn over each surface) ---- */
   --hover: color-mix(in srgb, var(--text) 7%, transparent);

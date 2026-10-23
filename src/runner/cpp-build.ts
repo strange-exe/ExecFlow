@@ -5,17 +5,22 @@ import type { BuildOptions, WorkspaceFile, WsPath } from "../core/types";
 import { quotedIncludes, stripComments } from "./cpp-scan";
 import { memfsPath, quoteDir, type BuildUnit } from "./program";
 
-/** -O2 matches most online judges; -Wall because warnings show next to the code. */
-export const DEFAULT_BUILD: BuildOptions = { cStd: "gnu11", cxxStd: "c++17", opt: "2", warnings: ["-Wall"], defines: [] };
+/**
+ * -O2 matches most online judges; -Wall because warnings show next to the code. There are no -D
+ * defines: no screen set them, and a beginner writes #define in the file (plan-v2 P4).
+ */
+export const DEFAULT_BUILD: BuildOptions = { cStd: "gnu11", cxxStd: "c++17", opt: "2", warnings: ["-Wall"] };
 
 // clang 8 accepts these (LangStandards.def at llvmorg-8.0.1); "c++20" is spelled c++2a there.
 const C_STDS = new Set(["c89", "c90", "c99", "c11", "c17", "c18", "gnu89", "gnu90", "gnu99", "gnu11", "gnu17", "gnu18"]);
 const CXX_STDS = new Set(["c++98", "c++03", "c++11", "c++14", "c++17", "c++2a", "gnu++98", "gnu++03", "gnu++11", "gnu++14", "gnu++17", "gnu++2a"]);
 const CXX_ALIASES: Record<string, string> = { "c++20": "c++2a", "gnu++20": "gnu++2a", "c++1z": "c++17", "c++1y": "c++14", "c++0x": "c++11" };
 const WARNING = /^(?:-W[A-Za-z0-9][A-Za-z0-9=+,_-]*|-w|-pedantic|-pedantic-errors)$/;
-const DEFINE = /^[A-Za-z_][A-Za-z0-9_]*(?:=[^\n\r]*)?$/;
 
-/** Build options with anything clang 8 wouldn't accept replaced by the default, and why. */
+/**
+ * Build options with anything clang 8 wouldn't accept replaced by the default, and why. Only the
+ * known fields are read: a request from an older page that still carries `defines` builds without them.
+ */
 export function checkBuildOptions(options: BuildOptions | undefined): { options: BuildOptions; problems: string[] } {
   if (!options) return { options: DEFAULT_BUILD, problems: [] };
   const problems: string[] = [];
@@ -28,13 +33,11 @@ export function checkBuildOptions(options: BuildOptions | undefined): { options:
     cxxStd: CXX_STDS.has(cxxStd) ? cxxStd : DEFAULT_BUILD.cxxStd,
     opt: opt === "0" || opt === "1" || opt === "2" ? opt : DEFAULT_BUILD.opt,
     warnings: options.warnings.filter((w) => WARNING.test(w)),
-    defines: options.defines.map((d) => d.trim()).filter((d) => DEFINE.test(d)),
   };
   if (out.cStd !== cStd) problems.push(`the C standard "${options.cStd}" isn't available, so ${out.cStd} was used`);
   if (out.cxxStd !== cxxStd) problems.push(`the C++ standard "${options.cxxStd}" isn't available, so ${out.cxxStd} was used`);
   if (out.opt !== opt) problems.push(`optimisation level "${String(opt)}" isn't available, so -O${out.opt} was used`);
   for (const w of options.warnings) if (!WARNING.test(w)) problems.push(`the warning option "${w}" was left out`);
-  for (const d of options.defines) if (!DEFINE.test(d.trim())) problems.push(`the define "${d}" was left out (use NAME or NAME=value)`);
   return { options: out, problems };
 }
 
@@ -51,7 +54,7 @@ export function cOnly(args: readonly string[]): string[] {
 
 /** Flags that change what a header means (so they are part of the PCH key); warnings don't. */
 export function semanticArgs(lang: "c" | "cpp", options: BuildOptions): string[] {
-  return [`-std=${lang === "c" ? options.cStd : options.cxxStd}`, `-O${options.opt}`, ...options.defines.flatMap((d) => ["-D", d])];
+  return [`-std=${lang === "c" ? options.cStd : options.cxxStd}`, `-O${options.opt}`];
 }
 
 export interface UnitArgs {

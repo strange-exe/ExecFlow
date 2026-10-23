@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import type { Download, Locator, Page } from "@playwright/test";
+import { IMAGE_MIXES, over } from "../src/theme/contrast";
 import { expect, importFiles, openApp, openFromTree, treeItem, type FileSpec } from "./helpers";
 
 /** 9.2's main.py: lines 2 to 3 are the default capture (694 x 229 at scale 2). */
@@ -52,12 +53,26 @@ export async function openFromFileMenu(page: Page, label: RegExp = /^Capture sni
   return dialog;
 }
 
-/** The dialog's preview has settled on the options shown. */
+/** Round 2's defaults after round 1's three words in data-preview-options: 2x, medium background, plain frame. */
+export const ROUND2_DEFAULTS = "2x medium plain";
+
+/**
+ * The dialog's preview has settled on the options shown. Round 1's three words ("light numbers
+ * name") stand for those with round 2's defaults; a longer string is matched as it is.
+ */
 export async function previewReady(page: Page, options?: string) {
   const dialog = dialogOf(page);
   await expect(dialog).toHaveAttribute("data-preview", "ready", { timeout: 30_000 });
-  if (options) await expect(dialog).toHaveAttribute("data-preview-options", options);
+  if (options) await expect(dialog).toHaveAttribute("data-preview-options", options.split(" ").length === 3 ? `${options} ${ROUND2_DEFAULTS}` : options);
 }
+
+/** The default background's padding at the default scale, in bitmap px: the card's corner in the PNG. */
+export const CARD_AT = 64;
+/** The image's background colour: the theme's action colour at 25% over its code ground (contrast.ts IMAGE_MIXES.mat). */
+export const matOf = (t: Record<string, string>) => over(hex6(t.bg), hex6(t.action), IMAGE_MIXES.mat.pct / 100);
+/** The highlight band's colour: focus at 12% over the code ground (IMAGE_MIXES.mark). */
+export const markOf = (t: Record<string, string>) => over(hex6(t.bg), hex6(t.focus), IMAGE_MIXES.mark.pct / 100);
+const hex6 = (hex: string) => `#${hexRgb(hex).map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 
 export const captures = async (page: Page) => Number((await page.locator("#app").getAttribute("data-captures")) ?? 0);
 
@@ -188,11 +203,11 @@ export function inkOf(px: RgbaPixels, box: { x0: number; x1: number; y0: number;
   return best;
 }
 
-/** The 17 image tokens and a few chrome tokens, as the document root computes them. */
+/** Some of the image tokens and a few chrome tokens, as the document root computes them. */
 export function tokens(page: Page): Promise<Record<string, string>> {
   return page.evaluate(() => {
     const s = getComputedStyle(document.documentElement);
-    const names = ["bg", "text", "syn-keyword", "gutter-text", "danger", "divider", "text-secondary", "border", "surface"];
+    const names = ["bg", "text", "syn-keyword", "syn-comment", "gutter-text", "danger", "divider", "text-secondary", "border", "surface", "action", "focus"];
     return Object.fromEntries(names.map((n) => [n, s.getPropertyValue(`--${n}`).trim().toLowerCase()]));
   });
 }

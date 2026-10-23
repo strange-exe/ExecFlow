@@ -3,7 +3,7 @@
 // cleaned, and these sentences are fixed text).
 
 import { SyncError } from "./engine";
-import { GitHubError, type GitHubClient } from "./github";
+import { GitHubError, type GitHubClient, type GitHubOp } from "./github";
 
 export type AccessResult =
   | { ok: true; private: boolean; defaultBranch: string }
@@ -25,6 +25,9 @@ export async function checkAccess(client: GitHubClient): Promise<AccessResult> {
 
 const minutes = (ms: number) => Math.max(1, Math.ceil(ms / 60_000));
 
+/** Requests that only read from GitHub: when one is refused, nothing was ever going to be saved. */
+const READS: ReadonlySet<GitHubOp> = new Set<GitHubOp>(["getRepo", "getRef", "getCommit", "getTree", "getBlob", "compare"]);
+
 /** One plain sentence explaining why GitHub access or a sync failed. */
 export function explainError(error: unknown): string {
   if (error instanceof SyncError) return error.message;
@@ -43,7 +46,9 @@ export function explainError(error: unknown): string {
     case "ref-rejected":
       return "Someone else changed the repository at the same moment, so sync again.";
     case "validation":
-      return "GitHub refused the change as invalid, so nothing was saved there; your files here are unchanged.";
+      return READS.has(error.op)
+        ? "GitHub refused this request as invalid, so check the owner, repository and branch, then try again."
+        : "GitHub refused the change as invalid, so nothing was saved there; your files here are unchanged.";
     case "rate-limit": {
       const n = minutes(error.retryAfterMs ?? 60_000);
       return `GitHub is limiting requests from this token for now, so try again in ${n} minute${n === 1 ? "" : "s"}.`;

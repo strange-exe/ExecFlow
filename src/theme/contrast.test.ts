@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  ALPHA_OK, checkPalette, checkRules, COLOR_VARS, contrast, isTokenValue, lift, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
+  ALPHA_OK, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
 } from "./contrast";
 import { DEEP_FIELD, expandBase, POCKET_THEMES, SLATE } from "./palettes";
 import { BUILT_IN, themePalette } from "./themes";
@@ -37,6 +37,14 @@ describe("contrast math", () => {
     expect(resolve(p, "bg")).toBe(p.bg);
   });
 
+  it("resolves the snippet image's mixes over the code ground (the highlight band and the background)", () => {
+    expect(IMAGE_MIXES).toEqual({ mark: { top: "focus", pct: 12 }, mat: { top: "action", pct: 25 } });
+    expect(resolve(DEEP_FIELD.light, "mark@bg")).toBe("#e9e9db");
+    expect(resolve(DEEP_FIELD.dark, "mark@bg")).toBe("#2c3324");
+    expect(resolve(DEEP_FIELD.light, "mat@bg")).toBe("#bad0c9");
+    expect(resolve(SLATE.dark, "mat@bg")).toBe(over(SLATE.dark.bg, SLATE.dark.action, 0.25));
+  });
+
   it("paints a band alone over its own ground, and stacks right to left", () => {
     const p = DEEP_FIELD.light;
     const band = (hex: string) => [hex.slice(0, 7), parseInt(hex.slice(7), 16) / 255] as const;
@@ -65,15 +73,22 @@ describe("contrast math", () => {
 });
 
 describe("the pairs the UI draws (contract v2)", () => {
-  it("has the 185 rows of the contract, 182 of them unique, every ground a known token or mix", () => {
-    expect(PAIRS.length).toBe(185);
-    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(182);
-    const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES)];
+  it("has the 200 rows of the contract, 196 of them unique, every ground a known token or mix", () => {
+    expect(PAIRS.length).toBe(200);
+    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(196);
+    const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES)];
     for (const p of PAIRS) for (const part of p.bg.split("@")) expect(known, `${p.bg}`).toContain(part);
-    // Pinned rows: the first, the re-grounded panel-tab row and the last.
+    // Pinned rows: the first, the re-grounded panel-tab row, the last of v2 and the last.
     expect(PAIRS[0]).toMatchObject({ fg: "text", bg: "bg", min: 4.5 });
     expect(PAIRS[44]).toMatchObject({ fg: "location", bg: "surface", min: 3 });
     expect(PAIRS[184]).toMatchObject({ fg: "text-secondary", bg: "hover@error-band@runlog-bg", min: 4.5 });
+    expect(PAIRS[197]).toMatchObject({ fg: "danger", bg: "mark@bg", min: 4.5 });
+    // The window bar's other ground (snippet-render.ts windowBarGround): its name and placeholders at the text minimum.
+    expect(PAIRS.slice(198)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
+    // The snippet image's highlighted lines: every colour drawn on the band, at the text minimum.
+    expect(PAIRS.filter((p) => p.bg === "mark@bg").map((p) => p.fg).sort()).toEqual(
+      ["danger", "gutter-text", "syn-comment", "syn-function", "syn-keyword", "syn-macro", "syn-number", "syn-operator", "syn-punctuation", "syn-string", "syn-type", "syn-variable", "text"],
+    );
   });
 
   it("never uses a band token as a foreground (bands are grounds)", () => {
@@ -97,7 +112,9 @@ describe("CodeEditor Deep Field (the default)", () => {
   it.each(SCHEMES)("%s keeps every role distinct and every region step and band visible", (scheme) => {
     const { distinct, steps } = checkRules(DEEP_FIELD[scheme], { scheme, separation: "surface" });
     expect(distinct).toHaveLength(13);
-    expect(steps).toHaveLength(scheme === "light" ? 13 : 15);
+    // 13 light, 15 dark, each with the snippet image's highlight band and background (batch 3).
+    expect(steps).toHaveLength(scheme === "light" ? 15 : 17);
+    expect(steps.filter((s) => s.a === "mark@bg" || s.a === "mat@bg").map((s) => `${s.a} ${s.pass}`)).toEqual(["mark@bg true", "mat@bg true"]);
     expect([...distinct, ...steps].filter((r) => !r.pass).map((r) => `${r.a} vs ${r.b}`)).toEqual([]);
   });
 

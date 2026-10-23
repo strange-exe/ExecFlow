@@ -56,6 +56,8 @@ export type ToPython =
       cwd: string;
       /** The Input box. */
       stdin: string;
+      /** Command-line arguments: sys.argv is [entry, ...args]. */
+      args: string[];
       /**
        * true: if the program imports a supported package this worker hasn't loaded, reply
        * need-packages instead of running. false: run anyway (the import fails with a clear note).

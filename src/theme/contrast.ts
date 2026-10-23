@@ -156,7 +156,21 @@ export const UI_MIXES = {
 } as const satisfies Record<string, { top: ColorVar; pct: number }>;
 export type UiMix = keyof typeof UI_MIXES;
 
-type Part = ColorVar | UiMix;
+/**
+ * Colours only the Capture snippet image derives (src/editor/snippet-canvas.ts paints them; no CSS
+ * uses them): `mark`, the band behind a highlighted line (brass, the student's own mark), and `mat`,
+ * the background around the code card (a tint of the theme's own action hue, never a gradient).
+ * Each is `top` at `pct` percent over the ground it is drawn on.
+ */
+export const IMAGE_MIXES = {
+  mark: { top: "focus", pct: 12 },
+  mat: { top: "action", pct: 25 },
+} as const satisfies Record<string, { top: ColorVar; pct: number }>;
+export type ImageMix = keyof typeof IMAGE_MIXES;
+
+const MIXES: Readonly<Record<string, { top: ColorVar; pct: number }>> = { ...UI_MIXES, ...IMAGE_MIXES };
+
+type Part = ColorVar | UiMix | ImageMix;
 /**
  * A ground: a colour variable, or a stack painted right to left: "hover@surface" is the hover mix
  * over the surface, "error-band@selection@bg" the error band over the selection over the code.
@@ -172,8 +186,8 @@ function solid(p: Palette, name: ColorVar): string {
 
 /** One stack part painted over `base`. */
 function paint(p: Palette, name: Part, base: string): string {
-  if (name in UI_MIXES) {
-    const mix = UI_MIXES[name as UiMix];
+  if (name in MIXES) {
+    const mix = MIXES[name];
     return over(base, opaque(p[mix.top]), mix.pct / 100);
   }
   const v = p[name as ColorVar];
@@ -218,7 +232,7 @@ function ported(): Pair[] {
     add("text", `hover@${bg}`, TEXT, "hovered row or ghost button");
     add("text-muted", `hover@${bg}`, TEXT, "hovered ghost button label");
     add("link", bg, TEXT, "links (always underlined)");
-    add("focus", bg, UI, "focus ring; on bg also the editor's focus bar on the gutter edge");
+    add("focus", bg, UI, "focus ring; on bg also the editor's focus bar on the gutter edge (Deep Field dark paints --focus-bar, a step quieter: src/styles/focus-bar.test.ts)");
     add("border-strong", bg, UI, "control and input boundaries, keycaps, search and bracket outlines");
     for (const s of ["danger", "warning", "success"] as const) add(s, bg, TEXT, `${s} text and icons: notices, problems, field notes, status words`);
   }
@@ -367,20 +381,40 @@ function added(): Pair[] {
 
   // The error jump drawn on error-band over the editor head. The exception button's 1 px danger
   // boundary is covered by "danger on error-band@runlog-bg" (4.5:1, stricter than a boundary needs).
-  add("text", "error-band@surface", TEXT, "error jump label on its error-band fill in the editor head");
-  add("danger", "error-band@surface", UI, "error jump x-circle, and its danger edge or bar");
+  add("text", "error-band@surface", TEXT, "error jump label on its error-band fill in the editor head; the Arguments field's error message");
+  add("danger", "error-band@surface", UI, "error jump x-circle, and its danger edge or bar; the Arguments field's error icon and bar");
   add("focus", "error-band@surface", UI, "focus ring on the error jump");
   add("text-secondary", "hover@error-band@runlog-bg", TEXT, "hovered exception button (its location part)");
   return list;
 }
 
 /**
- * Every foreground/background pair the UI draws: 185 rows (100 ported from v1, 85 new). Three rows
- * repeat an earlier (fg, bg, min) with another `use` (danger on bg at 3:1 and text on
- * surface-raised, both from v1; text-muted on surface-raised from the suggestion list), so 182
- * checks are unique; the `use` text records another place the pair is drawn.
+ * The Capture snippet image's highlighted lines (batch 3): the band (IMAGE_MIXES.mark over the code
+ * ground) runs under the line's number, its code and its special-character placeholders. The rest
+ * of the image's pairs are rows above already: the code, numbers, name and placeholders on bg, and
+ * the window frame's name and placeholders on surface; the last two rows are the bar's other ground.
  */
-export const PAIRS: readonly Pair[] = [...ported(), ...added()];
+function image(): Pair[] {
+  const list: Pair[] = [];
+  const add = (fg: ColorVar, bg: Ref, min: number, use: string) => list.push({ fg, bg, min, use });
+  for (const t of SYNTAX_VARS) add(t, "mark@bg", TEXT, `${t} on a highlighted line in a snippet image`);
+  add("text", "mark@bg", TEXT, "untokenised text on a highlighted line in a snippet image");
+  add("gutter-text", "mark@bg", TEXT, "line number and continuation mark on a highlighted line in a snippet image");
+  add("danger", "mark@bg", TEXT, "special-character placeholder on a highlighted line in a snippet image");
+  // The window frame's bar where a theme's chrome is its code ground (snippet-render.ts windowBarGround).
+  add("text-secondary", "hover@surface", TEXT, "file name in a snippet image's window bar, on the hovered-chrome ground");
+  add("danger", "hover@surface", TEXT, "special-character placeholder in a snippet image's window bar, on the hovered-chrome ground");
+  return list;
+}
+
+/**
+ * Every foreground/background pair the UI draws: 200 rows (100 ported from v1, 85 new in v2, 13
+ * for the snippet image's highlighted lines, 2 for its window bar). Four rows repeat an earlier
+ * (fg, bg, min) with another `use` (danger on bg at 3:1 and text on surface-raised, both from v1;
+ * text-muted on surface-raised from the suggestion list; text-secondary on hover@surface for the
+ * window bar), so 196 checks are unique; the `use` text records another place the pair is drawn.
+ */
+export const PAIRS: readonly Pair[] = [...ported(), ...added(), ...image()];
 
 export interface PairResult extends Pair {
   fgHex: string;
@@ -466,6 +500,8 @@ export const STEPS: Record<"common" | Separation, readonly Step[]> = {
     { a: "error-band@surface", b: "danger", metric: "chroma", min: 0.04, hueMax: 20, schemes: ["dark"], why: "the error jump's fill reads as red" },
     { a: "error-band@runlog-bg", b: "danger", metric: "chroma", min: 0.02, hueMax: 20, schemes: ["light"], why: "a failed run's header reads as red" },
     { a: "error-band@runlog-bg", b: "danger", metric: "chroma", min: 0.04, hueMax: 20, schemes: ["dark"], why: "a failed run's header reads as red" },
+    { a: "mark@bg", b: "bg", metric: "dE", min: 0.03, why: "a highlighted line in a snippet image is a visible band" },
+    { a: "mat@bg", b: "bg", metric: "dE", min: 0.1, why: "a snippet image's background reads as a margin around the code card" },
   ],
   surface: [
     { a: "surface", b: "bg", metric: "dE", min: 0.03, why: "chrome (sidebar, editor head, panel bar, status bar) vs the code" },

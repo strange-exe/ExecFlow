@@ -129,31 +129,50 @@ test("Enter accepts only a picked suggestion: with nothing picked it makes a new
   expect(await lines(page)).toEqual(["i"]);
 });
 
-test("Escape then Tab leaves the editor with the list closed, with it open, and inside a snippet", async ({ page }) => {
+/** Escape closes what is open, and the Tab right after it indents: focus stays and the text changes. */
+async function escapeThenTabIndents(page: Page) {
+  const before = await editorText(page);
+  await page.keyboard.press("Escape");
+  await expect(list(page)).toHaveCount(0);
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".cm-content"), "Tab after the Escape that closed something leaves the editor").toBeFocused();
+  await expect.poll(() => editorText(page), "Tab after that Escape indents").not.toBe(before);
+}
+
+// The Escape that closes the list or ends a snippet doesn't arm the way out: "Escape to dismiss the
+// list, then Tab to indent" left the editor (user report, 2026-10-23). The next bare Escape does.
+test("Escape then Tab leaves the editor; the Escape that closes the list or ends a snippet doesn't, so Tab indents", async ({ page }) => {
   await openApp(page);
   await emptyPythonFile(page);
 
   // 1. Nothing open: CodeMirror's own Escape.
   await escapeTabLeaves(page);
 
-  // 2. The list open: the Escape that closes it also arms the way out.
+  // 2. The list open: its Escape closes it and Tab indents; a second Escape then Tab leaves.
   await page.locator(".cm-content").click();
   await page.keyboard.type("pr");
   await expect(option(page, "print")).toBeVisible();
+  await escapeThenTabIndents(page);
+  expect(await editorText(page)).toBe("    pr");
   await escapeTabLeaves(page);
-  expect(await editorText(page)).toBe("pr");
 
-  // 3. Right after accepting a snippet: the Escape that ends it also arms the way out.
+  // 3. Right after accepting a snippet: its Escape ends it and Tab indents. The field's text is
+  //    still selected, and CodeMirror's Escape first clears a selection (simplifySelection), so
+  //    then Escape, Escape, Tab leaves.
   await setCode(page, "");
   await page.keyboard.type("def");
   await option(page, "def").click();
   await expect(page.locator(".cm-snippetField").first()).toBeVisible();
   expect(await editorText(page)).toMatch(/^def name\(params\):/);
-  await escapeTabLeaves(page);
+  await escapeThenTabIndents(page);
   await expect(page.locator(".cm-snippetField")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await escapeTabLeaves(page);
 
-  // 4. In a snippet with the list open: Tab alone moves to the next field, and the Escape that
-  //    closes the list arms the way out (so that Tab leaves rather than moving on). The snippet stays.
+  // 4. In a snippet with the list open: Tab alone moves to the next field. The Escape that closes
+  //    the list keeps the snippet, and Tab then moves on (no text change). Escape until nothing is
+  //    open or selected, then Escape and Tab, leaves: three Escapes cover an active snippet and a
+  //    selected field, and an Escape with nothing left to close only re-arms the way out.
   await setCode(page, "");
   await page.keyboard.type("def");
   await option(page, "def").click();
@@ -165,8 +184,33 @@ test("Escape then Tab leaves the editor with the list closed, with it open, and 
   await page.keyboard.type("n");
   expect(await editorText(page)).toMatch(/^def fo\(n\):/);
   await expect(list(page)).toBeVisible();
-  await escapeTabLeaves(page);
+  await page.keyboard.press("Escape");
+  await expect(list(page)).toHaveCount(0);
   await expect(page.locator(".cm-snippetField").first()).toBeAttached();
+  const inSnippet = await editorText(page);
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".cm-content"), "Tab moves on in the snippet").toBeFocused();
+  expect(await editorText(page)).toBe(inSnippet);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await escapeTabLeaves(page);
+});
+
+// The case as reported: a C file, a line typed until the list opens, Escape, Tab.
+test("in a C file, Tab right after the Escape that closes the suggestions indents the line", async ({ page }) => {
+  await openApp(page);
+  await page.locator('.starter[data-language="c"]').click();
+  await expectActive(page, "main.c");
+  await showView(page, "code");
+  await expect(page.locator(".cm-editor")).toHaveAttribute("data-language", "c");
+  await setCode(page, "int main(void) {\n\n}");
+  await page.keyboard.press("Control+Home");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.type("pri");
+  await expect(list(page).getByRole("option").first()).toBeVisible();
+  await escapeThenTabIndents(page);
+  expect(await lines(page)).toEqual(["int main(void) {", "    pri", "}"]);
+  await escapeTabLeaves(page);
 });
 
 // Section 3 of the research doc: in Ctrl+M mode (Shift+Alt+M on macOS) Tab always leaves the

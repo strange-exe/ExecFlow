@@ -57,7 +57,8 @@ export const CHROME_SPEC = {
   "&.cm-focused": { outline: "none" },
   "&.cm-focused .cm-gutters::after": {
     content: "''", position: "absolute", top: "0", bottom: "0", right: "0", width: "2px",
-    backgroundColor: "var(--focus)", outline: "1px solid transparent", outlineOffset: "-1px", zIndex: "1", pointerEvents: "none",
+    // --focus-bar is --focus, one step quieter in Deep Field dark (tokens.css, plan-v2 P2).
+    backgroundColor: "var(--focus-bar)", outline: "1px solid transparent", outlineOffset: "-1px", zIndex: "1", pointerEvents: "none",
   },
   // 15 px code at 1.5: a 22.5 px line pitch (Deep Field type scale).
   ".cm-scroller": { fontFamily: "var(--font-code)", fontSize: "var(--code-size)", lineHeight: "1.5" },

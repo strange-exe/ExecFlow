@@ -11,6 +11,8 @@ export interface EmptyActions {
   importFiles(): void;
   importFolder(): void;
   connect(): void;
+  /** "New from example...": the examples dialog (focus comes back to `opener`). */
+  examples(opener: HTMLElement): void;
 }
 
 export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLElement {
@@ -29,6 +31,9 @@ export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLEl
   const importFiles = h("button", { type: "button", class: "btn" }, icon("upload-simple"), "Import files");
   const importFolder = h("button", { type: "button", class: "btn" }, icon("folder-plus"), "Import a folder");
   const connect = h("button", { type: "button", class: "btn ghost" }, icon("github-logo"), "Connect GitHub");
+  // The starters lead; the examples are the same step's quieter second way (a tertiary text button).
+  const examples = h("button", { type: "button", class: "text-btn", id: "empty-examples" }, "New from example...");
+  examples.addEventListener("click", () => actions.examples(examples));
   importFiles.disabled = readOnly;
   importFolder.disabled = readOnly;
   importFiles.addEventListener("click", actions.importFiles);
@@ -40,6 +45,7 @@ export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLEl
     h("h2", { class: "empty-title", id: "empty-title" }, "Create your first file"),
     h("p", { class: "empty-lede" }, "Start with a short program in Python, C or C++. It is saved on this computer as you type."),
     h("div", { class: "starters", role: "group", "aria-labelledby": "empty-title" }, ...choices),
+    h("p", { class: "empty-examples" }, examples),
     h(
       "div",
       { class: "empty-more" },

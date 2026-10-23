@@ -467,7 +467,8 @@ export class CppRunner {
       };
       const msg: ToProgram = {
         type: "run", wasm, stdin: req.stdin, outputCap: req.limits.outputCap * 4, input, tail,
-        args: [splitExtension(nameOf(plan.entry)).stem], files: folderFiles,
+        // argv[0] is the program's name (main.c runs as "main"), then the Arguments field's words.
+        args: [splitExtension(nameOf(plan.entry)).stem, ...(req.args ?? [])], files: folderFiles,
       };
       // The program is copied, not transferred, so it can be handed to a replacement worker
       // if the first one fails to start (see START_ATTEMPTS).

@@ -172,7 +172,7 @@ interface Runtime {
   available: string[];
   /** Top-level import name -> package, for `available`. */
   index: Map<string, string>;
-  run: (entry: string, cwd: string, unavailableJson: string) => string;
+  run: (entry: string, cwd: string, unavailableJson: string, argsJson: string) => string;
   check: (path: string, text: string) => string;
   imports: (entry: string) => string;
 }
@@ -328,7 +328,7 @@ function run(rt: Runtime, data: Extract<ToPython, { type: "run" }>) {
   fsAdded = 0;
   fsLimited = true;
   try {
-    result = JSON.parse(rt.run(data.entry, data.cwd, JSON.stringify(data.unavailable)));
+    result = JSON.parse(rt.run(data.entry, data.cwd, JSON.stringify(data.unavailable), JSON.stringify(Array.isArray(data.args) ? data.args : [])));
   } catch (e) {
     // Only an interrupt or out-of-memory landing in the helper's own steps can get here.
     const type = (e as { type?: string }).type;

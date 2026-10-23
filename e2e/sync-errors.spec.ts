@@ -263,6 +263,9 @@ test.describe("GitHub's answer to the repository read", () => {
     // The same answer twice in a row is heard twice.
     await attempt(page, connect);
     await expectResult(page, answers.at(-1)!.message, "error", connect);
+    // A 422 to this read is worded as a read: nothing was being saved (plan-v2 P5).
+    await expect(page.locator("#connect-result")).toContainText("check the owner, repository and branch");
+    await expect(page.locator("#connect-result")).not.toContainText("saved");
     // An edit empties the live region (the result line still shows what the last attempt found).
     await page.locator("#connect-branch").fill("dev");
     await expect(page.locator("#connect-announce")).toHaveText("");

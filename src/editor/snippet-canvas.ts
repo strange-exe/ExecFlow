@@ -1,14 +1,15 @@
-// Capture snippet's canvas work (final-v3 sections 4.1 to 4.5, 7.4 and 7.6): the rows of a
-// selection, prepared once per opening (the live parse, styles, placeholders, wrapping), and the
-// image drawn from them for one set of options. The canvas is the export bitmap and also the
-// preview (no <img>: the CSP's img-src never matches blob:). Every bitmap that won't be shown is
-// freed (width and height 0). Lazy (the dialog's chunk).
+// Capture snippet's canvas work (final-v3 sections 4.1 to 4.5, 7.4 and 7.6; round 2,
+// .claude/design/batch3/s.md): the rows of a selection, prepared once per opening (the live parse,
+// styles, placeholders, wrapping), and the image drawn from them for one set of options. The canvas
+// is the export bitmap and also the preview (no <img>: the CSP's img-src never matches blob:). Every
+// bitmap that won't be shown is freed (width and height 0). Lazy (the dialog's chunk).
 import { findClusterBreak, type EditorState } from "@codemirror/state";
-import { fitCut, ELLIPSIS, type ImageOptions, type LineSpan } from "../core/snippet";
-import type { ImageColors } from "../core/snippet-dialog";
+import { fitCut, ELLIPSIS, type LineSpan } from "../core/snippet";
+import { PADDING, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
+import { IMAGE_MIXES, over } from "../theme/contrast";
 import type { Drawn, RenderOutcome, RenderSignal } from "../ui/snippet-flow";
 import {
-  chooseScale, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimRuns, wrapRows,
+  cardRect, chooseScale, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimRuns, windowBarGround, wrapRows,
   type ImageLayout, type Metrics, type Row,
 } from "./snippet-render";
 
@@ -66,8 +67,46 @@ export interface CodeFont {
 export interface DrawnImage extends Drawn {
   readonly canvas: HTMLCanvasElement;
   readonly layout: ImageLayout;
+  /** The scale drawn at: the chosen one, or the step it had to take to fit. */
   readonly scale: number;
   readonly metrics: Metrics;
+  /** The readback's row (bitmap px) and the ground drawn there. */
+  readonly readback: { readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly ground: string };
+}
+
+/** The layout options of a set of image options. */
+export const layoutOf = (o: Pick<ImageOptions, "numbers" | "name" | "frame" | "background" | "padding">) =>
+  ({ numbers: o.numbers, name: o.name, frame: o.frame, pad: o.background ? PADDING[o.padding] : 0 }) as const;
+
+/** A rectangle with its own radius per corner (top-left, top-right, bottom-right, bottom-left), as a path. */
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: readonly [number, number, number, number]): void {
+  const [tl, tr, br, bl] = r.map((v) => Math.max(0, Math.min(v, w / 2, h / 2)));
+  ctx.beginPath();
+  ctx.moveTo(x + tl, y);
+  ctx.lineTo(x + w - tr, y);
+  ctx.arcTo(x + w, y, x + w, y + tr, tr);
+  ctx.lineTo(x + w, y + h - br);
+  ctx.arcTo(x + w, y + h, x + w - br, y + h, br);
+  ctx.lineTo(x + bl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - bl, bl);
+  ctx.lineTo(x, y + tl);
+  ctx.arcTo(x, y, x + tl, y, tl);
+  ctx.closePath();
+}
+
+/** Runs of consecutive highlighted rows as [first row, row after the last]; a continuation row belongs to its line. */
+function bands(rows: readonly Row[], highlight: readonly number[]): [number, number][] {
+  const lit = new Set(highlight);
+  const out: [number, number][] = [];
+  let line = 0;
+  rows.forEach((row, i) => {
+    if (row.number !== null) line = row.number;
+    if (!lit.has(line)) return;
+    const last = out.at(-1);
+    if (last && last[1] === i) last[1] = i + 1;
+    else out.push([i, i + 1]);
+  });
+  return out;
 }
 
 const fontOf = (font: CodeFont, size: number, italic: boolean) => `${italic ? "italic " : ""}400 ${size}px ${font.family}`;
@@ -192,8 +231,8 @@ export async function drawImage(
     let widest = 0;
     for (const row of prepared.rows) widest = Math.max(widest, walkRow(m, row, font, space));
     const metrics: Metrics = { ch, lineH, widest };
-    const layout = layoutImage(prepared.rows, metrics, options);
-    const fit = chooseScale(layout.width, layout.height);
+    const layout = layoutImage(prepared.rows, metrics, layoutOf(options));
+    const fit = chooseScale(layout.width, layout.height, options.scale);
     if (!fit) return { ok: false, reason: "too-big" };
     const { scale: s } = fit;
     const t = edgeThickness(s);
@@ -204,20 +243,44 @@ export async function drawImage(
     const ctx = canvas.getContext("2d");
     if (!ctx) return { ok: false, reason: "device" };
     const { E, P } = SIZES;
-    // At the identity transform, in bitmap pixels: the ground, the edge (t thick), the rule.
-    ctx.fillStyle = colors.bg;
-    ctx.fillRect(0, 0, fit.width, fit.height);
-    ctx.fillStyle = colors.divider;
-    ctx.fillRect(0, 0, fit.width, t);
-    ctx.fillRect(0, fit.height - t, fit.width, t);
-    ctx.fillRect(0, 0, t, fit.height);
-    ctx.fillRect(fit.width - t, 0, t, fit.height);
-    if (options.name) {
-      const x0 = Math.round((E + P) * s);
-      ctx.fillStyle = colors.border;
-      ctx.fillRect(x0, Math.round(layout.ruleY * s), Math.round((layout.width - E - P) * s) - x0, t);
+    const card = cardRect(layout, fit, s);
+    const windowed = options.frame === "window";
+    // At the identity transform, in bitmap pixels, so straight edges stay crisp: the background
+    // (none: transparent), the card's edge (t thick) and its ground with rounded corners, the
+    // window's bar or the plain rule, the highlight bands.
+    if (options.background) {
+      ctx.fillStyle = over(colors.bg, colors.action, IMAGE_MIXES.mat.pct / 100);
+      ctx.fillRect(0, 0, fit.width, fit.height);
     }
-    ctx.scale(s, s);
+    ctx.fillStyle = colors.divider;
+    roundedRect(ctx, card.x, card.y, card.w, card.h, [card.r, card.r, card.r, card.r]);
+    ctx.fill();
+    const inner = Math.max(0, card.r - t);
+    ctx.fillStyle = colors.bg;
+    roundedRect(ctx, card.x + t, card.y + t, card.w - 2 * t, card.h - 2 * t, [inner, inner, inner, inner]);
+    ctx.fill();
+    const bar = windowed ? windowBarGround(colors) : colors.bg;
+    if (windowed) {
+      const barEnd = card.y + Math.round(layout.barBottom * s);
+      ctx.fillStyle = bar;
+      roundedRect(ctx, card.x + t, card.y + t, card.w - 2 * t, barEnd - card.y - t, [inner, inner, 0, 0]);
+      ctx.fill();
+      ctx.fillStyle = colors.divider;
+      ctx.fillRect(card.x + t, barEnd, card.w - 2 * t, t);
+    } else if (options.name) {
+      const x0 = card.x + Math.round((E + P) * s);
+      ctx.fillStyle = colors.border;
+      ctx.fillRect(x0, card.y + Math.round(layout.ruleY * s), card.x + Math.round((layout.cardWidth - E - P) * s) - x0, t);
+    }
+    if (options.highlight.length) {
+      ctx.fillStyle = over(colors.bg, colors.focus, IMAGE_MIXES.mark.pct / 100);
+      for (const [from, to] of bands(prepared.rows, options.highlight)) {
+        const top = card.y + Math.round((layout.codeTop + from * lineH) * s);
+        ctx.fillRect(card.x + t, top, card.w - 2 * t, card.y + Math.round((layout.codeTop + to * lineH) * s) - top);
+      }
+    }
+    const readback = { ...readbackRect(card, t), ground: bar };
+    ctx.setTransform(s, 0, 0, s, card.x, card.y);
     ctx.direction = "ltr";
     ctx.textBaseline = "alphabetic";
 
@@ -226,7 +289,7 @@ export async function drawImage(
       const units = nameUnits(name);
       const widths = new Map<string, number>();
       const widthOf = (text: string) => widths.get(text) ?? widths.set(text, ctx.measureText(text).width).get(text)!;
-      const cut = fitCut(units.map((u) => u.text), widthOf, layout.width - 2 * (E + P));
+      const cut = fitCut(units.map((u) => u.text), widthOf, layout.cardWidth - 2 * (E + P));
       const shownUnits = cut ? [...units.slice(0, cut.start), { text: ELLIPSIS, special: false }, ...units.slice(units.length - cut.end)] : units;
       const y = baselineIn(layout.nameTop, lineH, vertical(ctx, font.size - 1));
       let x = E + P;
@@ -274,7 +337,7 @@ export async function drawImage(
       });
     }
     kept = true;
-    return { ok: true, value: { canvas, colors, t, layout, scale: s, metrics } };
+    return { ok: true, value: { canvas, colors, t, layout, scale: s, metrics, readback } };
   } catch {
     return { ok: false, reason: "failed" };
   } finally {
@@ -283,13 +346,13 @@ export async function drawImage(
   }
 }
 
-/** The export's readback (7.5): one row of the top padding, checked against the colours it was drawn with. False when reading throws. */
-export function readbackOk(canvas: HTMLCanvasElement, colors: ImageColors, t: number): boolean {
+/** The export's readback (7.5): one row of the card's left edge and its ground, checked against the colours it was drawn with. False when reading throws. */
+export function readbackOk(r: Pick<DrawnImage, "canvas" | "colors" | "t" | "readback">): boolean {
   try {
-    const ctx = canvas.getContext("2d");
+    const ctx = r.canvas.getContext("2d");
     if (!ctx) return false;
-    const r = readbackRect(t);
-    return pixelsOk(ctx.getImageData(r.x, r.y, r.w, r.h).data, colors.divider, colors.bg, t);
+    const at = r.readback;
+    return pixelsOk(ctx.getImageData(at.x, at.y, at.w, at.h).data, r.colors.divider, at.ground, r.t);
   } catch {
     return false;
   }

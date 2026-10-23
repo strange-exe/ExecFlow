@@ -1,29 +1,78 @@
-// The keyboard shortcuts dialog (? or Ctrl+/ outside the editor). It also explains how to leave
-// the editor, since Tab there indents (CodeMirror's escape hatch: Esc then Tab, or Ctrl+M).
+// The keyboard shortcuts dialog (? or Ctrl+/ outside the code and text fields: workbench.ts). It
+// also explains how to leave the editor, since Tab there indents (CodeMirror's escape hatch: Esc
+// then Tab, or Ctrl+M). The keys are spelled once, in shortcutKeys(), which the command palette
+// shows too, so the two lists can't drift apart.
 import { h, isMac } from "./dom";
 import { dialogShell, openModal } from "./dialogs";
 
 /** "Snippet" also names completion templates here, so the row says what Capture snippet makes. */
 const CODE_MENU = "Menu for the selected code: Capture snippet (an image of the lines), Cut, Copy, Select all";
 
-export function shortcutGroups(mac = isMac()): { title: string; rows: [string, string][] }[] {
+/**
+ * Every key the app documents, for this platform. The editor's keys are CodeMirror's own bindings
+ * (shortcuts.test.ts reads the installed keymaps and fails when a labelled command has no row or
+ * other keys): commands 6.11.1, search 6.7.2, language 6.13.1, lint 6.9.7.
+ */
+export function shortcutKeys(mac = isMac()) {
   const mod = mac ? "Cmd" : "Ctrl";
+  return {
+    search: `${mod} P`,
+    commands: `F1 or ${mod} Shift P`,
+    run: `${mod} Enter`,
+    stop: `${mod} .`,
+    save: `${mod} S`,
+    close: "Alt W",
+    fileList: `${mod} Shift E`,
+    rename: "F2",
+    tabFocus: mac ? "Shift Alt M" : "Ctrl M",
+    find: `${mod} F`,
+    findNext: `F3 or ${mod} G`,
+    gotoLine: `${mod} Alt G`,
+    selectNext: `${mod} D`,
+    selectAllMatches: `${mod} Shift L`,
+    addCursor: `${mod} Alt Up or ${mod} Alt Down`,
+    clickCursor: `${mod} Click`,
+    moveLine: "Alt Up or Alt Down",
+    comment: `${mod} /`,
+    fold: mac ? "Cmd Alt [ or Cmd Alt ]" : "Ctrl Shift [ or Ctrl Shift ]",
+    foldAll: "Ctrl Alt [ or Ctrl Alt ]",
+    nextProblem: "F8",
+    undo: `${mod} Z`,
+    redo: mac ? "Cmd Shift Z" : "Ctrl Y",
+    cut: `${mod} X`,
+    copy: `${mod} C`,
+    selectAll: `${mod} A`,
+    output: `${mod} \``,
+    shortcuts: `? or ${mod} /`,
+  };
+}
+
+export function shortcutGroups(mac = isMac()): { title: string; rows: [string, string][] }[] {
+  const k = shortcutKeys(mac);
   return [
+    {
+      title: "Search",
+      rows: [
+        [k.search, "Search the files and commands"],
+        // Firefox keeps Ctrl+Shift+P for a private window: F1 first (code.visualstudio.com/docs/setup/vscode-web).
+        [k.commands, "Search the commands only"],
+      ],
+    },
     {
       title: "Run",
       rows: [
-        [`${mod} Enter`, "Run the open file"],
-        [`${mod} .`, "Stop the program"],
+        [k.run, "Run the open file"],
+        [k.stop, "Stop the program"],
         ["Ctrl D", "End of input, while the program waits for input"],
       ],
     },
     {
       title: "Files",
       rows: [
-        [`${mod} S`, "Save now (and sync, once GitHub is connected)"],
-        ["Alt W", "Close the open file"],
-        [`${mod} Shift E`, "Go to the file list"],
-        ["F2", "Rename the chosen file or folder (in the list)"],
+        [k.save, "Save now (and sync, once GitHub is connected)"],
+        [k.close, "Close the open file"],
+        [k.fileList, "Go to the file list"],
+        [k.rename, "Rename the chosen file or folder (in the list)"],
         ["Delete", "Delete it (asks first); on a tab, close the file"],
         ["Shift F10", "More actions for the chosen file (in the list)"],
       ],
@@ -31,15 +80,27 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
     {
       title: "Editor",
       rows: [
-        ["Esc then Tab", "Leave the editor (Tab alone indents)"],
+        ["Esc then Tab", "Leave the editor (Tab alone indents; Esc again if it closed something)"],
         // The code menu (code-menu.ts). macOS has no browser keyboard menu, so no "again" row there.
         ...(mac
           ? [["Shift F10", CODE_MENU] as [string, string]]
           : [["Shift F10 or Menu", CODE_MENU] as [string, string], ["Shift F10 then Shift F10", "The browser's own menu for the selected code"] as [string, string]]),
-        [mac ? "Shift Alt M" : "Ctrl M", "Turn Tab-moves-focus on or off"],
-        [`${mod} F`, "Find in the file"],
-        [`${mod} /`, "Comment or uncomment the line"],
-        [`${mod} Z`, "Undo"],
+        [k.tabFocus, "Turn Tab-moves-focus on or off"],
+        // CodeMirror's search panel holds the replace field too: it has no key of its own.
+        [k.find, "Find or replace in the file"],
+        [k.findNext, "Next match (with Shift, the previous one)"],
+        [k.gotoLine, "Go to a line"],
+        [k.selectNext, "Select the next match of the selection too"],
+        [k.selectAllMatches, "Select every match of the selection"],
+        [k.addCursor, "Add a cursor on the line above or below"],
+        [k.clickCursor, "Add a cursor where you click"],
+        [k.moveLine, "Move the line up or down"],
+        [k.comment, "Comment or uncomment the line"],
+        [k.fold, "Fold or unfold the block at the cursor"],
+        [k.foldAll, "Fold or unfold every block"],
+        [k.nextProblem, "Go to the next problem in the file"],
+        [k.undo, "Undo"],
+        [k.redo, "Redo"],
       ],
     },
     {
@@ -60,12 +121,15 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
     {
       title: "Panels",
       rows: [
-        [`${mod} \``, "Go to the output (or the input field, while a program waits)"],
-        ["?", "Show these shortcuts"],
+        [k.output, "Go to the output (or the input field, while a program waits)"],
+        [k.shortcuts, "Show these shortcuts (outside the code and text fields)"],
       ],
     },
   ];
 }
+
+/** The palette's keys live in palette-keys.ts (the window's key handler needs them on a first visit). */
+export { paletteKey } from "./palette-keys";
 
 /**
  * "Ctrl Shift E" as three keycaps; " then " and " or " stay words between keycaps. The split keeps

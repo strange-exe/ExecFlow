@@ -10,7 +10,17 @@ describe("settings", () => {
   it("defaults are 15 px code, 15 s, 512 Ki characters, gnu11, c++17, -O2 and -Wall", () => {
     expect(DEFAULT_SETTINGS.codeSize).toBe(15);
     expect(runLimits(DEFAULT_SETTINGS)).toEqual({ timeoutMs: 15_000, outputCap: 512 * 1024 });
-    expect(buildOptions(DEFAULT_SETTINGS)).toEqual({ cStd: "gnu11", cxxStd: "c++17", opt: "2", warnings: ["-Wall"], defines: [] });
+    expect(buildOptions(DEFAULT_SETTINGS)).toEqual({ cStd: "gnu11", cxxStd: "c++17", opt: "2", warnings: ["-Wall"] });
+  });
+
+  it("reads settings stored with an old defines key (plan-v2 P4): it is dropped, the rest kept, no -D built", () => {
+    const old = { codeSize: 17, cStd: "c99", wextra: true, defines: ["DEBUG=1"], buildDefines: "N=3" };
+    const storage = memoryStorage({ [SETTINGS_KEY]: JSON.stringify(old) });
+    const s = createSettingsStore(storage).get();
+    expect(s).toEqual({ ...DEFAULT_SETTINGS, codeSize: 17, cStd: "c99", wextra: true });
+    expect(s).not.toHaveProperty("defines");
+    expect(buildOptions(s)).toEqual({ cStd: "c99", cxxStd: "c++17", opt: "2", warnings: ["-Wall", "-Wextra"] });
+    expect(buildOptions(s)).not.toHaveProperty("defines");
   });
 
   it("clamps numbers and drops values it doesn't know", () => {

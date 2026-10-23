@@ -84,7 +84,6 @@ export function buildOptions(s: Settings): BuildOptions {
     cxxStd: s.cxxStd,
     opt: s.opt,
     warnings: [...(s.wall ? ["-Wall"] : []), ...(s.wextra ? ["-Wextra"] : [])],
-    defines: [],
   };
 }
 

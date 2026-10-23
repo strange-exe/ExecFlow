@@ -21,6 +21,11 @@ export interface UiState {
   openTabs: WsPath[];
   activePath: WsPath | null;
   expanded: WsPath[];
+  /**
+   * The Arguments field's text per file, as typed (runner/run-args.ts). Written only by
+   * setRunArgs; follows renames and goes with deletes. Absent in records from before it existed.
+   */
+  args?: Record<WsPath, string>;
 }
 
 export interface WorkspaceRecord {

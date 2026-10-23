@@ -362,6 +362,7 @@ export class PythonRunner {
         entry: req.entry,
         cwd: parentOf(req.entry), // like `cd folder && python main.py`: open("data.txt") finds files next to it
         stdin: req.stdin,
+        args: req.args ?? [],
         packageCheck,
         unavailable: [...this.unavailable.keys()],
       };

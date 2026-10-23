@@ -13,12 +13,32 @@ WebAssembly workers.
 - Programs read typed input while they run (`input()`, `scanf`, `std::cin`), and Stop works at any
   point. Compiler and Python errors are marked on the line they belong to, in every file of the
   program, and listed under Problems.
+- Command-line arguments: the Input box (the Output panel's Input button) has an Arguments field
+  beside the Input text, kept for each file (it follows a rename and goes with a delete). Words
+  split at spaces; `"two words"` or `'two words'` in quotes stay one argument and `""` is an empty
+  one. Nothing else is special: no backslash escapes, and `$HOME`, `*`, `;`, `|` and `>` are passed
+  as text, since no shell runs. In Python `sys.argv[1:]` holds them (`sys.argv[0]` is the script's
+  path, `/workspace/main.py`); in C and C++ `argv[0]` is the file's name without its extension
+  (`main` for main.c) and the arguments follow. At most 100 arguments and 4,096 characters; an
+  unclosed quote is shown at the field, and Run explains it instead of running.
 - Works offline after the first visit (a service worker keeps the app and the Python runtime).
 - Suggestions as you type: keywords and snippets, the standard library's names, and your own names
   (see [Suggestions](#suggestions)).
 - Capture snippet: right-click selected code (or press Shift+F10) to make an image of those lines,
   with a preview: copy it or download a PNG. Shift+right-click gives the browser's own menu. The
-  same command is in More file actions and, on wider screens, at the end of the editor head.
+  same command is in More file actions and, on wider screens, at the end of the editor head. The
+  preview shows exactly what is exported. Options: colours (the editor's, light or dark), line
+  numbers, the file name, a background in the theme's colours with small, medium or large padding
+  (or none: the code card alone, with transparent corners), a plain or window frame (a title bar
+  with the file name), the scale (1x, 2x or 3x; the exact pixel size is shown, and a scale too big
+  for one image steps down and says so), and lines to highlight ("3-5, 8": a band behind those
+  lines; nothing else is dimmed). The options are remembered on this device; the highlighted lines
+  are not. Nothing is sent anywhere: the image is made in the browser and works offline.
+- Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
+  name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
+  a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).
+- New from example... (in More file actions, the search, and the empty workspace): nine short
+  programs, three each for Python, C and C++, added to your files under a free name and opened.
 
 ## Running it
 
@@ -84,6 +104,21 @@ the editor itself, so they are offered even if the rest can't load yet.
 - Esc closes the list, or ends a snippet. Inside a snippet, Tab and Shift+Tab move between its
   fields, except while Tab moves focus (Ctrl+M, or Shift+Alt+M on macOS): then Tab leaves the editor.
 
+## Keyboard
+
+The Shortcuts list has every key: Shortcuts in the status bar, or `?` or Ctrl+/ (Cmd+/ on macOS)
+anywhere outside the code and text fields (inside the code, Ctrl+/ comments the line). The ones to
+know first, with Cmd for Ctrl on macOS:
+
+- Ctrl+Enter runs the open file, Ctrl+. stops it, Ctrl+S saves now (and syncs once connected).
+- Ctrl+P searches the files and commands; F1 or Ctrl+Shift+P the commands only.
+- Tab indents in the code, also right after Esc closes the suggestions. To move on, press Esc and
+  then Tab (Esc first closes suggestions, ends a snippet or clears a selection, so press it again),
+  or Ctrl+M (Shift+Alt+M on macOS) so that Tab moves the focus.
+- In the code: Ctrl+F finds and replaces, Ctrl+Alt+G goes to a line, Ctrl+D selects the next match
+  of the selection too, Ctrl+Alt+Up or Down adds a cursor (so does Ctrl+click), Ctrl+Shift+[ and ]
+  fold and unfold a block (Cmd+Alt+[ and ] on macOS), F8 goes to the next problem.
+
 ## Keeping the files on GitHub
 
 Connect from the sync status in the top bar ("Not connected"), the empty workspace, or Settings.
@@ -135,7 +170,7 @@ own `postMessage` removed before any program starts (a program can't send the pa
   30 seconds to link.
 - C and C++ use clang 8: C up to C17, C++ up to C++17 (C++20 partly, as `c++2a`).
 - C and C++ need a one-time 19.6 MB download, offered in the Output panel the first time.
-- Not supported: matplotlib plots, command-line arguments, programs that open network connections.
+- Not supported: matplotlib plots, programs that open network connections.
 - Binary files, files with mixed line endings and other files that aren't plain UTF-8 text are kept
   read-only when they come from GitHub, and refused when imported.
 - The browser may clear its storage when the disk is full (Safari: after 7 days without a visit).
@@ -171,20 +206,22 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto
-CodeEditor's colours and adjusted where a colour pair would be hard to read:
+CodeEditor's colours and adjusted where a colour pair would be hard to read. The table lists all 21
+palette themes; High contrast, like CodeEditor Deep Field and CodeEditor Slate, is CodeEditor's own:
 
 | Theme | Source | Licence |
 |---|---|---|
-| Tokyo Night | [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim) | Apache-2.0 |
-| Catppuccin | [catppuccin/palette](https://github.com/catppuccin/palette) | MIT |
+| Tokyo Night, Tokyo Night Day | [folke/tokyonight.nvim](https://github.com/folke/tokyonight.nvim) | Apache-2.0 |
+| Catppuccin Mocha, Catppuccin Latte | [catppuccin/palette](https://github.com/catppuccin/palette) | MIT |
 | Dracula | [draculatheme.com/spec](https://draculatheme.com/spec) | MIT |
-| GitHub-style | [primer/github-vscode-theme](https://github.com/primer/github-vscode-theme) | MIT |
+| GitHub-style Dark, GitHub-style Light | [primer/github-vscode-theme](https://github.com/primer/github-vscode-theme) | MIT |
 | One Dark Pro | [Binaryify/OneDark-Pro](https://github.com/Binaryify/OneDark-Pro) | MIT |
-| Rose Pine | [rose-pine/rose-pine-palette](https://github.com/rose-pine/rose-pine-palette) | MIT |
+| Rose Pine, Rose Pine Dawn | [rose-pine/rose-pine-palette](https://github.com/rose-pine/rose-pine-palette) | MIT |
 | Nord | [nordtheme/nord](https://github.com/nordtheme/nord) | MIT |
-| Gruvbox | [morhetz/gruvbox](https://github.com/morhetz/gruvbox) | MIT |
+| Gruvbox Dark, Gruvbox Light | [morhetz/gruvbox](https://github.com/morhetz/gruvbox) | MIT |
 | Kanagawa | [rebelot/kanagawa.nvim](https://github.com/rebelot/kanagawa.nvim) | MIT |
-| Everforest | [sainnhe/everforest](https://github.com/sainnhe/everforest) | MIT |
-| Ayu | [ayu-theme/vscode-ayu](https://github.com/ayu-theme/vscode-ayu) | MIT |
+| Everforest Dark | [sainnhe/everforest](https://github.com/sainnhe/everforest) | MIT |
+| Ayu Dark, Ayu Mirage | [ayu-theme/vscode-ayu](https://github.com/ayu-theme/vscode-ayu) | MIT |
 | Night Owl | [sdras/night-owl-vscode-theme](https://github.com/sdras/night-owl-vscode-theme) | MIT |
-| Solarized | [altercation/vim-colors-solarized](https://github.com/altercation/vim-colors-solarized) | MIT |
+| Solarized Dark, Solarized Light | [altercation/vim-colors-solarized](https://github.com/altercation/vim-colors-solarized) | MIT |
+| High contrast | CodeEditor (this repository) | MIT (`LICENSE`) |

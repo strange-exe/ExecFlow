@@ -140,6 +140,18 @@ export function audit(page: Page): Promise<Audit> {
       if (el.closest(".visually-hidden, [hidden]")) return false;
       return !clippedAway(el);
     };
+    // A control a scrolling ancestor has scrolled wholly out of its box can't be pointed at there.
+    // Targets only: text pairs keep counting what is laid out (visible()).
+    const inView = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      for (let e = el.parentElement; e; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+        const pr = e.getBoundingClientRect();
+        if (r.bottom <= pr.top || r.top >= pr.bottom || r.right <= pr.left || r.left >= pr.right) return false;
+      }
+      return true;
+    };
     const opacityOf = (el: Element) => {
       let op = 1;
       for (let e: Element | null = el; e; e = e.parentElement) op *= parseFloat(getComputedStyle(e).opacity) || 1;
@@ -225,7 +237,7 @@ export function audit(page: Page): Promise<Audit> {
 
     // Pointer targets (2.5.8): every control drawn, with the spacing exception worked out.
     const targetSel = "a[href], button, input:not([type=hidden]), select, textarea, summary, [role=tab], [role=menuitem], [role=option], [role=treeitem] > .tree-row, [role=separator], [tabindex]:not([tabindex='-1'])";
-    const controls = [...scope.querySelectorAll<HTMLElement>(targetSel)].filter((el) => !el.closest(".cm-content, .cm-scroller") && visible(el) && !(el.getAttribute("role") === "treeitem"));
+    const controls = [...scope.querySelectorAll<HTMLElement>(targetSel)].filter((el) => !el.closest(".cm-content, .cm-scroller") && visible(el) && inView(el) && !(el.getAttribute("role") === "treeitem"));
     const rects = controls.map((el) => {
       let r = el.getBoundingClientRect();
       // A splitter's grab area is its ::after (inset 0 -5px or -5px 0).

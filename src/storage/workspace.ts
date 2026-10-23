@@ -113,7 +113,10 @@ export interface WorkspaceStore {
   loadExport(ws: string): Promise<ExportData>;
   workspaceStats(ws: string): Promise<WorkspaceStats>;
   getUiState(ws: string): Promise<UiState>;
+  /** Open tabs, the active file and expanded folders; the stored arguments (`ui.args`) are kept as they are. */
   setUiState(ws: string, ui: UiState): Promise<void>;
+  /** One file's Arguments text ("" removes it). Doesn't bump rev, like setUiState. */
+  setRunArgs(ws: string, path: WsPath, text: string): Promise<void>;
   /**
    * Connects the workspace to a repository, or disconnects it (null). Choosing a different
    * repository or branch, or disconnecting, forgets the base table and the sync position
@@ -126,6 +129,8 @@ export interface WorkspaceStore {
 }
 
 const MAX_UI_PATHS = 500;
+/** A stored Arguments text is at most this long (the field itself stops runs at 4,096). */
+const MAX_UI_ARGS_CHARS = 16 * 1024;
 const MAX_NAME_LENGTH = 100;
 
 export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}): WorkspaceStore {
@@ -176,7 +181,28 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
 
   function mapUi(ui: UiState, map: (path: WsPath) => WsPath | null): UiState {
     const list = (paths: WsPath[]) => [...new Set(paths.map(map).filter((p): p is WsPath => p !== null))];
-    return { openTabs: list(ui.openTabs), activePath: ui.activePath === null ? null : map(ui.activePath), expanded: list(ui.expanded) };
+    const next: UiState = { openTabs: list(ui.openTabs), activePath: ui.activePath === null ? null : map(ui.activePath), expanded: list(ui.expanded) };
+    // A file's arguments follow it when it (or its folder) is renamed, and go when it is deleted.
+    if (ui.args) {
+      const args: Record<WsPath, string> = {};
+      for (const [path, text] of Object.entries(ui.args)) {
+        const to = map(path);
+        if (to !== null) args[to] = text;
+      }
+      next.args = args;
+    }
+    return next;
+  }
+
+  /** The stored arguments, keeping only clean paths with text (records are read as untrusted). */
+  function cleanArgs(args: unknown): Record<WsPath, string> {
+    const out: Record<WsPath, string> = {};
+    if (typeof args !== "object" || args === null) return out;
+    for (const [key, text] of Object.entries(args)) {
+      const path = tryNormalizePath(key);
+      if (path !== null && typeof text === "string" && text && text.length <= MAX_UI_ARGS_CHARS) out[path] = text;
+    }
+    return out;
   }
 
   const store: WorkspaceStore = {
@@ -622,7 +648,11 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
     async getUiState(ws) {
       const rec = await db.get("workspaces", ws);
       if (!rec) throw missingWorkspace(ws);
-      return rec.ui;
+      if (!rec.ui.args) return rec.ui;
+      // Only files that exist: a sync that removed a file doesn't go through mapUi.
+      const files = new Set((await db.getAllKeys("entries", wsRange(ws))).map((k) => k[1]));
+      const args = Object.fromEntries(Object.entries(cleanArgs(rec.ui.args)).filter(([path]) => files.has(path)));
+      return { ...rec.ui, args };
     },
 
     async setUiState(ws, ui) {
@@ -640,7 +670,29 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
       const rev = await inTransaction(db, ["workspaces"], "readwrite", async (tx) => {
         const rec = await tx.objectStore("workspaces").get(ws);
         if (!rec) throw missingWorkspace(ws);
-        await tx.objectStore("workspaces").put({ ...rec, ui: next });
+        // The arguments have their own writer (setRunArgs): what is stored stays.
+        await tx.objectStore("workspaces").put({ ...rec, ui: rec.ui.args ? { ...next, args: rec.ui.args } : next });
+        return rec.rev;
+      });
+      emitChange(db, { ws, rev, paths: [], reason: "ui" });
+    },
+
+    async setRunArgs(ws, path, text) {
+      guard();
+      const clean = tryNormalizePath(path);
+      if (clean === null) throw new StorageError("invalid-path", `"${path}" isn't a valid file path.`);
+      if (text.length > MAX_UI_ARGS_CHARS) throw new StorageError("limit",`The arguments for ${nameOf(clean)} are too long to keep.`);
+      const rev = await inTransaction(db, ["workspaces", "entries"], "readwrite", async (tx) => {
+        const [rec, entry] = await Promise.all([tx.objectStore("workspaces").get(ws), tx.objectStore("entries").get([ws, clean])]);
+        if (!rec) throw missingWorkspace(ws);
+        const args = cleanArgs(rec.ui.args);
+        // Only a file keeps arguments: a save that arrives after its file was deleted or renamed
+        // writes nothing (a later file with that name starts without them).
+        if (text && entry?.kind === "file") {
+          if (!(clean in args) && Object.keys(args).length >= MAX_UI_PATHS) throw new StorageError("limit", "Arguments are kept for at most 500 files.");
+          args[clean] = text;
+        } else delete args[clean];
+        await tx.objectStore("workspaces").put({ ...rec, ui: { ...rec.ui, args } });
         return rec.rev;
       });
       emitChange(db, { ws, rev, paths: [], reason: "ui" });

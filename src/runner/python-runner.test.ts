@@ -91,6 +91,18 @@ describe("PythonRunner", () => {
     expect(workers[0].runs[0]).toMatchObject({ entry: "main.py", cwd: "", packageCheck: true, unavailable: [] });
   });
 
+  it("sends the command-line arguments with the run (none when the request has none), on every attempt", async () => {
+    const { runner, workers } = setUp((w, msg) => {
+      if (msg.packageCheck && !w.init.packages.includes("numpy")) w.emit({ type: "need-packages", packages: ["numpy"] });
+      else w.emit(done());
+    });
+    await runner.run(request({ args: ["a b", "", "$(rm -rf /)"] }), hooks());
+    // The first attempt asked for numpy; the run in the new worker carries the same arguments.
+    expect(workers.flatMap((w) => w.runs.map((r) => r.args))).toEqual([["a b", "", "$(rm -rf /)"], ["a b", "", "$(rm -rf /)"]]);
+    await runner.run(request(), hooks());
+    expect(workers.at(-1)!.runs.at(-1)!.args).toEqual([]);
+  });
+
   it("runs from the entry's folder", async () => {
     const { runner, workers } = setUp((w) => w.emit(done()));
     await runner.run(request({ entry: "week1/main.py", files: [{ path: "week1/main.py", text: "" }] }), hooks());

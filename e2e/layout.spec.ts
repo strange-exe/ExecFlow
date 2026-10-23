@@ -297,7 +297,7 @@ test("the file menu is grouped by separators that are not focusable and that the
   }
   const labels = await menu.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector(".menu-label")!.textContent));
   // Nothing is selected in main.py: the Capture snippet item names no lines (it explains on click).
-  expect(labels).toEqual(["Open", "Run", "Close tab", "New file", "New folder", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
+  expect(labels).toEqual(["Open", "Run", "Close tab", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
   // Down walks every item in order, never a separator, and wraps; Up comes back over them.
   const seen: string[] = [];
   for (let i = 0; i < labels.length; i++) {
@@ -353,7 +353,8 @@ test("the shortcuts dialog lines every description up on one x", async ({ page }
   await page.locator("#shortcuts-button").click();
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator("dl")).toHaveCount(5);
+  // Search, Run, Files, Editor, Suggestions, Panels.
+  await expect(dialog.locator("dl")).toHaveCount(6);
   const xs = await dialog.locator("dd").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
   expect(xs.length).toBeGreaterThan(15);
   expect([...new Set(xs)], "every description starts at one x").toHaveLength(1);

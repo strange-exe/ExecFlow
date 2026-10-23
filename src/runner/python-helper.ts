@@ -1,9 +1,10 @@
 // The Python side of a run, loaded into the worker's interpreter before the lockdown. Adapted from
 // the ce_runner.py prototype (19 scenarios checked on CPython 3.14) and Pocket Run's RUNNER_PY.
 //
-// __ce_run(entry, cwd, unavailable_json) runs /workspace/<entry> as __main__ the way `cd <cwd> && python <entry>`
-// would (sys.path[0] is the entry's folder; tracebacks show real file names and source lines),
-// cleans up after it, and returns JSON:
+// __ce_run(entry, cwd, unavailable_json, args_json) runs /workspace/<entry> as __main__ the way
+// `cd <cwd> && python <entry> <args...>` would (sys.argv is the script's path, then the arguments: runpy
+// sets argv[0] to "/workspace/<entry>"; sys.path[0] is the entry's folder; tracebacks show real file
+// names and source lines), cleans up after it, and returns JSON:
 //   {"exit", "interrupted", "recycle", "oom", "diagnostics": [...]}
 // __ce_check(path, text) compiles text without running it and returns JSON diagnostics.
 // __ce_imports(entry) lists the top-level non-standard imports of the entry and of the workspace
@@ -352,9 +353,12 @@ def _shadow_warnings(entry_path):
     return out
 
 
-def __ce_run(entry, cwd, unavailable_json="[]"):
-    """unavailable_json: packages that failed to load this session (for the ModuleNotFoundError note)."""
+def __ce_run(entry, cwd, unavailable_json="[]", args_json="[]"):
+    """unavailable_json: packages that failed to load this session (for the ModuleNotFoundError note).
+    args_json: the command-line arguments, a JSON list of strings (anything else is left out)."""
     _config["unavailable"] = set(json.loads(unavailable_json))
+    args = json.loads(args_json)
+    args = [a for a in args if isinstance(a, str)] if isinstance(args, list) else []
     entry_path = os.path.join(ROOT, *entry.split("/"))
     diagnostics = _shadow_warnings(entry_path)
     saved = (sys.path[:], sys.argv[:], os.getcwd(), sys.stdin, sys.stdout, sys.stderr,
@@ -366,7 +370,7 @@ def __ce_run(entry, cwd, unavailable_json="[]"):
     stdin = sys.stdin = sys.__stdin__ = _fresh_stdin()
     sys.dont_write_bytecode = True
     sys.path[:] = [os.path.dirname(entry_path)] + [p for p in saved[0] if p not in ("", ".")]
-    sys.argv[:] = [entry]
+    sys.argv[:] = [entry] + args
     os.chdir(os.path.join(ROOT, *cwd.split("/")) if cwd else ROOT)
     with warnings.catch_warnings():
         shown = warnings.showwarning

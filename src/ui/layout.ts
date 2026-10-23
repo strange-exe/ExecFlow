@@ -38,6 +38,8 @@ export interface Layout {
   runButton: HTMLButtonElement;
   runLabel: HTMLElement;
   settingsButton: HTMLButtonElement;
+  /** "Search files and commands": opens the command palette (workbench.ts). */
+  paletteButton: HTMLButtonElement;
   sidebar: HTMLElement;
   sidebarActions: HTMLElement;
   treeHost: HTMLElement;
@@ -108,6 +110,18 @@ export function createLayout(root: HTMLElement): Layout {
   // The shortcut is in the tooltip and aria-keyshortcuts (workbench.ts setRunning), not in the fill.
   const runButton = h("button", { type: "button", class: "btn primary run", id: "run-button", "data-running": "false", "aria-keyshortcuts": "Control+Enter", title: "Run (Ctrl+Enter)" }, h("span", { class: "run-icon" }, icon("play-fill")), runLabel);
   const settingsButton = h("button", { type: "button", class: "icon-btn", id: "settings-button", "aria-label": "Settings", title: "Settings" }, icon("gear"));
+  // The command palette's visible way in (Ctrl+P, F1 and Ctrl+Shift+P are its keys): quiet, in the
+  // sync status's tier; the word "Search" gives way to the icon below 900 px. Its name keeps the
+  // visible word first (WCAG 2.5.3).
+  const paletteButton = h(
+    "button",
+    {
+      type: "button", class: "palette-btn", id: "palette-button", "aria-label": "Search files and commands", "aria-haspopup": "dialog",
+      "aria-keyshortcuts": "Control+P Control+Shift+P F1", title: "Search files and commands (Ctrl+P)",
+    },
+    icon("magnifying-glass"),
+    h("span", { class: "palette-btn-label" }, "Search"),
+  );
   const topbar = h(
     "header",
     { class: "topbar" },
@@ -115,6 +129,7 @@ export function createLayout(root: HTMLElement): Layout {
     h("div", { class: "brand" }, brandMark(), h("span", { class: "brand-name" }, "CodeEditor")),
     crumb,
     h("div", { class: "topbar-spacer" }),
+    paletteButton,
     syncSlot,
     settingsButton,
   );
@@ -434,6 +449,7 @@ export function createLayout(root: HTMLElement): Layout {
     runButton,
     runLabel,
     settingsButton,
+    paletteButton,
     sidebar,
     sidebarActions,
     treeHost,

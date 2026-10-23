@@ -1,7 +1,7 @@
 // Capture snippet: the pure parts every entry point decides with (the file menu, the editor head's
 // button, the editor's context menu; final-v3, .claude/design/snippet-image/): which whole lines a
 // selection captures, the menu labels, the refusals and their texts, whether images can be copied,
-// reading the remembered options, and the long-name cut (the dialog draws it too). This module is in
+// and the long-name cut (the dialog draws it too). This module is in
 // the shell (the first visit), so what only the dialog needs lives in core/snippet-dialog.ts, which
 // only the lazy dialog chunk imports. Type-only CodeMirror imports, so CodeMirror stays out of the
 // first visit. Kept ASCII: special characters are built from their code points. No DOM types
@@ -150,41 +150,8 @@ export function canCopyImages(scope: ClipboardScope): boolean {
   }
 }
 
-// ---------------------------------------------------------------- the dialog's options
-
-export interface ImageOptions {
-  readonly colors: ColorChoice;
-  readonly numbers: boolean;
-  readonly name: boolean;
-}
-export const DEFAULT_IMAGE_OPTIONS: ImageOptions = Object.freeze({ colors: "match", numbers: true, name: true });
-/** One device key of its own (5.4): a per-viewer convenience, cleared by "Sign out and clear this computer". */
-export const IMAGE_OPTIONS_KEY = "codeeditor:snippet-image";
-
-/** Stored options cleaned field by field: unknown keys dropped, anything odd falls back to its default. */
-export function cleanImageOptions(value: unknown): ImageOptions {
-  const v = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-  return {
-    colors: v.colors === "light" || v.colors === "dark" || v.colors === "match" ? v.colors : DEFAULT_IMAGE_OPTIONS.colors,
-    numbers: typeof v.numbers === "boolean" ? v.numbers : DEFAULT_IMAGE_OPTIONS.numbers,
-    name: typeof v.name === "boolean" ? v.name : DEFAULT_IMAGE_OPTIONS.name,
-  };
-}
-
-/** localStorage, structurally. */
-export interface OptionsStorage {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
-
-/** Storage can be missing or throw (SecurityError): the defaults then, and changes last for the opening. */
-export function readImageOptions(storage: Pick<OptionsStorage, "getItem"> | null): ImageOptions {
-  try {
-    return cleanImageOptions(JSON.parse(storage?.getItem(IMAGE_OPTIONS_KEY) ?? "{}"));
-  } catch {
-    return { ...DEFAULT_IMAGE_OPTIONS };
-  }
-}
+// The dialog's options (their memory, cleaning and migration) live in core/snippet-dialog.ts: only
+// the lazy dialog reads them, so they stay out of the first visit.
 
 // ---------------------------------------------------------------- messages (final-v3 section 6.2)
 

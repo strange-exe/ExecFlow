@@ -6,11 +6,12 @@
 // lives in init scripts only.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
+import { deltaE, over, UI_MIXES } from "../src/theme/contrast";
 import { audit } from "./audit";
 import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, reloadApp, run, test, tolerating } from "./helpers";
 import {
-  FIXTURE, MOD, box, calls, canCopy, captures, clearCalls, decodeRgba, dialogOf, downloadPng, hexRgb, inkOf, instrument, off, openFromFileMenu,
-  openWith, pngInfo, previewPng, previewReady, salience, selectAll, selectFixtureLines, tokens, writtenPng,
+  CARD_AT, FIXTURE, MOD, box, calls, canCopy, captures, clearCalls, decodeRgba, dialogOf, downloadPng, hexRgb, inkOf, instrument, markOf, matOf, off,
+  openFromFileMenu, openWith, pngInfo, previewPng, previewReady, salience, selectAll, selectFixtureLines, tokens, writtenPng,
 } from "./snippet-helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -19,9 +20,14 @@ test.setTimeout(120_000);
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const ITEM = /^Capture snippet of main\.py, lines 2 to 3\.\.\./;
 const TITLE = "Capture snippet of lines 2 to 3";
-const DESCRIPTION = "Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown.";
-/** Default options: 694 x 229 at scale 2 (final-v3 4.5, the fixture row). */
-const SIZES: Record<string, [number, number]> = { "numbers name": [694, 229], "numbers no-name": [694, 142], "no-numbers name": [644, 229], "no-numbers no-name": [644, 142] };
+const DESCRIPTION = "Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.";
+/**
+ * Default options: 822 x 357 at scale 2: round 1's card (694 x 229, final-v3 4.5's fixture row) in
+ * round 2's medium background (32 CSS px, 64 bitmap px each side).
+ */
+const SIZES: Record<string, [number, number]> = { "numbers name": [822, 357], "numbers no-name": [822, 270], "no-numbers name": [772, 357], "no-numbers no-name": [772, 270] };
+/** A pixel of the card's code ground in the default image (round 1's (10, 10) inside the card). */
+const GROUND = CARD_AT + 10;
 const CASE_B = Array.from({ length: 200 }, () => "x".repeat(100)).join("\n") + "\n";
 /** Two lines of 40,000 characters wrap to 834 rows: 18,835 CSS px tall, over 16,384 at scale 1. */
 const TOO_BIG = `${"x".repeat(40_000)}\n${"y".repeat(40_000)}\n`;
@@ -40,27 +46,45 @@ async function openDialog(page: Page) {
   return dialogOf(page);
 }
 
-/** Sets the dialog's options and waits for the preview to show them. */
-async function setOptions(page: Page, colors: "match" | "light" | "dark", numbers: boolean, name: boolean) {
+type Look = { background?: "none" | "small" | "medium" | "large"; frame?: "plain" | "window"; scale?: 1 | 2 | 3 };
+
+/** Sets the dialog's options (round 2's at their defaults unless given) and waits for the preview to show them. */
+async function setOptions(page: Page, colors: "match" | "light" | "dark", numbers: boolean, name: boolean, look: Look = {}) {
   const d = dialogOf(page);
+  const { background = "medium", frame = "plain", scale = 2 } = look;
   await d.locator(`input[name=snippet-colors][value=${colors}]`).check();
   await d.locator("#snippet-numbers").setChecked(numbers);
   await d.locator("#snippet-name").setChecked(name);
-  await previewReady(page, `${colors} ${numbers ? "numbers" : "no-numbers"} ${name ? "name" : "no-name"}`);
+  await d.locator(`#snippet-background-${background}`).check();
+  await d.locator(`#snippet-frame-${frame}`).check();
+  await d.locator(`#snippet-scale-${scale}`).check();
+  await previewReady(page, `${colors} ${numbers ? "numbers" : "no-numbers"} ${name ? "name" : "no-name"} ${scale}x ${background} ${frame}`);
 }
 
-/** The pixel map of 9.2 on the default image (bitmap coordinates at scale 2). */
+/**
+ * The pixel map of 9.2 on the default image (bitmap coordinates at scale 2): round 1's map moved
+ * into the card (CARD_AT px from each side), the background around it, and the card's rounded
+ * corners showing the background.
+ */
 function pixelMap(png: Buffer, t: Record<string, string>) {
   const px = decodeRgba(png);
-  expect(off(px.at(10, 10), t.bg), "ground").toBeLessThanOrEqual(2);
-  for (const [x, y] of [[0, 0], [0, 228], [347, 228], [693, 228], [693, 0]]) expect(off(px.at(x, y), t.divider), `edge at ${x}, ${y}`).toBeLessThanOrEqual(2);
-  const nameInk = inkOf(px, { x0: 34, x1: 150, y0: 26, y1: 71 }, t.bg);
+  const c = CARD_AT;
+  const mat = matOf(t);
+  for (const [x, y] of [[0, 0], [10, 10], [821, 356], [c - 1, 200], [c + 694, 200], [400, c - 1], [400, c + 229]]) {
+    expect(off(px.at(x, y), mat), `background at ${x}, ${y}`).toBeLessThanOrEqual(2);
+    expect(px.at(x, y)[3], "opaque").toBe(255);
+  }
+  // The card's corner pixel is outside its 16 px rounded corner: the background shows there.
+  expect(off(px.at(c, c), mat), "the rounded corner shows the background").toBeLessThanOrEqual(2);
+  expect(off(px.at(c + 10, c + 10), t.bg), "ground").toBeLessThanOrEqual(2);
+  for (const [x, y] of [[347, 0], [347, 228], [0, 114], [693, 114], [0, 20], [693, 208]]) expect(off(px.at(c + x, c + y), t.divider), `edge at ${x}, ${y}`).toBeLessThanOrEqual(2);
+  const nameInk = inkOf(px, { x0: c + 34, x1: c + 150, y0: c + 26, y1: c + 71 }, t.bg);
   expect(nameInk && off(hexRgb(nameInk), t["text-secondary"]), `file name ${nameInk}`).toBeLessThanOrEqual(8);
-  for (const y of [87, 88]) expect(off(px.at(300, y), t.border), `rule row ${y}`).toBeLessThanOrEqual(2);
-  expect(off(px.at(20, 87), t.bg), "the rule starts at the padding").toBeLessThanOrEqual(2);
-  const keyword = inkOf(px, { x0: 84, x1: 138, y0: 113, y1: 158 }, t.bg);
+  for (const y of [87, 88]) expect(off(px.at(c + 300, c + y), t.border), `rule row ${y}`).toBeLessThanOrEqual(2);
+  expect(off(px.at(c + 20, c + 87), t.bg), "the rule starts at the padding").toBeLessThanOrEqual(2);
+  const keyword = inkOf(px, { x0: c + 84, x1: c + 138, y0: c + 113, y1: c + 158 }, t.bg);
   expect(keyword && off(hexRgb(keyword), t["syn-keyword"]), `def ${keyword}`).toBeLessThanOrEqual(8);
-  const number = inkOf(px, { x0: 34, x1: 52, y0: 113, y1: 158 }, t.bg);
+  const number = inkOf(px, { x0: c + 34, x1: c + 52, y0: c + 113, y1: c + 158 }, t.bg);
   expect(number && off(hexRgb(number), t["gutter-text"]), `line number ${number}`).toBeLessThanOrEqual(8);
 }
 
@@ -73,9 +97,9 @@ const derivedSize = (page: Page) =>
     const ch = c.measureText("0").width;
     const size = parseFloat(s.fontSize);
     const lineH = size * 1.5;
-    const [E, P, V, G, HG] = [1, 16, 12, 16, 8];
-    const width = E + P + ch + G + Math.max(16 * ch, 32 * ch) + P + E;
-    const height = E + V + lineH + HG + 1 + V + 2 * lineH + V + E;
+    const [E, P, V, G, HG, PAD] = [1, 16, 12, 16, 8, 32];
+    const width = E + P + ch + G + Math.max(16 * ch, 32 * ch) + P + E + 2 * PAD;
+    const height = E + V + lineH + HG + 1 + V + 2 * lineH + V + E + 2 * PAD;
     return { width: Math.ceil(width * 2), height: Math.ceil(height * 2), ch, size };
   });
 
@@ -104,9 +128,10 @@ for (const scheme of ["light", "dark"] as const) {
     expect(d.name).toBe("main-py-lines-2-3.png");
     const info = pngInfo(d.bytes);
     expect([info.depth, info.interlace]).toEqual([8, 0]);
-    expect([info.width, info.height]).toEqual([694, 229]);
+    expect([info.width, info.height]).toEqual([822, 357]);
     const derived = await derivedSize(page);
-    expect([derived.width, derived.height], `derived from ch ${derived.ch} at ${derived.size} px`).toEqual([694, 229]);
+    expect([derived.width, derived.height], `derived from ch ${derived.ch} at ${derived.size} px`).toEqual([822, 357]);
+    await expect(dialog.locator("#snippet-size")).toHaveText("822 x 357 pixels.");
     for (const chunk of ["tEXt", "iTXt", "zTXt", "eXIf", "tIME"]) expect(info.chunks, `no ${chunk} chunk`).not.toContain(chunk);
     const t = await tokens(page);
     expect(t.bg).toBe(scheme === "light" ? "#f8fbf9" : "#13201b");
@@ -152,7 +177,7 @@ test("2: Copy reads back, writes and encodes inside the click: synchronous and a
     }));
   } else png = await writtenPng(page);
   const info = pngInfo(png);
-  expect([info.width, info.height]).toEqual([694, 229]);
+  expect([info.width, info.height]).toEqual([822, 357]);
   // Only the PNG goes on the clipboard (final-v3 4.7 and 8): no text type with the code or the file's name.
   const types = real
     ? await page.evaluate(async () => (await navigator.clipboard.read())[0].types)
@@ -204,7 +229,7 @@ for (const when of ["now", "after-item"] as const) {
     await expect(app(page)).toHaveAttribute("data-capture", "denied");
     await expect(dialogOf(page).locator("#snippet-status")).toHaveText("Couldn't copy the image. Use Download instead.");
     if (browserName !== "webkit") await expect(copyButton(page)).toBeFocused();
-    const png = await expectDownload(page, "main-py-lines-2-3.png", [694, 229]);
+    const png = await expectDownload(page, "main-py-lines-2-3.png", [822, 357]);
     expect(png.length).toBeGreaterThan(0);
     expect((await calls(page)).filter((x) => x.name === "toBlob")).toHaveLength(1);
   });
@@ -276,36 +301,43 @@ test("5: refusals before opening: nothing selected, blank-free cursor, the head 
   }, "That's 301 lines. An image can show up to 300, so select fewer lines.", "cap");
 });
 
-test("6: 300 lines fit at scale 2; case B steps down to 1.5, and its last row and column are opaque edge", async ({ page }) => {
+test("6: 300 lines fit at scale 2; case B steps down to 1.5 and says so, and its card's last row and column are opaque edge", async ({ page }) => {
   await openWith(page, [{ name: "x.py", text: "x\n".repeat(300) }, { name: "b.py", text: CASE_B }]);
   await selectAll(page);
   await openFromFileMenu(page, /^Capture snippet of x\.py, lines 1 to 300\.\.\./);
   await previewReady(page);
-  await expectDownload(page, "x-py-lines-1-300.png", [730, 13639]);
+  // Round 1's 730 x 13639 card in the medium background (64 bitmap px each side).
+  await expectDownload(page, "x-py-lines-1-300.png", [858, 13767]);
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("858 x 13767 pixels.");
   await page.keyboard.press("Escape");
   await openFromTree(page, "b.py");
   await selectAll(page);
   await openFromFileMenu(page, /^Capture snippet of b\.py, lines 1 to 200\.\.\./);
   await previewReady(page);
-  const png = await expectDownload(page, "b-py-lines-1-200.png", [1466, 6855]);
+  // 1041 x 4633.5 CSS px: 2x is 2082 x 9267 = 19,293,894 px, over the area cap; 1.5x fits.
+  const png = await expectDownload(page, "b-py-lines-1-200.png", [1562, 6951]);
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("1562 x 6951 pixels. 2x is too big for this image, so it is 1.5x.");
   const px = decodeRgba(png);
-  const divider = (await tokens(page)).divider;
-  for (let x = 0; x < px.width; x++) {
-    const p = px.at(x, px.height - 1);
-    if (p[3] !== 255 || off(p, divider) > 2) throw new Error(`last row at ${x}: ${p}`);
+  const t = await tokens(page);
+  // The card sits 48 px (32 CSS px at 1.5x) inside the image; its rounded corners are 12 px.
+  const [x0, y0, x1, y1] = [48, 48, px.width - 49, px.height - 49];
+  for (let x = x0 + 13; x < x1 - 13; x++) {
+    const p = px.at(x, y1);
+    if (p[3] !== 255 || off(p, t.divider) > 2) throw new Error(`the card's last row at ${x}: ${p}`);
   }
-  for (let y = 0; y < px.height; y++) {
-    const p = px.at(px.width - 1, y);
-    if (p[3] !== 255 || off(p, divider) > 2) throw new Error(`last column at ${y}: ${p}`);
+  for (let y = y0 + 13; y < y1 - 13; y++) {
+    const p = px.at(x1, y);
+    if (p[3] !== 255 || off(p, t.divider) > 2) throw new Error(`the card's last column at ${y}: ${p}`);
   }
+  for (const [x, y] of [[px.width - 1, px.height - 1], [x1 + 1, 300], [300, y1 + 1]]) expect(off(px.at(x, y), matOf(t)), `background at ${x}, ${y}`).toBeLessThanOrEqual(2);
 });
 
 test("7: the options change the image: every combination's size, Light in a dark theme, no name in the file name", async ({ page }) => {
   await openIn(page, "/", "dark");
   await openDialog(page);
   await setOptions(page, "light", false, false);
-  const png = await expectDownload(page, "code-lines-2-3.png", [644, 142]);
-  expect(off(decodeRgba(png).at(10, 10), "#f8fbf9"), "Light's ground in a dark theme").toBeLessThanOrEqual(2);
+  const png = await expectDownload(page, "code-lines-2-3.png", [772, 270]);
+  expect(off(decodeRgba(png).at(GROUND, GROUND), "#f8fbf9"), "Light's ground in a dark theme").toBeLessThanOrEqual(2);
   for (const colors of ["match", "light", "dark"] as const) {
     for (const numbers of [true, false]) {
       for (const name of [true, false]) {
@@ -327,7 +359,9 @@ test("8: the options are remembered on this device, cleaned when read, and work 
   await expect(dialogOf(page).locator("input[value=light]")).toBeChecked();
   await expect(dialogOf(page).locator("#snippet-numbers")).not.toBeChecked();
   await expect(dialogOf(page).locator("#snippet-name")).not.toBeChecked();
-  expect(await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image"))).toBe('{"colors":"light","numbers":false,"name":false}');
+  expect(await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image"))).toBe(
+    '{"colors":"light","numbers":false,"name":false,"scale":2,"background":true,"padding":"medium","frame":"plain"}',
+  );
   await page.keyboard.press("Escape");
 
   await page.evaluate(() => localStorage.setItem("codeeditor:snippet-image", '{"colors":"neon"}'));
@@ -366,7 +400,11 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { w
     await page.setViewportSize(vp);
     await openWith(page, [{ name: "main.py", text: FIXTURE }, { name: "b.py", text: CASE_B }]);
     const parts = ["#snippet-frame", ".snippet-options fieldset:nth-of-type(1)", ".snippet-options fieldset:nth-of-type(2)", "#snippet-status", ".snippet-actions .btn >> nth=0", ".snippet-actions .btn >> nth=-1"];
-    const boxes = () => Promise.all(parts.map(async (p) => box(dialogOf(page).locator(p))));
+    // Measured with the body at its top: checking a lower choice scrolls it into view (the test's own doing).
+    const boxes = async () => {
+      await dialogOf(page).locator(".dialog-body").evaluate((b) => (b.scrollTop = 0));
+      return Promise.all(parts.map(async (p) => box(dialogOf(page).locator(p))));
+    };
     const near = (a: { x: number; y: number; width: number; height: number }[], b: typeof a, what: string) =>
       a.forEach((r, i) => {
         for (const k of ["x", "y", "width", "height"] as const) expect(Math.abs(r[k] - b[i][k]), `${what}: ${parts[i]} ${k}`).toBeLessThanOrEqual(0.5);
@@ -386,6 +424,16 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { w
               await setOptions(page, colors, numbers, name);
               near(first, await boxes(), `${file} ${colors} ${numbers} ${name}`);
             }
+        // Round 2: every background and frame (the layouts they make), and every scale.
+        for (const background of ["none", "small", "medium", "large"] as const)
+          for (const frame of ["plain", "window"] as const) {
+            await setOptions(page, "match", true, frame === "plain", { background, frame });
+            near(first, await boxes(), `${file} ${background} ${frame}`);
+          }
+        for (const scale of [1, 3] as const) {
+          await setOptions(page, "match", false, false, { background: "large", scale });
+          near(first, await boxes(), `${file} ${scale}x`);
+        }
         await setOptions(page, "match", true, true);
       }
       const buttons = async () => [await box(downloadButton(page)), ...((await canCopy(page)) ? [await box(copyButton(page))] : [])];
@@ -429,22 +477,30 @@ for (const key of ["Enter", "Space"] as const) {
     await expect(dialogOf(page).locator("#snippet-status")).toHaveText("");
     if (key === "Space") return;
 
-    // Tab: close, frame, the Colours group, Line numbers, File name, Download, Copy; never outside the dialog.
+    // Tab: close, frame, the Colours group, Line numbers, File name, the Background, Frame and Scale
+    // groups, Highlight lines, Download, Copy; never outside the dialog.
     await dialogOf(page).getByRole("button", { name: "Close" }).focus();
     const seen: string[] = [];
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 24; i++) {
       seen.push(await page.evaluate(() => {
         const a = document.activeElement as HTMLElement | null;
         if (!a || a === document.body) return "body";
         if (!a.closest("#snippet-dialog")) return `outside:${a.tagName}#${a.id}`;
+        if (a.classList.contains("dialog-body")) return "dialog-body";
         return a.id || a.getAttribute("aria-label") || a.textContent?.trim() || a.tagName;
       }));
       await page.keyboard.press("Tab");
     }
     expect(seen.filter((s) => s.startsWith("outside")), seen.join(" | ")).toEqual([]);
     // Between cycles the focus may rest on the page (body) or, in WebKit, on the dialog element itself.
-    const cycle = seen.filter((s) => s !== "body" && s !== "snippet-dialog");
-    const order = ["Close", "snippet-frame", "snippet-colors-match", "snippet-numbers", "snippet-name", "Download (.png)", ...((await canCopy(page)) ? ["Copy image"] : [])];
+    // Firefox also stops on a scroll container that overflows (the body, now that round 2's options make
+    // it scroll at 1280 x 720): the browser's own stop for keyboard scrolling, recorded, not ours.
+    if (seen.includes("dialog-body")) test.info().annotations.push({ type: "10 scroller", description: `${test.info().project.name}: the scrolling body is a Tab stop` });
+    const cycle = seen.filter((s) => s !== "body" && s !== "snippet-dialog" && s !== "dialog-body");
+    const order = [
+      "Close", "snippet-frame", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-background-medium", "snippet-frame-plain", "snippet-scale-2",
+      "snippet-highlight", "Download (.png)", ...((await canCopy(page)) ? ["Copy image"] : []),
+    ];
     expect(cycle.slice(0, order.length)).toEqual(order);
     // Past the last control the focus leaves for the browser's own UI. Chromium and WebKit bring it back to the
     // first control (a second cycle); Playwright's Firefox keeps it in its toolbar, so the dialog's active element
@@ -580,10 +636,18 @@ async function normalMode(page: Page) {
   const row = await box(dialogOf(page).locator(".snippet-choice").first());
   expect(frame.y + frame.height).toBeLessThanOrEqual(body.y + body.height + 0.5);
   expect(row.y + row.height).toBeLessThanOrEqual(body.y + body.height + 0.5);
-  // A wheel over the body, outside the frame, scrolls the body until File name shows.
+  // A wheel over the body, outside the frame, scrolls the body until File name shows (in small steps:
+  // round 2's options make the body long enough that one big step passes it).
   await page.mouse.move(row.x + row.width / 2, row.y + row.height / 2);
-  await page.mouse.wheel(0, 600);
-  await expect(dialogOf(page).locator("label[for=snippet-name]")).toBeInViewport();
+  const label = dialogOf(page).locator("label[for=snippet-name]");
+  for (let i = 0; i < 20; i++) {
+    const l = await box(label);
+    const b = await box(dialogOf(page).locator(".dialog-body"));
+    if (l.y + l.height <= b.y + b.height - 0.5) break;
+    await page.mouse.wheel(0, 40);
+    await expect.poll(async () => (await box(label)).y, "the wheel scrolls the body").toBeLessThan(l.y);
+  }
+  await expect(label).toBeInViewport();
   // The wheel's scroll can still be moving when the label first shows (Firefox, a full run: 0.75 px short), so wait for it to be whole.
   await expect
     .poll(async () => {
@@ -642,7 +706,10 @@ async function compactMode(page: Page) {
   const frameTop = await dialogOf(page).locator("#snippet-frame").evaluate((f) => f.getBoundingClientRect().top - f.closest("dialog")!.getBoundingClientRect().top);
   expect(frameTop, "the focused frame's top edge is in view at open").toBeGreaterThanOrEqual(0);
   expect(frameTop).toBeLessThan(await dialogOf(page).evaluate((d) => d.clientHeight));
-  const controls = ["Close", "#snippet-frame", "#snippet-colors-match", "#snippet-numbers", "#snippet-name", "Download (.png)", "Copy image"];
+  const controls = [
+    "Close", "#snippet-frame", "#snippet-colors-match", "#snippet-numbers", "#snippet-name", "#snippet-background-medium", "#snippet-frame-plain",
+    "#snippet-scale-2", "#snippet-highlight", "Download (.png)", "Copy image",
+  ];
   for (const c of controls) {
     const el = c.startsWith("#") ? dialogOf(page).locator(c) : dialogOf(page).getByRole("button", { name: c });
     if (!(await el.count())) continue;
@@ -689,6 +756,8 @@ for (const vp of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone"
         expect(a.pairs.filter((p) => p.ratio < p.min).map((p) => `${p.sel} "${p.text}" ${p.fg} on ${p.bg} ${p.ratio}`), `pairs ${what}`).toEqual([]);
         // The dialog's controls (audit's scope is the open dialog), or the menu's items; separators are no targets.
         const mine = (t: { sel: string }) => (what === "file menu" ? t.sel.includes("menu-item") : !t.sel.includes("menu-sep"));
+        // Choices the body has scrolled wholly out of its box (they lie, clipped, under the footer) are no
+        // targets there: audit.ts leaves them out (inView).
         expect(a.targets.filter((t) => mine(t) && !t.spaced).map((t) => `${t.sel} ${t.w}x${t.h}`), `targets ${what}`).toEqual([]);
       };
       await selectFixtureLines(page);
@@ -736,7 +805,7 @@ test("17: a tall preview is a named, focusable image that scrolls by keyboard, a
   await previewReady(page);
   const frame = dialogOf(page).locator("#snippet-frame");
   await expect(frame).toHaveAttribute("role", "img");
-  await expect(frame).toHaveAccessibleName("Preview of b.py, lines 1 to 200, in the editor's colours; line numbers shown; file name shown.");
+  await expect(frame).toHaveAccessibleName("Preview of b.py, lines 1 to 200, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.");
   await frame.focus();
   await expect(frame).toBeFocused();
   const page0 = await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
@@ -814,9 +883,11 @@ test("18: special characters: a direction override is drawn in --danger; the edi
   await previewReady(page);
   const t = await tokens(page);
   const px = decodeRgba(await previewPng(page));
-  // codeX = E + P + 1 digit + G = 42; the placeholder is column 6; row 1 starts at codeTop 56.5 (scale 2).
+  // codeX = E + P + 1 digit + G = 42; the placeholder is column 6; row 1 starts at codeTop 56.5;
+  // the card sits 32 CSS px inside the image (scale 2).
   let danger = 0;
-  for (let y = 113; y <= 158; y++) for (let x = Math.floor((42 + 6 * 9) * 2); x <= Math.ceil((42 + 7 * 9) * 2); x++) if (off(px.at(x, y), t.danger) <= 8) danger++;
+  const c = CARD_AT;
+  for (let y = c + 113; y <= c + 158; y++) for (let x = c + Math.floor((42 + 6 * 9) * 2); x <= c + Math.ceil((42 + 7 * 9) * 2); x++) if (off(px.at(x, y), t.danger) <= 8) danger++;
   expect(danger, "danger pixels in the placeholder's box").toBeGreaterThan(4);
   await page.keyboard.press("Escape");
 
@@ -883,7 +954,7 @@ test("20: the Colours choices name what they give, in Deep Field, Slate and High
   await previewReady(page);
   expect(await labels()).toEqual(["Match the editor (dark)", "Light", "Dark"]);
   await setOptions(page, "light", true, true);
-  expect(off(decodeRgba(await previewPng(page)).at(10, 10), "#fdfdff"), "Slate's light ground").toBeLessThanOrEqual(2);
+  expect(off(decodeRgba(await previewPng(page)).at(GROUND, GROUND), "#fdfdff"), "Slate's light ground").toBeLessThanOrEqual(2);
   await setOptions(page, "match", true, true);
   await page.keyboard.press("Escape");
 
@@ -894,7 +965,7 @@ test("20: the Colours choices name what they give, in Deep Field, Slate and High
   await selectFixtureLines(page);
   await openFromFileMenu(page, ITEM);
   await previewReady(page, "match numbers name");
-  expect(off(decodeRgba(await previewPng(page)).at(10, 10), "#fdfdff"), "Slate Light matched").toBeLessThanOrEqual(2);
+  expect(off(decodeRgba(await previewPng(page)).at(GROUND, GROUND), "#fdfdff"), "Slate Light matched").toBeLessThanOrEqual(2);
   await page.keyboard.press("Escape");
 
   await page.evaluate(() => localStorage.setItem("codeeditor:theme", "high-contrast"));
@@ -905,9 +976,14 @@ test("20: the Colours choices name what they give, in Deep Field, Slate and High
   await previewReady(page);
   expect(await labels()).toEqual(["Match the editor (High contrast)", "CodeEditor Deep Field Light", "CodeEditor Deep Field Dark"]);
   await setOptions(page, "match", true, true);
-  expect(off(decodeRgba(await previewPng(page)).at(10, 10), (await tokens(page)).bg), "Match: this page's ground").toBeLessThanOrEqual(2);
+  const hc = await tokens(page);
+  const matched = decodeRgba(await previewPng(page));
+  expect(off(matched.at(GROUND, GROUND), hc.bg), "Match: this page's ground").toBeLessThanOrEqual(2);
+  expect(off(matched.at(10, 10), matOf(hc)), "Match: this page's background").toBeLessThanOrEqual(2);
   await setOptions(page, "light", true, true);
-  expect(off(decodeRgba(await previewPng(page)).at(10, 10), "#f8fbf9"), "Deep Field Light's ground").toBeLessThanOrEqual(2);
+  const light = decodeRgba(await previewPng(page));
+  expect(off(light.at(GROUND, GROUND), "#f8fbf9"), "Deep Field Light's ground").toBeLessThanOrEqual(2);
+  expect(off(light.at(10, 10), matOf({ bg: "#f8fbf9", action: "#004f3a" })), "Deep Field Light's background").toBeLessThanOrEqual(2);
   await setOptions(page, "match", true, true);
   await page.keyboard.press("Escape");
 
@@ -923,7 +999,7 @@ test("20: the Colours choices name what they give, in Deep Field, Slate and High
   await openFromFileMenu(page, ITEM);
   await previewReady(page, "match numbers name");
   const aGround = (await tokens(page)).bg;
-  expect(off(decodeRgba(await previewPng(page)).at(10, 10), aGround), `page A's ground ${aGround}`).toBeLessThanOrEqual(2);
+  expect(off(decodeRgba(await previewPng(page)).at(GROUND, GROUND), aGround), `page A's ground ${aGround}`).toBeLessThanOrEqual(2);
   await b.close();
 });
 
@@ -1446,8 +1522,10 @@ test("32: an option change clears the last result without a word; it stays clear
 
 test("33: the dialog is described by the preview's label, and by the gaps note when ranges are far apart", async ({ page }) => {
   await openDialog(page);
-  await expect(page.getByRole("dialog", { name: TITLE })).toHaveAccessibleDescription(/^Preview of main\.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown\./);
-  expect(DESCRIPTION).toBe("Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown.");
+  await expect(page.getByRole("dialog", { name: TITLE })).toHaveAccessibleDescription(
+    /^Preview of main\.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown\. Plain frame, medium background\./,
+  );
+  expect(DESCRIPTION).toBe("Preview of main.py, lines 2 to 3, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background.");
   await page.keyboard.press("Escape");
   // Line 1, then line 5 added with a modifier-drag: lines 2 to 4 lie between them.
   await page.locator(".cm-content").click();
@@ -1481,7 +1559,16 @@ test("34: when the head button is hidden by the time the dialog closes, focus go
   await page.setViewportSize({ width: 800, height: 900 });
   // At once: WebKit's media query lists still report the old width until the next frame (a full run, 2026-10-21).
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "Files", exact: true })).toBeFocused();
+  try {
+    await expect(page.getByRole("button", { name: "Files", exact: true })).toBeFocused();
+  } catch (e) {
+    // Say where focus went and what the page knew of its width (WebKit at 4 workers: 1 run in 20 at HEAD, 2026-10-22).
+    const where = await page.evaluate(() => ({
+      log: (window as unknown as { focusLog: string[] }).focusLog, active: document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName,
+      innerWidth, narrow: matchMedia("(max-width: 899px)").matches, dialog: document.querySelectorAll("#snippet-dialog").length,
+    }));
+    throw new Error(`${(e as Error).message}\nwhere focus went: ${JSON.stringify(where)}`);
+  }
   expect(await page.evaluate(() => (window as unknown as { focusLog: string[] }).focusLog[0])).toBe("Files");
 });
 
@@ -1500,6 +1587,325 @@ for (const size of [{ width: 683, height: 330 }]) {
     }
   });
 }
+
+// ---------------------------------------------------------------- 35 to 41: round 2 (.claude/design/batch3/s.md)
+
+test("35: the scale gives the exact PNG size at 1x, 2x and 3x; the size line says it; 3x steps down when it can't fit", async ({ page }) => {
+  await openWith(page, [{ name: "main.py", text: FIXTURE }, { name: "b.py", text: CASE_B }]);
+  await selectFixtureLines(page);
+  await openFromFileMenu(page, ITEM);
+  await previewReady(page);
+  const t = await tokens(page);
+  // 411 x 178.5 CSS px (the card and the medium background): ceil(size x scale).
+  for (const [scale, size] of [[1, [411, 179]], [3, [1233, 536]], [2, [822, 357]]] as const) {
+    await dialogOf(page).locator(`#snippet-scale-${scale}`).check();
+    await previewReady(page, `match numbers name ${scale}x medium plain`);
+    await expect(dialogOf(page).locator("#snippet-size")).toHaveText(`${size[0]} x ${size[1]} pixels.`);
+    const png = await expectDownload(page, "main-py-lines-2-3.png", [...size]);
+    const px = decodeRgba(png);
+    const c = 32 * scale;
+    expect(off(px.at(c + 6 * scale, c + 6 * scale), t.bg), `${scale}x: the card's ground`).toBeLessThanOrEqual(2);
+    expect(off(px.at(c - 1, Math.round(size[1] / 2)), matOf(t)), `${scale}x: the background left of the card`).toBeLessThanOrEqual(2);
+    // The edge is max(1, round(scale)) px: its last pixel is divider, the next one ground.
+    const y = Math.round(size[1] / 2);
+    expect(off(px.at(c + scale - 1, y), t.divider), `${scale}x: the edge's last pixel`).toBeLessThanOrEqual(2);
+    expect(off(px.at(c + scale + 1, y), t.bg), `${scale}x: ground after the edge`).toBeLessThanOrEqual(2);
+  }
+  // The Scale group is described by the size line, so the line is current in the change's own task
+  // (before the render lands): a screen reader reading the newly checked choice hears the new size.
+  const sizeAtChange = (id: string) =>
+    dialogOf(page).locator(id).evaluate((input) => {
+      (input as HTMLInputElement).click();
+      return document.getElementById("snippet-size")!.textContent;
+    });
+  expect(await sizeAtChange("#snippet-scale-1"), "the size line at the change, before the render").toBe("411 x 179 pixels.");
+  await previewReady(page, "match numbers name 1x medium plain");
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("411 x 179 pixels.");
+  await page.keyboard.press("Escape");
+  // Case B at 3x: 3x and 2x are over the area cap; 1.5x fits, and the size line says so (at once too).
+  await openFromTree(page, "b.py");
+  await selectAll(page);
+  await openFromFileMenu(page, /^Capture snippet of b\.py, lines 1 to 200\.\.\./);
+  await previewReady(page);
+  expect(await sizeAtChange("#snippet-scale-3"), "the stepped size at the change").toBe("1562 x 6951 pixels. 3x is too big for this image, so it is 1.5x.");
+  await previewReady(page, "match numbers name 3x medium plain");
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("1562 x 6951 pixels. 3x is too big for this image, so it is 1.5x.");
+  await expectDownload(page, "b-py-lines-1-200.png", [1562, 6951]);
+  expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!).scale).toBe(3);
+});
+
+test("36: the background: none is the card alone with transparent corners; small, medium and large pad it with a solid fill", async ({ page }) => {
+  await openDialog(page);
+  const t = await tokens(page);
+  const mat = matOf(t);
+  for (const [background, size, pad] of [["none", [694, 229], 0], ["small", [758, 293], 32], ["large", [950, 485], 128], ["medium", [822, 357], 64]] as const) {
+    await setOptions(page, "match", true, true, { background });
+    const png = await previewPng(page);
+    const info = pngInfo(png);
+    expect([info.width, info.height], background).toEqual([...size]);
+    const px = decodeRgba(png);
+    const [w, h] = size;
+    if (background === "none") {
+      // The corners outside the 16 px radius are fully transparent; the card's edge and ground are opaque.
+      for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]) expect(px.at(x, y)[3], `corner ${x}, ${y}`).toBe(0);
+      expect(px.at(347, 0)[3]).toBe(255);
+      expect(off(px.at(347, 0), t.divider), "top edge").toBeLessThanOrEqual(2);
+      expect(off(px.at(10, 10), t.bg), "ground just inside the corner").toBeLessThanOrEqual(2);
+      expect(px.at(10, 10)[3]).toBe(255);
+    } else {
+      // A solid fill (no gradient): the same colour at the four corners and the middle of each side.
+      for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1], [Math.round(w / 2), 1], [1, Math.round(h / 2)], [pad - 1, Math.round(h / 2)]]) {
+        expect(off(px.at(x, y), mat), `${background}: background at ${x}, ${y}`).toBeLessThanOrEqual(2);
+        expect(px.at(x, y)[3]).toBe(255);
+      }
+      expect(off(px.at(pad, pad), mat), `${background}: the card's rounded corner shows the background`).toBeLessThanOrEqual(2);
+      expect(off(px.at(pad + 10, pad + 10), t.bg), `${background}: the card's ground`).toBeLessThanOrEqual(2);
+    }
+  }
+  // Background off keeps the padding chosen before: on again, it is medium.
+  await setOptions(page, "match", true, true, { background: "none" });
+  await expect(dialogOf(page).locator("#snippet-background-none")).toBeChecked();
+  expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!)).toMatchObject({ background: false, padding: "medium" });
+  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/file name shown\. Plain frame, no background\.$/);
+});
+
+test("37: the window frame: a title bar in the chrome's ground with the file name, a rule under it; no name keeps the bar", async ({ page }) => {
+  await openDialog(page);
+  const t = await tokens(page);
+  const c = CARD_AT;
+  for (const name of [true, false]) {
+    await setOptions(page, "match", true, name, { frame: "window" });
+    const png = await previewPng(page);
+    // The card is 347 x 110.5: a bar of 8 + 22.5 + 8, the 1 px rule, 12, two rows, 12 and the edge.
+    expect([pngInfo(png).width, pngInfo(png).height]).toEqual([822, 349]);
+    const px = decodeRgba(png);
+    expect(off(px.at(c + 10, c + 30), t.surface), "the bar's ground, under its rounded corner").toBeLessThanOrEqual(2);
+    expect(off(px.at(c + 600, c + 70), t.surface), "the bar's right end").toBeLessThanOrEqual(2);
+    for (const y of [79, 80]) expect(off(px.at(c + 300, c + y), t.divider), `the rule under the bar, row ${y}`).toBeLessThanOrEqual(2);
+    expect(off(px.at(c + 10, c + 90), t.bg), "the code's ground under the rule").toBeLessThanOrEqual(2);
+    const nameInk = inkOf(px, { x0: c + 34, x1: c + 150, y0: c + 18, y1: c + 63 }, t.surface);
+    if (name) expect(nameInk && off(hexRgb(nameInk), t["text-secondary"]), `the name in the bar ${nameInk}`).toBeLessThanOrEqual(8);
+    else expect(nameInk, "no name: the bar is empty").toBeNull();
+    await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(new RegExp(`file name ${name ? "shown" : "hidden"}\\. Window frame, medium background\\.$`));
+  }
+  const d = await downloadPng(page);
+  expect(d.name, "with the name hidden, the file is not named after it either").toBe("code-lines-2-3.png");
+});
+
+test("37 (b): where a theme's chrome is its code ground (Nord), the window's bar takes the hovered-chrome ground, so Window still shows", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("codeeditor:theme", "nord"));
+  await openDialog(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme-id", "nord");
+  const t = await tokens(page);
+  expect(t.surface, "Nord's chrome is its code ground (the case this covers)").toBe(t.bg);
+  // contrast.ts UI_MIXES.hover over the surface: the ground of a hovered row in the app's chrome.
+  const bar = over(t.surface, t.text, UI_MIXES.hover.pct / 100);
+  expect(deltaE(bar, t.bg), "the bar is visibly not the code ground").toBeGreaterThanOrEqual(0.03);
+  await setOptions(page, "match", true, true, { frame: "window" });
+  const c = CARD_AT;
+  const px = decodeRgba(await previewPng(page));
+  expect(off(px.at(c + 600, c + 30), bar), "the bar's ground").toBeLessThanOrEqual(2);
+  expect(off(px.at(c + 10, c + 90), t.bg), "the code's ground under the rule").toBeLessThanOrEqual(2);
+  const nameInk = inkOf(px, { x0: c + 34, x1: c + 150, y0: c + 18, y1: c + 63 }, bar);
+  expect(nameInk && off(hexRgb(nameInk), t["text-secondary"]), `the name in the bar ${nameInk}`).toBeLessThanOrEqual(8);
+  // The export's readback checks the ground it drew there, so Download still works.
+  const d = await downloadPng(page);
+  expect(off(decodeRgba(d.bytes).at(c + 600, c + 30), bar), "the downloaded bar").toBeLessThanOrEqual(2);
+  await expect(app(page)).toHaveAttribute("data-capture", "downloaded");
+});
+
+test("38: highlighted lines: a band behind the listed lines, nothing dimmed; the entry is checked when committed, never mid-typing", async ({ page }) => {
+  const text = "def add(a, b):\n    total = a + b\n    return total\n\nprint(add(2, 3))\n";
+  await openWith(page, [{ name: "calc.py", text }]);
+  await selectAll(page);
+  await openFromFileMenu(page, /^Capture snippet of calc\.py, lines 1 to 5\.\.\./);
+  await previewReady(page);
+  const t = await tokens(page);
+  const mark = markOf(t);
+  const field = dialogOf(page).locator("#snippet-highlight");
+  const error = dialogOf(page).locator("#snippet-highlight-error");
+  await expect(field).toHaveAccessibleName("Highlight lines");
+  await expect(field).toHaveAccessibleDescription("Numbers or ranges from 1 to 5, separated by commas, such as 1-3.");
+  // A valid entry applies as it is typed.
+  await field.fill("2-3");
+  await previewReady(page, "match numbers name 2x medium plain hl:2-3");
+  const c = CARD_AT;
+  // Rows start at codeTop 56.5 CSS px, 22.5 each (scale 2): row k from c + 113 + 45k.
+  const rowY = (k: number) => c + 113 + 45 * k + 22;
+  let px = decodeRgba(await previewPng(page));
+  for (const [k, lit] of [[0, false], [1, true], [2, true], [3, false], [4, false]] as const) {
+    expect(off(px.at(c + 5, rowY(k)), lit ? mark : t.bg), `row ${k + 1} ${lit ? "banded" : "plain"}, under its number`).toBeLessThanOrEqual(2);
+    expect(off(px.at(c + 690, rowY(k)), lit ? mark : t.bg), `row ${k + 1} at the card's right`).toBeLessThanOrEqual(2);
+  }
+  // Nothing is dimmed: the code on and off the band keeps its own colours.
+  const keyword = (k: number, ground: string) => inkOf(px, { x0: c + 84 + 72, x1: c + 84 + 72 + 108, y0: c + 113 + 45 * k, y1: c + 113 + 45 * k + 44 }, ground);
+  const lit = keyword(2, mark);
+  expect(lit && off(hexRgb(lit), t["syn-keyword"]), `"return" on the band ${lit}`).toBeLessThanOrEqual(8);
+  const plainDef = inkOf(px, { x0: c + 84, x1: c + 138, y0: c + 113, y1: c + 157 }, t.bg);
+  expect(plainDef && off(hexRgb(plainDef), t["syn-keyword"]), `"def" off the band ${plainDef}`).toBeLessThanOrEqual(8);
+  await expect(dialogOf(page).locator("#snippet-frame")).toHaveAccessibleName(/\. Plain frame, medium background, highlighted: lines 2 to 3\.$/);
+
+  // Mid-typing an incomplete entry says nothing and keeps the band; committing (Tab) says what is wrong.
+  await field.fill("2-");
+  await expect(error).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid");
+  await field.fill("9");
+  await expect(error).toHaveCount(0);
+  await field.press("Tab");
+  await expect(error).toHaveText("Line 9 isn't in the image: it shows lines 1 to 5.");
+  // Tab took focus to the footer, and the message under the field is brought into the body's view
+  // (it would lie under the footer's edge otherwise).
+  await expect(downloadButton(page)).toBeFocused();
+  await expect(error).toBeInViewport({ ratio: 1 });
+  await expect(field).toHaveAttribute("aria-invalid", "true");
+  await expect(field).toHaveAccessibleDescription("Line 9 isn't in the image: it shows lines 1 to 5. Numbers or ranges from 1 to 5, separated by commas, such as 1-3.");
+  // In error, no band: the preview is exactly what exports.
+  await previewReady(page, "match numbers name 2x medium plain");
+  px = decodeRgba(await previewPng(page));
+  for (const k of [1, 2]) expect(off(px.at(c + 5, rowY(k)), t.bg), `row ${k + 1}: no band while the entry is in error`).toBeLessThanOrEqual(2);
+  // While in error, typing another invalid entry changes neither the message nor its polite live
+  // region (reported when committed, never mid-typing: s.md decision 10); Enter commits it.
+  const live = dialogOf(page).locator(".snippet-highlight-live");
+  await expect(live).toHaveAttribute("aria-live", "polite");
+  await live.evaluate((el) => {
+    const w = window as unknown as { liveChanges: number };
+    w.liveChanges = 0;
+    new MutationObserver((records) => (w.liveChanges += records.length)).observe(el, { childList: true, subtree: true, characterData: true });
+  });
+  await field.fill("99");
+  await field.pressSequentially("9x");
+  await field.fill("x, 2");
+  await expect(error, "the committed message stays until the next commit").toHaveText("Line 9 isn't in the image: it shows lines 1 to 5.");
+  expect(await page.evaluate(() => (window as unknown as { liveChanges: number }).liveChanges), "live-region changes while typing").toBe(0);
+  await previewReady(page, "match numbers name 2x medium plain");
+  // The body scrolled back to its top: Enter (focus stays in the field) brings the message into view too.
+  await dialogOf(page).locator(".dialog-body").evaluate((b) => (b.scrollTop = 0));
+  await field.press("Enter");
+  await expect(error).toHaveText('"x" isn\'t a line number or a range such as 1-3.');
+  await expect(field).toBeFocused();
+  await expect(dialogOf(page)).toBeVisible();
+  await expect(error).toBeInViewport({ ratio: 1 });
+  // A valid entry clears the error at once.
+  await field.fill("5, 1, 1-2");
+  await expect(error).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid");
+  await previewReady(page, "match numbers name 2x medium plain hl:1-2,5");
+  // Exported as shown.
+  const d = await downloadPng(page);
+  const out = decodeRgba(d.bytes);
+  for (const [k, banded] of [[0, true], [1, true], [2, false], [4, true]] as const) expect(off(out.at(c + 5, rowY(k)), banded ? mark : t.bg), `exported row ${k + 1}`).toBeLessThanOrEqual(2);
+  // Never remembered: the next opening starts empty.
+  await page.keyboard.press("Escape");
+  // (Only the highlight changed, so nothing was written; a stored value would hold no highlight either.)
+  expect((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image"))) ?? "").not.toContain("highlight");
+  await openFromFileMenu(page, /^Capture snippet of calc\.py, lines 1 to 5\.\.\./);
+  await previewReady(page, "match numbers name 2x medium plain");
+  await expect(field).toHaveValue("");
+});
+
+test("39: a round-1 device's options migrate: its choices kept, the new ones at their defaults, then saved whole", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("codeeditor:snippet-image", '{"colors":"dark","numbers":false,"name":true}'));
+  await openWith(page);
+  await selectFixtureLines(page);
+  await openFromFileMenu(page, ITEM);
+  await previewReady(page, "dark no-numbers name 2x medium plain");
+  for (const id of ["#snippet-colors-dark", "#snippet-name", "#snippet-background-medium", "#snippet-frame-plain", "#snippet-scale-2"]) await expect(dialogOf(page).locator(id)).toBeChecked();
+  await expect(dialogOf(page).locator("#snippet-numbers")).not.toBeChecked();
+  await dialogOf(page).locator("#snippet-frame-window").check();
+  await previewReady(page, "dark no-numbers name 2x medium window");
+  expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!)).toEqual(
+    { colors: "dark", numbers: false, name: true, scale: 2, background: true, padding: "medium", frame: "window" },
+  );
+});
+
+for (const vp of [{ width: 1440, height: 900 }, { width: 600, height: 900 }, { width: 390, height: 844 }]) {
+  test(`40: P1 at ${vp.width} x ${vp.height}: no empty band above the buttons, the status shares their row where it fits; the image is centred`, async ({ page }) => {
+    await instrument(page, { realWrite: false });
+    await page.setViewportSize(vp);
+    await openWith(page);
+    await selectFixtureLines(page);
+    if (vp.width < 900) await page.locator(".drawer-toggle").click();
+    await openFromFileMenu(page, ITEM);
+    await previewReady(page);
+    const status = dialogOf(page).locator("#snippet-status");
+    const actions = dialogOf(page).locator(".snippet-actions");
+    const body = dialogOf(page).locator(".dialog-body");
+    const download = await box(downloadButton(page));
+    const footer = await box(actions);
+    const bodyBefore = await box(body);
+    const s = await box(status);
+    // The footer is 480 px or wider at 1440 and 600 (its container query): the status shares the row.
+    const wide = vp.width >= 600;
+    if (wide) {
+      // One row: the status beside the buttons, its two reserved lines no taller than the row needs.
+      expect(s.y, "the status starts in the buttons' row").toBeGreaterThanOrEqual(footer.y);
+      expect(s.y + s.height, "the status ends in the buttons' row").toBeGreaterThan(download.y);
+      expect(s.x + s.width, "the status is left of the buttons").toBeLessThanOrEqual(download.x);
+      if (vp.width === 1440) expect(footer.height, "rule, 12, a 40 px row, 24").toBeLessThanOrEqual(78);
+    } else {
+      expect(s.height, "the empty status takes no room on a narrow footer").toBe(0);
+      // Rule, 12, the 8 px gap, the 44 px buttons, 24.
+      expect(footer.height).toBeLessThanOrEqual(90);
+    }
+    // The stage centres the image: as much room above it as below.
+    const frame = await dialogOf(page).locator("#snippet-frame").evaluate((f) => {
+      const r = f.getBoundingClientRect();
+      const c = f.querySelector("canvas")!.getBoundingClientRect();
+      return { above: c.top - r.top, below: r.bottom - c.bottom };
+    });
+    expect(Math.abs(frame.above - frame.below), JSON.stringify(frame)).toBeLessThanOrEqual(1);
+    if (vp.width === 1440) {
+      // The stage keeps the default look's height (medium background, plain frame), not the tallest
+      // look's: with the 2-line fixture every option is in view with the preview, nothing scrolled.
+      await body.evaluate((b) => (b.scrollTop = 0));
+      await expect(dialogOf(page).locator("#snippet-frame canvas")).toBeInViewport({ ratio: 1 });
+      await expect(dialogOf(page).locator("#snippet-highlight-hint")).toBeInViewport({ ratio: 1 });
+      // A taller look (large background, window frame) shrinks to fit the stage instead of scrolling it.
+      await setOptions(page, "match", true, true, { background: "large", frame: "window" });
+      const fit = await dialogOf(page).locator("#snippet-frame").evaluate((f) => {
+        const c = f.querySelector("canvas")!;
+        return { scroll: f.scrollHeight - f.clientHeight, shown: c.getBoundingClientRect().height, drawn: c.height / 2 };
+      });
+      expect(fit.scroll, `no scrolling in the stage ${JSON.stringify(fit)}`).toBeLessThanOrEqual(0);
+      expect(fit.shown, `shrunk to fit ${JSON.stringify(fit)}`).toBeLessThan(fit.drawn);
+      await setOptions(page, "match", true, true);
+    }
+    // A result appears without moving the buttons or the body's bottom edge (test 9 covers every
+    // width and result); at 600 it is two lines, which fit the two reserved lines exactly.
+    await downloadPng(page);
+    await expect(status).toHaveText("Downloading main-py-lines-2-3.png.");
+    const after = await box(downloadButton(page));
+    expect(Math.abs(after.y - download.y) + Math.abs(after.x - download.x)).toBeLessThanOrEqual(0.5);
+    if (wide) {
+      const footerAfter = await box(actions);
+      const bodyAfter = await box(body);
+      expect(Math.abs(footerAfter.height - footer.height), "the footer's height with a result").toBeLessThanOrEqual(0.5);
+      expect(Math.abs(bodyAfter.height - bodyBefore.height), "the body's height with a result").toBeLessThanOrEqual(0.5);
+    }
+  });
+}
+
+test.describe("41: the highlight field and the new choices on a coarse pointer (Chromium)", () => {
+  test.skip(({ browserName }) => browserName !== "chromium", "Playwright emulates pointer: coarse in Chromium only");
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test("44 px targets for the new choices and the field; the error is announced and drawn with its bar", async ({ page }) => {
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), "touch emulated").toBe(true);
+    await openWith(page);
+    await selectFixtureLines(page);
+    await page.locator(".drawer-toggle").click();
+    await openFromFileMenu(page, ITEM);
+    await previewReady(page);
+    for (const id of ["#snippet-background-none", "#snippet-frame-window", "#snippet-scale-3"]) expect((await box(dialogOf(page).locator(id).locator(".."))).height).toBeGreaterThanOrEqual(44);
+    expect((await box(dialogOf(page).locator("#snippet-highlight"))).height).toBeGreaterThanOrEqual(44);
+    await dialogOf(page).locator("#snippet-highlight").fill("1");
+    await dialogOf(page).locator("#snippet-highlight").press("Enter");
+    const error = dialogOf(page).locator("#snippet-highlight-error");
+    await expect(error).toHaveText("Line 1 isn't in the image: it shows lines 2 to 3.");
+    expect(await error.evaluate((e) => getComputedStyle(e).boxShadow)).toMatch(/inset/);
+  });
+});
 
 test.describe("the file menu fits a short coarse window (Chromium)", () => {
   test.skip(({ browserName }) => browserName !== "chromium", "Playwright emulates pointer: coarse in Chromium only");

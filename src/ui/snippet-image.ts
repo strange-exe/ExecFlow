@@ -7,7 +7,7 @@
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { nameOf } from "../core/paths";
-import { canCopyImages, menuLabel, pickLines, readImageOptions, refusalMessage, type Entry, type LinePlan, type ShellMessage } from "../core/snippet";
+import { canCopyImages, menuLabel, pickLines, refusalMessage, type Entry, type LinePlan, type ShellMessage } from "../core/snippet";
 import type { MenuItem } from "./menu";
 import type { Notice } from "./notice";
 import type { SnippetDialogArgs } from "./snippet-dialog";
@@ -89,6 +89,23 @@ export function createSnippetCapture(deps: CaptureDeps): SnippetCapture {
     return plan.reason === "cap" ? { kind: "refused", reason: "cap", count: plan.count } : { kind: "refused", reason: plan.reason };
   }
 
+  /**
+   * The target, when it is laid out now. Right after the window crosses 900 px, WebKit's matchMedia
+   * can already report the new width while its layout still has the old one, so Files (shown only
+   * when narrow) is still display: none and focus() on it did nothing: focus stayed on the page (1
+   * close in 20 at 4 workers, 2026-10-22). Then the target is chosen again and focused a frame later,
+   * once the layout has caught up, and null tells openModal the focusing is done here.
+   */
+  function whenShown(pick: () => HTMLElement): HTMLElement | null {
+    const target = pick();
+    if (isShown(target)) return target;
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body) pick().focus();
+    });
+    return null;
+  }
+
   /** Where focus goes when the dialog closes, decided then (5.6). */
   function returnTo(opener: HTMLElement, entry: Entry): () => HTMLElement | null {
     const fallback = () => (deps.narrow() ? deps.filesButton : deps.fileActions);
@@ -100,10 +117,10 @@ export function createSnippetCapture(deps: CaptureDeps): SnippetCapture {
           view.focus();
           return null;
         }
-        return fallback();
+        return whenShown(fallback);
       };
     }
-    return () => (deps.narrow() ? deps.filesButton : isShown(opener) ? opener : deps.fileActions);
+    return () => whenShown(() => (deps.narrow() ? deps.filesButton : isShown(opener) ? opener : deps.fileActions));
   }
 
   function open(opener: HTMLElement, entry: Entry): void {
@@ -122,7 +139,7 @@ export function createSnippetCapture(deps: CaptureDeps): SnippetCapture {
       return;
     }
     const args: SnippetDialogArgs = {
-      state: file.state, view, plan, path: file.path, options: readImageOptions(storage()), canCopy: canCopy(),
+      state: file.state, view, plan, path: file.path, canCopy: canCopy(),
       returnTo: returnTo(opener, entry), root: deps.root, notice: deps.notice, storage: storage(),
     };
     opening = load()

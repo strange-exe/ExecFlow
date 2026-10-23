@@ -4,13 +4,13 @@ import { syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it, vi } from "vitest";
 import { IMAGE_TOKENS } from "../core/snippet-dialog";
-import { contrast } from "../theme/contrast";
+import { contrast, deltaE, IMAGE_MIXES, over } from "../theme/contrast";
 import { OWN } from "../theme/palettes";
 import { BUILT_IN, themePalette, type Scheme } from "../theme/themes";
 import { EXTRA_SPECIALS } from "./extensions";
 import { languageSupport } from "./language-support";
 import {
-  chooseScale, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, wrapRows,
+  BAR_STEP, cardRect, chooseScale, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, windowBarGround, wrapRows,
   type Run, type StyledLine,
 } from "./snippet-render";
 
@@ -130,7 +130,9 @@ describe("tabStop, trimEnd and wrapRows", () => {
 
 describe("layoutImage and chooseScale (4.1, 4.5)", () => {
   const numbered = (first: number, count: number) => Array.from({ length: count }, (_, i) => ({ number: first + i }));
-  const combos = [{ numbers: true, name: true }, { numbers: true, name: false }, { numbers: false, name: true }, { numbers: false, name: false }];
+  /** Round 1's look: the plain frame, no background (the card's size is the image's). */
+  const plain = (numbers: boolean, name: boolean) => ({ numbers, name, frame: "plain", pad: 0 }) as const;
+  const combos = [plain(true, true), plain(true, false), plain(false, true), plain(false, false)];
   // name, first line, rows, ch, lineH, widest row (px), default CSS size, scale, bitmaps (default, header off, numbers off, both off)
   it.each([
     ["A: 9 lines", 4, 9, 9, 22.5, 342, [410, 272], 2, [[820, 544], [820, 457], [752, 544], [752, 457]]],
@@ -157,22 +159,64 @@ describe("layoutImage and chooseScale (4.1, 4.5)", () => {
   );
 
   it("places the fixture exactly: gutter, code, name row, rule", () => {
-    const l = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, { numbers: true, name: true });
-    expect(l).toMatchObject({ gutterRight: 26, codeX: 42, nameTop: 13, ruleY: 43.5, codeTop: 56.5, digits: 1, rows: 2, markRight: 26 });
-    expect(SIZES).toEqual({ E: 1, P: 16, V: 12, G: 16, HG: 8, MIN_COLS: 32 });
-    const off = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, { numbers: false, name: false });
+    const l = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, plain(true, true));
+    expect(l).toMatchObject({ gutterRight: 26, codeX: 42, nameTop: 13, ruleY: 43.5, barBottom: 0, codeTop: 56.5, digits: 1, rows: 2, markRight: 26 });
+    expect(SIZES).toEqual({ E: 1, P: 16, V: 12, G: 16, HG: 8, R: 8, MIN_COLS: 32 });
+    const off = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, plain(false, false));
     expect(off).toMatchObject({ codeX: 17, codeTop: 13, digits: 0 });
   });
 
+  it("the window frame: a bar of 8, the name's line box and 8, then the rule and 12, with or without the name", () => {
+    for (const name of [true, false]) {
+      const l = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, { numbers: true, name, frame: "window", pad: 0 });
+      expect(l).toMatchObject({ nameTop: 9, barBottom: 39.5, ruleY: 39.5, codeTop: 52.5, cardWidth: 347, cardHeight: 52.5 + 45 + 13 });
+    }
+  });
+
+  it("the background's padding surrounds the card: sizes for none, small, medium and large", () => {
+    const m = { ch: 9, lineH: 22.5, widest: 144 };
+    for (const [pad, size] of [[0, [347, 114.5]], [16, [379, 146.5]], [32, [411, 178.5]], [64, [475, 242.5]]] as const) {
+      const l = layoutImage(numbered(2, 2), m, { ...plain(true, true), pad });
+      expect([l.width, l.height], `pad ${pad}`).toEqual(size);
+      expect([l.cardWidth, l.cardHeight, l.pad]).toEqual([347, 114.5, pad]);
+    }
+  });
+
   it("a wrapped row with numbers off: the hook mark at E + P and the code one character and the gap further right", () => {
-    const l = layoutImage([{ number: 1 }, { number: null }], { ch: 9, lineH: 22.5, widest: 100 }, { numbers: false, name: false });
+    const l = layoutImage([{ number: 1 }, { number: null }], { ch: 9, lineH: 22.5, widest: 100 }, plain(false, false));
     expect(l.markRight).toBe(1 + 16 + 9);
     expect(l.codeX).toBe(1 + 16 + 9 + 16);
     expect(l.width).toBe(42 + 288 + 16 + 1);
   });
 
   it("the edge is max(1, round(scale)) pixels thick", () => {
-    expect([1, 1.5, 2].map(edgeThickness)).toEqual([1, 2, 2]);
+    expect([1, 1.5, 2, 3].map(edgeThickness)).toEqual([1, 2, 2, 3]);
+  });
+
+  it("the chosen scale gives the exact size, ceil(CSS size x scale); a scale too big steps down, never up", () => {
+    // The fixture at medium padding, 411 x 178.5 CSS px.
+    expect(chooseScale(411, 178.5, 1)).toEqual({ scale: 1, width: 411, height: 179 });
+    expect(chooseScale(411, 178.5, 2)).toEqual({ scale: 2, width: 822, height: 357 });
+    expect(chooseScale(411, 178.5, 3)).toEqual({ scale: 3, width: 1233, height: 536 });
+    expect(chooseScale(411, 178.5)).toEqual({ scale: 2, width: 822, height: 357 });
+    // Case F (977 x 6819.5): 3x and 2x are over the area cap, 1.5x fits.
+    expect(chooseScale(977, 6819.5, 3)).toEqual({ scale: 1.5, width: 1466, height: 10230 });
+    expect(chooseScale(977, 6819.5, 1)).toEqual({ scale: 1, width: 977, height: 6820 });
+    // 3x over the 16,384 px side cap, 2x within both caps.
+    expect(chooseScale(400, 6000, 3)).toEqual({ scale: 2, width: 800, height: 12000 });
+    expect(chooseScale(2486, 9077, 3)).toBeNull();
+  });
+
+  it("the card sits inside the padding in whole bitmap pixels at every scale", () => {
+    const l = layoutImage(numbered(2, 2), { ch: 9, lineH: 22.5, widest: 144 }, { ...plain(true, true), pad: 32 });
+    for (const s of [1, 1.5, 2, 3]) {
+      const fit = chooseScale(l.width, l.height, 3)!;
+      const bitmap = { width: Math.ceil(l.width * s), height: Math.ceil(l.height * s) };
+      const card = cardRect(l, bitmap, s);
+      expect(Number.isInteger(card.x), `scale ${s}`).toBe(true);
+      expect(card).toEqual({ x: 32 * s, y: 32 * s, w: bitmap.width - 64 * s, h: bitmap.height - 64 * s, r: 8 * s });
+      expect(fit.scale).toBe(3);
+    }
   });
 });
 
@@ -187,21 +231,29 @@ describe("the readback (7.5)", () => {
   const divider = "#adc0b4";
   const bg = "#f8fbf9";
 
-  it("reads a row inside the top padding, outside the edge and every box, at every scale and option", () => {
+  it("reads a row of the card's straight left edge, below its corner, above the code, left of every box, at every scale and option", () => {
     const rowsAt = [{ number: 2 }, { number: 3 }];
-    for (const s of [1, 1.5, 2]) {
+    for (const s of [1, 1.5, 2, 3]) {
       const t = edgeThickness(s);
-      const r = readbackRect(t);
-      expect(r).toEqual({ x: 0, y: t + 2, w: t + 3, h: 1 });
-      for (const numbers of [true, false]) {
-        for (const name of [true, false]) {
-          const l = layoutImage(rowsAt, { ch: 9, lineH: 22.5, widest: 144 }, { numbers, name });
-          const firstBox = (name ? l.nameTop : l.codeTop) * s;
-          expect(r.y, `scale ${s}: below the top edge`).toBeGreaterThanOrEqual(t);
-          expect(r.y + r.h, `scale ${s}: above the name box and the rows`).toBeLessThanOrEqual(Math.floor(firstBox));
-          expect(r.x + t - 1, "the edge pixels").toBeLessThan(t);
-          expect(t + 2, "the ground pixel, left of the numbers, the name and the code").toBeLessThan(Math.floor((1 + 16) * s));
-          expect(t + 2).toBeGreaterThanOrEqual(t);
+      for (const pad of [0, 16, 32, 64]) {
+        for (const frame of ["plain", "window"] as const) {
+          for (const numbers of [true, false]) {
+            for (const name of [true, false]) {
+              const what = `scale ${s}, pad ${pad}, ${frame}, numbers ${numbers}, name ${name}`;
+              const l = layoutImage(rowsAt, { ch: 9, lineH: 22.5, widest: 144 }, { numbers, name, frame, pad });
+              const card = cardRect(l, { width: Math.ceil(l.width * s), height: Math.ceil(l.height * s) }, s);
+              const r = readbackRect(card, t);
+              expect(r, what).toEqual({ x: card.x, y: card.y + Math.ceil(8 * s) + 1, w: t + 3, h: 1 });
+              // Below the rounded corner (the edge is straight there) and the edge's own thickness.
+              expect(r.y - card.y, what).toBeGreaterThan(card.r);
+              expect(r.y - card.y, what).toBeGreaterThanOrEqual(t);
+              // Above the first box drawn on the ground: the plain name, or the code; inside the window's bar.
+              const firstBox = frame === "window" ? l.barBottom : name ? l.nameTop : l.codeTop;
+              expect(r.y + r.h - card.y, what).toBeLessThanOrEqual(Math.floor(firstBox * s));
+              // The ground pixel, left of the numbers, the name and the code.
+              expect(t + 2, what).toBeLessThan(Math.floor((1 + 16) * s));
+            }
+          }
         }
       }
     }
@@ -233,6 +285,16 @@ describe("the readback (7.5)", () => {
   });
 });
 
+describe("the window bar's ground", () => {
+  it("is the chrome's ground where the chrome has its own; else the hovered-chrome ground, when that is farther from the code", () => {
+    expect(windowBarGround({ bg: "#13201b", surface: "#152a22", text: "#e9eae4" }), "Deep Field dark: dE 0.036").toBe("#152a22");
+    // Nord paints its chrome in its code ground: UI_MIXES.hover (text at 7%) over it.
+    expect(windowBarGround({ bg: "#2e3440", surface: "#2e3440", text: "#d8dee9" })).toBe(over("#2e3440", "#d8dee9", 0.07));
+    // A text colour that would bring the bar nearer the code ground keeps the chrome's.
+    expect(windowBarGround({ bg: "#808080", surface: "#7a7a7a", text: "#848484" })).toBe("#7a7a7a");
+  });
+});
+
 function schemesOf(theme: (typeof BUILT_IN)[number]): Scheme[] {
   return theme.system ? ["light", "dark"] : [theme.scheme];
 }
@@ -248,7 +310,20 @@ describe("the image's colours in every theme (4.6)", () => {
     for (const t of IMAGE_TOKENS) expect(p[t], t).toMatch(HEX6);
     expect(TEXT_TOKENS).toHaveLength(14);
     for (const t of TEXT_TOKENS) expect(contrast(p[t], p.bg), `${t} on bg`).toBeGreaterThanOrEqual(4.5);
+    // Round 2: every colour drawn on a highlighted line's band (the name never is), the window bar's
+    // name and placeholders, as the renderer mixes them (contrast.ts IMAGE_MIXES).
+    const band = over(p.bg, p.focus, IMAGE_MIXES.mark.pct / 100);
+    for (const t of TEXT_TOKENS.filter((x) => x !== "text-secondary")) expect(contrast(p[t], band), `${t} on the highlight band ${band}`).toBeGreaterThanOrEqual(4.5);
+    // The window bar's ground as the renderer picks it: visibly not the code ground (OKLab 0.02, the
+    // just-noticeable difference CSS Color 4's gamut mapping uses), so Window never looks like Plain;
+    // never closer to the code ground than the chrome is.
+    const bar = windowBarGround({ bg: p.bg, surface: p.surface, text: p.text });
+    expect(deltaE(bar, p.bg), `the window bar ${bar} against the code ground ${p.bg}`).toBeGreaterThanOrEqual(0.02);
+    expect(deltaE(bar, p.bg)).toBeGreaterThanOrEqual(deltaE(p.surface, p.bg));
+    if (deltaE(p.surface, p.bg) >= BAR_STEP) expect(bar, "a chrome of its own: the bar is the chrome's ground").toBe(p.surface);
+    for (const t of ["text-secondary", "danger"] as const) expect(contrast(p[t], bar), `${t} on the window bar ${bar}`).toBeGreaterThanOrEqual(4.5);
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(p.divider.slice(i, i + 2), 16));
+    // A white placeholder fails the readback on the edge pixels, whatever the ground (bg or the window's bar).
     expect(r >= 247 && g >= 247 && b >= 247, `divider ${p.divider} is within 8 of white`).toBe(false);
   });
 });

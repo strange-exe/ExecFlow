@@ -77,22 +77,21 @@ export const APP_KEYS: readonly KeyBinding[] = [
 ];
 
 /**
- * Escape that closes the suggestion list or ends a snippet also arms "Escape then Tab" for 2 s, as
- * CodeMirror's own Escape does (view 6.43.14 arms it only when no key binding used the key), so the
- * documented way out of the editor works with the list open or a snippet active. It must come
- * before autocompletion()'s keymap and the snippet keymap: same precedence, earlier in BASE (the
- * snippet keymap is appended to a state when its first snippet starts). The cost: Tab within 2 s
- * of such an Escape leaves instead of indenting, and in a snippet with the list open it leaves
- * instead of moving to the next field (Tab without the Escape still moves there).
+ * Escape closes the suggestion list, else ends a snippet, and does nothing more: the next Tab
+ * indents. Only an Escape no binding used arms CodeMirror's "Escape then Tab" (view 6.43.14), so
+ * with the list open the way out is Escape, Escape, Tab (or Ctrl-m); defaultKeymap's Escape clears
+ * a selection first in the same way (simplifySelection). This Escape used to arm it
+ * too, and then "Escape to dismiss the list, Tab to indent" left the editor (user report,
+ * 2026-10-23; the risk named in .claude/research/autocomplete.md section 4). It must come before
+ * autocompletion()'s keymap and the snippet keymap: same precedence, earlier in BASE (the snippet
+ * keymap is appended to a state when its first snippet starts).
  */
 export const ESCAPE_KEY: KeyBinding = {
   key: "Escape",
   run: (view) => {
     // Data a suggestion was waiting for doesn't open the list after Escape (late-data.ts).
     forgetWaiting(view);
-    if (!closeCompletion(view) && !clearSnippet(view)) return false;
-    view.setTabFocusMode(2000);
-    return true;
+    return closeCompletion(view) || clearSnippet(view);
   },
 };
 

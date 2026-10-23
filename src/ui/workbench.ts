@@ -21,13 +21,14 @@ import { describeImport, showRefusals } from "./import-notice";
 import { createLayout, NARROW } from "./layout";
 import { menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
+import type { PaletteApi } from "./palette-model";
 import { FAILED, OutputView, statusWord, type LiftedError } from "./output";
 import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD } from "./problems";
 import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
 import { dropStash, readStash, textHash, writeStash } from "./recover";
 import { callSiteMarks } from "./run-diagnostics";
 import { buildOptions, createSettingsStore, runLimits } from "./settings";
-import { createShortcutsDialog } from "./shortcuts";
+import { paletteKey } from "./palette-keys";
 import { createSnippetCapture } from "./snippet-image";
 import { mountSync, type SyncHooks } from "./sync-entry";
 import { TabStrip } from "./tabs";
@@ -107,7 +108,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const problemsView = new ProblemsView();
   L.problemsPanel.append(problemsView.element);
   L.editorPanel.append(
-    h("span", { id: "editor-help", hidden: true }, `Tab indents. To move on, press Escape and then Tab, or press ${isMac() ? "Shift Option M" : "Control M"} so that Tab moves the focus. With code selected, Shift F10 opens its menu.`),
+    h("span", { id: "editor-help", hidden: true }, `Tab indents. To move on, press Escape and then Tab (Escape first closes suggestions or clears a selection), or press ${isMac() ? "Shift Option M" : "Control M"} so that Tab moves the focus. With code selected, Shift F10 opens its menu.`),
   );
   root.style.setProperty("--code-size", `${settings.get().codeSize}px`);
   try {
@@ -175,6 +176,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   });
   store.onChange(relayChanges(tab, ws));
   const canWrite = () => tab?.canWrite() ?? false;
+  // Each file's command-line arguments, kept with the workspace's UI state (track R, batch 3).
+  output.useArgs({ load: async () => (await store.getUiState(ws)).args ?? {}, save: (path, text) => store.setRunArgs(ws, path, text) });
 
   // ---------------------------------------------------------------- editor, tree, tabs
   const open: OpenFile[] = [];
@@ -354,6 +357,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     items.push(
       { label: "New file", icon: "file-plus", separatorBefore: true, run: () => startCreate("file", dir) },
       { label: "New folder", icon: "folder-plus", run: () => startCreate("dir", dir) },
+      { label: "New from example...", icon: "code-simple", run: () => openExamples() },
     );
     if (node) {
       items.push(
@@ -720,6 +724,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
                 importFiles: () => void importFrom(false, ""),
                 importFolder: () => void importFrom(true, ""),
                 connect: () => sync.connect(),
+                examples: (opener) => openExamples(opener),
               },
               false,
             )
@@ -730,6 +735,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   function afterActiveChange() {
     const file = fileOf(editors.activeId);
     tree.setActive(file?.path ?? null);
+    output.showArgsFor(file?.path ?? null);
     renderTabs();
     renderEmpty();
     const lang = file ? detectLanguage(file.path)?.id ?? null : null;
@@ -1042,6 +1048,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const SAME_GESTURE_MS = 400;
 
   function recordMove(from: WsPath, to: WsPath | null) {
+    // A file's arguments follow its rename and go with its delete (as they do in storage).
+    output.argsMoved(from, to);
     if (!runMoves) return;
     for (const [k, v] of runMoves) if (v === from) runMoves.set(k, to);
     runMoves.set(from, to);
@@ -1120,6 +1128,17 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       }
       if (cpp.state === "downloading") return notice.show("The C/C++ download is still running. Run works as soon as it finishes.", { tone: "info" });
     }
+    // Arguments that can't be split (an unclosed quote, over a limit): the field explains, and
+    // nothing runs. Focus moves there and reads the message; if it was there already, it is said.
+    // The field is a lazy chunk: if it can't load, Run says so and runs nothing (the arguments are unknown).
+    const args = await output.argsFor(file.path).catch((e: unknown) => e as Error);
+    if (args instanceof Error) return notice.show(`The Arguments field couldn't load (${errorText(args)}), so nothing ran. Press Run again.`);
+    if (!args.ok) {
+      L.showPanelTab("output");
+      if (L.narrow()) L.showView("output");
+      if (output.explainArgs(args.reason)) announcer.say(args.reason);
+      return;
+    }
     notice.clear();
     const moves = new Map<WsPath, WsPath | null>();
     runMoves = moves;
@@ -1140,7 +1159,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const byPath = new Map(files.map((f) => [f.path, f]));
     for (const s of ticket.sources) byPath.set(s.path, { path: s.path, text: s.text });
     const current = settings.get();
-    output.begin(nameOf(file.path));
+    output.begin(nameOf(file.path), args.shown);
     // The panel opens on Run (to its remembered height) and shows Output.
     L.showPanelTab("output");
     if (L.narrow()) L.showView("output");
@@ -1149,7 +1168,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     announcer.say(`Running ${nameOf(file.path)}.`);
     try {
       const { result, summary } = await runtimes.run(
-        { lang, entry: file.path, files: [...byPath.values()], stdin: output.stdin.value, limits: runLimits(current), build: buildOptions(current) },
+        { lang, entry: file.path, files: [...byPath.values()], stdin: output.stdin.value, args: args.args, limits: runLimits(current), build: buildOptions(current) },
         {
           onOutput: (stream, text) => output.write(stream, text),
           onPhase: (phase, detail) => output.setPhase(phase, phaseLabel(phase, detail, lang)),
@@ -1319,11 +1338,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const restartButton = h("button", { type: "button", class: "btn ghost small", id: "restart-python", title: "Start Python again with a clean state" }, icon("arrow-clockwise"), "Restart Python");
   const clearButton = h("button", { type: "button", class: "btn ghost small", id: "clear-output", title: "Clear the output" }, icon("eraser"), h("span", { class: "label-wide" }, "Clear"));
   clearButton.setAttribute("aria-label", "Clear the output");
-  restartButton.addEventListener("click", () => {
+  function restartPython() {
     runtimes.restartPython();
     announcer.say("Restarting Python.");
     notice.show("Python is starting again with a clean state.", { tone: "info" });
-  });
+  }
+  restartButton.addEventListener("click", restartPython);
   clearButton.addEventListener("click", () => output.clear());
   // Maximise / restore the panel: resizing without dragging (WCAG 2.2 SC 2.5.7). Desktop only;
   // below 900 px Output fills the screen anyway.
@@ -1633,21 +1653,155 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   };
   // Settings (with the theme picker) is its own chunk, fetched the first time it opens.
   let settingsDialog: Promise<{ open(opener?: HTMLElement): void }> | null = null;
-  function openSettings() {
+  function openSettings(opener: HTMLElement = L.settingsButton) {
     settingsDialog ??= import("./settings-dialog").then(({ createSettingsDialog }) =>
       createSettingsDialog({ settings, db, sync: () => sync, exportWorkspace, signOut: signOutAndClear }),
     );
     settingsDialog.then(
-      (dialog) => dialog.open(L.settingsButton),
+      (dialog) => dialog.open(opener),
       (e: unknown) => {
         settingsDialog = null;
         notice.show(`Settings couldn't open: ${errorText(e)}`);
       },
     );
   }
-  const shortcuts = createShortcutsDialog();
-  L.settingsButton.addEventListener("click", openSettings);
+  // The Shortcuts list is a chunk of its own, built on its first opening (a first visit doesn't need
+  // its table; the budget in design.spec), and fetched early on a sign of intent, as the palette is.
+  let shortcutsDialog: Promise<{ open(opener?: HTMLElement): void }> | null = null;
+  const loadShortcuts = () => (shortcutsDialog ??= import("./shortcuts").then((m) => m.createShortcutsDialog()).catch((e: unknown) => {
+    shortcutsDialog = null;
+    throw e;
+  }));
+  const shortcuts = {
+    open(opener?: HTMLElement) {
+      loadShortcuts().then(
+        (dialog) => dialog.open(opener),
+        (e: unknown) => notice.show(`The shortcuts list couldn't open: ${errorText(e)}`),
+      );
+    },
+  };
+  for (const type of ["pointerover", "focusin"]) {
+    L.status.shortcuts.addEventListener(type, () => {
+      if (navigator.onLine) void loadShortcuts().catch(() => {});
+    }, { once: true });
+  }
+  L.settingsButton.addEventListener("click", () => openSettings());
   L.status.shortcuts.addEventListener("click", () => shortcuts.open(L.status.shortcuts));
+
+  /** Ctrl+`: the output (a collapsed panel opens), or the Output tab with nothing printed yet. */
+  function goToOutput() {
+    if (L.narrow()) L.showView("output");
+    L.showPanelTab("output");
+    if (!output.focus()) (L.narrow() ? L.viewTabs.output : L.panelTabs.output).focus();
+  }
+  const focused = () => (document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null);
+
+  // ---------------------------------------------------------------- examples and the command palette
+  // Both are lazy chunks (.claude/design/batch3/p.md): the shell keeps their entry points only.
+  let examplesChunk: Promise<typeof import("./examples-dialog")> | null = null;
+  function openExamples(opener: HTMLElement | null = focused()) {
+    examplesChunk ??= import("./examples-dialog");
+    examplesChunk.then(
+      (m) => m.openExamples({ taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), create: (p, text) => void addFile(p, text), returnTo: opener }),
+      (e: unknown) => {
+        examplesChunk = null;
+        notice.show(`The examples couldn't open: ${errorText(e)}`);
+      },
+    );
+  }
+  /** Adds a file at `path` with `text` and opens it (an example). */
+  async function addFile(path: WsPath, text: string) {
+    if (explainReadOnly()) return;
+    try {
+      await store.createFile(ws, path, text);
+    } catch (e) {
+      return notice.show(storageMessage(e));
+    }
+    await refreshTree();
+    await openFile(path, { focus: true });
+    announcer.say(`Added ${path}. Press ${isMac() ? "Command" : "Control"} Enter to run it.`);
+  }
+
+  let paletteChunk: Promise<typeof import("./palette")> | null = null;
+  const loadPalette = () => (paletteChunk ??= import("./palette").catch((e: unknown) => {
+    paletteChunk = null;
+    throw e;
+  }));
+  const paletteApi: PaletteApi = {
+    mac: isMac(),
+    fileOpen: () => manager !== null && editors.activeId !== null,
+    running: () => root.dataset.run === "running" || root.dataset.run === "waiting",
+    python: () => runtimes.state("python") !== "idle" || detectLanguage(fileOf(editors.activeId)?.path ?? "")?.id === "python",
+    connected: () => sync.connected(),
+    canWrite,
+    explainReadOnly,
+    files: () => entries.filter((e) => e.kind === "file").map((e) => ({ path: e.path, opaque: Boolean(e.opaque) })),
+    openPaths: () => open.map((f) => f.path),
+    activePath: () => fileOf(editors.activeId)?.path ?? null,
+    view: () => manager?.view ?? null,
+    settings,
+    notice,
+    widthItems,
+    act: {
+      run: () => void run(),
+      stop: stopRun,
+      save: () => void saveAndSync(),
+      open: (path) => void openFile(path, { focus: true }),
+      close: () => void (editors.activeId && closeFile(editors.activeId)),
+      newFile: () => startCreate("file"),
+      newFolder: () => startCreate("dir"),
+      examples: (opener) => openExamples(opener),
+      rename: () => {
+        const path = fileOf(editors.activeId)?.path;
+        if (!path || explainReadOnly()) return;
+        if (L.narrow() && !L.drawerOpen()) L.openDrawer();
+        tree.reveal(path);
+        tree.startRename(path);
+      },
+      remove: () => {
+        const node = tree.node(fileOf(editors.activeId)?.path ?? "");
+        if (node) void removeEntry(node);
+      },
+      importFiles: () => void importFrom(false, ""),
+      importFolder: () => void importFrom(true, ""),
+      exportZip: () => void exportWorkspace(),
+      capture: (opener) => snippet.open(opener, opener.closest(".cm-editor") ? "context" : "head-key"),
+      fileList: () => {
+        if (L.narrow()) L.openDrawer();
+        tree.focus();
+      },
+      output: goToOutput,
+      problems: () => {
+        if (L.narrow()) L.showView("problems");
+        L.showPanelTab("problems");
+        (L.narrow() ? L.viewTabs.problems : L.panelTabs.problems).focus();
+      },
+      settings: (opener) => openSettings(opener),
+      shortcuts: (opener) => shortcuts.open(opener),
+      connect: () => sync.connect(),
+      syncNow: () => void saveAndSync(),
+      restartPython,
+      clearOutput: () => output.clear(),
+    },
+  };
+  /** Opens the palette on `mode`; focus goes back to what had it (or to the top bar's Search). */
+  function openPalette(mode: "all" | "commands", opener: HTMLElement | null = focused() ?? L.paletteButton) {
+    loadPalette().then(
+      (m) => m.openPalette(paletteApi, mode, opener),
+      (e: unknown) => notice.show(`Search couldn't open: ${errorText(e)}`),
+    );
+  }
+  L.paletteButton.addEventListener("click", () => openPalette("all", L.paletteButton));
+  // Fetched on the first sign of intent, so the chunk is usually there by the time it opens. Not while
+  // offline: a prefetch is only a hint, and without the service worker's copy it can only fail (a
+  // Ctrl+S offline once started a download that failed); opening the palette still loads it.
+  const prefetchPalette = () => {
+    if (navigator.onLine) void loadPalette().catch(() => {});
+  };
+  for (const type of ["pointerover", "focusin"]) L.paletteButton.addEventListener(type, prefetchPalette, { once: true });
+  addEventListener("keydown", (e) => {
+    if (e.key === "Control" || e.key === "Meta" || e.key === "F1") prefetchPalette();
+  }, { capture: true });
   settings.onChange((now, before) => {
     if (now.codeSize !== before.codeSize) root.style.setProperty("--code-size", `${now.codeSize}px`);
     if (now.lineWrapping !== before.lineWrapping) editors.setPrefs({ lineWrapping: now.lineWrapping });
@@ -1701,10 +1855,13 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (e.defaultPrevented) return;
     const mod = isMac() ? e.metaKey : e.ctrlKey;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const palette = paletteKey(e);
     // A modal dialog or an open menu owns the keyboard: nothing behind it runs, closes or moves (APG;
-    // native menus do the same). Mod+S still keeps the browser's own Save page dialog away.
+    // native menus do the same). Mod+S and the palette's keys still keep the browser's own Save page,
+    // Print and Help away, as they do everywhere else in the app. (The palette's own dialog handles
+    // its keys before this.)
     if (document.querySelector("dialog[open], .menu")) {
-      if (mod && !e.altKey && !e.shiftKey && key === "s") e.preventDefault();
+      if ((mod && !e.altKey && !e.shiftKey && key === "s") || palette) e.preventDefault();
       return;
     }
     if (mod && !e.altKey && key === "Enter") {
@@ -1727,11 +1884,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       tree.focus();
     } else if (mod && (key === "`" || e.code === "Backquote")) {
       e.preventDefault();
-      if (L.narrow()) L.showView("output");
-      // Opens a collapsed panel too.
-      L.showPanelTab("output");
-      // Nothing printed yet: the Output tab itself takes the focus (the switch's, on a phone).
-      if (!output.focus()) (L.narrow() ? L.viewTabs.output : L.panelTabs.output).focus();
+      goToOutput();
+    } else if (palette) {
+      // The command palette: F1 and Ctrl+Shift+P on the commands, Ctrl+P on files and commands
+      // (vscode.dev's keys; Ctrl+P is the browser's Print, which the app takes here).
+      e.preventDefault();
+      openPalette(palette);
     } else if ((key === "?" && !mod && !isTyping(e.target)) || (mod && key === "/" && !isTyping(e.target))) {
       e.preventDefault();
       shortcuts.open();

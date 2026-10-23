@@ -20,7 +20,8 @@ import { CHROME_SPEC, highlightStyle } from "./highlight";
  * The theme layer's colour variables (src/theme/contrast.ts COLOR_VARS) plus the non-colour tokens
  * the editor reads from tokens.css; nothing else may colour the editor.
  */
-const THEME_VARS = new Set([...COLOR_VARS.map((v) => `--${v}`), "--font-ui", "--font-code", "--code-size", "--r-control", "--shadow-pop"]);
+// --focus-bar: --focus, one step quieter in Deep Field dark (tokens.css; src/styles/focus-bar.test.ts).
+const THEME_VARS = new Set([...COLOR_VARS.map((v) => `--${v}`), "--font-ui", "--font-code", "--code-size", "--r-control", "--shadow-pop", "--focus-bar"]);
 
 type Spec = { [key: string]: string | number | Spec };
 
@@ -98,8 +99,9 @@ describe("themes use only the theme layer's variables", () => {
     // becomes Canvas (e2e/a11y.spec.ts measures that too).
     expect(CHROME_SPEC["&.cm-focused .cm-gutters::after"]).toEqual({
       content: "''", position: "absolute", top: "0", bottom: "0", right: "0", width: "2px",
-      backgroundColor: "var(--focus)", outline: "1px solid transparent", outlineOffset: "-1px", zIndex: "1", pointerEvents: "none",
+      backgroundColor: "var(--focus-bar)", outline: "1px solid transparent", outlineOffset: "-1px", zIndex: "1", pointerEvents: "none",
     });
+    // --focus-bar is --focus except in Deep Field dark (src/styles/focus-bar.test.ts checks that value).
     // PAIRS checks --focus against the gutter's grounds: the code ground, the cursor line, the error band.
     for (const bg of ["bg", "active-line@bg", "error-band@bg"]) {
       expect(PAIRS.some((p) => p.fg === "focus" && p.bg === bg && p.min >= 3), `focus on ${bg}`).toBe(true);
@@ -245,24 +247,24 @@ describe("suggestions", () => {
     expect(snippetEscape).toBeGreaterThan(at(ESCAPE_KEY, later));
   });
 
-  it("Escape with the list active closes it and arms Escape-then-Tab for 2 s", () => {
+  // Arming here made "Escape to dismiss the list, then Tab to indent" leave the editor (2026-10-23).
+  it("Escape with the list active closes it and doesn't arm Escape-then-Tab: the next Tab indents", () => {
     const { target, view, armed } = standIn(EditorState.create({ doc: "pr", selection: { anchor: 2 }, extensions: [BASE, fileConf.of(fileExtensions("main.py"))] }));
     expect(startCompletion(view)).toBe(true);
     expect(completionStatus(target.state)).not.toBeNull();
     expect(ESCAPE_KEY.run!(view)).toBe(true);
     expect(completionStatus(target.state)).toBeNull();
-    expect(armed).toEqual([2000]);
+    expect(armed).toEqual([]);
   });
 
-  it("Escape in a snippet ends it and arms; with neither, it leaves Escape to CodeMirror", () => {
+  it("Escape in a snippet ends it without arming; with neither, it leaves Escape to CodeMirror", () => {
     const { target, view, armed } = standIn(EditorState.create({ extensions: BASE }));
     expect(ESCAPE_KEY.run!(view)).toBe(false);
-    expect(armed).toEqual([]);
     startSnippet(view);
     expect(hasNextSnippetField(target.state)).toBe(true);
     expect(ESCAPE_KEY.run!(view)).toBe(true);
     expect(hasNextSnippetField(target.state)).toBe(false);
-    expect(armed).toEqual([2000]);
+    expect(armed).toEqual([]);
   });
 
   it("a read-only file refuses a picked suggestion (typed or snippet) but takes other changes", () => {

@@ -154,6 +154,23 @@ describe("a C/C++ run", () => {
     expect(runner.state).toBe("ready");
   });
 
+  it("gives the program its arguments after its name: argv[0] is the file's stem, then each argument as given", async () => {
+    const { runner, compiler, programs } = setup(true);
+    runner.prepare();
+    compiler().reply({ type: "ready", ms: 1 });
+    const args = ["two words", "", "$(rm -rf /)", ";", "|"];
+    const done = runner.run({ ...REQ, args }, hooks().h);
+    await tick();
+    const b = compiler().last("build") as { id: number; options: Record<string, unknown> };
+    expect(b.options).not.toHaveProperty("defines");
+    compiler().reply({ type: "built", id: b.id, ok: true, stage: "link", wasm: new Uint8Array([0, 97, 115, 109]), diagnostics: [], compileMs: 1, linkMs: 1, compiled: 2, reused: 0, recycle: false });
+    await tick();
+    const program = running(programs);
+    expect((program.last("run") as { args: string[] }).args).toEqual(["ex1", ...args]);
+    program.reply({ type: "done", exitCode: 0, truncated: false, ms: 1, written: [] });
+    expect((await done).status).toBe("ok");
+  });
+
   it("gives hints only about the program's own files, not other programs in the workspace", async () => {
     const { runner, compiler, programs } = setup(true);
     runner.prepare();

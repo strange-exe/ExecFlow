@@ -22,21 +22,33 @@ describe("compiler arguments", () => {
   });
 
   it("gives a C++ unit the precompiled header when asked", () => {
-    const args = unitArgs({ unit: { path: "x.cpp", lang: "cpp" }, root: "", common: COMMON, options: { ...DEFAULT_BUILD, defines: ["DEBUG=1"] }, id: "id", pch: "/pch/k.pch" });
-    expect(args.join(" ")).toContain("-std=c++17 -O2 -D DEBUG=1 -Wall -iquote /w -include-pch /pch/k.pch");
+    const args = unitArgs({ unit: { path: "x.cpp", lang: "cpp" }, root: "", common: COMMON, options: DEFAULT_BUILD, id: "id", pch: "/pch/k.pch" });
+    expect(args.join(" ")).toContain("-std=c++17 -O2 -Wall -iquote /w -include-pch /pch/k.pch");
     expect(args.slice(-3)).toEqual(["-x", "c++", "/w/x.cpp"]);
     expect(cOnly(COMMON)).toEqual(COMMON.filter((a, i) => !(a === "-internal-isystem" && COMMON[i + 1] === "/include/c++/v1") && a !== "/include/c++/v1"));
-    expect(semanticArgs("cpp", { ...DEFAULT_BUILD, defines: ["A", "B=2"] })).toEqual(["-std=c++17", "-O2", "-D", "A", "-D", "B=2"]);
+    // The PCH key's input: exactly what it was with the old empty defines list, so cached PCHs stay valid.
+    expect(semanticArgs("cpp", DEFAULT_BUILD)).toEqual(["-std=c++17", "-O2"]);
+    expect(semanticArgs("c", DEFAULT_BUILD)).toEqual(["-std=gnu11", "-O2"]);
   });
 
   it("keeps only options clang 8 accepts, and says what it changed", () => {
-    const r = checkBuildOptions({ cStd: "c99", cxxStd: "c++20", opt: "1", warnings: ["-Wall", "-Wextra", "-o", "x"], defines: ["N=10", "bad name", "OK"] });
-    expect(r.options).toEqual({ cStd: "c99", cxxStd: "c++2a", opt: "1", warnings: ["-Wall", "-Wextra"], defines: ["N=10", "OK"] });
-    expect(r.problems).toHaveLength(3);
-    const bad = checkBuildOptions({ cStd: "c23", cxxStd: "c++26", opt: "3" as never, warnings: [], defines: [] });
+    const r = checkBuildOptions({ cStd: "c99", cxxStd: "c++20", opt: "1", warnings: ["-Wall", "-Wextra", "-o", "x"] });
+    expect(r.options).toEqual({ cStd: "c99", cxxStd: "c++2a", opt: "1", warnings: ["-Wall", "-Wextra"] });
+    expect(r.problems).toEqual(['the warning option "-o" was left out', 'the warning option "x" was left out']);
+    const bad = checkBuildOptions({ cStd: "c23", cxxStd: "c++26", opt: "3" as never, warnings: [] });
     expect(bad.options).toMatchObject({ cStd: "gnu11", cxxStd: "c++17", opt: "2" });
     expect(bad.problems).toHaveLength(3);
     expect(checkBuildOptions(undefined)).toEqual({ options: DEFAULT_BUILD, problems: [] });
+  });
+
+  it("ignores a defines list an older page still sends (plan-v2 P4): no -D reaches clang, nothing reported", () => {
+    const legacy = { ...DEFAULT_BUILD, defines: ["DEBUG=1", "bad name"] };
+    const r = checkBuildOptions(legacy);
+    expect(r).toEqual({ options: DEFAULT_BUILD, problems: [] });
+    expect(r.options).not.toHaveProperty("defines");
+    const args = unitArgs({ unit: { path: "x.c", lang: "c" }, root: "", common: COMMON, options: r.options, id: "id", pch: null });
+    expect(args).not.toContain("-D");
+    expect(args.join(" ")).not.toContain("DEBUG");
   });
 });
 

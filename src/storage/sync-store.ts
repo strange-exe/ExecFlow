@@ -316,7 +316,9 @@ export function createSyncStore(db: WorkspaceDb, ws: string, options: StoreOptio
         }
         for (const r of changed.values()) ops.push(entries.put(r));
 
-        const wsNext = { ...bumped(wsRec, t), remote };
+        // Command-line arguments go with the files this sync removed (a later file of that name starts without them).
+        const args = wsRec.ui.args && Object.fromEntries(Object.entries(wsRec.ui.args).filter(([p]) => index.get(p)?.kind === "file"));
+        const wsNext = { ...bumped(wsRec, t), remote, ...(args ? { ui: { ...wsRec.ui, args } } : {}) };
         ops.push(tx.objectStore("workspaces").put(wsNext));
         await Promise.all(ops);
         return { skipped, applied, rev: wsNext.rev, dirs: [...changed.values()].filter((r) => r.kind === "dir").map((r) => r.path) };

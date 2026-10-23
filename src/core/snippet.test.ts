@@ -1,11 +1,13 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import {
-  canCopyImages, cleanImageOptions, DEFAULT_IMAGE_OPTIONS, fitName, IMAGE_OPTIONS_KEY, labelUnits, lineWords, MAX_LINES, menuLabel, pickLines,
-  readImageOptions, refusalMessage, shown, type CaptureMessage, type Entry, type ImageOptions, type LinePlan, type PaintInfo,
+  canCopyImages, fitName, labelUnits, lineWords, MAX_LINES, menuLabel, pickLines, refusalMessage, shown,
+  type CaptureMessage, type Entry, type LineSpan, type PaintInfo,
 } from "./snippet";
 import {
-  captureMessage, checkColors, colorChoices, dialogTitle, downloadName, IMAGE_TOKENS, NO_PREVIEW, previewLabel, writeImageOptions,
+  captureMessage, checkColors, cleanImageOptions, colorChoices, DEFAULT_IMAGE_OPTIONS, dialogTitle, downloadName, highlightExample, highlightHint,
+  IMAGE_OPTIONS_KEY, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING, parseHighlight, previewLabel, rangesOf, readImageOptions, sameOptions, sizeLine,
+  writeImageOptions, type ImageOptions,
 } from "./snippet-dialog";
 import { shown as domShown } from "../ui/dom";
 
@@ -24,7 +26,11 @@ function stateWith(doc: string, ranges: [number, number][]) {
   });
 }
 
-const plan = (first: number, last: number, gaps = false): LinePlan => ({ ok: true, first, last, gaps });
+const plan = (first: number, last: number, gaps = false): LineSpan => ({ ok: true, first, last, gaps });
+/** The round-2 defaults with no line highlighted. */
+const DEFAULTS: ImageOptions = { ...DEFAULT_IMAGE_OPTIONS, highlight: [] };
+/** Round 2's default look, as the label says it. */
+const LOOK = "Plain frame, medium background";
 
 describe("pickLines", () => {
   it.each([
@@ -134,26 +140,32 @@ describe("previewLabel", () => {
     palette: { match: "in the editor's colours", light: "in CodeEditor Deep Field Light colours", dark: "in CodeEditor Deep Field Dark colours" },
   } as const;
 
-  it("pins three labels exactly", () => {
-    expect(previewLabel(plan(4, 12), "main.py", DEFAULT_IMAGE_OPTIONS, own, false)).toBe(
-      "Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown.",
+  it("pins five labels exactly", () => {
+    expect(previewLabel(plan(4, 12), "main.py", DEFAULTS, own, false)).toBe(
+      `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}.`,
     );
-    expect(previewLabel(plan(7, 7), "main.py", { colors: "light", numbers: false, name: false }, pal, false)).toBe(
-      "Preview of main.py, line 7, in CodeEditor Deep Field Light colours; line numbers hidden; file name hidden.",
+    expect(previewLabel(plan(7, 7), "main.py", { ...DEFAULTS, colors: "light", numbers: false, name: false }, pal, false)).toBe(
+      `Preview of main.py, line 7, in CodeEditor Deep Field Light colours; line numbers hidden; file name hidden. ${LOOK}.`,
     );
-    expect(previewLabel(plan(4, 12), "main.py", DEFAULT_IMAGE_OPTIONS, own, true)).toBe(
-      "Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. Some colours are missing.",
+    expect(previewLabel(plan(4, 12), "main.py", DEFAULTS, own, true)).toBe(
+      `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}. Some colours are missing.`,
+    );
+    expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, frame: "window", background: false, highlight: [3, 5, 6, 7] }, own, false)).toBe(
+      "Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Window frame, no background, highlighted: line 3, lines 5 to 7.",
+    );
+    expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, padding: "large", scale: 3 }, own, false)).toBe(
+      "Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Plain frame, large background.",
     );
   });
 
-  it("covers all 24 combinations, partial and not, string for string", () => {
+  it("covers all 24 colour and toggle combinations, partial and not, string for string", () => {
     let n = 0;
     for (const [family, paint] of [["own", own], ["palette", pal]] as const) {
       for (const colors of ["match", "light", "dark"] as const) {
         for (const numbers of [true, false]) {
           for (const name of [true, false]) {
-            const base = `Preview of main.py, lines 2 to 3, ${phrase[family][colors]}; line numbers ${numbers ? "shown" : "hidden"}; file name ${name ? "shown" : "hidden"}.`;
-            const o: ImageOptions = { colors, numbers, name };
+            const base = `Preview of main.py, lines 2 to 3, ${phrase[family][colors]}; line numbers ${numbers ? "shown" : "hidden"}; file name ${name ? "shown" : "hidden"}. ${LOOK}.`;
+            const o: ImageOptions = { ...DEFAULTS, colors, numbers, name };
             expect(previewLabel(plan(2, 3), "main.py", o, paint, false)).toBe(base);
             expect(previewLabel(plan(2, 3), "main.py", o, paint, true)).toBe(`${base} Some colours are missing.`);
             n++;
@@ -165,7 +177,7 @@ describe("previewLabel", () => {
   });
 
   it("shows a direction character in the name as a tag; the no-preview names are fixed", () => {
-    expect(previewLabel(plan(1, 1), `${RLO}evil.py`, DEFAULT_IMAGE_OPTIONS, own, false)).toMatch(/^Preview of \[U\+202E\]evil\.py, line 1,/);
+    expect(previewLabel(plan(1, 1), `${RLO}evil.py`, DEFAULTS, own, false)).toMatch(/^Preview of \[U\+202E\]evil\.py, line 1,/);
     expect(NO_PREVIEW["too-big"]).toBe("No preview: that selection is too big for one image.");
     expect(NO_PREVIEW.failed).toBe("No preview: the image couldn't be made.");
   });
@@ -214,11 +226,11 @@ describe("canCopyImages", () => {
 
 describe("checkColors", () => {
   const all = (v: string) => Object.fromEntries(IMAGE_TOKENS.map((t) => [t, v]));
-  it("has the 17 tokens the image draws", () => {
-    expect(IMAGE_TOKENS).toHaveLength(17);
+  it("has the 20 tokens the image draws", () => {
+    expect(IMAGE_TOKENS).toHaveLength(20);
     expect([...IMAGE_TOKENS].sort()).toEqual([
-      "bg", "border", "danger", "divider", "gutter-text", "syn-comment", "syn-function", "syn-keyword", "syn-macro", "syn-number", "syn-operator",
-      "syn-punctuation", "syn-string", "syn-type", "syn-variable", "text", "text-secondary",
+      "action", "bg", "border", "danger", "divider", "focus", "gutter-text", "surface", "syn-comment", "syn-function", "syn-keyword", "syn-macro",
+      "syn-number", "syn-operator", "syn-punctuation", "syn-string", "syn-type", "syn-variable", "text", "text-secondary",
     ]);
   });
   it("passes #rrggbb (trimmed) and fails anything else", () => {
@@ -235,28 +247,50 @@ describe("checkColors", () => {
 });
 
 describe("image options", () => {
+  const ROUND2 = { scale: 2, background: true, padding: "medium", frame: "plain" } as const;
+
   it("cleans stored values field by field", () => {
-    expect(DEFAULT_IMAGE_OPTIONS).toEqual({ colors: "match", numbers: true, name: true });
+    expect(DEFAULT_IMAGE_OPTIONS).toEqual({ colors: "match", numbers: true, name: true, ...ROUND2 });
+    expect(PADDING).toEqual({ small: 16, medium: 32, large: 64 });
     expect(cleanImageOptions({})).toEqual(DEFAULT_IMAGE_OPTIONS);
-    const cleaned = cleanImageOptions({ colors: "neon", numbers: "yes", name: false, x: 1 });
-    expect(cleaned).toEqual({ colors: "match", numbers: true, name: false });
+    const cleaned = cleanImageOptions({ colors: "neon", numbers: "yes", name: false, x: 1, scale: 4, background: "on", padding: "huge", frame: "mac" });
+    expect(cleaned).toEqual({ colors: "match", numbers: true, name: false, ...ROUND2 });
     expect(cleaned).not.toHaveProperty("x");
     for (const odd of [null, [], "text"]) expect(cleanImageOptions(odd), JSON.stringify(odd)).toEqual(DEFAULT_IMAGE_OPTIONS);
-    expect(cleanImageOptions({ colors: "dark", numbers: false })).toEqual({ colors: "dark", numbers: false, name: true });
+    expect(cleanImageOptions({ colors: "dark", numbers: false })).toEqual({ colors: "dark", numbers: false, name: true, ...ROUND2 });
+    // Every value of every new field survives; "2" (a string) is not a scale.
+    for (const scale of [1, 2, 3] as const) expect(cleanImageOptions({ scale }).scale).toBe(scale);
+    expect(cleanImageOptions({ scale: "3" }).scale).toBe(2);
+    expect(cleanImageOptions({ scale: 1.5 }).scale).toBe(2);
+    for (const padding of ["small", "medium", "large"] as const) expect(cleanImageOptions({ padding }).padding).toBe(padding);
+    expect(cleanImageOptions({ background: false }).background).toBe(false);
+    expect(cleanImageOptions({ frame: "window" }).frame).toBe("window");
+    // The highlighted lines are this opening's, never stored or read back.
+    expect(cleanImageOptions({ highlight: [3] })).not.toHaveProperty("highlight");
+  });
+
+  it("migrates a round-1 value: its three fields kept, the new ones at their defaults", () => {
+    const data = new Map([[IMAGE_OPTIONS_KEY, '{"colors":"light","numbers":false,"name":false}']]);
+    const storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+    const read = readImageOptions(storage);
+    expect(read).toEqual({ colors: "light", numbers: false, name: false, ...ROUND2 });
+    writeImageOptions(storage, { ...read, frame: "window" });
+    expect(JSON.parse(data.get(IMAGE_OPTIONS_KEY)!)).toEqual({ colors: "light", numbers: false, name: false, ...ROUND2, frame: "window" });
   });
 
   it("reads and writes through storage that may throw or hold junk", () => {
     expect(IMAGE_OPTIONS_KEY).toBe("codeeditor:snippet-image");
     const data = new Map<string, string>();
     const storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
-    writeImageOptions(storage, { colors: "light", numbers: false, name: false });
-    expect(JSON.parse(data.get(IMAGE_OPTIONS_KEY)!)).toEqual({ colors: "light", numbers: false, name: false });
-    expect(readImageOptions(storage)).toEqual({ colors: "light", numbers: false, name: false });
+    const light = { ...DEFAULT_IMAGE_OPTIONS, colors: "light", numbers: false, name: false, scale: 3, background: false, padding: "small", frame: "window" } as const;
+    writeImageOptions(storage, { ...light, highlight: [2] } as typeof light);
+    expect(JSON.parse(data.get(IMAGE_OPTIONS_KEY)!)).toEqual(light);
+    expect(readImageOptions(storage)).toEqual(light);
     data.set(IMAGE_OPTIONS_KEY, "{not json");
     expect(readImageOptions(storage)).toEqual(DEFAULT_IMAGE_OPTIONS);
     // Stored JSON is cleaned on the way in, never used as it is.
     data.set(IMAGE_OPTIONS_KEY, JSON.stringify({ colors: "neon", numbers: "yes", name: false, x: 1 }));
-    expect(readImageOptions(storage)).toEqual({ colors: "match", numbers: true, name: false });
+    expect(readImageOptions(storage)).toEqual({ colors: "match", numbers: true, name: false, ...ROUND2 });
     data.set(IMAGE_OPTIONS_KEY, "[1, 2]");
     expect(readImageOptions(storage)).toEqual(DEFAULT_IMAGE_OPTIONS);
     const throwing = {
@@ -271,6 +305,85 @@ describe("image options", () => {
     expect(() => writeImageOptions(throwing, DEFAULT_IMAGE_OPTIONS)).not.toThrow();
     expect(readImageOptions(null)).toEqual(DEFAULT_IMAGE_OPTIONS);
     expect(() => writeImageOptions(null, DEFAULT_IMAGE_OPTIONS)).not.toThrow();
+  });
+
+  it("names the image in data-preview-options and compares every field and the highlighted lines", () => {
+    expect(optionsWord(DEFAULTS)).toBe("match numbers name 2x medium plain");
+    expect(optionsWord({ ...DEFAULTS, colors: "dark", numbers: false, name: false, scale: 3, background: false, frame: "window" })).toBe(
+      "dark no-numbers no-name 3x none window",
+    );
+    expect(optionsWord({ ...DEFAULTS, padding: "small", highlight: [3, 5, 6, 7] })).toBe("match numbers name 2x small plain hl:3,5-7");
+    expect(sameOptions(DEFAULTS, { ...DEFAULTS })).toBe(true);
+    for (const change of [{ scale: 1 }, { background: false }, { padding: "large" }, { frame: "window" }, { highlight: [2] }, { colors: "dark" }] as const) {
+      expect(sameOptions(DEFAULTS, { ...DEFAULTS, ...change } as ImageOptions), JSON.stringify(change)).toBe(false);
+    }
+    expect(sameOptions({ ...DEFAULTS, highlight: [2, 3] }, { ...DEFAULTS, highlight: [2, 4] })).toBe(false);
+    expect(sameOptions({ ...DEFAULTS, highlight: [2, 3] }, { ...DEFAULTS, highlight: [2, 3] })).toBe(true);
+  });
+});
+
+describe("highlighted lines (round 2)", () => {
+  const span = plan(2, 9);
+  const ok = (text: string, p: LineSpan = span) => {
+    const r = parseHighlight(text, p);
+    if (!r.ok) throw new Error(r.message);
+    return r.lines;
+  };
+  const refused = (text: string, p: LineSpan = span) => {
+    const r = parseHighlight(text, p);
+    if (r.ok) throw new Error(`accepted ${JSON.stringify(r.lines)}`);
+    return r.message;
+  };
+
+  it("reads numbers and ranges, leniently, sorted and without repeats", () => {
+    expect(ok("")).toEqual([]);
+    expect(ok("   ")).toEqual([]);
+    expect(ok("3")).toEqual([3]);
+    expect(ok("3-5, 8")).toEqual([3, 4, 5, 8]);
+    expect(ok("8 3 - 5")).toEqual([3, 4, 5, 8]);
+    expect(ok("5-3")).toEqual([3, 4, 5]);
+    expect(ok("3,,3, 3-4")).toEqual([3, 4]);
+    expect(ok("02-03")).toEqual([2, 3]);
+    expect(ok("2-9")).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("refuses what isn't inside the captured lines, saying what the image shows", () => {
+    expect(refused("10")).toBe("Line 10 isn't in the image: it shows lines 2 to 9.");
+    expect(refused("1")).toBe("Line 1 isn't in the image: it shows lines 2 to 9.");
+    expect(refused("0")).toBe("Line 0 isn't in the image: it shows lines 2 to 9.");
+    expect(refused("1-4")).toBe("Lines 1 to 4 aren't all in the image: it shows lines 2 to 9.");
+    expect(refused("9-12")).toBe("Lines 9 to 12 aren't all in the image: it shows lines 2 to 9.");
+    expect(refused("8", plan(7, 7))).toBe("Line 8 isn't in the image: it shows line 7.");
+    // The first problem is the one said.
+    expect(refused("3, 40, x")).toBe("Line 40 isn't in the image: it shows lines 2 to 9.");
+  });
+
+  it("refuses anything else with an example that works here", () => {
+    expect(refused("x")).toBe('"x" isn\'t a line number or a range such as 2-4.');
+    expect(refused("3-")).toBe('"3-" isn\'t a line number or a range such as 2-4.');
+    expect(refused("3-5-7")).toBe('"3-5-7" isn\'t a line number or a range such as 2-4.');
+    expect(refused("3.5")).toBe('"3.5" isn\'t a line number or a range such as 2-4.');
+    expect(refused("-3")).toBe('"-3" isn\'t a line number or a range such as 2-4.');
+    expect(refused("12345678")).toBe('"12345678" isn\'t a line number or a range such as 2-4.');
+    expect(refused("x", plan(7, 7))).toBe('"x" isn\'t a line number or a range such as 7.');
+    // The student's text is quoted short and with its invisible characters tagged.
+    expect(refused(`${"a".repeat(30)}`)).toBe(`"${"a".repeat(16)}..." isn't a line number or a range such as 2-4.`);
+    expect(refused(`3${RLO}`)).toBe('"3[U+202E]" isn\'t a line number or a range such as 2-4.');
+  });
+
+  it("gives an example and a hint from the captured lines", () => {
+    expect(highlightExample(plan(2, 3))).toBe("2-3");
+    expect(highlightExample(plan(2, 9))).toBe("2-4");
+    expect(highlightExample(plan(7, 7))).toBe("7");
+    expect(highlightHint(plan(2, 3))).toBe("Numbers or ranges from 2 to 3, separated by commas, such as 2-3.");
+    expect(highlightHint(plan(7, 7))).toBe("Type 7 to highlight line 7.");
+    expect(rangesOf([])).toEqual([]);
+    expect(rangesOf([1, 2, 3, 5, 7, 8])).toEqual(["1-3", "5", "7-8"]);
+  });
+
+  it("the size line says the PNG's size, and the step when the chosen scale can't fit", () => {
+    expect(sizeLine(822, 357, 2, 2)).toBe("822 x 357 pixels.");
+    expect(sizeLine(1466, 6855, 3, 1.5)).toBe("1466 x 6855 pixels. 3x is too big for this image, so it is 1.5x.");
   });
 });
 

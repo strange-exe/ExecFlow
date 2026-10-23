@@ -295,9 +295,15 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   await page.keyboard.press("ArrowDown");
   const second = await focusStop(page);
   await page.keyboard.press("Home");
+  const entered = Date.now();
   await page.keyboard.press("Enter");
+  // The end state, then the stop: opening goes through the workbench's async open (a sample two
+  // frames after the key once read the tree item in a full WebKit run while focus reached the code
+  // later; batch 3 final gate). How long it took is logged with the result.
+  await expect.soft(page.locator(".cm-content"), "Enter on a file moves into the editor").toBeFocused();
+  const enterMs = Date.now() - entered;
   stop = await focusStop(page);
-  log.tree = { afterArrow: label(second), afterEnter: label(stop) };
+  log.tree = { afterArrow: label(second), afterEnter: label(stop), enterMs };
   expect.soft(stop.cls, "Enter on a file moves into the editor").toContain("cm-content");
   await page.screenshot({ path: `${dir}/editor-focused.png` });
 

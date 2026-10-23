@@ -93,8 +93,6 @@ export interface BuildOptions {
   opt: "0" | "1" | "2";
   /** e.g. ["-Wall"] */
   warnings: string[];
-  /** e.g. ["DEBUG=1"] */
-  defines: string[];
 }
 
 export interface RunRequest {
@@ -105,6 +103,8 @@ export interface RunRequest {
   files: WorkspaceFile[];
   /** Text given up front (the Input box); the program asks for more while it runs. */
   stdin: string;
+  /** Command-line arguments after the program's name (sys.argv[1:], argv[1..]); none when absent. */
+  args?: string[];
   limits: RunLimits;
   build?: BuildOptions;
 }

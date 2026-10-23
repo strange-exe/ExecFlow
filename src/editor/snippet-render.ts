@@ -7,6 +7,7 @@ import { ensureSyntaxTree, language, syntaxTree } from "@codemirror/language";
 import { findClusterBreak, type EditorState } from "@codemirror/state";
 import { highlightCode, tagHighlighter } from "@lezer/highlight";
 import { IMAGE_TOKENS, type ImageToken } from "../core/snippet-dialog";
+import { deltaE, over, UI_MIXES } from "../theme/contrast";
 import { EXTRA_SPECIALS } from "./extensions";
 import { highlightStyle } from "./highlight";
 
@@ -233,9 +234,12 @@ export function wrapRows(line: StyledLine, max: number, threshold: number, tabSi
 
 // ---------------------------------------------------------------- layout (4.1)
 
-/** CSS px at scale 1: edge, side padding, vertical padding, gutter gap, name to rule; the narrowest code column. */
-export const SIZES = { E: 1, P: 16, V: 12, G: 16, HG: 8, MIN_COLS: 32 } as const;
-const { E, P, V, G, HG, MIN_COLS } = SIZES;
+/**
+ * CSS px at scale 1: edge, side padding, vertical padding, gutter gap, name to rule (and the window
+ * bar's padding above and below the name), the card's corner radius; the narrowest code column.
+ */
+export const SIZES = { E: 1, P: 16, V: 12, G: 16, HG: 8, R: 8, MIN_COLS: 32 } as const;
+const { E, P, V, G, HG, R, MIN_COLS } = SIZES;
 
 export interface Metrics {
   /** The advance of "0" in the code font. */
@@ -246,24 +250,46 @@ export interface Metrics {
   readonly widest: number;
 }
 
+/** What the layout depends on (colours, scale and highlighted lines never change it). */
+export interface LayoutOptions {
+  readonly numbers: boolean;
+  readonly name: boolean;
+  readonly frame: "plain" | "window";
+  /** The background's padding around the card, CSS px (0: no background). */
+  readonly pad: number;
+}
+
 export interface ImageLayout {
+  /** The whole image: the card and the padding round it. */
   readonly width: number;
   readonly height: number;
-  /** Where every row's code starts. */
+  /** The card's top-left corner in the image (the padding), and its size. */
+  readonly pad: number;
+  readonly cardWidth: number;
+  readonly cardHeight: number;
+  /** Where every row's code starts (card coordinates, like everything below). */
   readonly codeX: number;
   /** The right edge of the line numbers (0 with numbers off). */
   readonly gutterRight: number;
   /** The right edge of the continuation hook marks. */
   readonly markRight: number;
   readonly digits: number;
+  /** The top of the name's line box (in the plain header, or centred in the window's bar). */
   readonly nameTop: number;
+  /** The rule's top: under the plain header's name (border), or under the window's bar (divider). */
   readonly ruleY: number;
+  /** The window's bar ends here (0 for the plain frame). */
+  readonly barBottom: number;
   readonly codeTop: number;
   readonly rows: number;
 }
 
-/** The image's geometry in CSS px (4.1). The header never widens the image. */
-export function layoutImage(rows: readonly { readonly number: number | null }[], m: Metrics, o: { readonly numbers: boolean; readonly name: boolean }): ImageLayout {
+/**
+ * The image's geometry in CSS px (4.1; round 2: the window frame and the background's padding).
+ * The header never widens the image. Plain: the name's line box 12 below the edge, 8 to the 1 px
+ * rule, 12 to the code. Window: a bar of 8, the name's line box and 8, then the 1 px rule and 12.
+ */
+export function layoutImage(rows: readonly { readonly number: number | null }[], m: Metrics, o: LayoutOptions): ImageLayout {
   const largest = Math.max(0, ...rows.map((r) => r.number ?? 0));
   const digits = o.numbers ? String(largest).length : 0;
   const continued = rows.some((r) => r.number === null);
@@ -279,23 +305,34 @@ export function layoutImage(rows: readonly { readonly number: number | null }[],
     markRight = E + P + m.ch;
     codeX = markRight + G;
   }
-  const nameTop = E + V;
-  const ruleY = E + V + m.lineH + HG;
-  const codeTop = o.name ? ruleY + 1 + V : E + V;
+  const windowed = o.frame === "window";
+  const barBottom = windowed ? E + HG + m.lineH + HG : 0;
+  const nameTop = windowed ? E + HG : E + V;
+  const ruleY = windowed ? barBottom : E + V + m.lineH + HG;
+  const codeTop = windowed || o.name ? ruleY + 1 + V : E + V;
+  const cardWidth = codeX + Math.max(m.widest, MIN_COLS * m.ch) + P + E;
+  const cardHeight = codeTop + rows.length * m.lineH + V + E;
   return {
-    width: codeX + Math.max(m.widest, MIN_COLS * m.ch) + P + E,
-    height: codeTop + rows.length * m.lineH + V + E,
-    codeX, gutterRight, markRight, digits, nameTop, ruleY, codeTop, rows: rows.length,
+    width: cardWidth + 2 * o.pad,
+    height: cardHeight + 2 * o.pad,
+    pad: o.pad, cardWidth, cardHeight,
+    codeX, gutterRight, markRight, digits, nameTop, ruleY, barBottom, codeTop, rows: rows.length,
   };
 }
 
 /** The lowest canvas area limit among the browsers (iOS: 4096 x 4096), and the longest side. */
 export const MAX_AREA = 16_777_216;
 export const MAX_SIDE = 16_384;
+/** The scales a bitmap may step down through, largest first. */
+export const SCALE_STEPS = [3, 2, 1.5, 1] as const;
 
-/** Scale 2, stepping to 1.5 then 1 until the bitmap fits; null when even scale 1 is too big. */
-export function chooseScale(width: number, height: number): { scale: number; width: number; height: number } | null {
-  for (const scale of [2, 1.5, 1]) {
+/**
+ * The chosen scale when the bitmap fits the caps, else the largest lower step that does (the size
+ * line says which); null when even scale 1 is too big. The bitmap is ceil(CSS size x scale).
+ */
+export function chooseScale(width: number, height: number, requested = 2): { scale: number; width: number; height: number } | null {
+  for (const scale of SCALE_STEPS) {
+    if (scale > requested) continue;
     const w = Math.ceil(width * scale);
     const h = Math.ceil(height * scale);
     if (w * h <= MAX_AREA && w <= MAX_SIDE && h <= MAX_SIDE) return { scale, width: w, height: h };
@@ -303,20 +340,50 @@ export function chooseScale(width: number, height: number): { scale: number; wid
   return null;
 }
 
+/** The OKLab distance from the code ground at which the chrome counts as a ground of its own (the own palettes' surface step, contrast.ts STEPS.surface). */
+export const BAR_STEP = 0.03;
+
+/**
+ * The window frame's bar ground: the chrome's (`surface`, the editor head's ground). Where a theme
+ * paints its chrome within BAR_STEP of its code ground (Nord, Rose Pine, Night Owl and Solarized at
+ * 0), the bar takes the hovered-chrome ground (contrast.ts UI_MIXES.hover over `surface`) when that
+ * sits farther from the code ground, so Window never looks like Plain. The name (text-secondary) and
+ * its placeholders (danger) are pairs on both grounds in contrast.ts.
+ */
+export function windowBarGround(colors: { readonly bg: string; readonly surface: string; readonly text: string }): string {
+  const plain = deltaE(colors.surface, colors.bg);
+  if (plain >= BAR_STEP) return colors.surface;
+  const hovered = over(colors.surface, colors.text, UI_MIXES.hover.pct / 100);
+  return deltaE(hovered, colors.bg) > plain ? hovered : colors.surface;
+}
+
 /** The edge's (and the rule's) thickness in bitmap pixels. */
 export const edgeThickness = (scale: number): number => Math.max(1, Math.round(scale));
 
+/** The card's place in the bitmap: the padding in bitmap px (whole at every scale step), then the rest. */
+export function cardRect(layout: ImageLayout, bitmap: { width: number; height: number }, scale: number): { x: number; y: number; w: number; h: number; r: number } {
+  const x = Math.round(layout.pad * scale);
+  return { x, y: x, w: bitmap.width - 2 * x, h: bitmap.height - 2 * x, r: R * scale };
+}
+
 // ---------------------------------------------------------------- the readback (7.5)
 
-/** One bitmap row inside the top padding: the left edge's t pixels, then ground; pixel t + 2 is read as ground. */
-export const readbackRect = (t: number) => ({ x: 0, y: t + 2, w: t + 3, h: 1 });
+/**
+ * One bitmap row on the card's left edge, just below its rounded corner (where the edge is
+ * straight and no code is drawn yet): the edge's t pixels, then ground; pixel t + 2 is read as
+ * ground. The ground there is the window's bar or the code's.
+ */
+export function readbackRect(card: { x: number; y: number; r: number }, t: number): { x: number; y: number; w: number; h: number } {
+  return { x: card.x, y: card.y + Math.ceil(card.r) + 1, w: t + 3, h: 1 };
+}
 
 const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
 /**
  * The readback proves the bitmap is the one drawn: the edge pixels within 8 of --divider, the
- * ground pixel within 8 of --bg, all opaque. A privacy placeholder (random bytes with random alpha,
- * or all white) fails: no built-in theme's divider is within 8 of white.
+ * ground pixel within 8 of the ground drawn there (--bg, or windowBarGround in the window's bar), all
+ * opaque. A privacy placeholder (random bytes with random alpha, or all white) fails: no built-in
+ * theme's divider is within 8 of white.
  */
 export function pixelsOk(data: ArrayLike<number>, divider: string, bg: string, t: number): boolean {
   const near = (at: number, hex: string) => {

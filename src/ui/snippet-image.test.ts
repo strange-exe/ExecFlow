@@ -128,7 +128,10 @@ describe("createSnippetCapture.open (7.2)", () => {
     s.finishImport();
     await vi.advanceTimersByTimeAsync(0);
     expect(s.opened).toHaveLength(1);
-    expect(s.opened[0]).toMatchObject({ path: "src/main.py", plan: { ok: true, first: 2, last: 3, gaps: false }, canCopy: true, options: { colors: "match", numbers: true, name: true } });
+    expect(s.opened[0]).toMatchObject({ path: "src/main.py", plan: { ok: true, first: 2, last: 3, gaps: false }, canCopy: true });
+    // The dialog reads the remembered options itself (its own chunk): the shell only hands it the storage.
+    expect(s.opened[0]).not.toHaveProperty("options");
+    expect(s.opened[0]).toHaveProperty("storage");
     // Open now: another press does nothing either.
     s.capture.open(opener, "head-pointer");
     expect(s.load).toHaveBeenCalledTimes(1);
@@ -154,6 +157,38 @@ describe("createSnippetCapture.open (7.2)", () => {
     narrow.finishImport();
     await vi.advanceTimersByTimeAsync(0);
     expect(narrow.opened[0].returnTo()).toBe(narrow.filesButton);
+  });
+
+  it("returnTo when the target isn't laid out yet (the width changed, the layout hasn't): null now, focused a frame later", async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => frames.push(cb));
+    const page = { activeElement: null as unknown };
+    page.activeElement = { tag: "body" };
+    vi.stubGlobal("document", { get activeElement() { return page.activeElement; }, body: page.activeElement });
+    try {
+      const narrow = setup({ narrow: true });
+      narrow.capture.open(el() as unknown as HTMLElement, "head-pointer");
+      narrow.finishImport();
+      await vi.advanceTimersByTimeAsync(0);
+      const files = narrow.filesButton as FakeEl & { focus?: () => void };
+      let focused = 0;
+      files.focus = () => void focused++;
+      files.shown = false;
+      expect(narrow.opened[0].returnTo(), "Files is still display: none: nothing to focus yet").toBeNull();
+      expect(focused).toBe(0);
+      files.shown = true;
+      frames.shift()!(0);
+      expect(focused, "a frame later, the layout has caught up").toBe(1);
+      // Focus that went somewhere meanwhile (the student pressed Tab) is left alone.
+      files.shown = false;
+      expect(narrow.opened[0].returnTo()).toBeNull();
+      page.activeElement = { tag: "button" };
+      files.shown = true;
+      frames.shift()!(0);
+      expect(focused).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("returnTo for the code menu: the view's own focus() and null while the code is shown, else the file-menu fallback", async () => {

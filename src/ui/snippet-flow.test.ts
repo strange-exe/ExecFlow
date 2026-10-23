@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_IMAGE_OPTIONS, type ImageOptions } from "../core/snippet";
-import { IMAGE_TOKENS, type ImageColors } from "../core/snippet-dialog";
+import { DEFAULT_IMAGE_OPTIONS, IMAGE_TOKENS, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { OWN } from "../theme/palettes";
 import {
-  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, PENDING_MS,
+  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, PENDING_MS, previewFit,
   type Drawn, type ExportResult, type Paint, type PreviewState, type RenderFailure, type RenderOutcome, type RenderSignal,
 } from "./snippet-flow";
 
 // final-v3 sections 5.2, 7.3 and 7.5, with fake timers, fake canvases and a fake clipboard.
 
 const COLORS = Object.fromEntries(IMAGE_TOKENS.map((t) => [t, "#112233"])) as ImageColors;
-const A: ImageOptions = DEFAULT_IMAGE_OPTIONS;
-const B: ImageOptions = { colors: "light", numbers: true, name: true };
-const C: ImageOptions = { colors: "dark", numbers: true, name: true };
-const D: ImageOptions = { colors: "light", numbers: false, name: false };
+const A: ImageOptions = { ...DEFAULT_IMAGE_OPTIONS, highlight: [] };
+const B: ImageOptions = { ...A, colors: "light" };
+const C: ImageOptions = { ...A, colors: "dark" };
+const D: ImageOptions = { ...A, colors: "light", numbers: false, name: false };
+/** The log's short name of a set of options (only colours and the toggles differ between A to D). */
 const word = (o: ImageOptions) => `${o.colors} ${o.numbers ? "numbers" : "no-numbers"} ${o.name ? "name" : "no-name"}`;
 
 interface FakeCanvas { id: number; freed: boolean }
@@ -600,6 +600,18 @@ describe("the frame's content height (5.2)", () => {
     expect(frameContent([{ width: 100, height: 20 }], 600, 420)).toBe(96);
     expect(frameContent([{ width: 100, height: 300 }], 600, 420)).toBe(300);
     expect(frameContent([{ width: 100, height: 3000 }], 600, 131)).toBe(131);
+  });
+  it("the preview's fit: to the width, never enlarged; a look taller than the stage shrinks to its height, unless the stage is capped", () => {
+    // The fixture's default look at 1x is 411 x 178.5 (medium background); large and window is 475 x 238.5.
+    expect(previewFit({ width: 411, height: 178.5 }, 600, 178.5)).toBe(1);
+    expect(previewFit({ width: 475, height: 238.5 }, 600, 178.5)).toBeCloseTo(178.5 / 238.5, 12);
+    expect(238.5 * previewFit({ width: 475, height: 238.5 }, 600, 178.5)).toBeCloseTo(178.5, 9);
+    // Narrow: the width fit already brings it under the stage, so nothing more.
+    expect(previewFit({ width: 475, height: 238.5 }, 300, 178.5)).toBeCloseTo(300 / 475, 12);
+    // Capped (a long selection scrolls in the stage): the width fit alone.
+    expect(previewFit({ width: 934, height: 4569.5 }, 600, null)).toBeCloseTo(600 / 934, 12);
+    // A shorter look keeps its width fit (centred on the stage, never enlarged).
+    expect(previewFit({ width: 347, height: 114.5 }, 600, 178.5)).toBe(1);
   });
   it("the estimate before the first render: the default layout's height from the line count", () => {
     expect(frameEstimate(2, 22.5, true)).toBe(114.5);

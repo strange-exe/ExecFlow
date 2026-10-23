@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, showPanel, showView, test, waitReady } from "./helpers";
+import { expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, waitReady } from "./helpers";
 
 // Desktop and phone, light and dark. Each test loads, emulates, reloads and
 // proves the theme is really active before checking anything. These reload right after the first
@@ -550,6 +550,65 @@ test("the keyboard shortcuts dialog opens with ? and says how to leave the edito
   // From the status bar button too (nothing is keyboard-only either).
   await page.locator("#shortcuts-button").click();
   await expect(dialog).toBeVisible();
+});
+
+// The Shortcuts list's table is a chunk of its own (found by a row's text: its name is a hash), off
+// the first visit's budget; if it can't load, the button says so, and the next press opens the list.
+const SHORTCUTS_ROW = "Menu for the selected code: Capture snippet";
+test.describe("the Shortcuts list's chunk", () => {
+  // The 404 is the point of the second test; each engine reports it in its own words (as args.spec).
+  test.use(
+    tolerating(
+      /^HTTP 404: http:\/\/127\.0\.0\.1:\d+\/assets\/[\w-]+\.js$/,
+      /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/,
+      /^request failed: http:\/\/127\.0\.0\.1:\d+\/assets\/[\w-]+\.js (net::ERR_ABORTED|NS_ERROR_CORRUPTED_CONTENT|Load request cancelled)$/,
+    ),
+  );
+
+  test("is not on a first visit, and arrives when the list opens", async ({ page }) => {
+    const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, table: b.includes(SHORTCUTS_ROW) }));
+    await openApp(page);
+    await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
+    expect((await bodies.settled()).filter((c) => c.table).map((c) => c.url), "the Shortcuts table on a first visit").toEqual([]);
+    await page.locator("#shortcuts-button").click();
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    expect((await bodies.settled()).filter((c) => c.table)).toHaveLength(1);
+  });
+
+  test("can't load: the button says so, and once it loads the list opens", async ({ page, browserName }) => {
+    await openApp(page);
+    // Every request for it is refused until the route goes (a modulepreload and the import both ask).
+    let refused = 0;
+    await page.route(/\/assets\/[\w-]+\.js$/, async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes(SHORTCUTS_ROW)) {
+        refused++;
+        return route.fulfill({ status: 404, body: "" });
+      }
+      return route.fulfill({ response });
+    });
+    const notice = page.locator(".notice");
+    await page.locator("#shortcuts-button").click();
+    await expect(notice).toHaveAttribute("data-tone", "error");
+    await expect(notice).toHaveAttribute("data-empty", "false");
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    expect(refused).toBeGreaterThan(0);
+    await page.unrouteAll({ behavior: "wait" });
+    // Playwright's WebKit keeps a failed dynamic import() failed for the whole context (lessons.md
+    // 2026-10-21; args.spec records the same): the button keeps saying so there, and never hangs.
+    await page.getByRole("button", { name: "Dismiss notice" }).click();
+    await expect(notice).toHaveAttribute("data-empty", "true");
+    await page.locator("#shortcuts-button").click();
+    if (browserName === "webkit") {
+      await expect(notice).toHaveAttribute("data-empty", "false");
+      await expect(notice).toHaveAttribute("data-tone", "error");
+      test.info().annotations.push({ type: "webkit", description: "recovery not checked: a failed import stays failed in the context" });
+      return;
+    }
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#shortcuts-button")).toBeFocused();
+  });
 });
 
 /** The output panel (and its splitter) exist once the workspace has a file: an empty one shows the starters only. */
