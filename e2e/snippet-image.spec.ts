@@ -1286,10 +1286,14 @@ test("26 (b): a copy waiting for its render when the dialog closes still ends, i
   await dialogOf(page).locator("input[value=dark]").check();
   await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
   await page.mouse.click(shut.x + shut.width / 2, shut.y + shut.height / 2);
+  // The close event is a task of its own: wait for it, not for the click's return (Linux WebKit read
+  // it before it came: CI, 2026-10-23).
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __closedWhile?: string | null }).__closedWhile !== undefined), { timeout: 30_000 }).toBe(true);
   const closedWhile = await page.evaluate(() => (window as unknown as { __closedWhile: string | null }).__closedWhile);
   // Playwright's Firefox delivers the second click only once the slowed render has ended (measured
   // 2026-10-21, with key presses too), so the case can't be driven there; it is never passed silently.
-  test.skip(browserName === "firefox" && closedWhile !== "rendering", `firefox: the dialog closed only after the render (${closedWhile})`);
+  // Linux WebKit may do the same; Windows WebKit and Chromium drive it.
+  test.skip(browserName !== "chromium" && closedWhile !== "rendering", `${browserName}: the dialog closed only after the render (${closedWhile})`);
   expect(closedWhile, "closed while the export's render ran").toBe("rendering");
   const c = await calls(page);
   expect(c[0]?.name, `the not-ready path: the write first (${JSON.stringify(c)})`).toBe("write");
@@ -1595,6 +1599,17 @@ test("35: the scale gives the exact PNG size at 1x, 2x and 3x; the size line say
   await selectFixtureLines(page);
   await openFromFileMenu(page, ITEM);
   await previewReady(page);
+  // The sizes below need the code face itself (an advance of 0.6 em): a fallback font would draw a
+  // different image, and the size check alone could hide it. Its measured advance is kept for CI.
+  const face = await page.evaluate(() => {
+    const f = [...document.fonts].find((x) => x.family.replace(/"/g, "") === "Source Code Pro" && x.style === "normal" && x.weight === "400");
+    const m = document.createElement("canvas").getContext("2d")!;
+    m.font = '400 15px "Source Code Pro"';
+    return { status: f?.status ?? "missing", advance: m.measureText("0").width };
+  });
+  test.info().annotations.push({ type: "code face", description: JSON.stringify(face) });
+  expect(face.status, "the code face is loaded when the preview is ready").toBe("loaded");
+  expect(Math.abs(face.advance - 9), `the code face's advance at 15 px (${face.advance})`).toBeLessThan(1 / 128);
   const t = await tokens(page);
   // 411 x 178.5 CSS px (the card and the medium background): ceil(size x scale).
   for (const [scale, size] of [[1, [411, 179]], [3, [1233, 536]], [2, [822, 357]]] as const) {

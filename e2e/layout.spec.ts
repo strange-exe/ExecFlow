@@ -235,8 +235,14 @@ test("the breadcrumb shows the workspace, the folders and the file, gives way fr
   const crumbBox = await box(page, ".topbar .crumb");
   expect(crumbBox.x + crumbBox.width, "the breadcrumb ends before the sync status").toBeLessThanOrEqual((await box(page, "#sync-status")).x);
 
-  // A phone shows the file's name only, after Files.
+  // A phone shows the file's name only, after Files. The change of width redraws nothing in the
+  // crumb when its path is the same: a rebuild between two reads left this test on a removed node
+  // (Linux WebKit, CI 2026-10-23). The same node, marked before, is still there after.
+  await crumb.locator(".crumb-file").evaluate((el) => el.setAttribute("data-probe", "kept"));
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".drawer-toggle")).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(crumb.locator(".crumb-file"), "the crumb kept its nodes").toHaveAttribute("data-probe", "kept");
   await expect(crumb.locator(".crumb-file")).toBeVisible();
   await expect(crumb.locator(".crumb-root")).toBeHidden();
   await expect(crumb.locator(".crumb-dir")).toHaveCount(folders.length);

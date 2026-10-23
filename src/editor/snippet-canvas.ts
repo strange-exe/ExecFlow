@@ -133,6 +133,13 @@ function vertical(ctx: CanvasRenderingContext2D, size: number): { ascent: number
   return { ascent, descent };
 }
 
+/**
+ * A measured width on the 1/64 px grid fonts are laid out on. The bitmap is ceil(CSS size x scale),
+ * so a hair over a whole pixel (Linux WebKit measured a card that is 411 px elsewhere as just over
+ * it: CI, 2026-10-23) made every image 1 px wider there. Rounding first gives every engine the same size.
+ */
+export const onGrid = (px: number) => Math.round(px * 64) / 64;
+
 /** A line box's baseline: CSS half-leading. */
 const baselineIn = (top: number, lineH: number, v: { ascent: number; descent: number }) => top + (lineH - (v.ascent + v.descent)) / 2 + v.ascent;
 
@@ -223,13 +230,14 @@ export async function drawImage(
     const m = measure.getContext("2d");
     if (!m) return { ok: false, reason: "device" };
     m.font = fontOf(font, font.size, false);
-    const ch = m.measureText("0").width;
-    const spaceW = m.measureText(" ").width;
+    const ch = onGrid(m.measureText("0").width);
+    const spaceW = onGrid(m.measureText(" ").width);
     const lineH = font.size * 1.5;
     const space = { ch, spaceW, tabSize: prepared.tabSize };
     const codeV = vertical(m, font.size);
     let widest = 0;
     for (const row of prepared.rows) widest = Math.max(widest, walkRow(m, row, font, space));
+    widest = onGrid(widest);
     const metrics: Metrics = { ch, lineH, widest };
     const layout = layoutImage(prepared.rows, metrics, layoutOf(options));
     const fit = chooseScale(layout.width, layout.height, options.scale);

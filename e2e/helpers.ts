@@ -38,6 +38,9 @@ const CANCELLED = /^(net::ERR_ABORTED|NS_BINDING_ABORTED|Load request cancelled)
 const WEBKIT_CANCELLED_WORKER_LOAD = [
   /^Unhandled Promise Rejection: TypeError: Load failed$/,
   /^(Fetch API cannot|Cannot) load http:\/\/127\.0\.0\.1:\d+\/pyodide\/[\d.]+-heap\d+\/(pyodide-lock\.json|pyodide\.asm\.wasm|pyodide\.asm\.mjs|python_stdlib\.zip) due to access control checks\.?\s*$/,
+  // A reload during the C/C++ pack's download: Linux WebKit words a cancelled blob: load the same
+  // way (cpp-edge.spec, CI 2026-10-23).
+  /^(Fetch API cannot|Cannot) load blob:http:\/\/127\.0\.0\.1:\d+\/[0-9a-f-]{36} due to access control checks\.?\s*$/,
 ];
 
 /**

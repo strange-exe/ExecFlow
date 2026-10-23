@@ -1020,6 +1020,9 @@ button.problem:hover { background: var(--hover); }
     color: var(--call-site);
     font: 700 0.9em/0.9em var(--font-code);
     text-align: center;
+    /* The code font has no arrow, so a fallback draws it, taller on some systems: it stays in its
+       own box, never in the line above (Linux WebKit, CI 2026-10-23). */
+    overflow: hidden;
   }
   .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] { outline: 2px solid var(--location); outline-offset: -2px; }
   /* The suggestion list's keyword icon is a key drawn as a mask over a fill (highlight.ts), and the

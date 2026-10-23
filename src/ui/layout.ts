@@ -417,7 +417,13 @@ export function createLayout(root: HTMLElement): Layout {
   syncNarrow();
 
   // ---------------------------------------------------------------- breadcrumb
+  // What the crumb shows now: a call that changes nothing keeps its nodes (a change of width calls it
+  // through renderTabs, and a rebuild between two reads left a test, or a pointer, on a removed node).
+  let shown: string | undefined;
   function setCrumb(path: WsPath | null, dirty = false) {
+    const key = `${path ?? ""}\n${dirty}`;
+    if (key === shown) return;
+    shown = key;
     const parts = path ? path.split("/") : [];
     crumb.title = path ?? "";
     const last = parts.length - 1;
