@@ -44,6 +44,16 @@ const WEBKIT_CANCELLED_WORKER_LOAD = [
 ];
 
 /**
+ * Firefox: the same navigation-cancelled Pyodide download in the Python worker. Playwright's own
+ * worker hook logs it as this console error (CI 2026-10-23, workspace.spec.ts's first test), and the
+ * cancelled request can reach Playwright after the reload's navigation, so its start doesn't come
+ * before one (CI 2026-10-23, design.spec.ts's reload test). Both are excused only when a main-frame
+ * navigation began within 2 s of them, as WebKit's lines above are.
+ */
+const FIREFOX_CANCELLED_WORKER_LOG = /^\[JavaScript Error: "NS_BINDING_ABORTED: " \{file: "chrome:\/\/juggler\/content\/content\/WorkerMain\.js" line: \d+\}\]$/;
+const FIREFOX_CANCELLED_PYODIDE = /^request failed: http:\/\/127\.0\.0\.1:\d+\/pyodide\/[\d.]+-heap\d+\/[\w.-]+ NS_BINDING_ABORTED$/;
+
+/**
  * Fails any test whose page logs a console error, throws an uncaught exception, or has a request
  * fail or answer with status >= 400. A goto or reload starts a new document and the browser cancels
  * the old one's downloads (a lazy chunk, a font, the Python runtime): such a cancellation is not a
@@ -67,7 +77,11 @@ export const test = base.extend<{ consoleErrors: string[]; tolerate: RegExp[] }>
       const ifNavigated: { text: string; at: number }[] = [];
       const record = (text: string) => {
         if (tolerated(text)) return;
-        if (engine === "webkit" && WEBKIT_CANCELLED_WORKER_LOAD.some((re) => re.test(text))) ifNavigated.push({ text, at: Date.now() });
+        if (
+          (engine === "webkit" && WEBKIT_CANCELLED_WORKER_LOAD.some((re) => re.test(text))) ||
+          (engine === "firefox" && FIREFOX_CANCELLED_WORKER_LOG.test(text))
+        )
+          ifNavigated.push({ text, at: Date.now() });
         else errors.push(text);
       };
       page.on("console", (m) => { if (m.type() === "error") record(m.text()); });
@@ -93,6 +107,7 @@ export const test = base.extend<{ consoleErrors: string[]; tolerate: RegExp[] }>
         const reason = (r.failure()?.errorText ?? "").trim();
         const text = `request failed: ${r.url()} ${reason}`;
         if (tolerated(text)) return;
+        if (engine === "firefox" && FIREFOX_CANCELLED_PYODIDE.test(text)) return void ifNavigated.push({ text, at: Date.now() });
         // A request whose start wasn't seen needs a navigation within 2 s either side of the cancel.
         if (CANCELLED.test(reason)) cancelled.push({ text, started: startedAt.get(r) ?? Date.now() - 2000, failed: Date.now() });
         else errors.push(text);
