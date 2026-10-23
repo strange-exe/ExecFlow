@@ -594,7 +594,10 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   measure("error jump", lead(jump), lead(jump, -8), px);
   const header = await rect("#runlog");
   measure("failed run's header", lead(header), lead(header, 4), px);
-  const call = await rect(".cm-gutter-lint .cm-gutterElement.ce-call-line");
+  // 1 px inside the cell: in Linux WebKit its box reaches over the gutters' own edge line, which
+  // counted as ink in the cell above (CI 2026-10-23: strongest pixel at the edge, 46,66,58).
+  const inset = (r: Box): Box => ({ x: r.x + 1, y: r.y + 1, width: r.width - 2, height: r.height - 2 });
+  const call = inset(await rect(".cm-gutter-lint .cm-gutterElement.ce-call-line"));
   measure("call site arrow", call, up(call), px);
 
   // calc.py, where the error was raised: the gutter bar and the dot on line 2.
