@@ -59,6 +59,8 @@ export interface SyncHooks {
   disconnect(): void;
   /** Ctrl+S calls this right after saving (and the top bar's Sync button, once there is one). */
   syncNow(): Promise<void>;
+  /** "Sync now with a message" (palette, Settings): a dialog asks for the commit subject. */
+  syncWithMessage(opener?: HTMLElement | null): void;
   /** A file was saved here: start or restart the 60 s auto-sync timer. */
   onLocalChange(): void;
   /** True while a repository is connected (Settings shows Disconnect instead of Connect). */
@@ -136,6 +138,10 @@ export function mountSync(host: SyncHost): SyncHooks {
       if (!controller && !loading && !remote) return;
       const c = controller ?? (await load().catch(() => null));
       await c?.syncNow("key");
+    },
+    syncWithMessage(opener) {
+      if (!controller && !loading && !remote) return;
+      withController((c) => c.syncWithMessage(opener));
     },
     onLocalChange: () => controller?.onLocalChange(),
     connected: () => (controller ? controller.connected() : remote !== null),

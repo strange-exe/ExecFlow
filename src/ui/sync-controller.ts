@@ -40,6 +40,7 @@ import type { SyncHost } from "./sync-entry";
 import { askFirstConnect, FirstConnectCancelled, showConflicts } from "./sync-first-connect";
 import { deviceName } from "./sync-form";
 import { syncIcon } from "./sync-icons";
+import { openMessageDialog } from "./sync-message";
 import { summarizeReport, type ReportNotice } from "./sync-report";
 import { isManual, MAX_FAILURES, SyncScheduler, type RunOutcome, type RunReason } from "./sync-scheduler";
 import { describeStatus, renderStatus, type SyncPhase } from "./sync-status";
@@ -53,6 +54,8 @@ export interface SyncController {
   openConnect(returnFocus?: HTMLElement | null): Promise<void>;
   disconnect(): Promise<void>;
   syncNow(reason: RunReason): Promise<void>;
+  /** "Sync now with a message": asks for a commit subject, then syncs at once. */
+  syncWithMessage(returnFocus?: HTMLElement | null): Promise<void>;
   onLocalChange(): void;
   connected(): boolean;
   describe(): string;
@@ -70,7 +73,11 @@ const AUTHORIZED_APPS_URL = "https://github.com/settings/applications";
 /** Revoking is best effort: Disconnect and sign-out never wait longer than this for it. */
 const REVOKE_WAIT_MS = 5000;
 
-const OFFLINE_SIGN_IN = "This device is offline, so signing in has to wait until you're online. Your files are saved here in the meantime.";
+const READ_ONLY_SYNC = "This tab is read-only, so it doesn't sync: the tab that edits this workspace does. Choose Edit here to sync from this tab.";
+/** Said after a typed commit message its sync couldn't use (the dialog offers the text again). */
+const MESSAGE_UNUSED = "Your commit message wasn't used; Sync with a message offers it again.";
+
+const OFFLINE_SIGN_IN ="This device is offline, so signing in has to wait until you're online. Your files are saved here in the meantime.";
 
 /** One sentence per way signing in can fail; `openToken` opens the token form beside it. */
 function signInFailure(error: unknown): { ok: false; message: string; openToken?: boolean } {
@@ -132,6 +139,20 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   let error: string | null = null;
   let unsynced = 0;
   let syncs = 0;
+  /**
+   * A subject typed in "Sync with a message", for the next sync that starts (and only that one:
+   * runOnce takes it). Never kept for a retry or an automatic sync: a sync that can't use it says
+   * so, and `unusedSubject` fills the dialog with it the next time it opens (this tab only).
+   */
+  let typedSubject: string | null = null;
+  let unusedSubject = "";
+  /**
+   * The message dialog is open: an automatic sync that falls due meanwhile would upload the very
+   * changes being described, so it waits (`held`) and runs when the dialog closes without syncing.
+   * The status button's data-sync-held names it meanwhile (tests wait on it).
+   */
+  let asking = false;
+  let held: RunReason | null = null;
 
   const scheduler = new SyncScheduler({
     run: runOnce,
@@ -185,17 +206,40 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   }
 
   // ---------------------------------------------------------------- one sync
+  /** A typed subject its sync didn't use: offered again by the dialog; `why` (if any) is said. */
+  function unused(subject: string | null, why?: string) {
+    if (!subject) return;
+    unusedSubject = subject;
+    if (why) host.notice.show(`${why} ${MESSAGE_UNUSED}`, { tone: "info" });
+  }
+
   async function runOnce(reason: RunReason): Promise<RunOutcome> {
+    if (asking && !isManual(reason)) {
+      held = reason;
+      button.dataset.syncHeld = reason;
+      return { kind: "idle" };
+    }
     const r = remote;
     const c = client;
-    if (!r) return { kind: "idle" };
+    // Used by this run only, whatever happens to it.
+    const subject = typedSubject;
+    typedSubject = null;
+    if (!r) {
+      unused(subject);
+      return { kind: "idle" };
+    }
     if (!c) {
+      unused(subject);
       phase = "needs-token";
       render();
       return { kind: "stop" };
     }
-    if (!host.tab.canWrite()) return { kind: "idle" };
+    if (!host.tab.canWrite()) {
+      unused(subject, "This tab became read-only, so it didn't sync.");
+      return { kind: "idle" };
+    }
     if (!navigator.onLine) {
+      unused(subject, "This device is offline, so nothing was synced.");
       phase = "offline";
       render();
       return { kind: "offline" };
@@ -214,17 +258,19 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       await host.flushSaves();
       const report = await runSync(store, c, {
         deviceName: device,
+        subject: subject ?? undefined,
         now: () => new Date(),
         branch: r.branch,
         onProgress: (step) => (button.dataset.syncStep = step),
         firstConnect: manual ? () => askFirstConnect(repo, button) : () => Promise.reject(new ChoiceNeeded()),
       });
-      const again = await afterSync(report, repo, manual);
+      const again = await afterSync(report, repo, manual, subject);
       host.tab.notifySync("done", await rev());
       return { kind: "ok", again };
     } catch (e) {
+      if (subject) unusedSubject = subject;
       host.tab.notifySync("error", await rev());
-      return await failed(e, reason, repo);
+      return await failed(e, reason, repo, subject ? ` ${MESSAGE_UNUSED}` : "");
     } finally {
       syncs++;
       delete button.dataset.syncStep;
@@ -232,7 +278,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     }
   }
 
-  async function afterSync(report: SyncReport, repo: string, manual: boolean): Promise<boolean> {
+  async function afterSync(report: SyncReport, repo: string, manual: boolean, subject: string | null): Promise<boolean> {
     const rec = await host.store.getWorkspace(host.ws).catch(() => null);
     if (rec) remote = rec.remote;
     error = null;
@@ -252,7 +298,12 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     await refreshCounts();
     phase = idlePhase();
     const summary = summarizeReport({ ...report, conflicts: [...report.conflicts, ...reloaded.copies] }, { repo, closed, kept });
-    if (summary) showReport(summary);
+    // A typed message with nothing to upload: no empty commit is made, and the notice says so.
+    const noCommit = subject !== null && report.commits === 0;
+    if (noCommit) unusedSubject = subject;
+    const nothing = `Nothing here needed uploading, so no commit was made. ${MESSAGE_UNUSED}`;
+    if (summary) showReport(noCommit ? { ...summary, text: `${summary.text} ${nothing}` } : summary);
+    else if (noCommit) host.notice.show(`Synced with ${repo}. ${nothing}`, { tone: "info" });
     else if (manual) host.announce(`Synced with ${repo}. Nothing needed to change.`);
     return summary?.again ?? false;
   }
@@ -268,13 +319,14 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     host.notice.show(summary.text, { tone: summary.tone, action });
   }
 
-  async function failed(e: unknown, reason: RunReason, repo: string): Promise<RunOutcome> {
+  /** `lost`: " <MESSAGE_UNUSED>" when this sync had a typed message, else "". */
+  async function failed(e: unknown, reason: RunReason, repo: string, lost: string): Promise<RunOutcome> {
     const manual = isManual(reason);
     if (e instanceof ChoiceNeeded || e instanceof FirstConnectCancelled) {
       phase = "needs-choice";
       error = null;
       if (e instanceof FirstConnectCancelled) {
-        host.notice.show("Nothing was synced. Choose Sync in the top bar when you're ready to combine the files.", { tone: "info" });
+        host.notice.show(`Nothing was synced. Choose Sync in the top bar when you're ready to combine the files.${lost}`, { tone: "info" });
       } else {
         host.notice.show(`Some files differ between this computer and ${repo}. Choose how to combine them to start syncing.`, {
           tone: "warning",
@@ -285,6 +337,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     }
     if (e instanceof GitHubError && e.kind === "network" && !navigator.onLine) {
       phase = "offline";
+      if (lost) host.notice.show(`This device went offline, so the sync stopped.${lost}`, { tone: "info" });
       return { kind: "offline" };
     }
     const sentence = sentenceFor(e, authKind());
@@ -300,7 +353,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       }
       phase = "needs-token";
       error = sentence;
-      host.notice.show(`Sync failed: ${sentence}`, { action: { label: app ? "Sign in again" : "Enter a new token", run: () => void openConnect(button) } });
+      host.notice.show(`Sync failed: ${sentence}${lost}`, { action: { label: app ? "Sign in again" : "Enter a new token", run: () => void openConnect(button) } });
       return { kind: "stop" };
     }
     phase = "failed";
@@ -308,11 +361,12 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     const tryAgain = { label: "Try again", run: () => void syncNow("button") };
     if (retryable(e)) {
       const last = scheduler.failures + 1 >= MAX_FAILURES;
-      if (manual || scheduler.failures === 0) host.notice.show(`Sync failed: ${sentence}${last ? "" : " CodeEditor tries again by itself."}`, { action: tryAgain });
+      // A retry by itself writes an automatic message: the typed one belonged to this attempt.
+      if (manual || scheduler.failures === 0) host.notice.show(`Sync failed: ${sentence}${last ? "" : " CodeEditor tries again by itself."}${lost}`, { action: tryAgain });
       else if (last) host.notice.show(`Sync failed: ${sentence} CodeEditor stopped trying after ${MAX_FAILURES} attempts.`, { action: tryAgain });
       return { kind: "retry", retryAfterMs: e instanceof GitHubError ? e.retryAfterMs : undefined };
     }
-    host.notice.show(`Sync failed: ${sentence}`, { action: tryAgain });
+    host.notice.show(`Sync failed: ${sentence}${lost}`, { action: tryAgain });
     return { kind: "stop" };
   }
 
@@ -645,6 +699,58 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     return scheduler.request(reason);
   }
 
+  /**
+   * The dialog asks only when a sync could start from here (connected, a token, the writer tab);
+   * otherwise this says why, as the status button does. Sync starts at once, like "Sync now"; the
+   * typed subject is used by that run alone (runOnce takes it) and an empty one is "Sync now".
+   */
+  async function syncWithMessage(returnFocus?: HTMLElement | null) {
+    if (!remote) return;
+    if (!host.tab.canWrite()) {
+      host.notice.show(READ_ONLY_SYNC, { tone: "info" });
+      return;
+    }
+    if (!client) return openConnect(returnFocus ?? button);
+    // The count the dialog shows includes what was typed a moment ago.
+    await host.flushSaves().catch(() => {});
+    await refreshCounts();
+    asking = true;
+    held = null;
+    openMessageDialog({
+      repo: repoName(),
+      unsynced,
+      initial: unusedSubject,
+      returnFocus: returnFocus?.isConnected ? returnFocus : button,
+      start(subject) {
+        if (!remote || !client) return "This workspace isn't connected to GitHub any more, so it can't sync.";
+        if (!host.tab.canWrite()) return "This tab became read-only (another tab is editing), so it can't sync. Your message is kept here.";
+        if (!navigator.onLine) return "This device is offline, so nothing can sync now. Your message is kept here: choose Sync once you're online.";
+        unusedSubject = "";
+        if (!subject) {
+          void syncNow("button");
+          return null;
+        }
+        typedSubject = subject;
+        void scheduler.request("message").then(() => {
+          // The scheduler was stopped (signed out) before a run took it: never left for a later sync.
+          if (typedSubject === subject) {
+            typedSubject = null;
+            unusedSubject = subject;
+          }
+        });
+        return null;
+      },
+      closed(started) {
+        asking = false;
+        const due = held;
+        held = null;
+        delete button.dataset.syncHeld;
+        // Closed without syncing: the automatic sync that waited for the dialog runs now.
+        if (!started && due !== null) void scheduler.request(due);
+      },
+    });
+  }
+
   function backOnline() {
     if (phase === "offline") phase = idlePhase();
     render();
@@ -732,7 +838,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     ready,
     pressStatus() {
       if (!host.tab.canWrite() && remote) {
-        host.notice.show("This tab is read-only, so it doesn't sync: the tab that edits this workspace does. Choose Edit here to sync from this tab.", { tone: "info" });
+        host.notice.show(READ_ONLY_SYNC, { tone: "info" });
         return;
       }
       if (phase === "not-connected" || phase === "needs-token") void openConnect(button);
@@ -741,6 +847,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     openConnect,
     disconnect,
     syncNow,
+    syncWithMessage,
     onLocalChange,
     connected: () => remote !== null,
     describe() {

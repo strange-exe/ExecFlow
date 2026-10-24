@@ -102,7 +102,11 @@ describe("the commands", () => {
 
   it("offers Connect or Sync now by the connection, and the settings toggles name what they will do", () => {
     expect(ids(buildCommands(api()))).toContain("connect");
-    expect(ids(buildCommands(api({ connected: () => true })))).toEqual(expect.arrayContaining(["sync", "auto-sync"]));
+    expect(ids(buildCommands(api({ connected: () => true })))).toEqual(expect.arrayContaining(["sync", "sync-message", "auto-sync"]));
+    expect(ids(buildCommands(api()))).not.toContain("sync-message");
+    const withMessage = vi.fn();
+    buildCommands(api({ connected: () => true, act: { syncWithMessage: withMessage } })).find((c) => c.id === "sync-message")!.run(OPENER);
+    expect(withMessage).toHaveBeenCalledWith(OPENER);
     const a = api();
     const wrap = () => buildCommands(a).find((c) => c.id === "wrap")!;
     expect(wrap().label).toBe("Turn line wrapping on");

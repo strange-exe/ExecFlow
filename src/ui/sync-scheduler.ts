@@ -18,6 +18,7 @@ export const MAX_FAILURES = 3;
 export type RunReason =
   | "button" // the Sync button in the top bar
   | "key" // Ctrl+S
+  | "message" // "Sync now with a message" (the subject is the controller's, used by the next run)
   | "connect" // right after connecting
   | "edit" // 60 s after the last saved edit
   | "startup"
@@ -26,7 +27,7 @@ export type RunReason =
   | "follow-up";
 
 /** Started by the user: may open dialogs (the first-connect choice) and resets a failure streak. */
-export const isManual = (reason: RunReason): boolean => reason === "button" || reason === "key" || reason === "connect";
+export const isManual = (reason: RunReason): boolean => reason === "button" || reason === "key" || reason === "message" || reason === "connect";
 
 export type RunOutcome =
   | { kind: "ok"; again?: boolean }

@@ -142,6 +142,7 @@ export interface PaletteApi {
     shortcuts(opener: HTMLElement): void;
     connect(): void;
     syncNow(): void;
+    syncWithMessage(opener: HTMLElement): void;
     restartPython(): void;
     clearOutput(): void;
   };
@@ -294,6 +295,7 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
   // GitHub.
   if (api.connected()) {
     add("sync", "GitHub", "Sync with GitHub now", () => api.act.syncNow(), undefined, "push pull upload");
+    add("sync-message", "GitHub", "Sync now with a message...", (o) => api.act.syncWithMessage(o), undefined, "commit describe push upload");
     add("auto-sync", "GitHub", toggle("automatic sync", s.autoSync), () => {
       const on = api.settings.update({ autoSync: !api.settings.get().autoSync }).autoSync;
       api.notice.show(`Automatic sync is ${on ? "on" : "off"}.`, { tone: "info" });

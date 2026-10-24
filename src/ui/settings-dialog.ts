@@ -107,6 +107,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const githubLine = h("p", { class: "field-note", id: "github-status" });
   const connect = h("button", { type: "button", class: "btn", id: "settings-connect" }, icon("github-logo"), "Connect GitHub");
   const disconnect = h("button", { type: "button", class: "btn", id: "settings-disconnect" }, icon("cloud-slash"), "Disconnect GitHub");
+  const withMessage = h("button", { type: "button", class: "btn", id: "settings-sync-message" }, icon("cloud-arrow-up"), "Sync with a message...");
   const autoSync = check("Sync automatically", s().autoSync, "A minute after your last change, while CodeEditor is open in front. Ctrl+S and the status in the top bar sync at once.", "set-autosync");
   autoSync.input.addEventListener("change", () => set({ autoSync: autoSync.input.checked }));
   connect.addEventListener("click", () => {
@@ -116,6 +117,12 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   disconnect.addEventListener("click", () => {
     dialog.close();
     deps.sync().disconnect();
+  });
+  // Settings closes first, so focus is back on what opened it, which the message dialog returns to.
+  withMessage.addEventListener("click", () => {
+    dialog.close();
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+    deps.sync().syncWithMessage(opener);
   });
 
   // ---------------------------------------------------------------- clear this computer
@@ -140,7 +147,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       h("div", { class: "check-row" }, wall.row, wextra.row),
     ),
     section("Storage on this computer", storageLine, h("div", { class: "row-actions" }, protect, exportButton)),
-    section("GitHub", githubLine, h("div", { class: "row-actions" }, connect, disconnect), autoSync.row),
+    section("GitHub", githubLine, h("div", { class: "row-actions" }, connect, withMessage, disconnect), autoSync.row),
     section(
       "Clear this computer",
       h("p", { class: "field-note" }, "For shared computers: removes every file, setting and saved GitHub token CodeEditor keeps in this browser. Files already synced to GitHub stay there."),
@@ -168,6 +175,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       githubLine.textContent = sync.describe();
       connect.hidden = sync.connected();
       disconnect.hidden = !sync.connected();
+      withMessage.hidden = !sync.connected();
       void refreshStorage();
       openModal(dialog, dialog.querySelector<HTMLInputElement>("input[name=theme]:checked"), opener);
     },
