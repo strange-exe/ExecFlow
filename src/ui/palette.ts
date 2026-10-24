@@ -65,6 +65,9 @@ export function openPalette(api: PaletteApi, mode: PaletteMode, opener: HTMLElem
   }
   // Another dialog or a menu took over while the chunk loaded: it keeps the keyboard.
   if (document.querySelector("dialog[open], .menu")) return;
+  // Closed but still on the page: its close event (which removes it) comes a task later, and a
+  // second dialog with the same ids must never stand beside it.
+  instance?.dialog.remove();
   instance = build(api, mode, opener);
 }
 

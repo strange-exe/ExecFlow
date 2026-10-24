@@ -105,6 +105,29 @@ test("F1, Ctrl+Shift+P, Ctrl+P and Search open it as an APG combobox, and Escape
   await expect(search).toBeFocused();
 });
 
+// A dialog's close event comes a task after close(), and the closed palette left the page only then:
+// reopened in between (Escape, then Search at once), a second dialog#palette was built beside it,
+// with the same ids (CI 2026-10-24, Chromium). There is never more than one palette on the page.
+test("reopened in the same moment it closes, the palette is one dialog, never two", async ({ page }) => {
+  await setUp(page);
+  await page.locator("#palette-button").click();
+  await expectOpen(page, "all");
+  const most = await page.evaluate(async () => {
+    let most = 0;
+    const count = () => (most = Math.max(most, document.querySelectorAll("dialog#palette").length));
+    const watch = new MutationObserver(count);
+    watch.observe(document.body, { childList: true, subtree: true });
+    document.querySelector<HTMLDialogElement>("dialog#palette")!.close();
+    document.querySelector<HTMLElement>("#palette-button")!.click();
+    await new Promise((r) => setTimeout(r, 300));
+    watch.disconnect();
+    count();
+    return most;
+  });
+  expect(most, "palettes on the page at once").toBe(1);
+  await expectOpen(page, "all");
+});
+
 test("typing filters and ranks; Down, Up and the pointer move the active option; Enter and a click choose", async ({ page }) => {
   await setUp(page);
   await page.locator("#palette-button").click();
