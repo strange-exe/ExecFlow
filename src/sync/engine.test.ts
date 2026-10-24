@@ -35,6 +35,30 @@ describe("prototype scenarios", () => {
     expect(gh.log.filter((l) => l.startsWith("PUT"))).toHaveLength(1);
     expect(gh.log.filter((l) => l.startsWith("PATCH"))).toHaveLength(1);
     expect(gh.files()).toEqual(a.texts());
+    // The first file starts the repository under the same kind of message as any other commit.
+    expect([...gh.commits.values()].map((c) => c.message)).toEqual([
+      "Add lib/util.c\n\nAdded: lib/util.c\n\nFrom: laptop (CodeEditor)",
+      `Add main.py and ${uni}\n\nAdded: main.py and ${uni}\n\nFrom: laptop (CodeEditor)`,
+    ]);
+  });
+
+  it("a typed subject names every commit of that sync, the lists stay, and the next sync is automatic again", async () => {
+    const { gh, client } = setup();
+    const a = await device({ "a.py": "a\n", "b.py": "b\n" });
+    const first = await run(a, client, { subject: "  Lab 3:" + String.fromCodePoint(0x202e) + " first try\n" });
+    expect(first.commits).toBe(2);
+    expect([...gh.commits.values()].map((c) => c.message)).toEqual([
+      "Lab 3: first try\n\nAdded: a.py\n\nFrom: laptop (CodeEditor)",
+      "Lab 3: first try\n\nAdded: b.py\n\nFrom: laptop (CodeEditor)",
+    ]);
+    await a.write("b.py", "b2\n");
+    await run(a, client);
+    expect(gh.commits.get(gh.head()!)!.message).toBe("Update b.py\n\nChanged: b.py\n\nFrom: laptop (CodeEditor)");
+    // Nothing to upload: no commit, whatever the subject.
+    const before = gh.commits.size;
+    const idle = await run(a, client, { subject: "Nothing here" });
+    expect(idle.commits).toBe(0);
+    expect(gh.commits.size).toBe(before);
   });
 
   it("non-overlapping edits on two machines merge without conflicts; idle sync makes no commit", async () => {
@@ -690,7 +714,10 @@ describe("pushing", () => {
     const r = await run(a, client, { deviceName: nasty });
     expect(r.pushed).toEqual(["add.py", "edit.py"]);
     expect(r.deleted).toEqual([{ path: "del.py", where: "remote" }]);
-    expect(gh.commits.get(gh.head()!)!.message).toBe("CodeEditor sync from lab PC 7: +1 ~1 -1");
+    expect(gh.commits.get(gh.head()!)!.message).toBe(
+      ["Add add.py, update edit.py and delete del.py", "", "Added: add.py", "Changed: edit.py", "Deleted: del.py", "", "From: lab PC 7 (CodeEditor)"].join("\n"),
+    );
+    expect(r.commits).toBe(1);
     expect(a.remote).toMatchObject({ owner: "me", repo: "workspace", branch: "main", baseCommit: gh.head(), lastError: null, deviceName: nasty });
     expect([...a.base.keys()].sort()).toEqual(["add.py", "edit.py", "keep.py"]);
   });

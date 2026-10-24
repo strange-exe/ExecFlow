@@ -16,8 +16,9 @@
 
 import { encodeFileBytes, gitBlobSha, textBlobSha, type Eol } from "../core/bytes";
 import { foldKey, tryNormalizePath } from "../core/paths";
-import { BIDI_CONTROL, CONTROL, HIDDEN, MAX_FILE_BYTES, checkBytes } from "../core/safety";
+import { MAX_FILE_BYTES, checkBytes } from "../core/safety";
 import type { BaseEntry, LocalFileState, OpaquePut, RemoteMeta, SyncCommit, SyncSnapshot, SyncStore, WsPath } from "../core/types";
+import { commitMessage } from "./commit-message";
 import { GitHubError, type GitHubClient, type TreeEntryType, type TreeWrite } from "./github";
 import { planMerge, type MergeItem, type Sha } from "./merge";
 
@@ -38,8 +39,13 @@ export type FirstConnectChoice = "use-remote" | "merge" | "push-local";
 export type SyncPhase = "checking" | "downloading" | "uploading" | "verifying" | "saving";
 
 export interface SyncOptions {
-  /** Shown in commit messages ("CodeEditor sync from <device>"). */
+  /** Shown in commit messages ("From: <device> (CodeEditor)", commit-message.ts). */
   deviceName: string;
+  /**
+   * A subject the student typed for this sync ("Sync now with a message"): every commit this sync
+   * makes uses it (cleaned again here); the file lists stay in the body. Empty or absent: automatic.
+   */
+  subject?: string;
   /** Stamps conflict copies and lastSyncAt. */
   now: () => Date;
   branch: string;
@@ -76,6 +82,8 @@ export interface SyncReport {
   details: MergeItem[];
   /** The commit this workspace is now in step with; null while the repository is empty. */
   commit: string | null;
+  /** Commits this sync made on GitHub (0: nothing needed uploading; 2: it started an empty repository). */
+  commits: number;
   /** The repository's history was rewritten: its deletions were not applied here. */
   historyRewritten: boolean;
 }
@@ -143,12 +151,12 @@ export function sync(store: SyncStore, client: GitHubClient, opts: SyncOptions):
 
 async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions): Promise<SyncReport> {
   const when = opts.now();
-  const device = deviceLabel(opts.deviceName);
   const progress = opts.onProgress ?? (() => undefined);
   const fetchBlob = blobFetcher(client);
   let choice: FirstConnectChoice | undefined;
   /** The file this sync used to start an empty repository, as GitHub stored it. */
   let bootstrap: { path: WsPath; sha: Sha } | null = null;
+  let commits = 0;
 
   for (let attempt = 1; ; ) {
     progress("checking");
@@ -282,8 +290,11 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
         }
         const c = await reader.read(first);
         progress("uploading");
-        const uploaded = await client.putFile(first, encodeFileBytes(c.text, c.eol, c.bom), `Initialize from ${device}`);
+        // Named like any other commit that adds one file ("Add main.py"); the rest follow in the next.
+        const message = commitMessage({ added: [first], changed: [], deleted: [] }, opts.deviceName, opts.subject);
+        const uploaded = await client.putFile(first, encodeFileBytes(c.text, c.eol, c.bom), message);
         bootstrap = { path: first, sha: uploaded.blob };
+        commits++;
         continue; // the next round sees that file on both sides and pushes the rest
       }
     }
@@ -296,8 +307,8 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
     const pushed: WsPath[] = [];
     const deletedRemote: WsPath[] = [];
     const notPushed: WsPath[] = [];
-    let added = 0;
-    let changed = 0;
+    const added: WsPath[] = [];
+    const changed: WsPath[] = [];
     const knownBlobs = new Set<Sha>([...remote.entries.values()].filter((e) => e.type === "blob").map((e) => e.sha));
     // The tree GitHub must store: the current one with our changes applied.
     const expected = new Map<WsPath, { sha: Sha; mode: string }>([...remote.entries].map(([p, e]) => [p, { sha: e.sha, mode: e.mode }]));
@@ -320,8 +331,8 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
         entries.push({ path, mode, type: "blob", sha: c.sha });
       } else entries.push({ path, mode, type: "blob", content: exactText(bytes) });
       expected.set(path, { sha: c.sha, mode });
-      if (before) changed++;
-      else added++;
+      if (before) changed.push(path);
+      else added.push(path);
       pushed.push(path);
     }
     for (const [path, e] of remote.entries) {
@@ -348,7 +359,7 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
       progress("verifying");
       const stored = await readTree(client, next);
       verifyTree(expected, stored.entries);
-      const message = `CodeEditor sync from ${device}: +${added} ~${changed} -${deletedRemote.length}`;
+      const message = commitMessage({ added, changed, deleted: deletedRemote }, opts.deviceName, opts.subject);
       const created = await client.createCommit(message, next, [remote.head]);
       try {
         await client.updateRef(opts.branch, created);
@@ -360,6 +371,7 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
         attempt++;
         continue; // someone pushed meanwhile: merge again against the new head
       }
+      commits++;
       commit = created;
       tree = next;
       etag = null; // our push moved the branch; the next sync reads it in full once
@@ -406,6 +418,7 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
       notPushed: notPushed.sort(),
       details: plan.items,
       commit,
+      commits,
       historyRewritten: remote.rewritten,
     };
   }
@@ -643,13 +656,4 @@ async function eachLimited<T>(items: readonly T[], limit: number, fn: (item: T) 
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-}
-
-const CONTROL_ALL = new RegExp(CONTROL.source, "g");
-const BIDI_ALL = new RegExp(BIDI_CONTROL.source, "g");
-
-/** A one-line, printable device name for commit messages. */
-function deviceLabel(name: string): string {
-  const label = name.replace(CONTROL_ALL, " ").replace(BIDI_ALL, "").replace(HIDDEN, "").replace(/\s+/g, " ").trim();
-  return [...label].slice(0, 60).join("") || "a browser";
 }

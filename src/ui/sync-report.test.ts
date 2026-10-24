@@ -13,6 +13,7 @@ const empty: SyncReport = {
   notPushed: [],
   details: [],
   commit: "a".repeat(40),
+  commits: 0,
   historyRewritten: false,
 };
 const ctx = { repo: "me/code", closed: [], kept: [] };
