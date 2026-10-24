@@ -189,8 +189,10 @@ with the name, Contents and a 90-day expiry filled in; you pick the repository t
   a minute after the last change while the tab is in front. Only the tab that edits the workspace
   syncs.
 - Each commit is named after the files it changes, for example `Add lab3/q2.c, update main.py
-  and 2 more` (at most 72 characters), with `Added:`, `Changed:` and `Deleted:` lists and a
-  `From: <browser> (CodeEditor)` line below. To write your own title, choose "Sync now with a
+  and 2 more` (at most 72 characters), with `Added:`, `Changed:` and `Deleted:` lists below (one
+  file per line, up to 20 per list, then `and N more`) and a `From: <browser> (CodeEditor)` line
+  last. A file name that could read as part of the title (one with a comma, "and" or quotes) is
+  quoted there. To write your own title, choose "Sync now with a
   message..." in the command palette (F1) or "Sync with a message..." in Settings: what you type
   (one line, up to 72 characters) replaces the title of that one sync's commit, and the file lists
   stay. Ctrl+S and automatic syncs never ask. If there is nothing to upload, or the sync fails,

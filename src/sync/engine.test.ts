@@ -37,8 +37,8 @@ describe("prototype scenarios", () => {
     expect(gh.files()).toEqual(a.texts());
     // The first file starts the repository under the same kind of message as any other commit.
     expect([...gh.commits.values()].map((c) => c.message)).toEqual([
-      "Add lib/util.c\n\nAdded: lib/util.c\n\nFrom: laptop (CodeEditor)",
-      `Add main.py and ${uni}\n\nAdded: main.py and ${uni}\n\nFrom: laptop (CodeEditor)`,
+      "Add lib/util.c\n\nAdded:\n  lib/util.c\n\nFrom: laptop (CodeEditor)",
+      `Add main.py and ${uni}\n\nAdded:\n  main.py\n  ${uni}\n\nFrom: laptop (CodeEditor)`,
     ]);
   });
 
@@ -48,12 +48,12 @@ describe("prototype scenarios", () => {
     const first = await run(a, client, { subject: "  Lab 3:" + String.fromCodePoint(0x202e) + " first try\n" });
     expect(first.commits).toBe(2);
     expect([...gh.commits.values()].map((c) => c.message)).toEqual([
-      "Lab 3: first try\n\nAdded: a.py\n\nFrom: laptop (CodeEditor)",
-      "Lab 3: first try\n\nAdded: b.py\n\nFrom: laptop (CodeEditor)",
+      "Lab 3: first try\n\nAdded:\n  a.py\n\nFrom: laptop (CodeEditor)",
+      "Lab 3: first try\n\nAdded:\n  b.py\n\nFrom: laptop (CodeEditor)",
     ]);
     await a.write("b.py", "b2\n");
     await run(a, client);
-    expect(gh.commits.get(gh.head()!)!.message).toBe("Update b.py\n\nChanged: b.py\n\nFrom: laptop (CodeEditor)");
+    expect(gh.commits.get(gh.head()!)!.message).toBe("Update b.py\n\nChanged:\n  b.py\n\nFrom: laptop (CodeEditor)");
     // Nothing to upload: no commit, whatever the subject.
     const before = gh.commits.size;
     const idle = await run(a, client, { subject: "Nothing here" });
@@ -715,7 +715,7 @@ describe("pushing", () => {
     expect(r.pushed).toEqual(["add.py", "edit.py"]);
     expect(r.deleted).toEqual([{ path: "del.py", where: "remote" }]);
     expect(gh.commits.get(gh.head()!)!.message).toBe(
-      ["Add add.py, update edit.py and delete del.py", "", "Added: add.py", "Changed: edit.py", "Deleted: del.py", "", "From: lab PC 7 (CodeEditor)"].join("\n"),
+      ["Add add.py, update edit.py and delete del.py", "", "Added:", "  add.py", "", "Changed:", "  edit.py", "", "Deleted:", "  del.py", "", "From: lab PC 7 (CodeEditor)"].join("\n"),
     );
     expect(r.commits).toBe(1);
     expect(a.remote).toMatchObject({ owner: "me", repo: "workspace", branch: "main", baseCommit: gh.head(), lastError: null, deviceName: nasty });

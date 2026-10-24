@@ -95,7 +95,7 @@ test("Ctrl+S saves and uploads the edit as one commit named after this device", 
   await waitSync(page, n, "synced");
   expect(gh.fake.files()["main.py"]).toBe("print('changed')\n");
   expect(gh.fake.commits.size).toBe(commits + 1);
-  expect([...gh.fake.commits.values()].at(-1)!.message).toMatch(/^Update main\.py\n\nChanged: main\.py\n\nFrom: (Chrome|Firefox|Safari|Edge|a browser)( on \w+)? \(CodeEditor\)$/);
+  expect([...gh.fake.commits.values()].at(-1)!.message).toMatch(/^Update main\.py\n\nChanged:\n  main\.py\n\nFrom: (Chrome|Firefox|Safari|Edge|a browser)( on \w+)? \(CodeEditor\)$/);
   await expect(page.locator(".notice")).toHaveAttribute("data-tone", "success");
 });
 

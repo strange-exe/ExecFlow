@@ -73,7 +73,7 @@ test("a typed message names that one commit, keeps the file list, and the next s
   await waitSync(page, n, "synced");
   expect(gh.fake.commits.size).toBe(commits + 1);
   const message = lastMessage(gh);
-  expect(message).toMatch(/^Finish lab 3 \(q1 to q3\)\n\nChanged: notes\.txt\n\nFrom: /);
+  expect(message).toMatch(/^Finish lab 3 \(q1 to q3\)\n\nChanged:\n  notes\.txt\n\nFrom: /);
   expect(message).toMatch(FROM);
   // Focus is back on the code the palette was opened from.
   await expect(page.locator(".cm-content")).toBeFocused();
@@ -82,7 +82,7 @@ test("a typed message names that one commit, keeps the file list, and the next s
   await setCode(page, "print('lab 3, fixed')\n");
   await saveKey(page);
   await waitSync(page, n + 1, "synced");
-  expect(lastMessage(gh)).toMatch(/^Update notes\.txt\n\nChanged: notes\.txt\n\nFrom: /);
+  expect(lastMessage(gh)).toMatch(/^Update notes\.txt\n\nChanged:\n  notes\.txt\n\nFrom: /);
   // And the dialog opens empty again: a used message isn't offered twice.
   await fromPalette(page);
   await expect(field(page)).toHaveValue("");
@@ -156,7 +156,7 @@ test("offline: the dialog keeps the message and says why; once online, Sync uses
   await page.locator("#sync-message-submit").click();
   await expect(dialog(page)).toHaveCount(0);
   await waitSync(page, before, "synced");
-  expect(lastMessage(gh)).toMatch(/^Written on the bus!\n\nChanged: notes\.txt\n\nFrom: /);
+  expect(lastMessage(gh)).toMatch(/^Written on the bus!\n\nChanged:\n  notes\.txt\n\nFrom: /);
 });
 
 test("an automatic sync that falls due while the dialog is open waits for it, and runs once it closes without syncing", async ({ page, context }) => {
@@ -180,7 +180,7 @@ test("an automatic sync that falls due while the dialog is open waits for it, an
   await waitSync(page, n, "synced");
   await expect(syncStatus(page)).not.toHaveAttribute("data-sync-held");
   expect(gh.fake.commits.size).toBe(commits + 1);
-  expect(lastMessage(gh)).toMatch(/^Update notes\.txt\n\nChanged: notes\.txt\n\nFrom: /);
+  expect(lastMessage(gh)).toMatch(/^Update notes\.txt\n\nChanged:\n  notes\.txt\n\nFrom: /);
 });
 
 test.describe("a rate limit", () => {
@@ -201,7 +201,7 @@ test.describe("a rate limit", () => {
     gh.fake.interceptors.length = 0;
     await syncStatus(page).click();
     await waitSync(page, n + 1, "synced");
-    expect(lastMessage(gh)).toMatch(/^Update notes\.txt\n\nChanged: notes\.txt\n\nFrom: /);
+    expect(lastMessage(gh)).toMatch(/^Update notes\.txt\n\nChanged:\n  notes\.txt\n\nFrom: /);
     await fromPalette(page);
     await expect(field(page)).toHaveValue("Try before the deadline");
   });
