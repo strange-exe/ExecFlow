@@ -103,9 +103,15 @@ test("ready: the repository link, keyboard path and the key view's hierarchy", a
   await expect(dialog(page)).toHaveAttribute("data-state", "ready");
   // Keyboard path: the choice first, then the link, Open on GitHub, Cancel, Copy link; Shift+Tab reaches Close.
   await expect(page.locator("#share-repo")).toBeFocused();
-  // Safari (WebKit) leaves links out of the Tab order unless "Press Tab to highlight each item" is
-  // on (its default; Option+Tab reaches them): there Open on GitHub is not a Tab stop.
-  const order = test.info().project.name === "webkit" ? ["share-link", "share-cancel", "share-primary"] : ["share-link", "share-open", "share-cancel", "share-primary"];
+  // Safari leaves links out of the Tab order unless "Press Tab to highlight each item" is on, and
+  // Playwright's WebKit differs by platform (skipped on Windows, a Tab stop on Linux CI, 2026-10-24):
+  // so whether Open on GitHub is a stop is read from the browser, the rest of the order is fixed.
+  await page.locator("#share-link").focus();
+  await page.keyboard.press("Tab");
+  const linksAreStops = await page.locator("#share-open").evaluate((a) => a === document.activeElement);
+  if (!linksAreStops) expect(test.info().project.name, "only WebKit may skip the link").toBe("webkit");
+  await page.locator("#share-repo").focus();
+  const order = linksAreStops ? ["share-link", "share-open", "share-cancel", "share-primary"] : ["share-link", "share-cancel", "share-primary"];
   for (const id of order) {
     await page.keyboard.press("Tab");
     await expect(page.locator(`#${id}`), id).toBeFocused();
