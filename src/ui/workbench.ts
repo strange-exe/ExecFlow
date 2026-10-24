@@ -4,7 +4,7 @@
 import type { EditorState } from "@codemirror/state";
 import { detectLanguage, isHeader, LANGUAGES, type LanguageId } from "../core/languages";
 import { conflictName, foldKey, isInside, nameOf, parentOf } from "../core/paths";
-import type { EntryMeta, RunPhase, RunResult, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
+import type { EntryMeta, RunResult, RunStatus, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
 import type { EditorManager, FileId, Problem } from "../editor/editor-manager";
 import { toLineCol } from "../editor/positions";
 import { deleteAllLocalData, isVersionError, openWorkspaceDb, StorageError, type UiState, type WorkspaceDb, type WorkspaceRecord } from "../storage/db";
@@ -27,6 +27,7 @@ import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD, type Render
 import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
 import { dropStash, readStash, textHash, writeStash } from "./recover";
 import { callSiteMarks } from "./run-diagnostics";
+import { mainToOffer, phaseLabel } from "./run-words";
 import { buildOptions, createSettingsStore, runLimits } from "./settings";
 import { paletteKey } from "./palette-keys";
 import { createSnippetCapture } from "./snippet-image";
@@ -47,21 +48,6 @@ interface OpenFile {
 
 const errorText = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong.");
 
-function phaseLabel(phase: RunPhase, detail: string | undefined, lang: LanguageId): string {
-  switch (phase) {
-    case "downloading":
-      return detail ? `Downloading ${detail}` : lang === "python" ? "Downloading Python" : "Downloading the C/C++ compiler";
-    case "booting":
-      return lang === "python" ? "Starting Python" : "Starting the C/C++ compiler";
-    case "compiling":
-      return detail ? `Compiling ${detail}` : "Compiling";
-    case "linking":
-      return "Linking";
-    case "running":
-      return "Running";
-  }
-}
-
 function announcement(r: RunResult, summary: string, path: WsPath, timeLimitS: number): string {
   switch (r.status) {
     case "ok":
@@ -77,7 +63,8 @@ function announcement(r: RunResult, summary: string, path: WsPath, timeLimitS: n
     case "stopped":
       return "Stopped.";
     case "crashed":
-      return `Crashed${r.message ? `: ${r.message}` : "."}`;
+      // The message is its own plain sentence ("The program ran out of stack memory: ..."), B13.
+      return `Crashed.${r.message ? ` ${r.message}` : ""}`;
     case "unavailable":
       return `Couldn't run${r.message ? `: ${r.message}` : "."}`;
   }
@@ -224,7 +211,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
               saves.schedule(id);
               scheduleCheck(id);
               // An edit is the next step after a failed run: Run takes its filled style again.
-              setLastRun(false);
+              editedAfterRun();
             },
             // Ln/Col in the editor's own update, not a frame of its own after the key (see showPosition).
             onSelectionChange: (_id, state) => showPosition(state),
@@ -657,6 +644,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let runError: Problem | null = null;
   /** Its exception class as the tool reported it (liftError's head). */
   let runErrorCode: string | undefined;
+  /**
+   * The last finished run's file, and whether that run failed and nothing was edited since (decision
+   * 1, limited by the owner on 2026-10-24 to the file that failed): see renderLastRun.
+   */
+  let lastRun: { path: WsPath; failed: boolean } | null = null;
 
   /**
    * The failed run's error follows its file: renamed, the jump and the lifted exception name the new
@@ -664,6 +656,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
    * did nothing).
    */
   function followError(from: WsPath, to: WsPath | null) {
+    // The last run's file is followed too: renamed, the header names it and Run still steps back
+    // there; deleted, the header keeps its old name and Run steps back nowhere.
+    if (lastRun?.path === from && to !== null) {
+      lastRun = { ...lastRun, path: to };
+      renderLastRun();
+    }
     if (!runError || runError.path !== from) return;
     runError = to === null ? null : { ...runError, path: to };
     renderJump();
@@ -745,6 +743,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     runtimes.prepare(lang);
     if (lang === "python" && file) scheduleCheck(file.id);
     renderStatus();
+    renderLastRun();
     schedulePosition();
   }
 
@@ -916,6 +915,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // ---------------------------------------------------------------- error help (a lazy chunk)
   let helpChunk: Promise<RenderHelp> | null = null;
   let renderHelp: RenderHelp | null = null;
+  let renderLimit: typeof import("./error-help-view").renderLimitHelp | null = null;
   /**
    * The plain-language error help (error-help-view.ts and its table), loaded once a run starts or
    * a problem is listed. It only adds words under an error: if it can't load, the errors show as
@@ -923,7 +923,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
    */
   function loadHelp(): Promise<RenderHelp> {
     helpChunk ??= import("./error-help-view").then(
-      (m) => (renderHelp = m.renderHelp),
+      (m) => {
+        renderLimit = m.renderLimitHelp;
+        return (renderHelp = m.renderHelp);
+      },
       (e: unknown) => {
         helpChunk = null;
         throw e;
@@ -1031,11 +1034,24 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
 
   /**
    * After a failed run Run steps back to the secondary (outline) style until the next edit or run:
-   * the next step is a fix, not a re-run. It stays enabled, with its label, id and shortcut.
+   * the next step is a fix, not a re-run. It stays enabled, with its label, id and shortcut. Only
+   * while the file that failed is open (owner, 2026-10-24): any other file's Run is its own,
+   * filled. And while another file is open the run-log header says whose run it shows ("Last run:
+   * util.c"), so a never-run file doesn't seem to have failed (B11).
    */
-  function setLastRun(failed: boolean) {
-    if (failed) root.dataset.lastRun = "failed";
+  function renderLastRun() {
+    const active = fileOf(editors.activeId)?.path ?? null;
+    if (lastRun?.failed && lastRun.path === active) root.dataset.lastRun = "failed";
     else delete root.dataset.lastRun;
+    const running = root.dataset.run === "running" || root.dataset.run === "waiting";
+    if (lastRun && !running) output.showRunOwner(nameOf(lastRun.path), lastRun.path !== active);
+  }
+
+  /** An edit after a failed run (in any file: the fix may be in a file the program uses). Cheap per key. */
+  function editedAfterRun() {
+    if (!lastRun?.failed) return;
+    lastRun = { ...lastRun, failed: false };
+    renderLastRun();
   }
 
   /**
@@ -1109,10 +1125,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     runPressed = performance.now();
     stopAsked = false;
     // A new run: Run takes its filled style again, and the last run's error jump goes.
-    setLastRun(false);
+    if (lastRun) lastRun = { ...lastRun, failed: false };
     runError = null;
     renderJump();
     setRunning("running");
+    renderLastRun();
     try {
       await runProgram();
     } finally {
@@ -1120,7 +1137,50 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       stopAsked = false;
       runMoves = null;
       setRunning("idle");
+      renderLastRun();
     }
+  }
+
+  /** The finished run's file (where it is now, if it moved meanwhile), and whether the run failed. */
+  function finishedRun(path: WsPath, failed: boolean, moves: Map<WsPath, WsPath | null>) {
+    lastRun = { path: moves.get(path) ?? path, failed };
+  }
+
+  /**
+   * Run was pressed for this C or C++ file before the one-time download was in: it runs once the
+   * download finishes, if it is still the open file and nothing else runs (B10, 2026-10-24). Run,
+   * Download, done: two presses instead of Run, Download, Run again.
+   */
+  let runAfterPack: WsPath | null = null;
+  const PACK_NOTICE = "C and C++ need a one-time download first. The button is in the Output panel.";
+  /** The notice above, cleared once its button has been used (only if it is still the one shown). */
+  function clearPackNotice() {
+    if (notice.element.textContent?.includes(PACK_NOTICE)) notice.clear();
+  }
+  function runIfPackArrived() {
+    const cpp = runtimes.cppRunner;
+    if (!cpp || cpp.state === "checking" || cpp.state === "absent" || cpp.state === "downloading") return;
+    clearPackNotice();
+    const path = runAfterPack;
+    runAfterPack = null;
+    if (path === null || runPressed || cpp.state === "failed" || fileOf(editors.activeId)?.path !== path) return;
+    void run();
+  }
+
+  /** "Run lab1/main.c" from a failed build of a file without main(): opens that file and runs it. */
+  async function runOffered(path: WsPath) {
+    const file = await openFile(path, { focus: true });
+    if (file && fileOf(editors.activeId)?.path === path) await run();
+  }
+
+  /** The help for a run stopped at its time or output limit (a lazy chunk, as the error help is). */
+  function showLimitHelp(status: RunStatus, limits: { seconds: number; chars: number }) {
+    const serial = runSerial;
+    const show = () => {
+      if (serial === runSerial && renderLimit) output.setHelp(renderLimit(status, limits, "run-help"));
+    };
+    if (renderLimit) show();
+    else loadHelp().then(show, () => {});
   }
 
   async function runProgram() {
@@ -1153,14 +1213,19 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         });
       }
       if (cpp.state === "absent") {
+        runAfterPack = file.path;
         renderPack();
         L.showPanelTab("output");
         if (L.narrow()) L.showView("output");
-        notice.show("C and C++ need a one-time download first. The button is in the Output panel.", { tone: "info" });
+        notice.show(PACK_NOTICE, { tone: "info" });
         output.focusPackButton();
         return;
       }
-      if (cpp.state === "downloading") return notice.show("The C/C++ download is still running. Run works as soon as it finishes.", { tone: "info" });
+      if (cpp.state === "downloading") {
+        runAfterPack = file.path;
+        renderPack();
+        return notice.show(`The C/C++ download is still running. ${nameOf(file.path)} runs as soon as it finishes.`, { tone: "info" });
+      }
     }
     // Arguments that can't be split (an unclosed quote, over a limit): the field explains, and
     // nothing runs. Focus moves there and reads the message; if it was there already, it is said.
@@ -1208,7 +1273,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         { lang, entry: file.path, files: [...byPath.values()], stdin: output.stdin.value, args: args.args, limits: runLimits(current), build: buildOptions(current) },
         {
           onOutput: (stream, text) => output.write(stream, text),
-          onPhase: (phase, detail) => output.setPhase(phase, phaseLabel(phase, detail, lang)),
+          onPhase: (phase, detail, progress) => output.setPhase(phase, phaseLabel(phase, detail, lang, progress)),
           onInputRequest: () => {
             setRunning("waiting");
             // The header adds "(timer paused)": time spent waiting doesn't count.
@@ -1262,15 +1327,19 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       // (first) error's own line, not the last one (review B, 2026-10-18).
       output.finish(result, first && runError ? liftError(runError, first.code) : null, result.status === "build-failed" && first ? diagnosticLine(first) : undefined);
       // The help explains the lifted error, or an error of the whole program (a crash) when no
-      // error has a place.
+      // error has a place; a run stopped at a limit gets the limit's help (B13).
       showRunHelp(failed ? (first ?? marks.find((d) => d.severity === "error")) : undefined);
-      setLastRun(failed);
+      if (result.status === "timeout" || result.status === "output-limit") showLimitHelp(result.status, { seconds: current.timeLimitS, chars: runLimits(current).outputCap });
+      // A file without main() whose folder has a program: offer to run that one (B13).
+      const program = mainToOffer(result);
+      if (program) output.offerMain({ path: program, run: () => void runOffered(program) });
+      finishedRun(file.path, failed, moves);
       announcer.say(announcement(result, summary, file.path, current.timeLimitS));
       void offerWritten(result.written);
     } catch (e) {
       ed.cancelBuild(ticket);
       output.fail(errorText(e));
-      setLastRun(true);
+      finishedRun(file.path, true, moves);
       announcer.say(`Couldn't run: ${errorText(e)}`);
     } finally {
       setRunning("idle");
@@ -1351,6 +1420,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     runtimes.cppRunner?.download();
     // The service worker keeps the app (and, in WebKit, the pack's cache) for offline use: main.ts.
     document.dispatchEvent(new CustomEvent("codeeditor:offline-wanted"));
+    // "The button is in the Output panel" has been followed: the offer now shows the progress.
+    clearPackNotice();
     renderPack();
   };
   function renderPack() {
@@ -1371,6 +1442,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       loaded: cpp.progress.loaded,
       total: cpp.progress.total,
       error: cpp.error,
+      then: runAfterPack !== null && runAfterPack === file?.path ? nameOf(runAfterPack) : undefined,
     });
   }
 
@@ -1467,12 +1539,20 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         const { loaded, total } = runtimes.cppRunner.progress;
         words = `Downloading C/C++ ${total ? Math.floor((loaded / total) * 100) : 0}%`;
       }
+      // Python's first start downloads it (B9): said as the C/C++ download is.
+      const python = kind === "python" ? runtimes.pythonDownload() : null;
+      if (python) words = python.total ? `Downloading Python ${Math.floor((Math.min(python.loaded, python.total) / python.total) * 100)}%` : "Downloading Python";
       el.replaceChildren(icon(failed ? "x-circle" : busy ? "arrow-clockwise" : state === "absent" ? "download-simple" : "check-circle"), h("span", null, words));
     }
     renderPack();
   }
   runtimes.onChange(() => {
+    // The download offer goes once the pack is in: focus inside it moves to Run (whose press it
+    // stood for), never to the page.
+    const packFocus = output.packHasFocus();
     renderStatus();
+    if (packFocus && !output.packHasFocus() && isShown(L.runButton)) L.runButton.focus();
+    runIfPackArrived();
     const file = fileOf(editors.activeId);
     if (file && runtimes.state("python") === "ready" && detectLanguage(file.path)?.id === "python") scheduleCheck(file.id);
   });

@@ -1,0 +1,284 @@
+// Run and Output polish (UI/UX batch 2026-10-24, unit U3; .claude/tasks/ux-polish.md): Python's
+// first download in words (B9), the C/C++ first run in two presses (B10), Run's step-back and the
+// run header limited to the file they belong to (B11, owner decision), and help for runs stopped at
+// a limit, crash words, a file without main() and the -O0 label (B13).
+import type { Page } from "@playwright/test";
+import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, test } from "./helpers";
+
+test.use({ serviceWorkers: "block" });
+test.setTimeout(120_000);
+
+const TRANSPARENT = /^(transparent|rgba\(0, 0, 0, 0\))$/;
+const runs = async (page: Page) => Number((await page.locator("#app").getAttribute("data-runs")) ?? 0);
+const runtime = (page: Page) => page.locator("#status-runtime");
+const announcer = (page: Page) => page.locator("[data-announcer]");
+
+/** Run's painted fill, with the pointer moved off it first (a hovered button is never transparent). */
+async function runFill(page: Page) {
+  await page.mouse.move(4, 4);
+  return page.locator("#run-button").evaluate((el) => getComputedStyle(el).backgroundColor);
+}
+
+/** Every data-phase the run header's status takes from now on (a MutationObserver in the page). */
+async function recordPhases(page: Page) {
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { phases: string[] }).phases = seen;
+    const el = document.querySelector("#run-status")!;
+    new MutationObserver(() => seen.push(el.getAttribute("data-phase") ?? "")).observe(el, { attributes: true, attributeFilter: ["data-phase"] });
+  });
+  return () => page.evaluate(() => (window as unknown as { phases: string[] }).phases);
+}
+
+/** Sets the time limit in Settings, as a student does. */
+async function setTimeLimit(page: Page, seconds: number) {
+  await page.locator("#settings-button").click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await settings.getByLabel("Time limit (seconds)").fill(String(seconds));
+  await settings.getByLabel("Time limit (seconds)").press("Tab");
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+}
+
+test.describe("B9: Python's first start", () => {
+  test("says it downloads Python once, about how big and how far it got", async ({ page }) => {
+    // The .wasm (the biggest part) is held back, as on a slow connection.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route("**/pyodide/*/pyodide.asm.wasm", async (route) => {
+      await held;
+      await route.continue().catch(() => {});
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+    await openFromTree(page, "main.py");
+    await page.locator("#run-button").click();
+    const status = page.locator("#run-status");
+    await expect(status).toHaveAttribute("data-phase", "downloading", { timeout: 15_000 });
+    await expect(status.locator(".phase-label")).toHaveText(/^Downloading Python \(one time, about \d+ MB\): \d+\.\d of \d+\.\d MB$/);
+    // The status bar says it too, as it does for the C/C++ download.
+    await expect(runtime(page)).toContainText(/^Downloading Python \d+%$/);
+    release();
+    await expect(page.locator("#app")).toHaveAttribute("data-runs", "1", { timeout: 60_000 });
+    await expect(page.locator("#receipt")).toHaveAttribute("data-status", "ok");
+    await expect(page.locator("#console")).toContainText("hello");
+  });
+
+  // "One time" rests on the service worker's precache (vite.config.ts): with it blocked, Playwright's
+  // WebKit fetched the whole runtime from the server again on the next visit (12.2 MB of bodies,
+  // probe 2026-10-24, .claude/verify/ux-fix/u3/probe-webkit-cache.log), so that start really was a
+  // download. Here the service worker runs, as it does for a student, and no route is set (a page
+  // with routes has no HTTP cache).
+  test.describe("with the service worker", () => {
+    test.use({ serviceWorkers: "allow" });
+    test("a start from this device's copy (the next visit) never mentions a download", async ({ page }) => {
+      await openApp(page);
+      await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+      await openFromTree(page, "main.py");
+      await expect(runtime(page)).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+      await expect
+        .poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.active?.state ?? "none"), { timeout: 120_000 })
+        .toBe("activated");
+      await reloadApp(page);
+      expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "controlled by the service worker").toBe(true);
+      await openFromTree(page, "main.py");
+      const phases = await recordPhases(page);
+      expect((await run(page)).status).toBe("ok");
+      expect(await phases()).not.toContain("downloading");
+    });
+  });
+
+  test("a start that has to fetch the runtime again (no service worker, no cache) says so", async ({ page }) => {
+    // The control for the test above (its check is not vacuous): the .wasm arrives 2 s late.
+    await page.route("**/pyodide/*/pyodide.asm.wasm", async (route) => {
+      await new Promise((r) => setTimeout(r, 2000));
+      await route.continue().catch(() => {});
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+    await openFromTree(page, "main.py");
+    const phases = await recordPhases(page);
+    expect((await run(page)).status).toBe("ok");
+    expect(await phases()).toContain("downloading");
+  });
+});
+
+test.describe("B10: the C/C++ first run", () => {
+  test.setTimeout(240_000);
+
+  test("Run, then Download: the program runs once the download is in, and the notice goes", async ({ page }) => {
+    // The last part of the pack is held back, so the download is seen running.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route("**/clang/*/sysroot.tar.gz", async (route) => {
+      await held;
+      await route.continue().catch(() => {});
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("pack ok"); return 0; }\n' }]);
+    await openFromTree(page, "main.c");
+    await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
+    const notice = page.locator(".notice");
+
+    await page.locator("#run-button").click();
+    await expect(page.locator("#pack-download")).toBeFocused();
+    await expect(notice).toContainText("one-time download first");
+    // Download, from the keyboard where Run left the focus.
+    await page.keyboard.press("Enter");
+    await expect(runtime(page)).toHaveAttribute("data-state", "downloading");
+    await expect(notice, "the notice's button was used").not.toContainText("one-time download first");
+    await expect(page.locator(".pack-offer")).toContainText("main.c runs when it finishes.");
+    // The focus didn't fall to the page when the button went.
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
+
+    // Run pressed again while it downloads: still one run, after the download.
+    await page.locator("#run-button").click();
+    await expect(notice).toContainText("main.c runs as soon as it finishes.");
+    expect(await runs(page)).toBe(0);
+
+    release();
+    await expect(page.locator("#app")).toHaveAttribute("data-runs", "1", { timeout: 120_000 });
+    await expect(page.locator("#receipt")).toHaveAttribute("data-status", "ok");
+    await expect(page.locator("#console")).toContainText("pack ok");
+    await expect(page.locator(".pack-offer")).toBeHidden();
+    await expect(notice).not.toContainText("download");
+    await page.waitForTimeout(1500);
+    expect(await runs(page), "it ran once").toBe(1);
+  });
+
+  test("a download started from the offer alone runs nothing by itself", async ({ page }) => {
+    await openApp(page);
+    await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("x"); return 0; }\n' }]);
+    await openFromTree(page, "main.c");
+    await installCpp(page);
+    await page.waitForTimeout(1500);
+    expect(await runs(page)).toBe(0);
+  });
+});
+
+test.describe("B11: Run's step-back and the run header belong to the file that ran", () => {
+  test("another file's Run stays filled, the header says Last run: bad.py, and coming back steps back again", async ({ page }) => {
+    await openApp(page);
+    await importFiles(page, [
+      { name: "bad.py", text: "print(1 / 0)\n" },
+      { name: "other.py", text: "print('fine')\n" },
+    ]);
+    await openFromTree(page, "other.py");
+    const filled = await runFill(page);
+    expect(filled).not.toMatch(TRANSPARENT);
+    await openFromTree(page, "bad.py");
+    expect((await run(page)).status).toBe("error");
+    const app = page.locator("#app");
+    const file = page.locator("#runlog .rl-file");
+    await expect(app).toHaveAttribute("data-last-run", "failed");
+    await expect(file).toHaveText("bad.py");
+    await expect(page.locator("#runlog")).not.toHaveAttribute("data-other");
+
+    // A file that never ran: its Run is filled, and the header says whose result it shows.
+    await openFromTree(page, "other.py");
+    await expect(app).not.toHaveAttribute("data-last-run");
+    expect(await runFill(page)).toBe(filled);
+    await expect(file).toHaveText("Last run: bad.py");
+    await expect(page.locator("#runlog")).toHaveAttribute("data-other", "");
+
+    // Back to the file that failed: Run steps back again, the header is its own.
+    await openFromTree(page, "bad.py");
+    await expect(app).toHaveAttribute("data-last-run", "failed");
+    await expect(file).toHaveText("bad.py");
+
+    // An edit (anywhere: the fix may be in a file the program uses) ends the step-back.
+    await openFromTree(page, "other.py");
+    await setCode(page, "print('still fine')\n");
+    await openFromTree(page, "bad.py");
+    await expect(app).not.toHaveAttribute("data-last-run");
+
+    // Running the other file makes the header its own.
+    await openFromTree(page, "other.py");
+    expect((await run(page)).status).toBe("ok");
+    await expect(file).toHaveText("other.py");
+    await openFromTree(page, "bad.py");
+    await expect(file).toHaveText("Last run: other.py");
+  });
+});
+
+test.describe("B13: runs that never end, crashes, and a file without main()", () => {
+  test("the output limit: help about a loop that never ends, and no exit code 130", async ({ page }) => {
+    await openApp(page);
+    await importFiles(page, [{ name: "flood.py", text: "n = 0\nwhile n < 10:\n    print(n)\n" }]);
+    await openFromTree(page, "flood.py");
+    expect((await run(page)).status).toBe("output-limit");
+    await expect(page.locator("#receipt")).not.toContainText("exit code");
+    const help = page.locator("#run-help");
+    await expect(help).toHaveAttribute("data-help", "limit-output");
+    await expect(help).toHaveAttribute("role", "note");
+    await expect(help).toContainText("A loop that never ends prints the same lines again and again.");
+  });
+
+  test("the time limit: help about the loop's condition, and no exit code 130; Stop shows no exit code either", async ({ page }) => {
+    await openApp(page);
+    await importFiles(page, [{ name: "spin.py", text: "n = 0\nwhile n < 10:\n    pass\n" }]);
+    await openFromTree(page, "spin.py");
+    await setTimeLimit(page, 2);
+    expect((await run(page)).status).toBe("timeout");
+    await expect(page.locator("#receipt")).not.toContainText("exit code");
+    const help = page.locator("#run-help");
+    await expect(help).toHaveAttribute("data-help", "limit-time");
+    await expect(help).toContainText("after the 2 second time limit");
+    await expect(help).toContainText("Check that each pass of the loop changes what its condition tests");
+
+    await setTimeLimit(page, 30);
+    const before = await runs(page);
+    await page.locator("#run-button").click();
+    await expect(page.locator("#app")).toHaveAttribute("data-run", "running");
+    await page.waitForTimeout(1000);
+    await page.locator("#run-button").click();
+    await expect(page.locator("#app")).toHaveAttribute("data-runs", String(before + 1), { timeout: 30_000 });
+    await expect(page.locator("#receipt")).toHaveAttribute("data-status", "stopped");
+    await expect(page.locator("#receipt")).not.toContainText("exit code");
+    await expect(page.locator("#run-help")).toHaveCount(0);
+  });
+
+  test("a C crash is one plain sentence after Crashed, never 'crashed' twice", async ({ page }) => {
+    test.setTimeout(240_000);
+    await openApp(page);
+    await importFiles(page, [{ name: "boom.c", text: "#include <stdlib.h>\nint main(void) {\n    abort();\n}\n" }]);
+    await openFromTree(page, "boom.c");
+    await installCpp(page);
+    expect((await run(page, { timeout: 120_000 })).status).toBe("crashed");
+    await expect(page.locator("#console .note")).toContainText("The program stopped itself: abort() was called");
+    await expect(announcer(page)).toHaveText(/^Crashed\. The program stopped itself: abort\(\) was called/);
+    const words = `${await page.locator("#runlog").textContent()} ${await page.locator("#console").textContent()} ${await announcer(page).textContent()}`;
+    expect(words.toLowerCase()).not.toMatch(/crashed: the program crashed/);
+    expect(words.match(/crashed/gi) ?? []).toHaveLength(2); // the header's status word, and the announcement's
+  });
+
+  test("running a helper file without main() offers the program's main.c, and the offer runs it", async ({ page }) => {
+    test.setTimeout(240_000);
+    await openApp(page);
+    await importFiles(page, [
+      { name: "main.c", text: '#include <stdio.h>\n#include "util.h"\nint main(void) { printf("%d\\n", square(7)); return 0; }\n' },
+      { name: "util.h", text: "int square(int x);\n" },
+      { name: "util.c", text: '#include "util.h"\nint square(int x) { return x * x; }\n' },
+    ]);
+    await openFromTree(page, "util.c");
+    await installCpp(page);
+    expect((await run(page, { timeout: 120_000 })).status).toBe("build-failed");
+    const offer = page.locator("#run-offer");
+    await expect(offer).toContainText("This file has no main().");
+    const button = offer.getByRole("button", { name: "Run main.c" });
+    await expect(button).toBeVisible();
+    await button.click();
+    await expect(page.locator("#app")).toHaveAttribute("data-runs", "2", { timeout: 120_000 });
+    await expect(page.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", "main.c");
+    await expect(page.locator("#receipt")).toHaveAttribute("data-status", "ok");
+    await expect(page.locator("#console")).toContainText("49");
+    await expect(offer).toHaveCount(0);
+  });
+
+  test("Settings says what -O0 costs", async ({ page }) => {
+    await openApp(page);
+    await page.locator("#settings-button").click();
+    const settings = page.getByRole("dialog", { name: "Settings" });
+    await expect(settings.locator('#set-opt option[value="0"]')).toHaveText("-O0 (none, quickest to build; makes memory bugs harder to see)");
+  });
+});

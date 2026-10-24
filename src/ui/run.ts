@@ -59,6 +59,11 @@ export class Runtimes {
     return this.cppLoaded?.runner.state ?? "not-loaded";
   }
 
+  /** Python's first-start download while it is worth showing (python-runner.ts downloadShown), else null. */
+  pythonDownload(): { loaded: number; total: number } | null {
+    return python.downloadShown();
+  }
+
   /** The C/C++ runner if it is loaded (for the pack download offer). */
   get cppRunner(): CppRunner | null {
     return this.cppLoaded?.runner ?? null;
