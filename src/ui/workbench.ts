@@ -355,6 +355,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       const openTab = open.find((f) => f.path === node.path);
       if (openTab) items.push({ label: "Close tab", icon: "x", shortcut: "Alt W", run: () => void closeFile(openTab.id) });
     }
+    // Share link (.claude/design/batch5/share-link.md): any file, a read-only one too (the repository link works for it).
+    if (node?.kind === "file") items.push({ label: "Share link...", icon: "link-simple", run: () => sync.share(node.path, focused()) });
     items.push(
       { label: "New file", icon: "file-plus", separatorBefore: true, run: () => startCreate("file", dir) },
       { label: "New folder", icon: "folder-plus", run: () => startCreate("dir", dir) },
@@ -1689,6 +1691,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     connected: () => false,
     describe: () => "",
     async signOut() {},
+    share() {},
   };
   // Settings (with the theme picker) is its own chunk, fetched the first time it opens.
   let settingsDialog: Promise<{ open(opener?: HTMLElement): void }> | null = null;
@@ -1837,6 +1840,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       importFolder: () => void importFrom(true, ""),
       exportZip: () => void exportWorkspace(),
       savePdf: (opener) => openPrint(opener),
+      share: (opener) => {
+        const path = fileOf(editors.activeId)?.path;
+        if (path) sync.share(path, opener);
+      },
       capture: (opener) => snippet.open(opener, opener.closest(".cm-editor") ? "context" : "head-key"),
       fileList: () => {
         if (L.narrow()) L.openDrawer();

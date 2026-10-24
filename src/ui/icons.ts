@@ -31,6 +31,7 @@ import githubLogo from "@phosphor-icons/core/assets/regular/github-logo.svg?raw"
 import image from "@phosphor-icons/core/assets/regular/image.svg?raw";
 import info from "@phosphor-icons/core/assets/regular/info.svg?raw";
 import keyboard from "@phosphor-icons/core/assets/regular/keyboard.svg?raw";
+import linkSimple from "@phosphor-icons/core/assets/regular/link-simple.svg?raw";
 import lock from "@phosphor-icons/core/assets/regular/lock.svg?raw";
 import magnifyingGlass from "@phosphor-icons/core/assets/regular/magnifying-glass.svg?raw";
 import paperPlaneRight from "@phosphor-icons/core/assets/regular/paper-plane-right.svg?raw";
@@ -59,7 +60,7 @@ const SOURCES = {
   copy, "corners-in": cornersIn, "corners-out": cornersOut,
   "dots-three": dotsThree, "download-simple": downloadSimple, eraser, file, "file-c": fileC, "file-cpp": fileCpp,
   "file-plus": filePlus, "file-py": filePy, "file-text": fileText, folder, "folder-open": folderOpen,
-  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, lock, "magnifying-glass": magnifyingGlass, "paper-plane-right": paperPlaneRight,
+  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, "link-simple": linkSimple, lock, "magnifying-glass": magnifyingGlass, "paper-plane-right": paperPlaneRight,
   "pencil-simple": pencilSimple, printer, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple, tabs,
   "terminal-window": terminalWindow, trash, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,
   x, "x-circle": xCircle, "play-fill": playFill, "stop-fill": stopFill,

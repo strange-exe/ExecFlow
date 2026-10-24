@@ -134,6 +134,8 @@ export interface PaletteApi {
     importFolder(): void;
     exportZip(): void;
     savePdf(opener: HTMLElement): void;
+    /** Share link... for the open file. */
+    share(opener: HTMLElement): void;
     capture(opener: HTMLElement): void;
     fileList(): void;
     output(): void;
@@ -233,6 +235,7 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
     add("rename", "Files", "Rename the open file", () => api.act.rename(), undefined, "move");
     add("delete", "Files", "Delete the open file", () => api.act.remove(), undefined, "remove trash");
     add("capture", "Files", "Capture snippet of the selected lines...", (o) => api.act.capture(o), undefined, "image picture screenshot png");
+    add("share", "Files", "Share a link to the open file...", (o) => api.act.share(o), undefined, "github gist url copy send public");
   }
   add("import-files", "Files", "Import files", () => api.act.importFiles(), undefined, "upload open add");
   add("import-folder", "Files", "Import a folder", () => api.act.importFolder(), undefined, "upload directory");

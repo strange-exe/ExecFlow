@@ -69,6 +69,8 @@ export interface SyncHooks {
   describe(): string;
   /** "Sign out and clear this computer": stop syncing and forget the token in memory. */
   signOut(): Promise<void>;
+  /** "Share link..." (file menu, palette): loads the sync screens, then the share dialog. */
+  share(path: WsPath, opener: HTMLElement | null): void;
 }
 
 /** Before the sync screens load, the status comes from the stored connection alone. */
@@ -154,5 +156,6 @@ export function mountSync(host: SyncHost): SyncHooks {
     async signOut() {
       await controller?.signOut();
     },
+    share: (path, opener) => withController((c) => c.share(path, opener)),
   };
 }

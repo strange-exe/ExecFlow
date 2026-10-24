@@ -189,6 +189,19 @@ export interface FakeGitHubOptions {
   blobLatencyMs?: number;
   /** false: changes under .github/workflows/ are refused, as for a token without Workflows. */
   workflowsWritable?: boolean;
+  /**
+   * POST /gists for a token without the gist permission: 403 (a fine-grained token or a GitHub App
+   * without "Gists"), 404 (a classic token without the gist scope). Default: allowed.
+   */
+  gistsRefused?: 403 | 404;
+}
+
+/** A gist the fake made (POST /gists). */
+export interface FakeGist {
+  id: string;
+  description: unknown;
+  public: unknown;
+  files: Record<string, { content: string }>;
 }
 
 const utf8 = new TextEncoder();
@@ -211,6 +224,7 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
   const refs = new Map<string, string>();
   const log: string[] = [];
   const requests: FakeRequest[] = [];
+  const gists: FakeGist[] = [];
   /** Answer a request yourself: return a Response, or undefined to let the fake answer. */
   const interceptors: ((req: FakeRequest) => Response | undefined | Promise<Response | undefined>)[] = [];
   /** Each runs once, inside the next PATCH ref, before the fast-forward check (a racing push). */
@@ -390,10 +404,32 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
     return json(404, { message: "Not Found" });
   }
 
+  /**
+   * POST /gists, as documented: `files` (each with non-empty `content`), `description`, `public`.
+   * 201 with id and html_url; GitHub refuses an empty file with 422.
+   */
+  function createGist(body: Record<string, unknown> | undefined): Response {
+    if (options.gistsRefused === 403) return json(403, { message: "Resource not accessible by personal access token" });
+    if (options.gistsRefused === 404) return json(404, { message: "Not Found" });
+    const files = body?.files;
+    if (!files || typeof files !== "object" || Array.isArray(files)) return json(422, { message: "Invalid request." });
+    const list = Object.entries(files as Record<string, unknown>);
+    if (list.length === 0 || list.some(([, f]) => !f || typeof (f as { content?: unknown }).content !== "string" || (f as { content: string }).content === "")) {
+      return json(422, { message: "Validation Failed" });
+    }
+    const id = `${++counter}`.padStart(32, "a");
+    const gist: FakeGist = { id, description: body?.description, public: body?.public, files: files as FakeGist["files"] };
+    gists.push(gist);
+    return json(201, { id, html_url: `https://gist.github.com/${owner}/${id}`, public: gist.public === true, files: {} });
+  }
+
   async function fetch(input: string, init: RequestInit = {}): Promise<Response> {
     const prefix = `https://api.github.com/repos/${owner}/${repo}`;
-    if (!input.startsWith(prefix)) throw new TypeError("test fake: unexpected URL");
-    const path = input.slice(prefix.length);
+    // POST /gists is the one address outside the repository; its path keeps the API root's form.
+    // A query is accepted (and ignored), so a test can see what a request would have put in the URL.
+    const gist = input.split("?")[0] === "https://api.github.com/gists";
+    if (!gist && !input.startsWith(prefix)) throw new TypeError("test fake: unexpected URL");
+    const path = gist ? "/gists" : input.slice(prefix.length);
     const method = init.method ?? "GET";
     const headers = new Headers(init.headers);
     const req: FakeRequest = { method, path, headers, init, body: typeof init.body === "string" ? JSON.parse(init.body) : undefined };
@@ -406,6 +442,7 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
     const bearer = headers.get("authorization") ?? "";
     if (!bearer.startsWith("Bearer ") || !accepted.has(bearer.slice(7))) return json(401, { message: "Bad credentials" });
     if (headers.get("x-github-api-version") !== "2026-03-10") return json(400, { message: "Unsupported API version" });
+    if (gist) return method === "POST" ? createGist(req.body as Record<string, unknown> | undefined) : json(404, { message: "Not Found" });
     return handle(req);
   }
 
@@ -453,6 +490,7 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
     fetch,
     log,
     requests,
+    gists,
     interceptors,
     beforeUpdateRef,
     refs,

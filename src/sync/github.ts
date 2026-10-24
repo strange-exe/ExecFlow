@@ -48,9 +48,11 @@ export type GitHubOp =
   | "putFile"
   | "getUser"
   | "listInstallations"
-  | "listRepos";
+  | "listRepos"
+  | "createGist";
 
 const OP_LABEL: Record<GitHubOp, string> = {
+  createGist: "Creating the gist",
   getUser: "Reading your GitHub account",
   listInstallations: "Reading where CodeEditor is installed",
   listRepos: "Reading the repositories CodeEditor can reach",
@@ -190,6 +192,19 @@ export interface GitHubClient {
   updateRef(branch: string, sha: string): Promise<void>;
   /** Contents API, used only to give an empty repository its first commit (on the default branch). */
   putFile(path: string, bytes: Uint8Array, message: string): Promise<{ commit: string; blob: string }>;
+  /**
+   * POST /gists (Share link, src/sync/share.ts gistRequest): not under the repository, but with the
+   * same token, headers and write queue. Returns GitHub's id and html_url as given: the caller
+   * checks the address (share.ts gistPageUrl) before showing it as a link.
+   */
+  createGist(body: GistBody): Promise<{ id: string; htmlUrl: string }>;
+}
+
+/** The body of POST /gists (https://docs.github.com/en/rest/gists/gists#create-a-gist). */
+export interface GistBody {
+  description: string;
+  public: false;
+  files: Record<string, { content: string }>;
 }
 
 /**
@@ -282,6 +297,8 @@ interface RequestOptions {
   body?: unknown;
   etag?: string | null;
   raw?: boolean;
+  /** `path` starts at the API root (/gists), not at the repository. */
+  api?: boolean;
 }
 
 export function createClient(options: ClientOptions): GitHubClient {
@@ -392,7 +409,7 @@ export function createClient(options: ClientOptions): GitHubClient {
     if (opts.etag) headers["If-None-Match"] = opts.etag;
     let res: Response;
     try {
-      res = await doFetch(root + path, {
+      res = await doFetch((opts.api ? API_ROOT : root) + path, {
         method,
         headers,
         body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
@@ -566,6 +583,18 @@ export function createClient(options: ClientOptions): GitHubClient {
       return write(async () => {
         const answer = await request("putFile", "PUT", url, { body: { message, content: toBase64(bytes) } });
         return { commit: shaOf("putFile", answer, "commit", "sha"), blob: shaOf("putFile", answer, "content", "sha") };
+      });
+    },
+
+    async createGist(body) {
+      // Only the fields the share dialog builds: never `public: true`, whatever a caller passes.
+      const sent: GistBody = { description: String(body.description), public: false, files: body.files };
+      return write(async () => {
+        const answer = await request("createGist", "POST", "/gists", { body: sent, api: true });
+        const id = field(answer.data, "id");
+        const htmlUrl = field(answer.data, "html_url");
+        if (typeof id !== "string" || id === "" || typeof htmlUrl !== "string") throw unexpected("createGist", answer.status);
+        return { id, htmlUrl };
       });
     },
   };

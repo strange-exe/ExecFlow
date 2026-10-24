@@ -33,9 +33,11 @@ import {
 } from "../sync/github-app-auth";
 import { listReachable } from "../sync/installations";
 import { checkAccess, explainError, type AuthKind } from "../sync/repo-check";
+import * as shareRules from "../sync/share";
 import { forgetAppTokens, forgetToken, loadAppTokens, loadToken, rememberAppTokens, rememberToken } from "../sync/token-store";
 import { confirmDialog } from "./dialogs";
 import { openConnectDialog, type CheckResult, type ConnectInput, type PickRepo, type ReachResult, type SignInDeps } from "./sync-connect";
+import type { ShareState } from "./share-dialog";
 import type { SyncHost } from "./sync-entry";
 import { askFirstConnect, FirstConnectCancelled, showConflicts } from "./sync-first-connect";
 import { deviceName } from "./sync-form";
@@ -62,6 +64,8 @@ export interface SyncController {
   signOut(): Promise<void>;
   /** GitHub sent the student back (src/sync/auth-callback.ts): finish signing in. */
   finishSignIn(callback: AuthCallback): Promise<void>;
+  /** "Share link..." for `path` (src/ui/share-dialog.ts, its own lazy chunk). */
+  share(path: WsPath, returnFocus: HTMLElement | null): Promise<void>;
 }
 
 /**
@@ -681,6 +685,111 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     host.notice.show(`Disconnected from ${repo}. Your files stay on this computer and in the repository.`, { tone: "info" });
   }
 
+  // ---------------------------------------------------------------- Share link
+  /** GitHub refused the token outside a sync (sharing): the same end as a sync's 401. */
+  function tokenRefused(e: unknown) {
+    if (!(e instanceof GitHubError) || e.kind !== "auth" || !client) return;
+    client = null;
+    appSource = null;
+    if (remembered) {
+      remembered = false;
+      void (authKind() === "app" ? forgetAppTokens() : forgetToken()).catch(() => {});
+    }
+    phase = "needs-token";
+    error = explainError(e, authKind());
+    render();
+  }
+
+  async function shareState(path: WsPath): Promise<ShareState> {
+    if (!remote) return { kind: "not-connected" };
+    const snap = await store.snapshot();
+    const local = snap.local.get(path);
+    const r = snap.remote ?? remote;
+    if (!local) return { kind: "missing" };
+    const link = shareRules.repoLinkState({ owner: r.owner, repo: r.repo, commit: r.baseCommit, path, localSha: local.sha, baseSha: snap.base.get(path)?.sha ?? null });
+    return { kind: "connected", repo: `${r.owner}/${r.repo}`, link, opaque: Boolean(local.opaque) };
+  }
+
+  const READ_ONLY_SHARE = "This tab became read-only (another tab is editing), so it doesn't sync or share from here: share from the tab that edits.";
+
+  /** "Sync now" in the share dialog: the sentence to show when it couldn't bring the file up to date. */
+  async function syncForShare(): Promise<string | null> {
+    if (!remote) return "This workspace isn't connected to GitHub any more.";
+    if (!host.tab.canWrite()) return READ_ONLY_SHARE;
+    if (!client) {
+      return authKind() === "app"
+        ? "Your GitHub sign-in has ended on this device, so sign in again (Sync status in the top bar), then share."
+        : "This tab has no GitHub token, so enter it again (Sync status in the top bar), then share.";
+    }
+    if (!navigator.onLine) return "This device is offline, so it can't sync now. Try again once you're online.";
+    await host.flushSaves().catch(() => {});
+    await scheduler.request("button");
+    if (phase === "offline") return "This device is offline, so it can't sync now. Try again once you're online.";
+    if (phase === "needs-choice") return "Some files differ between this computer and the repository: choose how to combine them (Sync status in the top bar), then share.";
+    if (phase === "failed" || phase === "needs-token") return `The sync failed: ${error ?? "try again."}`;
+    return null;
+  }
+
+  async function share(path: WsPath, returnFocus: HTMLElement | null) {
+    // A read-only tab neither syncs nor holds the sync's state: the editing tab shares.
+    if (!host.tab.canWrite()) {
+      host.notice.show("This tab is read-only, so it doesn't share from GitHub: the tab that edits this workspace does. Choose Edit here to share from this tab.", { tone: "info" });
+      return;
+    }
+    // Typing not saved yet counts as a change: the link must show what the student sees.
+    await host.flushSaves().catch(() => {});
+    let m: typeof import("./share-dialog");
+    try {
+      m = await import("./share-dialog");
+    } catch {
+      host.notice.show("Share link couldn't open. Check the connection, then try again.");
+      return;
+    }
+    const c = client;
+    await m.openShareDialog({
+      path,
+      rules: shareRules,
+      externalIcon: () => syncIcon("arrow-square-out", "ext-icon"),
+      state: () => shareState(path),
+      async repoPrivate() {
+        if (!client || !navigator.onLine) return null;
+        try {
+          return (await client.getRepo()).private;
+        } catch (e) {
+          tokenRefused(e);
+          return null;
+        }
+      },
+      syncNow: syncForShare,
+      async readText() {
+        await host.flushSaves().catch(() => {});
+        const entry = await host.store.getEntry(host.ws, path);
+        if (!entry || entry.kind !== "file") return "missing";
+        if (entry.opaque) return "opaque";
+        return { text: await host.store.readFile(host.ws, path) };
+      },
+      readOnly: () => (host.tab.canWrite() ? null : READ_ONLY_SHARE),
+      notice: host.notice,
+      createGist: c
+        ? async (body) => {
+            const now = client;
+            if (!now) throw new GitHubError("auth", 401, "createGist", "Creating the gist wasn't tried: there is no token in this tab");
+            try {
+              return await now.createGist(body);
+            } catch (e) {
+              tokenRefused(e);
+              throw e;
+            }
+          }
+        : null,
+      auth: authKind(),
+      online: () => navigator.onLine,
+      connect: () => void openConnect(button),
+      returnTo: returnFocus?.isConnected ? returnFocus : button,
+      mac: /Mac|iPhone|iPad/.test(navigator.platform ?? ""),
+    });
+  }
+
   // ---------------------------------------------------------------- what the workbench calls
   function syncNow(reason: RunReason): Promise<void> {
     if (!remote) return Promise.resolve();
@@ -876,5 +985,6 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       remembered = false;
     },
     finishSignIn,
+    share,
   };
 }

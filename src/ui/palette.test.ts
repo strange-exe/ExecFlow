@@ -84,6 +84,20 @@ describe("the commands", () => {
     }
   });
 
+  it("Share a link to the open file... needs a file open, is found by share, link and gist, and hands its opener on", () => {
+    const share = vi.fn();
+    expect(ids(buildCommands(api({ fileOpen: () => false })))).not.toContain("share");
+    const commands = buildCommands(api({ act: { share } }));
+    const command = commands.find((c) => c.id === "share")!;
+    expect(command).toMatchObject({ label: "Share a link to the open file...", group: "Files" });
+    command.run(OPENER);
+    expect(share).toHaveBeenCalledWith(OPENER);
+    for (const query of ["share", "gist"]) {
+      const first = results(`>${query}`, [], [], null, commands).groups[0].options[0];
+      expect(first.kind === "command" && first.command.id, query).toBe("share");
+    }
+  });
+
   it("lists editor commands only with a file shown, and Stop instead of Run while a program runs", () => {
     const none = ids(buildCommands(api({ fileOpen: () => false })));
     expect(none).not.toContain("gotoLine");

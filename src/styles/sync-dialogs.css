@@ -98,6 +98,22 @@
 .choice label { font-weight: 500; }
 .choice .field-note { grid-column: 2; }
 
+/* Share link (share-dialog.ts): the two choices are First connect's rows; each note is two short
+   paragraphs, the honest limit first in --text at 500 (pairs: text on bg and on list-selected@bg),
+   the rest in the note's muted tier. The link is a read-only field in the code face; a result
+   that is done (copied, synced, made) is a plain line with a success icon, errors keep the band. */
+.share-note p { margin: 0; }
+.share-note p + p { margin-top: 2px; }
+.choice .share-note { margin-top: 2px; }
+.share-warn { color: var(--text); font-weight: var(--w-label); }
+.share-panel:not(:empty) { margin-top: var(--s4); }
+.share-panel .field + .field-note { margin-top: var(--s1); }
+.share-dialog #share-link { font-family: var(--font-code); }
+.share-pending { margin: 0 0 var(--s2); }
+.share-result[data-done] { display: flex; align-items: flex-start; gap: var(--s2); margin-top: var(--s3); color: var(--text); }
+.share-result[data-done] .result-icon { color: var(--success); }
+.share-dialog .ext-link { overflow-wrap: anywhere; }
+
 .conflict-list { margin: var(--s3) 0 0; padding: 0; list-style: none; }
 .conflict-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--border); }
 .conflict-of { font: var(--fs-hint) var(--font-code); }

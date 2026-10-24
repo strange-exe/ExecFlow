@@ -53,6 +53,8 @@ and logs nothing, and syncing never goes through it.
   Safari can't number pages for a web page: there the footer has no page number and is printed
   with each file's code (their print dialog can add its own page numbers). Works offline; the PDF
   is made by the browser, so its text can be selected and searched.
+- Share link... (a file's menu in the list, More file actions, and the search): with GitHub
+  connected, choose who can open the link, then copy it. See [Sharing a file](#sharing-a-file).
 - Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
   name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).
@@ -202,6 +204,31 @@ with the name, Contents and a 90-day expiry filled in; you pick the repository t
 - Offline, changes stay here and sync once the connection is back. When GitHub limits requests,
   CodeEditor waits as long as GitHub says, then twice as long, and stops after 3 tries.
 
+### Sharing a file
+
+Share link... asks who can open the link, then copies it. Nothing is shared until you choose.
+
+- **People with access to the repository** (the default): the file's page on GitHub,
+  `https://github.com/<owner>/<repo>/blob/<commit>/<path>`, pinned to the commit of the last sync.
+  It opens only for you and the repository's collaborators while the repository is private (the
+  dialog says so when it is public). Nothing is sent to make it and no new permission is needed. A
+  file with changes that aren't on GitHub yet, or that never synced, shows Sync now first, so the
+  link always shows what you see. A read-only tab doesn't share; the tab that edits does.
+- **Anyone with the link (a secret gist)**: CodeEditor copies the file into a new secret gist on
+  your GitHub account, only when you press Create link. GitHub's own words: "Secret gists aren't
+  private" ([Creating gists](https://docs.github.com/en/get-started/writing-on-github/editing-and-sharing-content-with-gists/creating-gists)):
+  anyone with the link can open it without signing in; it just isn't listed or searchable. To
+  remove it, open the gist on GitHub (the dialog links to it) and delete it. Text files up to 512 KB;
+  binary and empty files are refused. The token needs permission to create gists:
+  - Sign in with GitHub: the site's owner adds the account permission "Gists" (below), and you sign
+    in again once to approve it.
+  - A fine-grained token: the account permission **Gists: Read and write**
+    ([permissions for fine-grained tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens),
+    "User permissions for Gists"). A classic token: the **gist** scope
+    ([scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)).
+  - Either way this lets the token create, change and delete any of your gists, not only the ones
+    CodeEditor made. Without it, the repository link still works and the dialog says what is missing.
+
 ### Setting up Sign in with GitHub (the site's owner, once)
 
 Without these steps the site still works: the Connect dialog shows only the token path.
@@ -218,7 +245,10 @@ On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
 4. **Request user authorization (OAuth) during installation**: off. **Enable Device Flow**: off.
 5. **Setup URL**: empty; **Redirect on update**: off. **Webhook**: untick Active.
 6. **Permissions**: Repository, Contents: **Read and write**; check that Metadata shows Read-only.
-   Everything else No access (no Organization or Account permissions, no Workflows).
+   For Share link's public link (a secret gist), also Account permissions, **Gists: Read and
+   write**; leave it at No access if students shouldn't make gists from CodeEditor (the repository
+   link works without it). Everything else No access (no Organization permissions, no other Account
+   permissions, no Workflows).
 7. **Where can this GitHub App be installed**: **Any account** (classmates install it on their own
    repositories).
 8. Create the app. Note its **Client ID** and its **slug** (the last part of its public page,
@@ -242,6 +272,21 @@ On Cloudflare: Workers & Pages, the project, Settings, Variables and Secrets
 13. If the secret may have leaked: generate a new one on GitHub, set it in Cloudflare, redeploy, then
     delete the old one on GitHub. After a security fix to the relay, delete old production
     deployments (their URLs stay reachable).
+
+**Adding Gists to an app students already use.** In the app's settings (Permissions & events),
+set Account permissions, Gists to **Read and write** and save. Nothing changes for anyone until
+they approve it: GitHub says permission changes don't take effect for a user authorization "until
+the new permissions are approved", and that for account permissions the app prompts users to
+reauthorize ([Modifying a GitHub App registration](https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration),
+"Changing the permissions of a GitHub App";
+[Approving updated permissions](https://docs.github.com/en/apps/using-github-apps/approving-updated-permissions-for-a-github-app)).
+In CodeEditor that means: a signed-in student who presses Create link gets a sentence saying the
+sign-in can't create gists yet; Disconnect, then Sign in with GitHub again, and approve on GitHub's
+page. Their sync keeps working meanwhile. A user access token only ever has what both the app and
+the user allow ([Choosing permissions for a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app)).
+GitHub lists POST /gists for user access tokens only, with Gists write
+([Permissions required for GitHub Apps](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps),
+"User permissions for Gists"). Removing the permission later takes effect at once.
 
 **Local testing with a separate dev app.** Register a second, private GitHub App the same way, with
 the callback `http://127.0.0.1:8788/auth-callback`, so the production app keeps its one exact
