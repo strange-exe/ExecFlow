@@ -303,7 +303,7 @@ test("the file menu is grouped by separators that are not focusable and that the
   }
   const labels = await menu.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector(".menu-label")!.textContent));
   // Nothing is selected in main.py: the Capture snippet item names no lines (it explains on click).
-  expect(labels).toEqual(["Open", "Run", "Close tab", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Save as PDF...", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
+  expect(labels).toEqual(["Open", "Run", "Close tab", "Share link...", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Save as PDF...", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
   // Down walks every item in order, never a separator, and wraps; Up comes back over them.
   const seen: string[] = [];
   for (let i = 0; i < labels.length; i++) {
@@ -312,12 +312,10 @@ test("the file menu is grouped by separators that are not focusable and that the
   }
   expect(seen).toEqual(labels.map((l) => `menuitem:${l}`));
   await expect(menu.getByRole("menuitem", { name: "Open" })).toBeFocused();
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowDown");
   await expect(menu.getByRole("menuitem", { name: "New file" })).toBeFocused();
   await page.keyboard.press("ArrowUp");
-  await expect(menu.getByRole("menuitem", { name: /^Close tab/ })).toBeFocused();
+  await expect(menu.getByRole("menuitem", { name: /^Share link/ })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("#file-actions")).toBeFocused();
 });

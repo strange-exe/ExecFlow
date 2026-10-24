@@ -317,7 +317,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (e.detail > 1) return;
     snippet.open(L.snippetButton, e.detail > 0 ? "head-pointer" : "head-key");
   });
-  // Grouped by separators: open and close; new, rename, delete; import and export; Capture snippet; the file list's width.
+  // Grouped by separators: the file's own actions (open, run, close, share); new, rename, delete; import and export; Capture snippet; the file list's width.
   menuButton(moreButton, "File actions", () => [
     ...menuFor(tree.selectedNode()),
     { label: "Import files", icon: "upload-simple", separatorBefore: true, run: () => void importFrom(false, targetDir()) },
