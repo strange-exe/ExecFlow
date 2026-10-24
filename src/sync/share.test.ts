@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { API_VERSION, createClient, GitHubError } from "./github";
 import {
-  explainGistError, gistPageUrl, gistRefusal, gistRequest, GIST_MAX_BYTES, refusalText, repoFileUrl, repoLinkState,
+  explainGistError, gistPageUrl, gistRefusal, gistRequest, GIST_MAX_BYTES, refusalText, repoAudience, repoFileUrl, repoLinkState,
 } from "./share";
 import { createFakeGitHub, TEST_TOKEN } from "./test-helpers";
 
@@ -109,13 +109,48 @@ describe("gistRefusal", () => {
   });
 });
 
+describe("repoAudience (security review, finding 1)", () => {
+  it("promises the collaborators only when the repository is known to be private", () => {
+    expect(repoAudience("me/workspace", true)).toEqual({
+      visibility: "private",
+      text: "Opens on GitHub only for you and the collaborators of me/workspace. It shows the file as last synced.",
+    });
+  });
+
+  it("says anyone can open it when the repository is public", () => {
+    expect(repoAudience("me/workspace", false)).toEqual({
+      visibility: "public",
+      text: "me/workspace is public, so anyone can open this link, signed in or not. It shows the file as last synced.",
+    });
+  });
+
+  it("promises nothing when the visibility isn't known", () => {
+    const a = repoAudience("me/workspace", null);
+    expect(a).toEqual({
+      visibility: "unknown",
+      text: "CodeEditor couldn't check whether me/workspace is private. If it is public, anyone can open this link. It shows the file as last synced.",
+    });
+    expect(a.text).not.toContain("collaborators");
+  });
+});
+
 describe("gistRequest", () => {
-  it("is one secret file named after the file, with the path in the description", () => {
+  it("is one secret file named after the file, with only its name in the description", () => {
     expect(gistRequest("week 1/main.py", "print(1)\n")).toEqual({
-      description: "week 1/main.py, shared from CodeEditor",
+      description: "main.py, shared from CodeEditor",
       public: false,
       files: { "main.py": { content: "print(1)\n" } },
     });
+  });
+
+  it("never puts the folders in the description, and cleans the name (security review, finding 3)", () => {
+    const cp = (...codes: number[]) => String.fromCodePoint(...codes);
+    const path = "students/Priya Sharma 2510370000/private" + cp(0x2028) + "notes/q2.c";
+    const body = gistRequest(path, "int main(void){return 0;}\n");
+    expect(body.description).toBe("q2.c, shared from CodeEditor");
+    expect(body.description).not.toContain("Priya");
+    expect(gistRequest("lab/q" + cp(0x202e, 0x200b, 0xfe0f) + "2.c", "x\n").description).toBe("q2.c, shared from CodeEditor");
+    expect(gistRequest("a" + cp(10) + "b.py", "x\n").description).toBe("a b.py, shared from CodeEditor");
   });
 
   it("goes to POST https://api.github.com/gists with the sync headers, the content only in the body", async () => {
@@ -139,6 +174,42 @@ describe("gistRequest", () => {
     expect(JSON.parse(String(init.body))).toEqual({ description: "main.py, shared from CodeEditor", public: false, files: { "main.py": { content: `print("${marker}")\n` } } });
     expect(gh.gists).toHaveLength(1);
     expect(gh.gists[0].public).toBe(false);
+  });
+
+  it("a request cancelled while it waits in the write queue is never sent (security review, finding 2)", async () => {
+    const gh = createFakeGitHub();
+    const seen: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const client = createClient({
+      token: TEST_TOKEN, owner: "me", repo: "workspace", sleep: noSleep,
+      fetch: async (url, init) => {
+        seen.push(`${init?.method ?? "GET"} ${url}`);
+        // The sync's write ahead of it is slow (a delayed POST /git/trees).
+        if (url.endsWith("/git/blobs")) await held;
+        return gh.fetch(url, init);
+      },
+    });
+    const ahead = client.createBlob(new TextEncoder().encode("b\n")).catch(() => undefined);
+    const cancel = new AbortController();
+    const gist = client.createGist(gistRequest("main.py", "print(1)\n"), cancel.signal);
+    cancel.abort();
+    release();
+    await ahead;
+    await expect(gist).rejects.toBe(cancel.signal.reason);
+    expect(seen.filter((s) => s.includes("/gists"))).toEqual([]);
+    expect(gh.gists).toEqual([]);
+  });
+
+  it("an already-cancelled request sends nothing; an uncancelled one is sent", async () => {
+    const gh = createFakeGitHub();
+    const client = createClient({ token: TEST_TOKEN, owner: "me", repo: "workspace", sleep: noSleep, fetch: gh.fetch });
+    const done = new AbortController();
+    done.abort();
+    await expect(client.createGist(gistRequest("a.py", "1\n"), done.signal)).rejects.toBe(done.signal.reason);
+    expect(gh.gists).toEqual([]);
+    await client.createGist(gistRequest("a.py", "1\n"), new AbortController().signal);
+    expect(gh.gists).toHaveLength(1);
   });
 
   it("never sends public: true, whatever the caller passes", async () => {

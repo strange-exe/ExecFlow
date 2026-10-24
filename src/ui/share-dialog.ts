@@ -12,8 +12,14 @@
 // for Ctrl+C. Every name and address goes in as text; the only links are github.com pages built
 // here and the gist page GitHub answered with, after gistPageUrl checked it. A lazy chunk of the
 // sync screens, built per opening and removed on close. State attributes for tests: data-state
-// ("not-connected", "ready", "pending", "syncing", "gist", "creating", "created"), data-choice and
-// data-copy ("copied", "refused").
+// ("not-connected", "ready", "pending", "syncing", "gist", "creating", "created"), data-choice,
+// data-copy ("copied", "refused"), data-visibility ("private", "public", "unknown"; data-public
+// too while public) and data-checked (the live visibility check has answered or failed).
+// Who can open the repository link: the live answer (GET /repos) when there is one, else the
+// answer stored when connecting; the sentence promising that only the repository's people can
+// open it is shown only for a repository known to be private.
+// Closing the dialog (Cancel, Escape, the close button) withdraws a gist that hasn't been sent:
+// a request waiting behind a sync's writes is dropped, and nothing is said about it.
 import { nameOf } from "../core/paths";
 import type { GistBody } from "../sync/github";
 // Types only: the rules come in through deps.rules (the controller's import), so this chunk never
@@ -29,12 +35,13 @@ import type { Notice } from "./notice";
 export type ShareState =
   | { kind: "not-connected" }
   | { kind: "missing" }
-  | { kind: "connected"; repo: string; link: RepoLinkState; opaque: boolean };
+  /** `private`: the repository's visibility stored when connecting (null: not recorded). */
+  | { kind: "connected"; repo: string; link: RepoLinkState; opaque: boolean; private: boolean | null };
 
 export interface ShareDeps {
   readonly path: string;
   /** src/sync/share.ts: the link and gist rules. */
-  readonly rules: Pick<typeof ShareRules, "explainGistError" | "gistPageUrl" | "gistRefusal" | "gistRequest" | "refusalText">;
+  readonly rules: Pick<typeof ShareRules, "explainGistError" | "gistPageUrl" | "gistRefusal" | "gistRequest" | "refusalText" | "repoAudience">;
   /** The sync screens' "opens in a new tab" icon (sync-icons.ts lives in their chunk). */
   externalIcon(): SVGSVGElement;
   /** Where the file stands now (asked again after a sync). */
@@ -45,8 +52,11 @@ export interface ShareDeps {
   syncNow(): Promise<string | null>;
   /** The file's text as saved; "opaque" for a file kept as read-only bytes; "missing" once it is gone. */
   readText(): Promise<{ text: string } | "opaque" | "missing">;
-  /** POST /gists with this tab's GitHub client; null when there is no token in this tab. */
-  createGist: ((body: GistBody) => Promise<{ id: string; htmlUrl: string }>) | null;
+  /**
+   * POST /gists with this tab's GitHub client; null when there is no token in this tab. Aborted
+   * `signal` before the request goes out: nothing is sent, and it rejects with `signal.reason`.
+   */
+  createGist: ((body: GistBody, signal: AbortSignal) => Promise<{ id: string; htmlUrl: string }>) | null;
   readonly auth: AuthKind;
   online(): boolean;
   /** A sentence while this tab can't write (another tab took over editing), else null. */
@@ -62,8 +72,6 @@ export interface ShareDeps {
 }
 
 type Choice = "repo" | "gist";
-
-const REPO_NOTE = (repo: string) => `Opens on GitHub only for you and the collaborators of ${repo}. It shows the file as last synced.`;
 
 let open = false;
 
@@ -83,7 +91,10 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const name = nameOf(deps.path);
   const { dialog, body } = dialogShell("share-dialog", `Share ${name}`, { wide: true });
   dialog.classList.add("sync-dialog", "share-dialog");
+  /** Aborted when the dialog closes: a gist not sent by then never is. */
+  const wanted = new AbortController();
   dialog.addEventListener("close", () => {
+    wanted.abort();
     dialog.remove();
     open = false;
   }, { once: true });
@@ -143,7 +154,18 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     const row = h("div", { class: "choice", "data-choice": value }, input, h("label", { for: input.id }, label), h("div", { class: "field-note share-note", id: `share-${value}-note` }, ...note));
     return { input, row };
   };
-  const repoWho = h("p", { class: "share-who" }, REPO_NOTE(state.repo));
+  const repo = state.repo;
+  const repoWho = h("p", { class: "share-who" });
+  /** The note, its tone and the attributes for a visibility (stored first, then the live answer). */
+  const showAudience = (isPrivate: boolean | null) => {
+    const audience = rules.repoAudience(repo, isPrivate);
+    repoWho.textContent = audience.text;
+    repoWho.classList.toggle("share-warn", audience.visibility !== "private");
+    dialog.dataset.visibility = audience.visibility;
+    if (audience.visibility === "public") dialog.dataset.public = "";
+    else delete dialog.dataset.public;
+  };
+  showAudience(state.private);
   const repoRadio = radio("repo", "People with access to the repository", [repoWho]);
   const gistRadio = radio("gist", "Anyone with the link (a secret gist)", [
     h("p", { class: "share-warn" }, "Secret gists aren't private: anyone with the link can open it, without signing in."),
@@ -158,14 +180,16 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   );
   const choice = (): Choice => (gistRadio.input.checked ? "gist" : "repo");
 
-  // The repository's visibility, asked once: a public repository's link opens for anyone.
-  void deps.repoPrivate().then((priv) => {
-    if (priv === false && state.kind === "connected") {
-      repoWho.textContent = `${state.repo} is public, so anyone can open this link, signed in or not. It shows the file as last synced.`;
-      repoWho.classList.add("share-warn");
-      dialog.dataset.public = "";
-    }
-  }, () => {});
+  // The repository's visibility, asked once: a public repository's link opens for anyone. No answer
+  // (no token here, offline, a rate limit, a server error) keeps the stored one.
+  void deps
+    .repoPrivate()
+    .catch(() => null)
+    .then((live) => {
+      if (!dialog.open) return;
+      if (live !== null) showAudience(live);
+      dialog.dataset.checked = "";
+    });
 
   // ---------------------------------------------------------------- the link field
   const linkField = (url: string) => {
@@ -289,12 +313,14 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     creating = true;
     say("");
     render();
-    let outcome: { message: string; tone: "error" | "done" };
+    let outcome: { message: string; tone: "error" | "done" } | "withdrawn";
     try {
       outcome = await makeGist();
     } finally {
       creating = false;
     }
+    // Closed before anything was sent: nothing was made, and there is nothing to say.
+    if (outcome === "withdrawn") return;
     if (!dialog.open) {
       // Closed while GitHub was answering: the gist may exist, so the page's notice says where.
       const made = gist as { url: string | null } | null;
@@ -312,7 +338,8 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (gist) primary.focus();
   }
 
-  async function makeGist(): Promise<{ message: string; tone: "error" | "done" }> {
+  /** "withdrawn": the dialog closed before the request went out, so nothing was sent. */
+  async function makeGist(): Promise<{ message: string; tone: "error" | "done" } | "withdrawn"> {
     const error = (message: string) => ({ message, tone: "error" as const });
     const readOnly = deps.readOnly();
     if (readOnly) return error(readOnly);
@@ -320,8 +347,9 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     try {
       read = await deps.readText();
     } catch {
-      return error(`${name} couldn't be read on this computer, so no gist was made.`);
+      return wanted.signal.aborted ? "withdrawn" : error(`${name} couldn't be read on this computer, so no gist was made.`);
     }
+    if (wanted.signal.aborted) return "withdrawn";
     if (read === "missing") return error(`${name} isn't in this workspace any more, so no gist was made.`);
     const text = read === "opaque" ? null : read.text;
     const refusal = rules.gistRefusal({ opaque: read === "opaque" || (state.kind === "connected" && state.opaque), text });
@@ -334,11 +362,14 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
           : "This tab has no GitHub token, so enter it again (Sync status in the top bar) to make a gist.",
       );
     }
+    const signal = wanted.signal;
     try {
-      const made = await deps.createGist(rules.gistRequest(deps.path, text));
+      const made = await deps.createGist(rules.gistRequest(deps.path, text), signal);
       gist = { url: rules.gistPageUrl(made.htmlUrl) };
       return { message: gist.url ? "Made a secret gist. Copy its link to share it." : "Made a secret gist.", tone: "done" };
     } catch (e) {
+      // The client refused to send it (its turn came after the dialog closed): exactly the reason.
+      if (signal.aborted && e === signal.reason) return "withdrawn";
       return error(rules.explainGistError(e, deps.auth));
     }
   }

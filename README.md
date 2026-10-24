@@ -212,14 +212,17 @@ Share link... asks who can open the link, then copies it. Nothing is shared unti
 
 - **People with access to the repository** (the default): the file's page on GitHub,
   `https://github.com/<owner>/<repo>/blob/<commit>/<path>`, pinned to the commit of the last sync.
-  It opens only for you and the repository's collaborators while the repository is private (the
-  dialog says so when it is public). Nothing is sent to make it and no new permission is needed. A
+  It opens only for you and the repository's collaborators while the repository is private. The
+  dialog says so when it is public, and says when it couldn't check (offline, or GitHub didn't
+  answer and the connection doesn't record it). Nothing is sent to make it and no new permission is needed. A
   file with changes that aren't on GitHub yet, or that never synced, shows Sync now first, so the
   link always shows what you see. A read-only tab doesn't share; the tab that edits does.
 - **Anyone with the link (a secret gist)**: CodeEditor copies the file into a new secret gist on
   your GitHub account, only when you press Create link. GitHub's own words: "Secret gists aren't
   private" ([Creating gists](https://docs.github.com/en/get-started/writing-on-github/editing-and-sharing-content-with-gists/creating-gists)):
-  anyone with the link can open it without signing in; it just isn't listed or searchable. To
+  anyone with the link can open it without signing in; it just isn't listed or searchable. The
+  gist holds the file's content under its name only (its folders stay private). Closing the dialog
+  before the request goes out (it can wait behind a sync) sends nothing. To
   remove it, open the gist on GitHub (the dialog links to it) and delete it. Text files up to 512 KB;
   binary and empty files are refused. The token needs permission to create gists:
   - Sign in with GitHub: the site's owner adds the account permission "Gists" (below), and you sign

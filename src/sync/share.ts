@@ -9,6 +9,7 @@
 //    https://docs.github.com/en/rest/gists/gists#create-a-gist
 // Nothing here talks to the network; file content goes only into the request body, never a URL.
 import { nameOf } from "../core/paths";
+import { printable } from "./commit-message";
 import { GitHubError, type GistBody } from "./github";
 import { explainError, type AuthKind } from "./repo-check";
 
@@ -62,6 +63,23 @@ export function repoLinkState(o: { owner: string; repo: string; commit: string |
   }
 }
 
+/** Who can open the repository link, as far as CodeEditor knows. */
+export interface RepoAudience {
+  visibility: "private" | "public" | "unknown";
+  text: string;
+}
+
+/**
+ * `isPrivate`: the live answer when GitHub gave one, else the one stored when connecting, else null.
+ * Only a repository known to be private gets the sentence that the link is limited to its people.
+ */
+export function repoAudience(repo: string, isPrivate: boolean | null): RepoAudience {
+  const tail = "It shows the file as last synced.";
+  if (isPrivate === true) return { visibility: "private", text: `Opens on GitHub only for you and the collaborators of ${repo}. ${tail}` };
+  if (isPrivate === false) return { visibility: "public", text: `${repo} is public, so anyone can open this link, signed in or not. ${tail}` };
+  return { visibility: "unknown", text: `CodeEditor couldn't check whether ${repo} is private. If it is public, anyone can open this link. ${tail}` };
+}
+
 /** Why a file can't go in a gist, checked before anything is sent. */
 export type GistRefusal = { kind: "opaque" } | { kind: "empty" } | { kind: "too-big"; bytes: number };
 
@@ -87,9 +105,14 @@ export function refusalText(r: GistRefusal, path: string): string {
   }
 }
 
-/** POST /gists: one secret file named after the file, the path in the description. */
+/**
+ * POST /gists: one secret file named after the file. The description names the file only, cleaned
+ * like a commit message's names: anyone with the link reads it, and the folders above the file
+ * (a student's name, a "private" folder) aren't part of what was shared.
+ */
 export function gistRequest(path: string, text: string): GistBody {
-  return { description: `${path}, shared from CodeEditor`, public: false, files: { [nameOf(path)]: { content: text } } };
+  const name = nameOf(path);
+  return { description: `${printable(name) || "A file"}, shared from CodeEditor`, public: false, files: { [name]: { content: text } } };
 }
 
 const MAX_GIST_URL = 2048;

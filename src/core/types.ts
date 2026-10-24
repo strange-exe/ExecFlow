@@ -162,6 +162,11 @@ export interface RemoteMeta {
   auth?: "pat" | "app";
   /** GitHub's id of the repository (sign-in only): a later sign-in narrows its token to it. */
   repoId?: number;
+  /**
+   * Whether the repository was private when last asked (connecting, or Share link's live check).
+   * Missing in connections saved before it was recorded: unknown.
+   */
+  private?: boolean;
 }
 
 export interface LocalFileState {

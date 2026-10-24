@@ -7,7 +7,7 @@
 import type { Page } from "@playwright/test";
 import { expect, importFiles, openApp, openFromTree, setCode, showFiles, test, treeItem } from "./helpers";
 import {
-  answer, connectGitHub, expectNoToken, GHU1, routeGitHub, routeSignIn, signInAndPick, syncCount, syncNoise, syncStatus, waitSync, type GitHubRoute,
+  answer, connectGitHub, expectNoToken, GHU1, githubNoise, routeGitHub, routeSignIn, saveKey, signInAndPick, syncCount, syncNoise, syncStatus, waitSync, type GitHubRoute,
 } from "./sync-fake";
 import type { FakeGitHubOptions, RemoteChange } from "../src/sync/test-helpers";
 
@@ -47,6 +47,23 @@ async function connected(page: Page, o: { extra?: Record<string, RemoteChange>; 
   await importFiles(page, [{ name: "main.py", text: main }]);
   const n = await syncCount(page);
   await connectGitHub(page);
+  await waitSync(page, n, "synced");
+  await dismissNotice(page);
+  return gh;
+}
+
+/** A workspace connected to a PUBLIC repository holding main.py ("Connect anyway"), synced. */
+async function connectedPublic(page: Page): Promise<GitHubRoute> {
+  const gh = await routeGitHub(page, { private: false });
+  await gh.fake.remoteCommit({ "main.py": MAIN });
+  await recordClipboard(page);
+  await openApp(page);
+  await importFiles(page, [{ name: "main.py", text: MAIN }]);
+  const n = await syncCount(page);
+  // The Connect dialog warns about a public repository first; Connect again connects.
+  await connectGitHub(page, { expectError: true });
+  await expect(page.locator("#connect-dialog")).toHaveAttribute("data-state", "public");
+  await page.locator("#connect-submit").click();
   await waitSync(page, n, "synced");
   await dismissNotice(page);
   return gh;
@@ -180,20 +197,77 @@ test.describe("the repository link", () => {
   });
 
   test("a public repository says that anyone can open the link", async ({ page }) => {
-    const gh = await routeGitHub(page, { private: false });
-    await gh.fake.remoteCommit({ "main.py": MAIN });
-    await openApp(page);
-    await importFiles(page, [{ name: "main.py", text: MAIN }]);
-    const n = await syncCount(page);
-    // The Connect dialog warns about a public repository first; Connect again connects.
-    await connectGitHub(page, { expectError: true });
-    await expect(page.locator("#connect-dialog")).toHaveAttribute("data-state", "public");
-    await page.locator("#connect-submit").click();
-    await waitSync(page, n, "synced");
-    await dismissNotice(page);
+    await connectedPublic(page);
     await shareFromTree(page, "main.py");
     await expect(dialog(page)).toHaveAttribute("data-public", "");
     await expect(page.locator("#share-repo-note")).toContainText("me/workspace is public, so anyone can open this link");
+    await expect(dialog(page)).toHaveAttribute("data-checked", "");
+    await expect(dialog(page)).toHaveAttribute("data-visibility", "public");
+  });
+
+  test.describe("when GitHub can't say whether the repository is private (security review, finding 1)", () => {
+    test.use(syncNoise(...githubNoise(500)));
+    const repoReadFails = (gh: GitHubRoute) => gh.fake.interceptors.push((req) => (req.method === "GET" && req.path === "" ? answer(500, "Server Error") : undefined));
+    const note = (page: Page) => page.locator("#share-repo-note");
+
+    test("a public repository still says anyone can open the link: the visibility stored when connecting", async ({ page }) => {
+      const gh = await connectedPublic(page);
+      repoReadFails(gh);
+      await shareFromTree(page, "main.py");
+      await expect(note(page)).toContainText("me/workspace is public, so anyone can open this link");
+      await expect(dialog(page)).toHaveAttribute("data-public", "");
+      // The live check really ran and failed, and the note didn't change to a promise of privacy.
+      await expect(dialog(page)).toHaveAttribute("data-checked", "");
+      await expect(dialog(page)).toHaveAttribute("data-visibility", "public");
+      await expect(note(page)).not.toContainText("collaborators");
+    });
+
+    test("a connection saved before visibility was recorded promises nothing", async ({ page }) => {
+      const gh = await connected(page);
+      await tamper(page, { private: null });
+      repoReadFails(gh);
+      await shareFromTree(page, "main.py");
+      await expect(dialog(page)).toHaveAttribute("data-checked", "");
+      await expect(dialog(page)).toHaveAttribute("data-visibility", "unknown");
+      await expect(note(page)).toHaveText("CodeEditor couldn't check whether me/workspace is private. If it is public, anyone can open this link. It shows the file as last synced.");
+      await expect(dialog(page)).not.toHaveAttribute("data-public", "");
+    });
+
+    test("a repository stored as private keeps the collaborators note", async ({ page }) => {
+      const gh = await connected(page);
+      repoReadFails(gh);
+      await shareFromTree(page, "main.py");
+      await expect(dialog(page)).toHaveAttribute("data-checked", "");
+      await expect(dialog(page)).toHaveAttribute("data-visibility", "private");
+      await expect(note(page)).toContainText("only for you and the collaborators of me/workspace");
+    });
+
+    test("a live answer that differs from the stored one updates the note in place, and is remembered", async ({ page }) => {
+      const gh = await connectedPublic(page);
+      // Stored as private (it was made public on GitHub since): the live answer arrives later.
+      await tamper(page, { private: true });
+      let slow = true;
+      gh.fake.interceptors.push(async (req) => {
+        if (req.method === "GET" && req.path === "" && slow) await new Promise((r) => setTimeout(r, 1500));
+        return undefined;
+      });
+      await shareFromTree(page, "main.py");
+      await expect(dialog(page)).toHaveAttribute("data-visibility", "private");
+      await expect(dialog(page)).not.toHaveAttribute("data-checked", "");
+      await expect(dialog(page)).toHaveAttribute("data-checked", "", { timeout: 10_000 });
+      await expect(dialog(page)).toHaveAttribute("data-visibility", "public");
+      await expect(dialog(page)).toHaveAttribute("data-public", "");
+      await expect(note(page)).toContainText("me/workspace is public, so anyone can open this link");
+      await expect(note(page).locator(".share-who")).toHaveClass(/\bshare-warn\b/);
+      await page.keyboard.press("Escape");
+      await expect(dialog(page)).toHaveCount(0);
+      // Next opening, GitHub can't answer: the remembered answer is public.
+      slow = false;
+      repoReadFails(gh);
+      await shareFromTree(page, "main.py");
+      await expect(dialog(page)).toHaveAttribute("data-checked", "");
+      await expect(dialog(page)).toHaveAttribute("data-visibility", "public");
+    });
   });
 
   test("when the browser refuses the clipboard, the link is selected in its field for Ctrl+C", async ({ page }) => {
@@ -450,7 +524,7 @@ test.describe("the public link (a secret gist)", () => {
 });
 
 /** Changes the stored workspace behind the app's back (a damaged or hostile record, a file gone). */
-async function tamper(page: Page, change: { baseCommit?: string; owner?: string; removePath?: string }) {
+async function tamper(page: Page, change: { baseCommit?: string; owner?: string; removePath?: string; private?: boolean | null }) {
   await page.evaluate(async (c) => {
     const db: IDBDatabase = await new Promise((resolve, reject) => {
       const open = indexedDB.open("codeeditor");
@@ -467,6 +541,9 @@ async function tamper(page: Page, change: { baseCommit?: string; owner?: string;
       if (!ws.remote) continue;
       if (c.baseCommit !== undefined) ws.remote.baseCommit = c.baseCommit;
       if (c.owner !== undefined) ws.remote.owner = c.owner;
+      // null: a connection stored before the repository's visibility was recorded.
+      if (c.private === null) delete ws.remote.private;
+      else if (c.private !== undefined) ws.remote.private = c.private;
       t.objectStore("workspaces").put(ws);
       if (c.removePath) {
         t.objectStore("entries").delete([ws.id, c.removePath]);
@@ -501,6 +578,9 @@ test.describe("attacker pass", () => {
     await page.locator("#share-gist").check();
     await primary(page).click();
     await expect(dialog(page)).toHaveAttribute("data-state", "creating");
+    // The request has gone out (it waits up to 1 s behind the sync's last write first): closing
+    // now can't take it back. Closing before it goes out sends nothing (the finding 2 tests).
+    await expect.poll(() => gistPosts(gh).length).toBe(1);
     await page.keyboard.press("Escape");
     await expect(dialog(page)).toHaveCount(0);
     await expect(page.locator(".notice")).toContainText("Made a secret gist of main.py after the dialog closed", { timeout: 10_000 });
@@ -508,6 +588,36 @@ test.describe("attacker pass", () => {
     await expect(page.locator(".notice").getByRole("button", { name: "Open the gist" })).toBeVisible();
     expect(gh.fake.gists).toHaveLength(1);
   });
+
+  for (const how of ["Cancel", "Escape"] as const) {
+    test(`${how} before the gist is sent sends nothing, even while it waits behind a sync (security review, finding 2)`, async ({ page }) => {
+      const gh = await connected(page, { extra: { "b.py": "b\n" } });
+      gh.fake.interceptors.push(async (req) => {
+        if (req.method === "POST" && req.path === "/git/trees") await new Promise((r) => setTimeout(r, 4000));
+        return undefined;
+      });
+      const treePosts = () => gh.seen.filter((r) => r.method === "POST" && r.url.endsWith("/git/trees")).length;
+      await openFromTree(page, "b.py");
+      await setCode(page, "b2\n");
+      const n = await syncCount(page);
+      await saveKey(page);
+      // The sync is now writing: its slow POST /git/trees holds the client's write queue.
+      await expect.poll(treePosts, { timeout: 10_000 }).toBe(1);
+      await shareFromTree(page, "main.py");
+      await page.locator("#share-gist").check();
+      await primary(page).click();
+      if (how === "Cancel") await page.locator("#share-cancel").click();
+      else await page.keyboard.press("Escape");
+      await expect(dialog(page)).toHaveCount(0);
+      await waitSync(page, n, "synced");
+      // Past the queue's 1 s gap after the sync's last write: a queued gist would have gone by now.
+      await page.waitForTimeout(2500);
+      expect(gistPosts(gh)).toEqual([]);
+      expect(gh.fake.gists).toEqual([]);
+      await expect(page.locator(".notice", { hasText: "gist" })).toHaveCount(0);
+      expect(gh.fake.files()["b.py"]).toBe("b2\n");
+    });
+  }
 
   test("a tab that became read-only while the dialog is open neither syncs nor makes a gist", async ({ page, context }) => {
     const gh = await connected(page);

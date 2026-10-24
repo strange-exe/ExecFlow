@@ -421,8 +421,11 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     return { result: { ok: true, private: access.private, branch }, client: c };
   }
 
-  /** Writes the connection; the same repository and branch keep their sync position (signing in again). */
-  async function keepRemote(owner: string, repo: string, branch: string, auth: AuthKind, repoId?: number): Promise<string | null> {
+  /**
+   * Writes the connection; the same repository and branch keep their sync position (signing in again).
+   * `isPrivate` is the visibility the check just read (null: not known), kept for Share link.
+   */
+  async function keepRemote(owner: string, repo: string, branch: string, auth: AuthKind, isPrivate: boolean | null, repoId?: number): Promise<string | null> {
     try {
       const rec = await host.store.getWorkspace(host.ws);
       const prev = rec?.remote ?? null;
@@ -432,6 +435,8 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       const next: RemoteMeta = { ...base, auth };
       if (repoId !== undefined) next.repoId = repoId;
       else delete next.repoId;
+      if (isPrivate !== null) next.private = isPrivate;
+      else delete next.private;
       await host.store.setRemote(host.ws, next);
       remote = next;
       return null;
@@ -450,7 +455,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     if (warning) host.notice.show(warning, { tone: "warning" });
   }
 
-  async function save(input: ConnectInput, c: GitHubClient): Promise<string | null> {
+  async function save(input: ConnectInput, c: GitHubClient, isPrivate: boolean | null): Promise<string | null> {
     if (!host.tab.canWrite()) return "This tab became read-only (another tab is editing), so it can't connect.";
     let warning = "";
     try {
@@ -459,7 +464,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     } catch {
       if (input.remember) warning = "The token couldn't be stored on this computer, so it is kept for this tab only.";
     }
-    const problem = await keepRemote(input.owner, input.repo, input.branch, "pat");
+    const problem = await keepRemote(input.owner, input.repo, input.branch, "pat", isPrivate);
     if (problem) {
       // Not connected after all: a token remembered a moment ago would be kept for nothing.
       if (input.remember) await forgetToken().catch(() => {});
@@ -523,6 +528,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     const offline = !navigator.onLine;
     if (!callback && !message && config.state !== "available" && !(config.state === "unreachable" && offline)) return undefined;
     let pending: GitHubClient | null = null;
+    let pendingPrivate: boolean | null = null;
     return {
       message,
       offline,
@@ -537,6 +543,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         if (!navigator.onLine) return { ok: false, message: "This device is offline, so GitHub can't check the repository now. Connect again once you're online." };
         const { result, client: c } = await verify(createClient({ source: signedIn, owner: repo.owner, repo: repo.name }), repo.owner, repo.name, branch, "app");
         pending = c;
+        pendingPrivate = result.ok ? result.private : null;
         return result;
       },
       async save(repo, branch) {
@@ -550,7 +557,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         } catch {
           if (source.remembered) warning = "The sign-in couldn't be stored on this device, so it is kept for this tab only.";
         }
-        const problem = await keepRemote(repo.owner, repo.name, branch, "app", repo.id);
+        const problem = await keepRemote(repo.owner, repo.name, branch, "app", pendingPrivate, repo.id);
         if (problem) {
           if (source.remembered) await forgetAppTokens().catch(() => {});
           return problem;
@@ -578,15 +585,17 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       signIn = { resume: null, message: "Your GitHub sign-in on this device has ended, so sign in again. Your files here are kept and sync once you're back." };
     }
     let pending: GitHubClient | null = null;
+    let pendingPrivate: boolean | null = null;
     const ok = await openConnectDialog({
       initial: remote ? { owner: remote.owner, repo: remote.repo, branch: remote.branch } : null,
       returnFocus: returnFocus?.isConnected ? returnFocus : button,
       check: async (input) => {
         const { result, client: c } = await check(input);
         pending = c;
+        pendingPrivate = result.ok ? result.private : null;
         return result;
       },
-      save: (input) => (pending ? save(input, pending) : Promise.resolve("Check the repository again, then connect.")),
+      save: (input) => (pending ? save(input, pending, pendingPrivate) : Promise.resolve("Check the repository again, then connect.")),
       signIn: await signInDeps(signIn?.resume ?? null, signIn?.message),
     });
     // The opener (an empty-state button) may be gone once files arrive: keep focus in the top bar.
@@ -707,7 +716,24 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     const r = snap.remote ?? remote;
     if (!local) return { kind: "missing" };
     const link = shareRules.repoLinkState({ owner: r.owner, repo: r.repo, commit: r.baseCommit, path, localSha: local.sha, baseSha: snap.base.get(path)?.sha ?? null });
-    return { kind: "connected", repo: `${r.owner}/${r.repo}`, link, opaque: Boolean(local.opaque) };
+    // A stored value that isn't a boolean (an older or damaged record) is unknown, never private.
+    const stored = typeof r.private === "boolean" ? r.private : null;
+    return { kind: "connected", repo: `${r.owner}/${r.repo}`, link, opaque: Boolean(local.opaque), private: stored };
+  }
+
+  /** Keeps GitHub's live answer for the next Share link that can't ask (only when it changed). */
+  async function rememberVisibility(isPrivate: boolean) {
+    if (!host.tab.canWrite()) return;
+    try {
+      const rec = await host.store.getWorkspace(host.ws);
+      const now = rec?.remote;
+      if (!now || !remote || !sameRepo(now, remote.owner, remote.repo, remote.branch) || now.private === isPrivate) return;
+      const next = { ...now, private: isPrivate };
+      await host.store.setRemote(host.ws, next);
+      remote = next;
+    } catch {
+      // not recorded: this opening still shows the live answer
+    }
   }
 
   const READ_ONLY_SHARE = "This tab became read-only (another tab is editing), so it doesn't sync or share from here: share from the tab that edits.";
@@ -753,12 +779,15 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       state: () => shareState(path),
       async repoPrivate() {
         if (!client || !navigator.onLine) return null;
+        let isPrivate: boolean;
         try {
-          return (await client.getRepo()).private;
+          isPrivate = (await client.getRepo()).private;
         } catch (e) {
           tokenRefused(e);
           return null;
         }
+        await rememberVisibility(isPrivate);
+        return isPrivate;
       },
       syncNow: syncForShare,
       async readText() {
@@ -771,11 +800,11 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       readOnly: () => (host.tab.canWrite() ? null : READ_ONLY_SHARE),
       notice: host.notice,
       createGist: c
-        ? async (body) => {
+        ? async (body, signal) => {
             const now = client;
             if (!now) throw new GitHubError("auth", 401, "createGist", "Creating the gist wasn't tried: there is no token in this tab");
             try {
-              return await now.createGist(body);
+              return await now.createGist(body, signal);
             } catch (e) {
               tokenRefused(e);
               throw e;

@@ -197,7 +197,12 @@ export interface GitHubClient {
    * same token, headers and write queue. Returns GitHub's id and html_url as given: the caller
    * checks the address (share.ts gistPageUrl) before showing it as a link.
    */
-  createGist(body: GistBody): Promise<{ id: string; htmlUrl: string }>;
+  /**
+   * POST /gists. `signal` is checked when the request's turn in the write queue comes, right before
+   * it is sent: aborted by then, nothing is sent and the promise rejects with the signal's reason.
+   * (It isn't passed to fetch: once the request is on its way, the gist may exist either way.)
+   */
+  createGist(body: GistBody, signal?: AbortSignal): Promise<{ id: string; htmlUrl: string }>;
 }
 
 /** The body of POST /gists (https://docs.github.com/en/rest/gists/gists#create-a-gist). */
@@ -586,10 +591,13 @@ export function createClient(options: ClientOptions): GitHubClient {
       });
     },
 
-    async createGist(body) {
+    async createGist(body, signal) {
       // Only the fields the share dialog builds: never `public: true`, whatever a caller passes.
       const sent: GistBody = { description: String(body.description), public: false, files: body.files };
+      signal?.throwIfAborted();
       return write(async () => {
+        // The dialog may have closed while a sync's writes went first.
+        signal?.throwIfAborted();
         const answer = await request("createGist", "POST", "/gists", { body: sent, api: true });
         const id = field(answer.data, "id");
         const htmlUrl = field(answer.data, "html_url");
