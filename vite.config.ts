@@ -1,10 +1,20 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
 const pyodideDir = `${pyodideVersion}-heap${JSON.parse(readFileSync("scripts/python-heap.json", "utf8")).mb}`;
+
+/**
+ * What Python's first start downloads through fetch (src/runner/python-download.ts counts it), for
+ * "Downloading Python (one time, about 12 MB)". 0 when the runtime isn't copied yet (unit tests):
+ * the header then says how much has arrived.
+ */
+function pyodideBytes(): number {
+  const files = ["pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json"].map((f) => `public/pyodide/${pyodideDir}/${f}`);
+  return files.every((f) => existsSync(f)) ? files.reduce((sum, f) => sum + statSync(f).size, 0) : 0;
+}
 
 /**
  * The C/C++ pack manifest, written by scripts/fetch-clang.mjs (npm's predev/prebuild run it).
@@ -158,6 +168,7 @@ export default defineConfig(({ mode }) => ({
   },
   define: {
     __PYODIDE_DIR__: JSON.stringify(pyodideDir),
+    __PYODIDE_BYTES__: JSON.stringify(pyodideBytes()),
     __CLANG_PACK__: JSON.stringify(clangPack(mode)),
   },
   plugins: [

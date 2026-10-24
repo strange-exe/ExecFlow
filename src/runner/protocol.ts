@@ -88,6 +88,16 @@ export type FromPython =
       packageMs: number;
     }
   | {
+      /**
+       * Start-up's download (python-download.ts): bytes so far and in all (total 0: not known);
+       * `done` once Pyodide has loaded. Only read while the worker starts, before any user code.
+       */
+      type: "progress";
+      loaded: number;
+      total: number;
+      done: boolean;
+    }
+  | {
       type: "boot-failed";
       error: string;
       /** false: starting again won't help (a package didn't download), so the runner doesn't retry. */

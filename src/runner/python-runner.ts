@@ -38,6 +38,14 @@ export interface BootInfo {
 const HEAP_MB = Number(/-heap(\d+)$/.exec(__PYODIDE_DIR__)?.[1] ?? 0);
 /** A syntax check that hasn't answered by then is dropped. */
 const CHECK_TIMEOUT_MS = 5000;
+/**
+ * How long start-up runs before its download is mentioned (B9, 2026-10-24): about a second, the
+ * point where a wait needs words (DESIGN-REFERENCE 1D, feedback latency). A start from this
+ * device's copy is quicker than that, so it never says "Downloading".
+ */
+export const DOWNLOAD_SHOWN_AFTER_MS = 1000;
+
+const isCount = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0;
 /** At most this many outputs are read from one "out-batch" message (worker messages are untrusted). */
 export const MAX_BATCH_PARTS = 100_000;
 
@@ -69,8 +77,49 @@ export class PythonRunner {
   private latestCheck = new Map<WsPath, number>();
   private checkSeq = 0;
   private restartAfterRun = false;
+  /** The current start's download, as its worker reports it (null when not starting). */
+  private download: { loaded: number; total: number; done: boolean; since: number } | null = null;
 
   constructor(private readonly createWorker: () => Worker) {}
+
+  /**
+   * The start-up download worth showing: bytes so far and in all (total 0: not known), once the
+   * start has taken DOWNLOAD_SHOWN_AFTER_MS and while bytes are still coming; else null.
+   */
+  downloadShown(): { loaded: number; total: number } | null {
+    const d = this.download;
+    if (!d || this.state !== "booting" || d.done) return null;
+    if (d.total > 0 ? d.loaded >= d.total : d.loaded === 0) return null;
+    if (performance.now() - d.since < DOWNLOAD_SHOWN_AFTER_MS) return null;
+    return { loaded: d.loaded, total: d.total };
+  }
+
+  private onProgress(data: { loaded: unknown; total: unknown; done: unknown }) {
+    const d = this.download;
+    if (!d || this.state !== "booting" || !isCount(data.loaded) || !isCount(data.total)) return;
+    this.download = { ...d, loaded: data.loaded, total: data.total, done: data.done === true };
+    this.setState(this.state); // listeners redraw (the status bar, a run's header)
+  }
+
+  /**
+   * While a run waits for start-up: "Downloading Python" with its bytes once the download is worth
+   * showing (downloadShown), and "Starting Python" again once every byte is in. Returns the
+   * function that stops following.
+   */
+  private followStart(hooks: RunHooks): () => void {
+    let shown = false;
+    const update = () => {
+      if (this.state !== "booting") return;
+      const progress = this.downloadShown();
+      if (progress) hooks.onPhase("downloading", "Python", progress);
+      else if (shown) hooks.onPhase("booting");
+      shown = progress !== null;
+    };
+    // boot() tells the listeners when the start has taken DOWNLOAD_SHOWN_AFTER_MS.
+    this.listeners.add(update);
+    update();
+    return () => void this.listeners.delete(update);
+  }
 
   /** Calls `fn` on every state change; returns a function that stops it. */
   onState(fn: (state: PythonState) => void): () => void {
@@ -113,17 +162,27 @@ export class PythonRunner {
 
   private boot() {
     const gen = ++this.generation;
+    this.download = { loaded: 0, total: 0, done: false, since: performance.now() };
     this.setState("booting");
+    // A download that is still going after DOWNLOAD_SHOWN_AFTER_MS is shown then, even if no new
+    // bytes arrive at that moment (a stalled connection): the listeners redraw.
+    setTimeout(() => {
+      if (gen === this.generation && this.state === "booting") this.setState("booting");
+    }, DOWNLOAD_SHOWN_AFTER_MS + 1);
     this.ready = (async () => {
       for (let attempt = 1; ; attempt++) {
         try {
           await this.startWorker(gen);
-          if (gen === this.generation) this.setState("ready");
+          if (gen === this.generation) {
+            this.download = null;
+            this.setState("ready");
+          }
           return;
         } catch (e) {
           if (gen !== this.generation) return; // superseded by a newer start
           if (attempt >= START_ATTEMPTS || (e as { retry?: boolean }).retry === false) {
             this.bootError = (e as Error).message;
+            this.download = null;
             this.setState("failed");
             throw e;
           }
@@ -162,6 +221,8 @@ export class PythonRunner {
         fail(e.message || "the runtime failed to start");
       };
       const onMessage = ({ data }: MessageEvent<FromPython>) => {
+        // Sent while Pyodide loads, before any user code (still type-checked in onProgress).
+        if (data.type === "progress") return void (gen === this.generation && this.onProgress(data));
         if (data.type !== "ready" && data.type !== "boot-failed") return;
         if (data.type === "boot-failed") return fail(String(data.error), data.retry !== false);
         detach();
@@ -216,8 +277,12 @@ export class PythonRunner {
       let note: string | undefined;
       for (;;) {
         if (this.state === "idle" || this.state === "failed") this.boot();
-        if (this.state === "booting") hooks.onPhase("booting");
-        const waited = await this.whenReady(cancelled);
+        let unfollow = () => {};
+        if (this.state === "booting") {
+          hooks.onPhase("booting");
+          unfollow = this.followStart(hooks);
+        }
+        const waited = await this.whenReady(cancelled).finally(unfollow);
         if (waited === "cancelled") return stopped;
         if (waited === "failed") return { status: "unavailable", exitCode: null, diagnostics: [], message: `Python couldn't start: ${this.bootError}`, ms: {} };
 
@@ -416,3 +481,4 @@ export const restart = (): void => python.restart();
 export const state = (): PythonState => python.state;
 export const onState = (fn: (state: PythonState) => void): (() => void) => python.onState(fn);
 export const bootInfo = (): BootInfo | null => python.lastBoot;
+export const downloadShown = (): { loaded: number; total: number } | null => python.downloadShown();
