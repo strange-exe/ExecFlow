@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunHooks, RunRequest } from "../core/types";
 import type { FromCompiler, FromProgram } from "./clang-protocol";
 import { TailWriter } from "./cpp-output-tail";
-import { acceptWritten, BOOT_TIMEOUT_MS, CppRunner, STEP_TIMEOUT_MS, summarize } from "./cpp-runner";
+import { acceptWritten, BOOT_TIMEOUT_MS, CppRunner, crashMessage, STEP_TIMEOUT_MS, summarize } from "./cpp-runner";
 
 /** A stand-in for a worker: records what it's sent and replies when the test says so. */
 class FakeWorker {
@@ -352,8 +352,10 @@ describe("a C/C++ run", () => {
     const p2 = await built();
     p2.reply({ type: "done", exitCode: -1, crash: "stack overflow (infinite or very deep recursion?)", truncated: false, ms: 2, written: [] });
     const r2 = await crash;
-    expect(r2).toMatchObject({ status: "crashed", exitCode: null, message: "The program crashed: stack overflow (infinite or very deep recursion?)." });
-    expect(r2.diagnostics.some((d) => d.source === "runtime")).toBe(true);
+    // One plain sentence for the log: the header already says "Crashed" (B13).
+    expect(r2).toMatchObject({ status: "crashed", exitCode: null, message: "The program ran out of stack memory: a function keeps calling itself (infinite or very deep recursion)." });
+    // The runtime diagnostic keeps the words the error help and Problems match.
+    expect(r2.diagnostics.find((d) => d.source === "runtime")?.message).toBe("The program crashed: stack overflow (infinite or very deep recursion?)");
   });
 
   it("doesn't use a spare worker that failed to load, and replaces one that never starts", async () => {
@@ -452,6 +454,25 @@ describe("a C/C++ run", () => {
     const r = await done;
     expect(r).toMatchObject({ status: "output-limit", exitCode: null });
     expect(r.message).toMatch(/more than 1,000 characters/);
+  });
+});
+
+describe("a crash in words (B13)", () => {
+  // Each crash as cpp-wasi.ts describeCrash words it, and the one sentence the log shows for it.
+  const CASES: [string, string][] = [
+    ["stack overflow (infinite or very deep recursion?)", "The program ran out of stack memory: a function keeps calling itself (infinite or very deep recursion)."],
+    ["invalid memory access (like a segmentation fault: a bad pointer or array index)", "The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range."],
+    ["aborted (abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with)",
+      "The program stopped itself: abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with."],
+    ["integer division by zero", "The program divided a whole number by zero."],
+    ["integer overflow in division (INT_MIN / -1)", "The program divided INT_MIN by -1, which gives a number too big for an int."],
+    ["a call through a bad function pointer", "The program called a function through a bad function pointer."],
+    ["out of memory (Cannot allocate)", "The program ran out of memory (Cannot allocate)."],
+    ["RuntimeError: something new", "The program stopped with an error: RuntimeError: something new."],
+  ];
+  it.each(CASES)("%s", (crash, sentence) => {
+    expect(crashMessage(crash)).toBe(sentence);
+    expect(crashMessage(crash).toLowerCase()).not.toContain("crashed");
   });
 });
 
