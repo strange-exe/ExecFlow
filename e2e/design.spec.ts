@@ -536,12 +536,17 @@ test("favicon, apple-touch-icon and manifest icons exist and match their declare
   expect(manifest.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
 });
 
-test("the keyboard shortcuts dialog opens with ? and says how to leave the editor", async ({ page }) => {
+test("the keyboard shortcuts dialog opens with Ctrl+/ (never with a lone ?) and says how to leave the editor", async ({ page }) => {
   await openApp(page);
   await page.locator("#settings-button").focus();
-  // The key value "?" (Playwright's "Shift+/" sends key "/" with Shift, which no real layout does).
+  // A single printable key is no shortcut (WCAG 2.1.4: no way to turn it off or remap it). The key
+  // value "?" (Playwright's "Shift+/" sends key "/" with Shift, which no real layout does).
   await page.keyboard.press("?");
+  await page.waitForTimeout(300);
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("#settings-button")).toBeFocused();
+  await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+/`);
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Leave the editor");
   await page.keyboard.press("Escape");

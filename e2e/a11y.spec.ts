@@ -380,7 +380,7 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   for (const [name, opener, open] of [
     ["settings", "#settings-button", "Enter"],
     ["connect", "#sync-status", "Enter"],
-    ["shortcuts", "#settings-button", "?"],
+    ["shortcuts", "#settings-button", process.platform === "darwin" ? "Meta+/" : "Control+/"],
   ] as const) {
     await page.locator(opener).focus();
     await page.keyboard.press(open);

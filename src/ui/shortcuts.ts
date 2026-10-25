@@ -1,4 +1,5 @@
-// The keyboard shortcuts dialog (? or Ctrl+/ outside the code and text fields: workbench.ts). It
+// The keyboard shortcuts dialog (Ctrl+/ or Cmd+/ outside the code and text fields: workbench.ts;
+// no lone "?", a one-character shortcut with no way to turn it off, WCAG 2.1.4). It
 // also explains how to leave the editor, since Tab there indents (CodeMirror's escape hatch: Esc
 // then Tab, or Ctrl+M). The keys are spelled once, in shortcutKeys(), which the command palette
 // shows too, so the two lists can't drift apart.
@@ -43,7 +44,7 @@ export function shortcutKeys(mac = isMac()) {
     copy: `${mod} C`,
     selectAll: `${mod} A`,
     output: `${mod} \``,
-    shortcuts: `? or ${mod} /`,
+    shortcuts: `${mod} /`,
   };
 }
 

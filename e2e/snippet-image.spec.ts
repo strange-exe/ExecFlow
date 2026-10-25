@@ -1444,7 +1444,8 @@ test("30: keys behind the modal do nothing; Ctrl+S keeps the browser's Save away
   await expect(page.locator("#run-button")).toHaveAttribute("data-running", "false");
   expect(await app(page).getAttribute("data-runs")).toBe(runs);
   await page.keyboard.press("Alt+W");
-  await page.keyboard.press("?");
+  // The Shortcuts list's key (a lone ? opens nothing anywhere since 2026-10-24: WCAG 2.1.4).
+  await page.keyboard.press(`${MOD}+/`);
   await page.waitForTimeout(200);
   await expect(page.locator('.tabs [role=tab][title="main.py"]')).toHaveCount(1);
   await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);

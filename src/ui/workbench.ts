@@ -1971,7 +1971,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       // (vscode.dev's keys; Ctrl+P is the browser's Print, which the app takes here).
       e.preventDefault();
       openPalette(palette);
-    } else if ((key === "?" && !mod && !isTyping(e.target)) || (mod && key === "/" && !isTyping(e.target))) {
+    } else if (mod && key === "/" && !isTyping(e.target)) {
+      // The Shortcuts list. No lone "?" (a one-character shortcut fires while someone types or
+      // dictates outside a field, with no way to turn it off: WCAG 2.1.4).
       e.preventDefault();
       shortcuts.open();
     }

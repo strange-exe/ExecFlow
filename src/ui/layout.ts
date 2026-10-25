@@ -7,7 +7,7 @@
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
-import { h, srOnly, svg } from "./dom";
+import { h, isMac, srOnly, svg } from "./dom";
 import { icon } from "./icons";
 import { clamp, createSplitter, type Splitter } from "./splitter";
 
@@ -205,7 +205,7 @@ export function createLayout(root: HTMLElement): Layout {
     lang: h("span", { class: "status-item", id: "status-lang" }),
     pos: h("span", { class: "status-item", id: "status-pos" }),
     runtime: h("span", { class: "status-item runtime", id: "status-runtime", "data-state": "idle" }),
-    shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: "Keyboard shortcuts (?)" }, icon("keyboard"), h("span", null, "Shortcuts")),
+    shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: `Keyboard shortcuts (${isMac() ? "Cmd" : "Ctrl"}+/)` }, icon("keyboard"), h("span", null, "Shortcuts")),
   };
   const noticeHost = h("div", { class: "notice-host" });
   const statusbar = h("footer", { class: "statusbar" }, status.lang, status.pos, noticeHost, status.shortcuts);
