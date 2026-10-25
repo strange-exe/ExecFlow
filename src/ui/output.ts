@@ -713,6 +713,11 @@ export class OutputView {
     return this.pack.contains(document.activeElement);
   }
 
+  /** Whether the download offer is hidden (a focused element inside it can stay activeElement for a moment). */
+  get packHidden(): boolean {
+    return this.pack.hidden === true;
+  }
+
   focusPackButton(): void {
     this.packButton.focus({ preventScroll: true });
     this.pack.scrollIntoView({ block: "nearest" });

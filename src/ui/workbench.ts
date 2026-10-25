@@ -1551,7 +1551,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     // stood for), never to the page.
     const packFocus = output.packHasFocus();
     renderStatus();
-    if (packFocus && !output.packHasFocus() && isShown(L.runButton)) L.runButton.focus();
+    if (packFocus && output.packHidden && isShown(L.runButton)) L.runButton.focus();
     runIfPackArrived();
     const file = fileOf(editors.activeId);
     if (file && runtimes.state("python") === "ready" && detectLanguage(file.path)?.id === "python") scheduleCheck(file.id);

@@ -3,7 +3,7 @@
 // run header limited to the file they belong to (B11, owner decision), and help for runs stopped at
 // a limit, crash words, a file without main() and the -O0 label (B13).
 import type { Page } from "@playwright/test";
-import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, test } from "./helpers";
+import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -131,17 +131,40 @@ test.describe("B10: the C/C++ first run", () => {
     // The focus didn't fall to the page when the button went.
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
 
-    // Run pressed again while it downloads: still one run, after the download.
-    await page.locator("#run-button").click();
-    await expect(notice).toContainText("main.c runs as soon as it finishes.");
-    expect(await runs(page)).toBe(0);
-
     release();
     await expect(page.locator("#app")).toHaveAttribute("data-runs", "1", { timeout: 120_000 });
     await expect(page.locator("#receipt")).toHaveAttribute("data-status", "ok");
     await expect(page.locator("#console")).toContainText("pack ok");
     await expect(page.locator(".pack-offer")).toBeHidden();
     await expect(notice).not.toContainText("download");
+    // The offer held the focus when it went: Run (whose press it stood for) has it now.
+    await expect(page.locator("#run-button")).toBeFocused();
+    await page.waitForTimeout(1500);
+    expect(await runs(page), "it ran once").toBe(1);
+  });
+
+  test("Run pressed while the download runs: one run, once it is in", async ({ page }) => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route("**/clang/*/sysroot.tar.gz", async (route) => {
+      await held;
+      await route.continue().catch(() => {});
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("pack ok"); return 0; }\n' }]);
+    await openFromTree(page, "main.c");
+    await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
+    await showView(page, "output");
+    await page.locator("#pack-download").click();
+    await expect(runtime(page)).toHaveAttribute("data-state", "downloading");
+    await expect(page.locator(".pack-offer")).not.toContainText("runs when it finishes");
+    await page.locator("#run-button").click();
+    await expect(page.locator(".notice")).toContainText("main.c runs as soon as it finishes.");
+    await expect(page.locator(".pack-offer")).toContainText("main.c runs when it finishes.");
+    expect(await runs(page)).toBe(0);
+    release();
+    await expect(page.locator("#app")).toHaveAttribute("data-runs", "1", { timeout: 120_000 });
+    await expect(page.locator("#console")).toContainText("pack ok");
     await page.waitForTimeout(1500);
     expect(await runs(page), "it ran once").toBe(1);
   });
