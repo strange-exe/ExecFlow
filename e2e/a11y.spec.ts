@@ -380,7 +380,7 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   for (const [name, opener, open] of [
     ["settings", "#settings-button", "Enter"],
     ["connect", "#sync-status", "Enter"],
-    ["shortcuts", "#settings-button", "?"],
+    ["shortcuts", "#settings-button", process.platform === "darwin" ? "Meta+/" : "Control+/"],
   ] as const) {
     await page.locator(opener).focus();
     await page.keyboard.press(open);
@@ -413,6 +413,66 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
 
   save();
 });
+
+/**
+ * The painted colours next to Run's ring, read from a screenshot: the window's pixels just outside
+ * the ring, on it, and just inside it, along the middle of Run's left edge and of its top edge.
+ */
+async function runRingPixels(page: Page) {
+  const b = (await page.locator("#run-button").boundingBox())!;
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  // The ring is 2 px wide; its inner edge lies `o` px outside the border edge (negative: inside).
+  const o = parseFloat(await page.locator("#run-button").evaluate((el) => getComputedStyle(el).outlineOffset));
+  const clip = { x: Math.max(0, Math.floor(b.x) - 8), y: Math.max(0, Math.floor(b.y) - 8), width: Math.ceil(b.width) + 16, height: Math.ceil(b.height) + 16 };
+  const px = decodePng(await page.screenshot({ clip, animations: "disabled", scale: "device" }));
+  const at = (x: number, y: number): RGB => px.at(Math.floor((x - clip.x) * dpr), Math.floor((y - clip.y) * dpr));
+  const midY = b.y + b.height / 2;
+  const midX = b.x + b.width / 2;
+  // Inward distances from the border edge: half a px outside the ring, inside the ring, 1.5 px inside its inner edge.
+  const [outside, onRing, inside] = [-o - 2.5, -o - 0.75, -o + 1.5];
+  const sides = {
+    left: { outside: at(b.x + outside, midY), ring: at(b.x + onRing, midY), inside: at(b.x + inside, midY) },
+    top: { outside: at(midX, b.y + outside), ring: at(midX, b.y + onRing), inside: at(midX, b.y + inside) },
+  };
+  return Object.fromEntries(
+    Object.entries(sides).map(([side, s]) => [side, { outside: Math.round(contrast(s.ring, s.outside) * 100) / 100, inside: Math.round(contrast(s.ring, s.inside) * 100) / 100, ring: s.ring.join(",") }]),
+  );
+}
+
+// Below 900 px Run sits in the top bar with the bar's controls' rings drawn inside (the bar meets
+// the window's top edge), so the fill touched the ring: 1.6:1 light, 1.16:1 dark (audit 2026-10-24).
+for (const scheme of ["light", "dark"] as const) {
+  test(`phones (390 px, ${scheme}): every top bar, switch and status bar stop has a ring of 3:1 against what is next to it, Run's included`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openThemed(page, scheme);
+    await importFiles(page, FILES);
+    await openFromTree(page, "main.py");
+    await reloadApp(page); // no notice, the file restored
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    await page.locator("body").focus();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const stops = await tabPath(page, 14);
+    writeFileSync(`${dirFor(info, "data")}/phone-keyboard-${scheme}.json`, JSON.stringify(stops.map((s) => ({ ...s, label: label(s) })), null, 1));
+    expect(stops.map((s) => s.id), "Run is on the Tab path").toContain("run-button");
+    const shown = stops.filter((s) => s.tag !== "body" && !s.cls.includes("cm-content"));
+    expect.soft(shown.filter((s) => !s.visible || !s.indicator).map(label), "stops without a visible indicator").toEqual([]);
+    expect.soft(shown.filter((s) => s.ringContrast === null || s.ringContrast < 3).map((s) => `${label(s)} ${s.ringContrast} (${s.outline}${s.shadow ? `; ${s.shadow}` : ""})`), "focus rings under 3:1").toEqual([]);
+    expect.soft(shown.filter((s) => s.clipped.length).map((s) => `${label(s)} ${s.clipped.join(", ")}`), "rings cut off").toEqual([]);
+
+    // The painted pixels agree: Run filled, focused from the keyboard.
+    await page.locator("#settings-button").focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.locator("#run-button")).toBeFocused();
+    expect(await page.locator("#run-button").evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+    const ring = await runRingPixels(page);
+    await page.screenshot({ path: `${dirFor(info, "keyboard")}/run-focus-390-${scheme}.png`, clip: { x: 200, y: 0, width: 190, height: 48 } });
+    info.annotations.push({ type: `run ring ${scheme}`, description: JSON.stringify(ring) });
+    for (const [side, r] of Object.entries(ring)) {
+      expect.soft(r.inside, `${side}: the ring against what is inside it`).toBeGreaterThanOrEqual(3);
+      expect.soft(r.outside, `${side}: the ring against the top bar`).toBeGreaterThanOrEqual(3);
+    }
+  });
+}
 
 for (const scheme of ["light", "dark"] as const) {
   test(`the editor's focus indicator is a bar on the gutter edge (${scheme}): no frame, 3:1, and the audit sees it go`, async ({ page }, info) => {

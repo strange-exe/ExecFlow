@@ -15,6 +15,20 @@ import { keyParts, paletteKey, shortcutGroups, shortcutKeys } from "./shortcuts"
 const rows = (mac: boolean) => new Map(shortcutGroups(mac).flatMap((g) => g.rows.map(([keys, what]) => [what, keys] as const)));
 
 describe("shortcutGroups", () => {
+  // WCAG 2.1.4: a shortcut of one printable character needs a way to turn it off or remap it. The
+  // app's own keys (not the editor's, which act only while typing in the code) always take a
+  // modifier or are named keys (F2, Delete), so none can fire while someone types or dictates.
+  it.each([false, true])("opens the Shortcuts list with Ctrl / (Cmd / on macOS), and no app key is a lone character (mac: %s)", (mac) => {
+    expect(shortcutKeys(mac).shortcuts).toBe(mac ? "Cmd /" : "Ctrl /");
+    expect(rows(mac).get("Show these shortcuts (outside the code and text fields)")).toBe(mac ? "Cmd /" : "Ctrl /");
+    const lone = shortcutGroups(mac)
+      .filter((g) => !["Editor", "Suggestions"].includes(g.title))
+      .flatMap((g) => g.rows)
+      .filter(([keys]) => keyParts(keys).some((p) => p.caps?.length === 1 && p.caps[0].length === 1))
+      .map(([keys, what]) => `${keys}: ${what}`);
+    expect(lone).toEqual([]);
+  });
+
   it.each([false, true])("lists the suggestion keys (mac: %s)", (mac) => {
     const r = rows(mac);
     expect(r.get("Show suggestions")).toBe("Ctrl Space");

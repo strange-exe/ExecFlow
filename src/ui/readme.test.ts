@@ -19,10 +19,11 @@ describe("README", () => {
     }
   });
 
-  it("opens the Shortcuts list with the keys the list itself names (? or Ctrl+/), and names the palette's keys", () => {
+  it("opens the Shortcuts list with the keys the list itself names (Ctrl+/, no lone ?), and names the palette's keys", () => {
     const keys = shortcutGroups(false).flatMap((g) => g.rows).find(([, what]) => what.startsWith("Show these shortcuts"))![0];
-    expect(keys).toBe("? or Ctrl /");
-    expect(readme).toContain("`?` or Ctrl+/");
+    expect(keys).toBe("Ctrl /");
+    expect(readme).toContain("Ctrl+/ (Cmd+/ on macOS)");
+    expect(readme).not.toContain("`?`");
     expect(readme).toContain("F1 or Ctrl+Shift+P");
     expect(readme).toContain("Ctrl+P");
   });

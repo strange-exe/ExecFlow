@@ -536,12 +536,17 @@ test("favicon, apple-touch-icon and manifest icons exist and match their declare
   expect(manifest.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
 });
 
-test("the keyboard shortcuts dialog opens with ? and says how to leave the editor", async ({ page }) => {
+test("the keyboard shortcuts dialog opens with Ctrl+/ (never with a lone ?) and says how to leave the editor", async ({ page }) => {
   await openApp(page);
   await page.locator("#settings-button").focus();
-  // The key value "?" (Playwright's "Shift+/" sends key "/" with Shift, which no real layout does).
+  // A single printable key is no shortcut (WCAG 2.1.4: no way to turn it off or remap it). The key
+  // value "?" (Playwright's "Shift+/" sends key "/" with Shift, which no real layout does).
   await page.keyboard.press("?");
+  await page.waitForTimeout(300);
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("#settings-button")).toBeFocused();
+  await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+/`);
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Leave the editor");
   await page.keyboard.press("Escape");
@@ -644,6 +649,40 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(page.getByRole("separator", { name: "Resize the output panel" })).toHaveAttribute("aria-valuenow", "40");
   const width = await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width);
   expect(Math.round(width)).toBe(200);
+});
+
+// A phone-wide window allows the file list 200 px at most; its refresh used to overwrite the
+// width the user had with that (248 became 200 for good: polish audit, 2026-10-24).
+test("the file list keeps the width it was given through a trip to a phone-wide window", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openApp(page);
+  const splitter = page.getByRole("separator", { name: "Resize the file list" });
+  const width = async () => Math.round((await page.locator("#sidebar").boundingBox())!.width);
+  const narrowTrip = async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator("#app")).toHaveAttribute("data-narrow", "true");
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator("#app")).toHaveAttribute("data-narrow", "false");
+  };
+  await expect(splitter).toHaveAttribute("aria-valuenow", "248");
+  expect(await width()).toBe(248);
+
+  // The default width, through a phone-wide window and back.
+  await narrowTrip();
+  await expect(splitter).toHaveAttribute("aria-valuenow", "248");
+  expect(await width()).toBe(248);
+
+  // A width chosen with the keyboard, through the same trip, and after a reload.
+  await splitter.focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "312");
+  await narrowTrip();
+  await expect(splitter).toHaveAttribute("aria-valuenow", "312");
+  expect(await width()).toBe(312);
+  await page.reload();
+  await waitReady(page);
+  await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "312");
 });
 
 // WCAG 2.2 SC 2.5.7: every size the splitters set by dragging can also be set with single clicks.

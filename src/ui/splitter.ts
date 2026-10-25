@@ -57,6 +57,30 @@ export interface Splitter {
   refresh(): void;
 }
 
+/**
+ * The size the user asked for and the size the window allows now, kept apart: a window too small
+ * for the wanted size applies less, and the wanted size comes back once there is room again (a
+ * phone-wide window used to overwrite a 248 px file list with its 200 px for good). A user's
+ * choice (a key, a drag, a button) becomes the wanted size as far as the window allows it then.
+ */
+export function sizeModel(o: { min: number; max: () => number; wanted: number }) {
+  const fit = (v: number) => clamp(Math.round(v), o.min, Math.max(o.min, o.max()));
+  let wanted = Math.round(o.wanted);
+  return {
+    get wanted() {
+      return wanted;
+    },
+    /** The size to apply now. */
+    get value() {
+      return fit(wanted);
+    },
+    set(next: number): number {
+      wanted = fit(next);
+      return wanted;
+    },
+  };
+}
+
 export function createSplitter(o: SplitterOptions): Splitter {
   const element = h("div", {
     class: `splitter ${o.orientation}`,
@@ -68,15 +92,22 @@ export function createSplitter(o: SplitterOptions): Splitter {
     "aria-valuemin": o.min,
   });
   const saved = readLayout()[o.key];
-  let value = typeof saved === "number" && Number.isFinite(saved) ? saved : o.initial;
+  const size = sizeModel({ min: o.min, max: o.max, wanted: typeof saved === "number" && Number.isFinite(saved) ? saved : o.initial });
+  let value = size.value;
 
-  function set(next: number, save = true) {
-    value = clamp(Math.round(next), o.min, Math.max(o.min, o.max()));
+  /** Applies the wanted size as far as the window allows it now. */
+  function show() {
+    value = size.value;
     element.setAttribute("aria-valuenow", String(value));
     element.setAttribute("aria-valuemax", String(Math.round(Math.max(o.min, o.max()))));
     element.setAttribute("aria-valuetext", `${value} ${o.unit}`);
     o.apply(value);
-    if (save) writeLayout(o.key, value);
+  }
+
+  function set(next: number, save = true) {
+    size.set(next);
+    show();
+    if (save) writeLayout(o.key, size.wanted);
   }
 
   element.addEventListener("keydown", (e) => {
@@ -121,7 +152,7 @@ export function createSplitter(o: SplitterOptions): Splitter {
     max: o.max,
     initial: o.initial,
     set: (v) => set(v),
-    /** Re-clamps after the window or the surrounding region changed size. */
-    refresh: () => set(value, false),
+    /** Applies the wanted size again after the window or the surrounding region changed size. */
+    refresh: show,
   };
 }

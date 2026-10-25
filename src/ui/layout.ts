@@ -7,11 +7,13 @@
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
-import { h, srOnly, svg } from "./dom";
+import { h, isMac, srOnly, svg } from "./dom";
 import { icon } from "./icons";
 import { clamp, createSplitter, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
+/** A short window (app.css): the page scrolls as a whole. */
+export const SHORT = "(max-height: 420px)";
 export const SIDEBAR = { min: 200, max: 480, initial: 248 };
 export const PANEL = { min: 15, max: 80, initial: 35 };
 
@@ -27,6 +29,17 @@ export function brandMark(): SVGSVGElement {
     svg("rect", { x: "1", y: "1", width: "30", height: "30", rx: "7", class: "mark-tile" }),
     svg("path", { d: "M12 10 6.5 16l5.5 6M20 10l5.5 6-5.5 6", class: "mark-glyph" }),
   );
+}
+
+/**
+ * A file name as its stem and its extension, so a name cut short keeps the extension ("finding_t...
+ * .py"): the stem takes the ellipsis (app.css). A name without one, or a dot file (".gitignore"),
+ * is all stem.
+ */
+function nameParts(name: string): HTMLElement[] {
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return [h("span", { class: "crumb-stem" }, name)];
+  return [h("span", { class: "crumb-stem" }, name.slice(0, dot)), h("span", { class: "crumb-ext" }, name.slice(dot))];
 }
 
 export interface Layout {
@@ -94,6 +107,7 @@ export interface Layout {
 
 export function createLayout(root: HTMLElement): Layout {
   const narrowQuery = matchMedia(NARROW);
+  const shortQuery = matchMedia(SHORT);
 
   // ---------------------------------------------------------------- top bar
   const drawerToggle = h("button", { type: "button", class: "icon-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "false", "aria-controls": "sidebar", title: "Files" }, icon("sidebar-simple"));
@@ -205,7 +219,7 @@ export function createLayout(root: HTMLElement): Layout {
     lang: h("span", { class: "status-item", id: "status-lang" }),
     pos: h("span", { class: "status-item", id: "status-pos" }),
     runtime: h("span", { class: "status-item runtime", id: "status-runtime", "data-state": "idle" }),
-    shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: "Keyboard shortcuts (?)" }, icon("keyboard"), h("span", null, "Shortcuts")),
+    shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: `Keyboard shortcuts (${isMac() ? "Cmd" : "Ctrl"}+/)` }, icon("keyboard"), h("span", null, "Shortcuts")),
   };
   const noticeHost = h("div", { class: "notice-host" });
   const statusbar = h("footer", { class: "statusbar" }, status.lang, status.pos, noticeHost, status.shortcuts);
@@ -293,6 +307,9 @@ export function createLayout(root: HTMLElement): Layout {
     return root.dataset.drawer === "open";
   }
   function openDrawer() {
+    // A short window scrolls the page (app.css): the drawer hangs from the top bar, so the page
+    // goes to its top first (and stays there while the drawer is open).
+    if (shortQuery.matches) scrollTo(0, 0);
     root.dataset.drawer = "open";
     drawerToggle.setAttribute("aria-expanded", "true");
     sidebar.inert = false; // before moving focus in: an inert element can't take focus
@@ -316,6 +333,28 @@ export function createLayout(root: HTMLElement): Layout {
       closeDrawer();
     }
   });
+  // ---------------------------------------------------------------- short windows
+  // At 420 px tall or less the page scrolls as a whole (app.css). A text field that takes focus is
+  // checked again once the layout has settled: the output log's blocks keep a placeholder height
+  // until first drawn (content-visibility), so a waiting program's input field, scrolled to at
+  // once, sat off screen a frame later (400% zoom, Chromium), or the run header above it went out
+  // of sight (Firefox), 2026-10-24. A waiting program's input line goes to the window's foot, with
+  // what leads to it (the prompt, the last lines, the run header) above it; any other field is
+  // scrolled only when it is not wholly on screen.
+  root.addEventListener("focusin", (e) => {
+    const field = e.target;
+    if (!shortQuery.matches || !(field instanceof HTMLElement) || !field.matches("input, textarea, select") || field.closest("dialog")) return;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (document.activeElement !== field || !shortQuery.matches) return;
+        const line = field.closest<HTMLElement>(".live-input");
+        if (line) return line.scrollIntoView({ block: "end" });
+        const r = field.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > innerHeight) field.scrollIntoView({ block: "nearest" });
+      }),
+    );
+  });
+
   // ---------------------------------------------------------------- the panel: collapsed to its bar
   // Desktop: the panel is its bar until the first run or problem, then opens to the remembered
   // height (the splitter's value). A collapsed body is hidden; the run's result is still read out by
@@ -438,7 +477,7 @@ export function createLayout(root: HTMLElement): Layout {
               "li",
               { class: "crumb-file", "data-dirty": String(dirty) },
               icon("caret-right", "crumb-sep"),
-              h("span", { class: "crumb-text" }, part),
+              h("span", { class: "crumb-text crumb-name" }, ...nameParts(part)),
               h("span", { class: "dirty-dot", "aria-hidden": "true" }),
               dirty ? srOnly(", unsaved") : null,
             ),

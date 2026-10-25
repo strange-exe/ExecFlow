@@ -132,7 +132,7 @@ the editor itself, so they are offered even if the rest can't load yet.
 
 ## Keyboard
 
-The Shortcuts list has every key: Shortcuts in the status bar, or `?` or Ctrl+/ (Cmd+/ on macOS)
+The Shortcuts list has every key: Shortcuts in the status bar, or Ctrl+/ (Cmd+/ on macOS)
 anywhere outside the code and text fields (inside the code, Ctrl+/ comments the line). The ones to
 know first, with Cmd for Ctrl on macOS:
 
