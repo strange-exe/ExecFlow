@@ -114,6 +114,17 @@ export function createThemePicker(options: { download(name: string, text: string
     list.replaceChildren(tiles(own.filter((t) => t.own !== "slate" && t.own !== "deep-field")), folded, ...(yours.length ? [heading("Yours"), tiles(yours)] : []));
   }
 
+  // A "match device" tile is drawn in the device's scheme, so it is redrawn when the device switches,
+  // Settings open or not. Only the previews are replaced: the radios stay, and so does the focus.
+  if (typeof matchMedia === "function") {
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      for (const theme of BUILT_IN) {
+        if (!theme.system) continue;
+        list.querySelector(`[data-theme-option="${theme.id}"] .tile-prev`)?.replaceWith(preview(themePalette(theme, activeScheme(theme)).palette));
+      }
+    });
+  }
+
   const load = h("button", { type: "button", class: "btn" }, icon("upload-simple"), "Load theme file");
   load.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", async () => {

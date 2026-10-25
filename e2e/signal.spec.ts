@@ -116,6 +116,25 @@ test("Settings leads with Signal (the default) and High contrast; Deep Field is 
   for (const id of ["deep-field", "deep-field-light", "deep-field-dark"]) await expect(fold.locator(`[data-theme-option="${id}"]`)).toHaveCount(1);
 });
 
+test("a 'match device' tile redraws its preview when the device switches scheme with Settings open, and keeps the focus", async ({ page }) => {
+  await openApp(page);
+  await signalIn(page, "light");
+  await page.locator("#settings-button").click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  const tileBg = (id: string) => settings.locator(`[data-theme-option="${id}"] .tile-prev`).evaluate((el) => (el as HTMLElement).style.getPropertyValue("--tile-bg"));
+  expect(await tileBg("signal")).toBe(SIGNAL.light.bg);
+  const radio = settings.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ });
+  await radio.focus();
+  for (const scheme of ["dark", "light"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    await expect.poll(() => tileBg("signal")).toBe(SIGNAL[scheme].bg);
+    expect(await tileBg("signal-light"), "fixed themes keep their own scheme").toBe(SIGNAL.light.bg);
+    expect(await tileBg("signal-dark")).toBe(SIGNAL.dark.bg);
+    await expect(radio).toBeFocused();
+  }
+});
+
 test("fonts: Geist and JetBrains Mono load at every weight used and the weights differ; ligatures stay off unless chosen, which changes ligatures only", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="c"]').click();
