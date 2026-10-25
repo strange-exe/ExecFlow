@@ -258,7 +258,8 @@ test("desktop bars: top bar 48, editor head 44, panel bar 40, status bar 28, row
     [...document.querySelectorAll<HTMLElement>("button, [role=tab], [role=separator], input, select, a[href]")]
       .filter((el) => el.offsetParent !== null && !el.closest(".cm-editor, .visually-hidden, [hidden]") && el.getAttribute("type") !== "hidden")
       .map((el) => ({ el, r: el.getBoundingClientRect() }))
-      .filter(({ el, r }) => r.width > 0 && r.height > 0 && (r.height < 24 || r.width < 24) && !el.matches(".splitter, .text-btn, .tab-close"))
+      // A splitter is a 1 px line whose grab area is its 11 px ::after (an exception audit.ts records).
+      .filter(({ el, r }) => r.width > 0 && r.height > 0 && (r.height < 24 || r.width < 24) && !el.matches(".splitter"))
       .map(({ el, r }) => `${el.id || el.className || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`),
   );
   expect(small).toEqual([]);
