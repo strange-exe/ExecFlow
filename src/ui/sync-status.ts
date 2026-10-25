@@ -12,7 +12,9 @@ export type SyncPhase =
   | "failed"
   | "waiting"
   | "offline"
-  | "needs-choice";
+  | "needs-choice"
+  /** A sync left conflict copies the student hasn't opened (or dismissed) yet. */
+  | "conflict";
 
 export type StatusIcon =
   | "cloud-slash"
@@ -23,7 +25,8 @@ export type StatusIcon =
   | "key"
   | "clock-countdown"
   | "wifi-slash"
-  | "git-merge";
+  | "git-merge"
+  | "warning";
 
 /** The icon's colour role (sync.css): "info" is unsynced work, an icon-only mark. */
 export type StatusTone = "muted" | "success" | "info" | "warning" | "danger";
@@ -40,6 +43,8 @@ export interface StatusInput {
   now: number;
   /** needs-token: "app" connections sign in again instead of pasting a token. */
   auth?: "pat" | "app";
+  /** conflict: copies not opened yet. */
+  conflicts?: number;
 }
 
 export interface StatusView {
@@ -92,6 +97,11 @@ export function describeStatus(s: StatusInput): StatusView {
       return view("wifi-slash", "Offline: changes are saved here and will sync later", "Try now", "warning");
     case "needs-choice":
       return view("git-merge", "Choose how to sync", "Choose how to combine the files", "warning");
+    case "conflict": {
+      // The tree marks conflict copies with the same triangle (tree.ts), so the two read as one thing.
+      const n = Math.max(1, s.conflicts ?? 1);
+      return view("warning", plural(n, "conflict"), n === 1 ? "Open the conflict copy" : "Show the conflict copies", "warning");
+    }
   }
 }
 

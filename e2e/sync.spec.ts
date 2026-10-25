@@ -3,7 +3,7 @@
 // data-sync-state, never on wording; the fake's own files and commits are the proof.
 import { gzipSync } from "node:zlib";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, reloadApp, responseBodies, setCode, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, setCode, test, treeItem } from "./helpers";
 import {
   answer,
   connectGitHub,
@@ -128,7 +128,8 @@ test("both sides changed main.py: GitHub's version keeps the name, this computer
   await gh.fake.remoteCommit({ "main.py": "print('github')\n" });
   await setCode(page, "print('mine')\n");
   await saveKey(page);
-  await waitSync(page, n, "synced");
+  // Not "Synced": the top bar warns until the copy has been looked at.
+  await waitSync(page, n, "conflict");
   await expect(editorText(page)).toContainText("print('github')");
   const files = gh.fake.files();
   const copies = Object.keys(files).filter((p) => /^main\.conflict-\d{8}-\d{6}\.py$/.test(p));
@@ -136,10 +137,87 @@ test("both sides changed main.py: GitHub's version keeps the name, this computer
   expect(files["main.py"]).toBe("print('github')\n");
   expect(files[copies[0]]).toBe("print('mine')\n");
   await expect(treeItem(page, copies[0])).toBeVisible();
+  await expect(syncStatus(page)).toHaveAttribute("data-tone", "warning");
+  await expect(syncStatus(page)).toHaveAttribute("aria-label", "1 conflict. Open the conflict copy");
   await expect(page.locator(".notice")).toHaveAttribute("data-tone", "warning");
   await page.locator(".notice-action").click();
   await expect(activeTab(page, copies[0])).toBeVisible();
   await expect(editorText(page)).toContainText("print('mine')");
+  // Opened: the warning has done its job.
+  await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "synced");
+  await expect(page.locator(".notice")).toHaveAttribute("data-empty", "true");
+});
+
+test.describe("a conflict waits for the student", () => {
+  async function conflicted(page: Page) {
+    const { gh, n } = await connectedWorkspace(page);
+    await gh.fake.remoteCommit({ "main.py": "print('github')\n" });
+    await setCode(page, "print('mine')\n");
+    await saveKey(page);
+    await waitSync(page, n, "conflict");
+    const copy = Object.keys(gh.fake.files()).find((p) => /^main\.conflict-\d{8}-\d{6}\.py$/.test(p))!;
+    return { gh, copy };
+  }
+
+  test("the notice outlasts a run and a later notice; opening the copy from the list ends both", async ({ page }) => {
+    const { copy } = await conflicted(page);
+    const text = await page.locator(".notice-text").innerText();
+    expect(text).toContain(copy);
+    // A run clears the notice line before it starts; the conflict stays.
+    await run(page);
+    await expect(page.locator(".notice-text")).toHaveText(text);
+    await expect(page.locator(".notice-action")).toHaveText(`Open ${copy}`);
+    // Another notice may take the line; dismissing that one brings the conflict back.
+    await page.getByRole("button", { name: "Restart Python" }).click();
+    await expect(page.locator(".notice-text")).toContainText("starting again");
+    await page.getByRole("button", { name: "Dismiss notice" }).click();
+    await expect(page.locator(".notice-text")).toHaveText(text);
+    await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "conflict");
+    // Opened from the file list (not the notice): the status and the notice both let go.
+    await openFromTree(page, copy);
+    await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "synced");
+    await expect(page.locator(".notice")).toHaveAttribute("data-empty", "true");
+  });
+
+  test("while the warning shows, the status opens the copy", async ({ page }) => {
+    const { copy } = await conflicted(page);
+    await syncStatus(page).click();
+    await expect(activeTab(page, copy)).toBeVisible();
+    await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "synced");
+    await expect(page.locator(".notice")).toHaveAttribute("data-empty", "true");
+  });
+
+  test("Dismiss on the notice ends the warning too", async ({ page }) => {
+    await conflicted(page);
+    await page.getByRole("button", { name: "Dismiss notice" }).click();
+    await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "synced");
+    await expect(page.locator(".notice")).toHaveAttribute("data-empty", "true");
+  });
+});
+
+test("an edit shows the unsynced state at once, not when the autosave lands", async ({ page }) => {
+  await connectedWorkspace(page);
+  await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "synced");
+  // Stamp the key press and the first unsynced state in the page itself (no test-runner timing).
+  await page.evaluate(() => {
+    const w = window as unknown as { keyAt?: number; unsyncedAt?: number };
+    document.addEventListener("keydown", () => (w.keyAt ??= performance.now()), { capture: true });
+    const button = document.getElementById("sync-status")!;
+    new MutationObserver(() => {
+      if (button.dataset.syncState === "unsynced") w.unsyncedAt ??= performance.now();
+    }).observe(button, { attributes: true, attributeFilter: ["data-sync-state"] });
+  });
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("End");
+  await page.keyboard.type("#");
+  await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "unsynced");
+  const { keyAt, unsyncedAt } = await page.evaluate(() => {
+    const w = window as unknown as { keyAt: number; unsyncedAt: number };
+    return { keyAt: w.keyAt, unsyncedAt: w.unsyncedAt };
+  });
+  // The autosave waits 400 ms after typing and the count read used to wait 500 ms more.
+  expect(unsyncedAt - keyAt).toBeLessThan(200);
+  await expect(syncStatus(page)).toHaveAttribute("data-unsynced", "1");
 });
 
 test.describe("first connect with different files on both sides", () => {
@@ -171,7 +249,8 @@ test.describe("first connect with different files on both sides", () => {
     await syncStatus(page).click();
     await expect(ask).toBeVisible();
     await page.locator("#first-connect-sync").click();
-    await waitSync(page, n++, "synced");
+    // Merge kept this computer's main.py as a conflict copy: the top bar warns until it is opened.
+    await waitSync(page, n++, "conflict");
     const files = gh.fake.files();
     const copy = Object.keys(files).find((p) => /^main\.conflict-\d{8}-\d{6}\.py$/.test(p));
     expect(files["main.py"]).toBe("print('repo')\n");
@@ -306,6 +385,15 @@ test("the token's shape is checked before anything is sent; a pasted repository 
   await expect(link).toHaveAttribute("rel", "noopener noreferrer");
   expect(new URL((await link.getAttribute("href"))!).pathname).toBe("/settings/personal-access-tokens/new");
   await expect(page.locator("#connect-remember")).not.toBeChecked();
+  // One word for where it is kept, on both connect paths.
+  await expect(page.getByLabel("Remember on this device")).toHaveAttribute("id", "connect-remember");
+  // No repository yet: a fixed link to GitHub's new-repository page, private chosen
+  // (docs.github.com, "Creating a new repository from a URL query"), in a new tab with no opener or referrer.
+  const create = dialog.getByRole("link", { name: /Create a private one on GitHub/ });
+  await expect(create).toHaveAttribute("href", "https://github.com/new?visibility=private");
+  await expect(create).toHaveAttribute("target", "_blank");
+  await expect(create).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(dialog.locator("#connect-new-repo")).toContainText("No repository yet?");
   await expect(page.locator("#connect-token")).toHaveAttribute("type", "password");
   await expect(page.locator("#connect-token")).toHaveAttribute("autocomplete", "off");
   await expect(page.locator("#connect-token")).toHaveAttribute("spellcheck", "false");

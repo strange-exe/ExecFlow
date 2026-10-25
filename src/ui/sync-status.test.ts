@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ago, countdown, describeStatus, type StatusInput, type SyncPhase } from "./sync-status";
 
 const base = { unsynced: 0, lastSyncAt: null, now: 1_000_000_000 } satisfies Omit<StatusInput, "phase">;
-const PHASES: SyncPhase[] = ["not-connected", "needs-token", "synced", "unsynced", "syncing", "failed", "waiting", "offline", "needs-choice"];
+const PHASES: SyncPhase[] = ["not-connected", "needs-token", "synced", "unsynced", "syncing", "failed", "waiting", "offline", "needs-choice", "conflict"];
 
 describe("sync status words", () => {
   it("every state has an icon, words and an action (never colour alone)", () => {
@@ -33,6 +33,15 @@ describe("sync status words", () => {
     expect(describeStatus({ ...base, phase: "offline" }).words).toBe("Offline: changes are saved here and will sync later");
     expect(describeStatus({ ...base, phase: "waiting", retryAt: base.now + 44_200 }).words).toBe("Sync failed: retrying in 45 s");
     expect(describeStatus({ ...base, phase: "synced" }).words).toBe("Not synced yet");
+  });
+
+  it("a conflict copy not opened yet is a warning in the top bar, counted, with the copy's own action", () => {
+    const one = describeStatus({ ...base, phase: "conflict", conflicts: 1, lastSyncAt: base.now });
+    expect(one).toMatchObject({ words: "1 conflict", action: "Open the conflict copy", tone: "warning", icon: "warning" });
+    const two = describeStatus({ ...base, phase: "conflict", conflicts: 2, lastSyncAt: base.now });
+    expect(two).toMatchObject({ words: "2 conflicts", action: "Show the conflict copies", tone: "warning", icon: "warning" });
+    // Never the success words of a sync that left a conflict behind.
+    expect(one.words).not.toMatch(/Synced/);
   });
 
   it("while not connected, says where the files are kept (sync and save state are shown only here)", () => {

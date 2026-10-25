@@ -9,7 +9,7 @@
 // commit if the lock was lost meanwhile.
 //
 // The token lives only inside the client created for it (memory), or, with "Remember on this
-// computer", encrypted in the codeeditor-secrets database. It never reaches the DOM, a message,
+// device" (off by default on both paths), encrypted in the codeeditor-secrets database. It never reaches the DOM, a message,
 // the log or a URL; every sentence shown comes from explainError or fixed text.
 import { nameOf } from "../core/paths";
 import type { RemoteMeta, WsPath } from "../core/types";
@@ -172,6 +172,42 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   const repoName = () => (remote ? `${remote.owner}/${remote.repo}` : "");
   const idlePhase = (): SyncPhase => (!remote ? "not-connected" : !client ? "needs-token" : unsynced > 0 ? "unsynced" : "synced");
 
+  // ---------------------------------------------------------------- conflict copies not looked at yet
+  /**
+   * Conflict copies the last syncs made (copy -> original) that haven't been opened, dismissed,
+   * renamed or deleted. While there are any, the idle status is the warning "N conflicts" instead
+   * of "Synced" (the editor shows GitHub's version, so the student must be told where theirs went),
+   * and the report's notice stays pinned. Kept for this visit (the tree keeps flagging the copies).
+   */
+  const conflicts = new Map<WsPath, WsPath>();
+  const CONFLICT_NOTICE = "sync-conflicts";
+  const shownPhase = (): SyncPhase =>
+    phase === "failed" && scheduler.retryAt !== null ? "waiting" : (phase === "synced" || phase === "unsynced") && conflicts.size ? "conflict" : phase;
+
+  function settled(copies: Iterable<WsPath>) {
+    let changed = false;
+    for (const copy of copies) changed = conflicts.delete(copy) || changed;
+    if (!changed) return;
+    if (!conflicts.size) host.notice.unpin(CONFLICT_NOTICE);
+    render();
+  }
+
+  function forgetConflicts() {
+    conflicts.clear();
+    host.notice.unpin(CONFLICT_NOTICE);
+  }
+
+  /** The status button in the conflict state: the copy itself, or the list of them. */
+  function openConflicts() {
+    const list = [...conflicts].map(([copy, path]) => ({ path, copy }));
+    const open = (copy: WsPath) => {
+      void host.openFile(copy);
+      settled([copy]);
+    };
+    if (list.length === 1) open(list[0].copy);
+    else if (list.length > 1) showConflicts(list, open, button);
+  }
+
   // ---------------------------------------------------------------- the status button
   let tickMs = 0;
   let tickTimer: ReturnType<typeof setInterval> | undefined;
@@ -188,8 +224,8 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   }
 
   function render() {
-    const shown: SyncPhase = phase === "failed" && scheduler.retryAt !== null ? "waiting" : phase;
-    const view = describeStatus({ phase: shown, unsynced, lastSyncAt: remote?.lastSyncAt ?? null, error, retryAt: scheduler.retryAt, now: Date.now(), auth: authKind() });
+    const shown = shownPhase();
+    const view = describeStatus({ phase: shown, unsynced, lastSyncAt: remote?.lastSyncAt ?? null, error, retryAt: scheduler.retryAt, now: Date.now(), auth: authKind(), conflicts: conflicts.size });
     renderStatus(button, view, syncIcon);
     button.dataset.syncs = String(syncs);
     button.dataset.unsynced = String(unsynced);
@@ -197,11 +233,17 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   }
 
   let countTimer: ReturnType<typeof setTimeout> | undefined;
+  const activeDirty = () => {
+    const editors = host.editors();
+    return editors.activeId !== null && editors.isDirty(editors.activeId);
+  };
   async function refreshCounts() {
     clearTimeout(countTimer);
     try {
       const stats = await host.store.workspaceStats(host.ws);
       unsynced = stats.changed + stats.added + stats.deleted;
+      // Typing the autosave hasn't stored yet is a change too (onLocalChange shows it at once).
+      if (unsynced === 0 && activeDirty()) unsynced = 1;
     } catch {
       // storage busy or gone: keep the last count
     }
@@ -314,13 +356,23 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
 
   function showReport(summary: ReportNotice) {
     const [first] = summary.conflicts;
+    const open = (copy: WsPath) => {
+      void host.openFile(copy);
+      settled([copy]);
+    };
     const action =
       summary.conflicts.length === 1
-        ? { label: `Open ${nameOf(first.copy)}`, run: () => void host.openFile(first.copy) }
+        ? { label: `Open ${nameOf(first.copy)}`, run: () => open(first.copy) }
         : summary.conflicts.length > 1
-          ? { label: "Show conflict copies", run: () => showConflicts(summary.conflicts, (p) => void host.openFile(p), button) }
+          ? { label: "Show conflict copies", run: () => showConflicts(summary.conflicts, open, button) }
           : undefined;
-    host.notice.show(summary.text, { tone: summary.tone, action });
+    if (!summary.conflicts.length) {
+      host.notice.show(summary.text, { tone: summary.tone, action });
+      return;
+    }
+    // The editor now shows GitHub's version: the report stays until the student opens a copy or dismisses it.
+    for (const c of summary.conflicts) conflicts.set(c.copy, c.path);
+    host.notice.show(summary.text, { tone: summary.tone, action, pin: { key: CONFLICT_NOTICE, onDismiss: () => (conflicts.clear(), render()) } });
   }
 
   /** `lost`: " <MESSAGE_UNUSED>" when this sync had a typed message, else "". */
@@ -462,7 +514,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       if (input.remember) await rememberToken(input.token);
       else await forgetToken();
     } catch {
-      if (input.remember) warning = "The token couldn't be stored on this computer, so it is kept for this tab only.";
+      if (input.remember) warning = "The token couldn't be stored on this device, so it is kept for this tab only.";
     }
     const problem = await keepRemote(input.owner, input.repo, input.branch, "pat", isPrivate);
     if (problem) {
@@ -654,7 +706,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         app
           ? "The GitHub sign-in on this device ends: CodeEditor asks GitHub to revoke its token and deletes it here."
           : remembered
-            ? "The token remembered on this computer is deleted."
+            ? "The token remembered on this device is deleted."
             : "The token is forgotten.",
       ],
       confirm: "Disconnect",
@@ -680,6 +732,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     remembered = false;
     error = null;
     phase = "not-connected";
+    forgetConflicts();
     scheduler.reset();
     await host.refreshWorkspaceInfo();
     render();
@@ -923,10 +976,24 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   const LOCAL_EDITS: ReadonlySet<string> = new Set(["save", "create", "rename", "delete", "import"]);
   host.store.onChange((event) => {
     if (event.ws === host.ws && LOCAL_EDITS.has(event.reason)) onLocalChange();
+    if (event.ws !== host.ws || !conflicts.size) return;
+    // A copy opened in a tab (from the list, a tab, search...), renamed or deleted has been dealt with.
+    if (event.reason === "ui") {
+      const editors = host.editors();
+      settled([...conflicts.keys()].filter((copy) => editors.idForPath(copy) !== null));
+    } else if (event.reason === "delete" || event.reason === "rename") {
+      settled([...conflicts.keys()].filter((copy) => event.paths.some((p) => copy === p || copy.startsWith(`${p}/`))));
+    }
   });
 
   function onLocalChange() {
     if (!remote) return;
+    // Shown at once (the count is read again below, once the autosave has stored the edit).
+    if (phase === "synced") {
+      phase = "unsynced";
+      unsynced = Math.max(unsynced, 1);
+      render();
+    }
     clearTimeout(countTimer);
     countTimer = setTimeout(() => void refreshCounts(), 500);
     scheduler.localChange();
@@ -980,6 +1047,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         return;
       }
       if (phase === "not-connected" || phase === "needs-token") void openConnect(button);
+      else if (shownPhase() === "conflict") openConflicts();
       else if (phase !== "syncing") void syncNow("button");
     },
     openConnect,
@@ -998,7 +1066,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
               ? "Signed in with GitHub in this tab only."
               : "Sign in with GitHub again to sync."
           : remembered
-            ? "The token is remembered on this computer (encrypted)."
+            ? "The token is remembered on this device (encrypted)."
             : client
               ? "The token is kept in this tab only."
               : "Enter the token again to sync.";
@@ -1012,6 +1080,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       await revokeCurrent();
       client = null;
       remembered = false;
+      forgetConflicts();
     },
     finishSignIn,
     share,
