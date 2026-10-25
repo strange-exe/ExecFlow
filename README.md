@@ -250,8 +250,10 @@ On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
 ([GitHub's guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)).
 
 1. **Name**: unique on GitHub, at most 34 characters (e.g. "CodeEditor Sync" and your name).
-   **Description**: "Keeps your CodeEditor workspace in one repository you choose." **Homepage URL**: the
-   production site.
+   **Description**: "Saves your CodeEditor workspace to a GitHub repository you choose and opens it again
+   on any computer. Your code runs in your browser; the app reads and writes files only in the
+   repositories you install it on." With Gists on (step 6), add: "Share link also makes secret gists
+   when you ask it to." **Homepage URL**: the production site.
 2. **Callback URL**: exactly `https://<production origin>/auth-callback`, one URL only. Leave any
    option that allows matching other URLs (wildcards, subdomains, paths) off.
 3. **Expire user authorization tokens**: on (the default).
