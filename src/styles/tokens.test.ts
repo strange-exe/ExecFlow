@@ -21,6 +21,7 @@ const RUNTIME = new Set([
   "--editor-rows", // src/ui/layout.ts, the editor's share of the centre column
   "--panel-rows", // src/ui/layout.ts, the panel's share
   "--level", // src/ui/tree.ts, a tree row's depth
+  "--tail", // src/ui/tree.ts, a conflict copy name's uncut end, in ch
   "--row-h", // app.css, declared on .tree-row
 ]);
 /** The theme picker's preview tiles set their own colours as --tile-* on each tile. */

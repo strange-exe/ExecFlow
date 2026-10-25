@@ -33,7 +33,7 @@ import { createSnippetCapture } from "./snippet-image";
 import { mountSync, type SyncHooks } from "./sync-entry";
 import { TabStrip } from "./tabs";
 import { FileTree } from "./tree";
-import type { TreeNode } from "./tree-model";
+import { starterText, type TreeNode } from "./tree-model";
 
 const WORKSPACE_NAME = "Workspace";
 const AUTOSAVE_MS = 400;
@@ -222,6 +222,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
             },
             onDocChanged(id) {
               saves.schedule(id);
+              sync.onLocalChange(); // the top bar shows the change at once, not after the autosave
               scheduleCheck(id);
               // An edit is the next step after a failed run: Run takes its filled style again.
               setLastRun(false);
@@ -756,7 +757,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   async function createEntry(kind: "file" | "dir", path: WsPath): Promise<string | null> {
     if (explainReadOnly()) return "This tab is read-only.";
     try {
-      if (kind === "file") await store.createFile(ws, path, "");
+      if (kind === "file") await store.createFile(ws, path, starterText(path, entries.map((e) => e.path)));
       else await store.createDir(ws, path);
     } catch (e) {
       return storageMessage(e);

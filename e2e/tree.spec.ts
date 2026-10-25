@@ -178,8 +178,88 @@ test("a read-only file from GitHub is marked and explained, and conflict copies 
   await expect(logo.locator(".tree-badge")).toHaveAttribute("title", /Read-only/);
   const copy = treeItem(page, "main.conflict-20261017-101500.py");
   await expect(copy).toHaveAccessibleDescription(/conflict copy/);
+  // A conflict copy's name is cut in the middle at the list's default width: the time it was made and
+  // its extension stay in view (two copies of one file differ there), and the name is read whole.
+  await expect(copy).toHaveAccessibleName("main.conflict-20261017-101500.py");
+  await expect(copy.locator(".tree-name")).toHaveAttribute("title", "main.conflict-20261017-101500.py");
+  const cut = await copy.locator(".tree-name").evaluate((name) => {
+    const stem = name.querySelector<HTMLElement>(".name-stem");
+    const tail = name.querySelector<HTMLElement>(".name-tail");
+    const box = name.getBoundingClientRect();
+    const t = tail?.getBoundingClientRect();
+    return {
+      stemCut: stem ? stem.scrollWidth > stem.clientWidth : null,
+      tailText: tail?.textContent ?? null,
+      tailInside: t ? t.left >= box.left - 0.5 && t.right <= box.right + 0.5 && t.width > 0 : false,
+      nameCut: name.scrollWidth > name.clientWidth + 0.5,
+    };
+  });
+  expect(cut).toEqual({ stemCut: true, tailText: "101500.py", tailInside: true, nameCut: false });
   // Opening the read-only file explains instead of showing bytes.
   await logo.locator(":scope > .tree-row").click();
   await expect(page.locator(".notice")).toHaveAttribute("data-tone", "info");
   await expect(page.locator('.tabs [role=tab][title="logo.png"]')).toHaveCount(0);
+});
+
+test("a new file: the field names the files that run, a name that won't run is said before it is created, and a program starts from the starter", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [{ name: "notes.txt", text: "a note\n" }]);
+  await expect(treeItem(page, "notes.txt")).toBeVisible();
+  const field = () => page.getByRole("textbox", { name: /Name of the new file/ });
+  const note = page.locator(".tree-new .tree-note");
+  const newFile = async () => {
+    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+    await page.locator("#new-file").click();
+    await expect(field()).toBeFocused();
+  };
+
+  await newFile();
+  await expect(field()).toHaveAttribute("placeholder", "name.py, name.c or name.cpp");
+  await expect(note).toBeHidden();
+  // No extension: said while typing (in the field's description) and again on Enter, which doesn't create it.
+  await field().fill("hello");
+  await expect(note).toBeVisible();
+  await expect(note).toContainText("no extension");
+  await expect(field()).toHaveAccessibleDescription(/no extension/);
+  await field().press("Enter");
+  await expect(page.locator(".tree-new")).toHaveAttribute("data-confirm", "hello");
+  await expect(note).toContainText("Enter again");
+  await expect(field()).toBeFocused();
+  await expect(treeItem(page, "hello")).toHaveCount(0);
+  // Adding the extension instead: the note goes, and the file is a Python program with the starter.
+  await field().press("End");
+  await field().pressSequentially(".py");
+  await expect(note).toBeHidden();
+  await field().press("Enter");
+  await expectActive(page, "hello.py");
+  await expect(page.locator(".cm-content")).toContainText('name = input("Your name: ")');
+
+  // Beside hello.py, a second Python file is a module: it starts empty.
+  await newFile();
+  await field().fill("helpers.py");
+  await field().press("Enter");
+  await expectActive(page, "helpers.py");
+  await expect(page.locator(".cm-content")).toHaveText("");
+
+  // A C file in its own folder starts from the C starter.
+  await newFile();
+  await field().fill("lab1/main.c");
+  await field().press("Enter");
+  await expectActive(page, "lab1/main.c");
+  await expect(page.locator(".cm-content")).toContainText("#include <stdio.h>");
+
+  // A data file is a deliberate choice: said while typing, created on the first Enter.
+  await newFile();
+  await field().fill("input.txt");
+  await expect(note).toContainText("won't run");
+  await field().press("Enter");
+  await expectActive(page, "input.txt");
+
+  // Pressing Enter twice keeps a name without an extension, as typed.
+  await newFile();
+  await field().fill("Makefile");
+  await field().press("Enter");
+  await expect(page.locator(".tree-new")).toHaveAttribute("data-confirm", "Makefile");
+  await field().press("Enter");
+  await expect(treeItem(page, "Makefile")).toBeVisible();
 });
