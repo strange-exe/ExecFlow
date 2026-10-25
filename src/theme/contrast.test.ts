@@ -249,6 +249,11 @@ describe("tokens.css and the first paint", () => {
     const html = readFileSync("index.html", "utf8");
     expect(html).toContain(`content="${SIGNAL.light.surface}" media="(prefers-color-scheme: light)"`);
     expect(html).toContain(`content="${SIGNAL.dark.surface}" media="(prefers-color-scheme: dark)"`);
+    // The installed app's title bar and splash screen (the web app manifest in vite.config.ts): the
+    // default's dark chrome and code ground, as for the toolbar's dark side.
+    const config = readFileSync("vite.config.ts", "utf8");
+    expect(config).toContain(`theme_color: "${SIGNAL.dark.surface}"`);
+    expect(config).toContain(`background_color: "${SIGNAL.dark.bg}"`);
   });
 });
 

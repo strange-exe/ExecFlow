@@ -182,9 +182,9 @@ export default defineConfig(({ mode }) => ({
         name: "CodeEditor",
         short_name: "CodeEditor",
         description: "A personal editor that runs Python, C and C++ in the browser.",
-        // Deep Field's dark chrome and code ground (the default theme).
-        theme_color: "#152a22",
-        background_color: "#13201b",
+        // Signal's dark chrome and code ground (the default theme; src/theme/contrast.test.ts keeps them equal).
+        theme_color: "#151a21",
+        background_color: "#0e1116",
         display: "standalone",
         start_url: "/",
         // Mark v2, rasterised from public/icons/mark-v2.svg (.claude/design/make-icons.mjs). Relative
