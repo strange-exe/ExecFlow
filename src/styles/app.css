@@ -1099,7 +1099,9 @@ button.problem:hover { background: var(--hover); }
    44 px target), so the file name keeps its room: at 390 px the words got 57 of the 86 px they
    need and the name 52 of 59 ("Not co...", "main...."). */
 @media (max-width: 479px) {
-  .sync-slot { margin-right: 0; }
+  /* The icon-only button keeps its 44 px: its slot never shrinks under it (a long file name had
+     squeezed the slot, and the button spilled under Run). The file name gives way instead. */
+  .sync-slot { margin-right: 0; flex: none; }
   .sync-words { display: none; }
 }
 /* The narrowest phones: whatever is left gives way with an ellipsis instead of touching its
