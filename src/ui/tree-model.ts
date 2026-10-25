@@ -1,5 +1,6 @@
 // The file tree as data: nesting, display order, the visible rows the keyboard moves through,
 // type-ahead and name checks. Pure functions (unit-tested); tree.ts draws them.
+import { detectLanguage, extensionOf, isHeader, type LanguageId } from "../core/languages";
 import { foldKey, isConflictCopy, joinPath, nameOf, normalizePath, parentOf, PathError } from "../core/paths";
 import type { EntryMeta, WsPath } from "../core/types";
 
@@ -119,4 +120,69 @@ export function checkName(dir: WsPath, typed: string, existing: Iterable<WsPath>
   }
   if (renaming !== undefined && (path + "/").startsWith(renaming + "/")) return { ok: false, error: "A folder can't be moved inside itself." };
   return { ok: true, path };
+}
+
+// The time part of the stamp conflictName adds (core/paths.ts), with any "-2" and the extension.
+const CONFLICT_TAIL = /(\.conflict-\d{8}-)(\d{6}(?:-\d+)?(?:\.[^.]*)?)$/;
+
+/**
+ * A conflict copy's name in two parts for the tree: the stem may be cut with an ellipsis, the tail
+ * (the time the copy was made and the extension) never is, so two copies of one file stay apart at
+ * the list's default width. Null for every other name.
+ */
+export function conflictNameParts(path: string): { stem: string; tail: string } | null {
+  const name = nameOf(path);
+  if (!isConflictCopy(name)) return null;
+  const m = CONFLICT_TAIL.exec(name);
+  if (!m) return null;
+  return { stem: name.slice(0, m.index + m[1].length), tail: m[2] };
+}
+
+export interface NewFileNote {
+  /** Shown under the name field while typing (and read with it). */
+  text: string;
+  /** No extension at all: Enter asks once more (the likely slip is "main" for "main.py"). */
+  bare: boolean;
+  /** Said after the first Enter on a bare name. */
+  confirm: string;
+}
+
+/** What to say about a new file's typed name before it is created; null for a file that runs. */
+export function newFileNote(typed: string): NewFileNote | null {
+  const name = nameOf(typed.trim().replace(/\/+$/, ""));
+  if (!name || detectLanguage(name)) return null;
+  if (extensionOf(name) === "") {
+    return {
+      text: "This name has no extension, so the file would be plain text and won't run. Add .py, .c or .cpp to make it a program.",
+      bare: true,
+      confirm: "No extension, so it won't run: add .py, .c or .cpp, or press Enter again to create it as it is.",
+    };
+  }
+  const text = isHeader(name)
+    ? "A header: it won't run on its own, the .c or .cpp files that include it do."
+    : "This file won't run: only .py, .c and .cpp files do. Fine for data or notes.";
+  return { text, bare: false, confirm: text };
+}
+
+/** C and C++ sources in one folder build into one program (runner/program.ts); Python files don't mix with them. */
+const family = (lang: LanguageId) => (lang === "python" ? "python" : "c");
+
+/**
+ * The first text of a new, empty file: the empty-state starter of its language, so a new program
+ * runs at once. A file beside another source of the same family (a C helper next to main.c, a
+ * Python module next to main.py) starts empty instead: a second main() would leave the helper out
+ * of the build, and a module's input() would run on import. Conflict copies don't count.
+ */
+export function starterText(path: WsPath, existing: Iterable<WsPath>): string {
+  const name = nameOf(path);
+  const lang = detectLanguage(name);
+  // __init__.py and the other dunder files are a package's plumbing: __init__.py runs on import.
+  if (!lang || /^__\w+__\./.test(name)) return "";
+  const dir = parentOf(path);
+  for (const p of existing) {
+    if (p === path || parentOf(p) !== dir || isConflictCopy(p)) continue;
+    const other = detectLanguage(nameOf(p));
+    if (other && family(other.id) === family(lang.id)) return "";
+  }
+  return lang.sample;
 }

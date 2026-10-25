@@ -1,4 +1,4 @@
-// "Remember on this computer" for the GitHub token. By default the token lives only in memory.
+// "Remember on this device" for the GitHub token. By default the token lives only in memory.
 // When the user opts in, it is stored AES-GCM encrypted in its OWN IndexedDB database
 // ("codeeditor-secrets", store "secrets"), beside a non-extractable CryptoKey made for it.
 //

@@ -67,7 +67,8 @@ test("typing into a file while a sync brings GitHub's change to it loses neither
   await page.keyboard.press("Control+End");
   await page.keyboard.type("# typed during the sync\n");
   release();
-  await waitSyncState(page, n, /^(synced|unsynced)$/);
+  // "conflict": the save kept both versions at once (the top bar then warns until the copy is opened).
+  await waitSyncState(page, n, /^(synced|unsynced|conflict)$/);
   // Usually the pull lands before the 400 ms autosave: the save then finds GitHub's text stored and
   // keeps both (the typing becomes a conflict copy at once). If the autosave wins, the sync skips
   // main.py and the next sync makes the copy. Either way nothing may be overwritten.
@@ -82,7 +83,8 @@ test("typing into a file while a sync brings GitHub's change to it loses neither
   }
   // Sync again (Ctrl+S) so both sides settle: GitHub gets the copy, and keeps its own main.py.
   await saveKey(page);
-  await waitSync(page, n + 1, "synced");
+  // Either way a conflict copy now exists that hasn't been opened: the top bar says so.
+  await waitSync(page, n + 1, "conflict");
   const remote = gh.fake.files();
   expect(remote["main.py"], JSON.stringify(remote)).toBe("print('github')\n");
   const copies = Object.keys(remote).filter((p) => copyPattern.test(p));
@@ -95,6 +97,7 @@ test("typing into a file while a sync brings GitHub's change to it loses neither
   await treeItem(page, copies[0]).locator(":scope > .tree-row").click();
   await expect(activeTab(page, copies[0])).toBeVisible();
   await expect(page.locator(".cm-content")).toContainText("# typed during the sync");
+  await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "synced");
 });
 
 test.describe("a token revoked in the middle of an upload", () => {
@@ -171,7 +174,7 @@ test("a conflict inside a folder keeps the copy in that folder, and the notice o
   await gh.fake.remoteCommit({ "lib/x.py": "X = 'github'\n" });
   await setCode(page, "X = 'mine'\n");
   await saveKey(page);
-  await waitSync(page, n + 1, "synced");
+  await waitSync(page, n + 1, "conflict");
   const copies = Object.keys(gh.fake.files()).filter((p) => /^lib\/x\.conflict-\d{8}-\d{6}\.py$/.test(p));
   expect(copies, JSON.stringify(Object.keys(gh.fake.files()))).toHaveLength(1);
   await page.locator(".notice-action").click();

@@ -8,7 +8,8 @@ import { detectLanguage, isHeader } from "../core/languages";
 import type { EntryMeta, WsPath } from "../core/types";
 import { h } from "./dom";
 import { icon, type IconName } from "./icons";
-import { ancestors, buildTree, checkName, targetFolder, typeAhead, visibleRows, type TreeNode } from "./tree-model";
+import { ancestors, buildTree, checkName, conflictNameParts, newFileNote, targetFolder, typeAhead, visibleRows, type NewFileNote, type TreeNode } from "./tree-model";
+import { createAnnouncer } from "./notice";
 
 export interface TreeActions {
   /** A file was chosen (Enter, click). `focusEditor` is false for Space (keep browsing). */
@@ -31,6 +32,24 @@ export function fileIcon(path: string): IconName {
   if (lang === "cpp") return "file-cpp";
   if (isHeader(path)) return "file-text";
   return /\.(txt|md|csv|json|in|out|dat)$/i.test(path) ? "file-text" : "file";
+}
+
+/**
+ * The name in a row. A conflict copy's name ("main.conflict-20261024-231921.py") is cut in the
+ * middle: the stem takes the ellipsis and the time and extension stay (CSS: .name-stem), and the
+ * full name is the tooltip. The item is named by a visually hidden copy of the whole name: the
+ * drawn parts are aria-hidden, because Chromium puts a space between an inline-block and the text
+ * after it when it builds the name ("main.conflict-20261017- 101500.py", measured 2026-10-24).
+ */
+function treeName(n: TreeNode, id: string): HTMLElement {
+  const parts = n.kind === "file" ? conflictNameParts(n.path) : null;
+  if (!parts) return h("span", { class: "tree-name", id }, n.name);
+  return h(
+    "span",
+    { class: "tree-name split", id, title: n.name, style: `--tail: ${parts.tail.length}ch` },
+    h("span", { class: "visually-hidden" }, n.name),
+    h("span", { "aria-hidden": "true" }, h("span", { class: "name-stem" }, parts.stem), h("span", { class: "name-tail" }, parts.tail)),
+  );
 }
 
 const TYPE_AHEAD_MS = 600;
@@ -211,7 +230,7 @@ export class FileTree {
           { class: "tree-row", style: `--level: ${n.level - 1}` },
           h("span", { class: "twisty" }, isDir ? icon(open ? "caret-down" : "caret-right") : null),
           icon(isDir ? (open ? "folder-open" : "folder") : fileIcon(n.path), "tree-icon"),
-          h("span", { class: "tree-name", id: nameId }, n.name),
+          treeName(n, nameId),
           errorBadge,
           openBadge,
           badge,
@@ -405,6 +424,9 @@ export class FileTree {
       iconName: kind === "dir" ? "folder" : "file",
       value: "",
       label: `Name of the new ${kind === "dir" ? "folder" : "file"} ${where}`,
+      // A file: which names run, before anything is typed; and what a name that won't run means.
+      placeholder: kind === "file" ? "name.py, name.c or name.cpp" : undefined,
+      note: kind === "file" ? newFileNote : undefined,
       commit: async (typed) => {
         const check = checkName(dir, typed, this.paths());
         if (!check.ok) return check.error;
@@ -432,6 +454,8 @@ export class FileTree {
       iconName: node.kind === "dir" ? "folder" : fileIcon(path),
       value: node.name,
       label: `New name for ${node.name}`,
+      // A program renamed so that it no longer runs is said too (not a data file renamed as data).
+      note: node.kind === "file" && newFileNote(node.name) === null ? newFileNote : undefined,
       commit: async (typed) => {
         const check = checkName(dir, typed, this.paths(), path);
         if (!check.ok) return check.error;
@@ -453,22 +477,53 @@ export class FileTree {
 
   private editName(
     holder: HTMLElement,
-    o: { level: number; iconName: IconName; value: string; label: string; commit(typed: string): Promise<string | null>; done(): void },
+    o: {
+      level: number;
+      iconName: IconName;
+      value: string;
+      label: string;
+      placeholder?: string;
+      /** What to say about the typed name before it is used (a file that won't run). */
+      note?: (typed: string) => NewFileNote | null;
+      commit(typed: string): Promise<string | null>;
+      done(): void;
+    },
   ): void {
     const errorId = `tree-error-${++this.seq}`;
+    const noteId = `tree-note-${this.seq}`;
     const input = h("input", {
       class: "tree-input",
       type: "text",
       "aria-label": o.label,
-      "aria-describedby": errorId,
       autocomplete: "off",
       spellcheck: "false",
       autocapitalize: "off",
+      placeholder: o.placeholder,
     });
     input.value = o.value;
     const error = h("p", { class: "tree-error", id: errorId, hidden: true });
-    holder.append(h("div", { class: "tree-row editing", style: `--level: ${o.level - 1}` }, h("span", { class: "twisty" }), icon(o.iconName, "tree-icon"), input), error);
+    const note = h("p", { class: "tree-note", id: noteId, hidden: true });
+    // The confirmation after Enter on a bare name is said aloud (focus stays in the field, so its
+    // description isn't read again). Not the workbench's announcer: that one is [data-announcer].
+    const announcer = createAnnouncer();
+    announcer.element.removeAttribute("data-announcer");
+    // Only what shows is described: a hidden message is never read with the field.
+    const describe = () => {
+      const ids = [!error.hidden && errorId, !note.hidden && noteId].filter(Boolean).join(" ");
+      if (ids) input.setAttribute("aria-describedby", ids);
+      else input.removeAttribute("aria-describedby");
+    };
+    const showNote = () => {
+      const said = o.note?.(input.value) ?? null;
+      const confirming = holder.dataset.confirm !== undefined && holder.dataset.confirm === input.value.trim();
+      note.textContent = said ? (confirming ? said.confirm : said.text) : "";
+      note.hidden = !said;
+      describe();
+      return said;
+    };
+    holder.append(h("div", { class: "tree-row editing", style: `--level: ${o.level - 1}` }, h("span", { class: "twisty" }), icon(o.iconName, "tree-icon"), input), error, note, announcer.element);
     holder.dataset.editing = "true";
+    showNote();
     let busy = false;
     let finished = false;
 
@@ -490,12 +545,22 @@ export class FileTree {
       error.textContent = text;
       error.hidden = false;
       input.setAttribute("aria-invalid", "true");
+      describe();
       input.focus();
     };
     const submit = async (fromBlur: boolean) => {
       if (busy || finished) return;
       const typed = input.value;
       if (!typed.trim() || typed === o.value) return finish(!fromBlur);
+      // A name with no extension won't run: Enter says so once and waits (leaving the field keeps
+      // the name as typed, as before: the note was on screen).
+      const said = o.note?.(typed) ?? null;
+      if (!fromBlur && said?.bare && holder.dataset.confirm !== typed.trim()) {
+        holder.dataset.confirm = typed.trim();
+        showNote();
+        announcer.say(said.confirm);
+        return;
+      }
       busy = true;
       const problem = await o.commit(typed).catch((e: unknown) => (e instanceof Error ? e.message : "That didn't work."));
       busy = false;
@@ -517,6 +582,9 @@ export class FileTree {
     input.addEventListener("input", () => {
       error.hidden = true;
       input.removeAttribute("aria-invalid");
+      // Another name: the next Enter on a bare name asks again.
+      if (holder.dataset.confirm !== input.value.trim()) delete holder.dataset.confirm;
+      showNote();
     });
     input.addEventListener("blur", () => void submit(true));
     input.addEventListener("click", (e) => e.stopPropagation());

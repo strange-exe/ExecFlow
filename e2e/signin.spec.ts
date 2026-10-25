@@ -87,10 +87,12 @@ test.describe("signing in", () => {
     await expect(page.locator("#connect-signin")).toBeFocused();
     await expect(page.locator("#connect-token-panel")).toBeHidden();
     await expect(page.locator("#connect-use-token")).toHaveAttribute("aria-expanded", "false");
-    // The owner's choice: Remember on this device starts on.
-    await expect(page.locator("#connect-signin-remember")).toBeChecked();
+    // The owner's choice (2026-10-24): Remember on this device starts off, as on the token path (lab PCs).
+    await expect(page.locator("#connect-signin-remember")).not.toBeChecked();
+    await expect(page.locator("label[for=connect-signin-remember]")).toHaveText("Remember on this device");
+    await expect(page.locator("label[for=connect-remember]")).toHaveText("Remember on this device");
 
-    const { url, state, challenge } = await goToGitHub(page, si);
+    const { url, state, challenge } = await goToGitHub(page, si, { remember: true });
     expect(url.origin + url.pathname).toBe("https://github.com/login/oauth/authorize");
     expect(url.searchParams.get("client_id")).toBe(APP.clientId);
     expect(url.searchParams.get("redirect_uri")).toBe(`${baseURL}/auth-callback`);
@@ -141,7 +143,8 @@ test.describe("signing in", () => {
 
   test("Remember off: nothing is stored, and a reload asks to sign in again", async ({ page }) => {
     const { gh, si } = await setUp(page);
-    await signedIn(page, gh, si, { remember: false });
+    // Off by default: the sign-in is kept for this tab only.
+    await signedIn(page, gh, si);
     expect((await appSecrets(page, ALL_TOKENS)).hasTokens).toBe(false);
     await reloadApp(page);
     await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "needs-token");
@@ -263,6 +266,12 @@ test.describe("the repository list", () => {
     await expect(install).toBeFocused();
     await expect(install).toHaveAttribute("href", `https://github.com/apps/${APP.appSlug}/installations/new`);
     await expect(install).toHaveAttribute("rel", "noopener noreferrer");
+    // A student with no repository at all is shown where to make one first (a fixed link, private chosen).
+    const create = page.locator("#connect-signin-new-repo").getByRole("link", { name: /Create a private one on GitHub/ });
+    await expect(page.locator("#connect-signin-new-repo")).toContainText("No repository yet?");
+    await expect(create).toHaveAttribute("href", "https://github.com/new?visibility=private");
+    await expect(create).toHaveAttribute("target", "_blank");
+    await expect(create).toHaveAttribute("rel", "noopener noreferrer");
     si.setRepos([{ id: 4242, owner: "me", name: "workspace" }]);
     await page.locator("#connect-recheck").click();
     await expect(page.locator("#connect-dialog")).toHaveAttribute("data-state", "pick");
@@ -283,7 +292,7 @@ test.describe("an 8-hour token", () => {
 
   test("expires mid-sync: exactly one refresh, the request is retried, and the sync finishes", async ({ page }) => {
     const { gh, si } = await setUp(page);
-    await signedIn(page, gh, si);
+    await signedIn(page, gh, si, { remember: true });
     gh.fake.rejectToken(GHU1);
     gh.fake.acceptToken(GHU2);
     await page.locator(".cm-content").click();
@@ -302,7 +311,7 @@ test.describe("an 8-hour token", () => {
     test.use(tolerating(CHROMIUM_304, /^HTTP 401: https:\/\/api\.github\.com\/repos\/me\/workspace(\/.*)?$/, loadFailed(401), /^HTTP 400: http:\/\/127\.0\.0\.1:\d+\/api\/auth\/refresh$/, loadFailed(400)));
     test("Sign in again; the local files stay; the sealed record is gone", async ({ page }) => {
       const { gh, si } = await setUp(page, { answer: { refresh: () => ({ status: 400, body: { error: "bad_refresh_token" } }) } });
-      await signedIn(page, gh, si);
+      await signedIn(page, gh, si, { remember: true });
       gh.fake.rejectToken(GHU1);
       await page.locator(".cm-content").click();
       await page.keyboard.type("# kept\n");
@@ -326,7 +335,7 @@ test.describe("an 8-hour token", () => {
 test.describe("signing out", () => {
   test("Disconnect revokes this token only and forgets it here", async ({ page }) => {
     const { gh, si } = await setUp(page);
-    await signedIn(page, gh, si);
+    await signedIn(page, gh, si, { remember: true });
     await page.locator("#settings-button").click();
     await page.locator("#settings-disconnect").click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Disconnect" }).click();
@@ -340,7 +349,7 @@ test.describe("signing out", () => {
     test.use(tolerating(CHROMIUM_304, /^request failed: http:\/\/127\.0\.0\.1:\d+\/api\/auth\/revoke \S.*$/, /^Failed to load resource: net::ERR_INTERNET_DISCONNECTED$/));
     test("Disconnect while the relay can't be reached still forgets it here and says how to end it on GitHub", async ({ page }) => {
       const { gh, si } = await setUp(page);
-      await signedIn(page, gh, si);
+      await signedIn(page, gh, si, { remember: true });
       await page.unroute("**/api/auth/revoke");
       await page.route("**/api/auth/revoke", (route) => route.abort("internetdisconnected"));
       await page.locator("#settings-button").click();

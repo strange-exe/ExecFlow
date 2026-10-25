@@ -60,6 +60,10 @@ and logs nothing, and syncing never goes through it.
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).
 - New from example... (in More file actions, the search, and the empty workspace): nine short
   programs, three each for Python, C and C++, added to your files under a free name and opened.
+- New file (the file list): the name field suggests `name.py, name.c or name.cpp`. A name that won't
+  run is said before the file is made; one with no extension at all needs Enter twice. A new
+  Python, C or C++ file starts from the same short program as the empty workspace's starters,
+  unless its folder already has a file of that language (then it is a helper and starts empty).
 
 ## Running it
 
@@ -144,7 +148,8 @@ know first, with Cmd for Ctrl on macOS:
 ## Keeping the files on GitHub
 
 Connect from the sync status in the top bar ("Not connected"), the empty workspace, or Settings.
-You need a repository (private: a public one gets a warning first).
+You need a repository (private: a public one gets a warning first). Both ways of connecting link to
+GitHub's new-repository page with Private chosen ("No repository yet? Create a private one on GitHub").
 
 **Sign in with GitHub** (where the site owner has set it up, below). Once:
 
@@ -160,9 +165,9 @@ You need a repository (private: a public one gets a warning first).
   GitHub adds). It reaches only the repositories you installed it on, and only if you can reach
   them too; the list warns when it can reach more than one.
 - The sign-in lasts 8 hours and renews itself (GitHub's refresh token lasts 6 months and changes at
-  every renewal). "Remember on this device" is on by default and keeps the sign-in encrypted
-  (AES-GCM with a non-extractable key) in its own IndexedDB database; untick it on a shared
-  computer, and the sign-in is then forgotten when the tab closes. Disconnect asks GitHub to revoke
+  every renewal). By default the sign-in is forgotten when the tab closes. "Remember on this
+  device" (off by default; leave it off on a shared computer) keeps it encrypted (AES-GCM with a
+  non-extractable key) in its own IndexedDB database, so the next visit syncs by itself. Disconnect asks GitHub to revoke
   this device's token and deletes it here; if GitHub can't be reached, the token stops working by
   itself within 8 hours, or you can revoke CodeEditor in your GitHub settings (Applications,
   Authorized GitHub Apps). On a shared computer, also sign out of github.com: your GitHub session in the browser
@@ -181,7 +186,7 @@ repository with **Contents: Read and write**. The Connect dialog links to GitHub
 with the name, Contents and a 90-day expiry filled in; you pick the repository there.
 
 - The token goes only to `https://api.github.com`, in the Authorization header. By default it is
-  kept in the tab's memory and forgotten when the tab closes. "Remember on this computer" stores it
+  kept in the tab's memory and forgotten when the tab closes. "Remember on this device" stores it
   encrypted (AES-GCM with a non-extractable key) in its own IndexedDB database; leave it off on
   shared computers. Disconnect, or "Sign out and clear this computer" in Settings, removes it.
 - A sync downloads what changed on GitHub and uploads what changed here as one commit. Ctrl+S and
@@ -200,7 +205,10 @@ with the name, Contents and a 90-day expiry filled in; you pick the repository t
 - A file changed on both sides keeps GitHub's version under its name, and yours is saved next to
   it as `name.conflict-YYYYMMDD-HHMMSS.ext`, here and in the repository: nothing is lost. The same
   happens when a sync brings in a new version of a file while you are typing in it: the tab shows
-  GitHub's version and your typing is saved as the conflict copy. On the first sync, if this
+  GitHub's version and your typing is saved as the conflict copy. Until you open the copy (or
+  dismiss the notice about it), the sync status in the top bar reads "1 conflict" (a warning, not
+  "Synced") and opens the copy; the notice stays until you act on it. In the file list a copy's name
+  is cut in the middle, so the time it was made and its extension stay readable. On the first sync, if this
   computer and the repository have different versions of the same file, you choose: merge
   (conflict copies), the repository's versions, or this computer's.
 - Offline, changes stay here and sync once the connection is back. When GitHub limits requests,

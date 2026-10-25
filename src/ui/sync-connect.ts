@@ -1,7 +1,7 @@
 // The Connect GitHub dialog, in reading order: first what connecting does and where the
 // token is kept, then the repository and token fields, then Connect; below them the steps to make
-// a fine-grained token and "Remember on this computer" (off by default, with the shared-computer
-// warning). The network checks are the controller's (check/save); this file is the form.
+// a fine-grained token and "Remember on this device" (off by default on both paths, with the
+// shared-computer note). The network checks are the controller's (check/save); this file is the form.
 //
 // The token: a password field (no autocomplete, no spellcheck) with no `name`, inside a form whose
 // submit is always cancelled, so it can't end up in a URL. It is read once per attempt and the
@@ -89,6 +89,24 @@ export interface SignInDeps {
   abandon(): void;
 }
 
+/**
+ * GitHub's new-repository page with Private chosen. A fixed address: nothing typed goes into it.
+ * `visibility=private` is documented under "Creating a new repository from a URL query":
+ * https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository
+ */
+const NEW_REPO_URL = "https://github.com/new?visibility=private";
+
+/** "No repository yet? Create a private one on GitHub." (both connect paths; a new tab, no opener or referrer). */
+function newRepoNote(id: string): HTMLElement {
+  return h(
+    "p",
+    { class: "field-note new-repo", id },
+    "No repository yet? ",
+    h("a", { href: NEW_REPO_URL, target: "_blank", rel: "noopener noreferrer", class: "ext-link" }, "Create a private one on GitHub", syncIcon("arrow-square-out", "ext-icon")),
+    ", then come back.",
+  );
+}
+
 interface TextField {
   row: HTMLElement;
   input: HTMLInputElement;
@@ -173,7 +191,7 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       "div",
       { class: "check" },
       remember,
-      h("label", { for: "connect-remember" }, "Remember on this computer"),
+      h("label", { for: "connect-remember" }, "Remember on this device"),
       h(
         "p",
         { class: "field-note", id: "connect-remember-note" },
@@ -230,6 +248,7 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
         h("legend", { class: "steps-title" }, "GitHub repository"),
         h("div", { class: "repo-row" }, owner.row, h("span", { class: "repo-slash", "aria-hidden": "true" }, "/"), repo.row),
         branch.row,
+        newRepoNote("connect-new-repo"),
       ),
       token.row,
       result,
@@ -464,8 +483,9 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
   const signInLabel = h("span", null, "Sign in with GitHub");
   const signInButton = h("button", { type: "button", class: "btn primary signin-btn", id: "connect-signin", "aria-describedby": "connect-signin-note" }, syncIcon("github-logo"), signInLabel);
   const remember = h("input", { type: "checkbox", id: "connect-signin-remember", "aria-describedby": "connect-signin-remember-note" });
-  // The owner's choice (2026-10-23): on by default; the note says when to untick it.
-  remember.checked = true;
+  // The owner's choice (2026-10-24, replacing 2026-10-23's "on"): off by default, as on the token
+  // path, since students sign in on lab computers. A sign-in remembered before stays remembered.
+  remember.checked = false;
   const startView = h(
     "div",
     { class: "signin-start" },
@@ -479,7 +499,7 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
       h(
         "p",
         { class: "field-note", id: "connect-signin-remember-note" },
-        "On: the sign-in is stored encrypted in this browser until you disconnect, so the next visit syncs by itself. Untick it on a shared computer (a college lab): then it is kept only until you close the tab.",
+        "Leave this off on a shared computer (a college lab): the sign-in is kept only until you close the tab. On: it is stored encrypted in this browser until you disconnect, so the next visit syncs by itself.",
       ),
     ),
   );
@@ -551,6 +571,7 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
           h("li", null, "Pick your account, choose Only select repositories, pick one repository (private; it can be empty), then Install."),
           h("li", null, "Come back to this tab: the repository shows up here."),
         ),
+        newRepoNote("connect-signin-new-repo"),
         h("div", { class: "signin-actions" }, install, recheck),
       );
       render();

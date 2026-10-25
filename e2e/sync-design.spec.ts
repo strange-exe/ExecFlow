@@ -119,8 +119,10 @@ for (const vp of viewports) {
       // 3. Merge: two conflict copies, listed by the notice's action.
       await syncStatus(page).click();
       await page.locator("#first-connect-sync").click();
-      await waitSync(page, n + 1, "synced");
-      await state("synced");
+      // Not "Synced": the top bar warns (2 conflicts) until each copy has been opened.
+      await waitSync(page, n + 1, "conflict");
+      await state("conflict");
+      await expect(syncStatus(page)).toHaveAttribute("aria-label", "2 conflicts. Show the conflict copies");
       await shot("synced-conflicts");
       await axe(page, "after merge");
       await page.locator(".notice-action").click();
@@ -130,6 +132,11 @@ for (const vp of viewports) {
       await axe(page, "conflict copies");
       await page.locator("#conflict-copies .link-btn").first().click();
       await expect(page.locator("#conflict-copies")).toHaveCount(0);
+      // One copy left: the status names it and opens it.
+      await expect(syncStatus(page)).toHaveAttribute("aria-label", "1 conflict. Open the conflict copy");
+      await state("conflict");
+      await syncStatus(page).click();
+      await state("synced");
 
       // 4. Unsynced, syncing.
       await setCode(page, "print('edited')\n");

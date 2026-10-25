@@ -274,6 +274,19 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .tree-input { flex: 1; min-width: 0; min-height: var(--target); padding: 0 var(--s1); border-radius: var(--r-key); font-size: var(--fs-1); }
 .tree-input[aria-invalid="true"] { border-color: var(--danger); }
 .tree-error { margin: var(--s1) var(--s2) var(--s2) var(--s6); color: var(--danger); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+/* A new file's name that won't run: said under the field before it is created (a hint, not an error). */
+.tree-note { margin: var(--s1) var(--s2) var(--s2) var(--s6); color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+/* A conflict copy's name is cut in the middle: the stem takes the ellipsis, the time and the
+   extension (--tail, in ch of the mono name face) stay. The drawn parts are aria-hidden: the item
+   is named by a visually hidden copy of the whole name (tree.ts treeName). */
+.tree-name.split .name-stem { display: inline-block; max-width: calc(100% - var(--tail, 0ch)); overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+/* Whole characters only: a cut stem otherwise leaves part of a character's width empty after the
+   ellipsis, which reads as a space before the time ("main.conf... 235846.py"). The half pixel
+   stops rounding from dropping one more character than fits (measured in Chromium: a box of
+   exactly 10ch showed 8 characters, the ellipsis and a 1ch gap). */
+@supports (width: round(down, 10px, 1ch)) {
+  .tree-name.split .name-stem { max-width: calc(round(down, calc(100% - var(--tail, 0ch) - 0.5px), 1ch) + 0.5px); }
+}
 
 /* ------------------------------------------------------------------ center: editor over panel */
 .center {
