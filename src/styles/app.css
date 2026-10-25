@@ -1,7 +1,8 @@
-/* CodeEditor workbench. Deep Field: regions told apart by their grounds, one filled action per
-   view, each colour role kept to its job (spruce action and location, brass focus and the user's
-   hand, red errors only), saturated colour mostly inside the code. Components use the tokens in
-   tokens.css only. */
+/* CodeEditor workbench. Regions told apart by their grounds, one filled action per view, each
+   colour role kept to its job (the action and location colour, the focus colour for the user's
+   hand, red for errors only), saturated colour mostly inside the code. From 900 px the editor and
+   its panel are one sheet set into the chrome's frame (Signal's layout, for every theme: the
+   section "desktop: the editor as a sheet"). Components use the tokens in tokens.css only. */
 @import "./tokens.css";
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -229,6 +230,10 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .splitter.vertical::after { inset: 0 -5px; }
 .splitter.horizontal { cursor: row-resize; }
 .splitter.horizontal::after { inset: -5px 0; }
+/* The file list | editor splitter draws no line at rest: from 900 px the editor's sheet has its own
+   edge (below 900 px this splitter is not shown). Hover, dragging and keyboard focus still paint it
+   (the next rules come later, so they win). */
+.main > .splitter { background: transparent; }
 /* Hover and dragging use the control edge; only keyboard focus (next rule) uses the focus colour. */
 .splitter:hover, .splitter[data-dragging] { background: var(--border-strong); }
 .splitter:focus-visible { outline: none; background: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
@@ -990,6 +995,38 @@ button.problem:hover { background: var(--hover); }
   .shortcut-list { row-gap: var(--s1); }
   .shortcut-list dt { justify-content: flex-start; }
   .shortcut-list dd + dt { margin-top: var(--s2); }
+}
+
+/* ------------------------------------------------------------------ desktop: the editor as a sheet */
+/* From 900 px (redesign 2, Signal; every theme): the top bar, the file list and the status bar are
+   one frame on --surface with no lines between them, and the editor area and its panel form one
+   sheet on the code's ground, with a 1 px --border edge and --r-sheet outer corners (the top ones on
+   the editor area, the bottom ones on the panel), set --sheet-gap into the frame on the right and
+   below. Tone layers and 1 px borders only: no shadow, blur or blend. overflow: clip keeps the
+   children's grounds inside the corners without making a scroll container. Phones (below 900 px)
+   keep their full-bleed layout. */
+@media (min-width: 900px) {
+  .topbar { border-bottom: 0; }
+  .statusbar { box-shadow: none; }
+  .main, .center { background: var(--surface); }
+  .center { padding: 0 var(--sheet-gap) var(--sheet-gap) 0; }
+  .editor-area {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    overflow: clip;
+  }
+  .center > .panel {
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 var(--r-sheet) var(--r-sheet);
+    overflow: clip;
+  }
+  /* An empty workspace has no panel: its sheet is rounded all round. */
+  .workbench[data-files="none"] .editor-area { border-bottom: 1px solid var(--border); border-radius: var(--r-sheet); }
+  /* The editor head is part of the sheet: the code's ground, a --border rule under it. */
+  .editor-head { background: var(--bg); border-bottom: 1px solid var(--border); }
 }
 
 /* ------------------------------------------------------------------ touch */

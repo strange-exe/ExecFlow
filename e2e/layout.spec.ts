@@ -47,7 +47,9 @@ test("the panel is its bar until the first run, Ctrl+` opens it, and Run opens i
   await expect(toggle).toHaveAttribute("aria-controls", "panel-output panel-problems");
   await expect(page.locator("#panel-output")).toBeHidden();
   await expect(page.locator("#panel-problems")).toBeHidden();
-  expect((await box(page, "#panel")).height, "the collapsed panel is its 36 px bar").toBe(36);
+  // Its 40 px bar, plus the 1 px foot of the editor's sheet (desktop, since the Signal round).
+  expect((await box(page, "#panel")).height, "the collapsed panel is its 40 px bar and the sheet's edge").toBe(41);
+  expect((await box(page, "#panel .panel-bar")).height).toBe(40);
   expect((await box(page, "#editor-panel")).height, "the code takes the height").toBeGreaterThanOrEqual(700);
 
   // Ctrl+` opens it and moves the focus in (nothing printed yet: to the Output tab).
@@ -66,7 +68,7 @@ test("the panel is its bar until the first run, Ctrl+` opens it, and Run opens i
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#panel-output")).toBeHidden();
-  expect((await box(page, "#panel")).height).toBe(36);
+  expect((await box(page, "#panel")).height).toBe(41);
 
   // Run opens it at the remembered height (45% of the column), and the program's state shows.
   await page.locator("#run-button").click();
@@ -267,8 +269,8 @@ test("notices speak from the status bar: kept rendered while empty, dismissed in
   await importFiles(page, FILES);
   await expect(notice).toHaveAttribute("data-empty", "false");
   await expect(notice).toContainText("Imported 2 files.");
-  // One line in the 24 px bar, between the position and Shortcuts.
-  expect((await box(page, ".statusbar")).height).toBe(24);
+  // One line in the bar (28 px on desktop since the Signal round), between the position and Shortcuts.
+  expect((await box(page, ".statusbar")).height).toBe(28);
   await openFromTree(page, "main.py");
   const [pos, words, shortcuts] = [await box(page, "#status-pos"), await box(page, ".notice-text"), await box(page, "#shortcuts-button")];
   expect(pos.x + pos.width).toBeLessThan(words.x);
@@ -280,7 +282,7 @@ test("notices speak from the status bar: kept rendered while empty, dismissed in
   await expect(notice).toHaveAttribute("data-empty", "true");
   await expect(notice).toHaveCount(1);
   await expect(page.locator(".cm-content")).toBeFocused();
-  expect((await box(page, ".statusbar")).height).toBe(24);
+  expect((await box(page, ".statusbar")).height).toBe(28);
 });
 
 test("the file menu is grouped by separators that are not focusable and that the arrow keys skip", async ({ page }) => {
@@ -765,7 +767,7 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
     // The editor options are on the first screen (review D: they had moved about 1,300 px down),
     // after the chosen theme, which has the focus.
     const themes = dialog.getByRole("radiogroup");
-    const chosen = themes.locator('input[name=theme][value="deep-field"]');
+    const chosen = themes.locator('input[name=theme][value="signal"]');
     await expect(chosen).toBeChecked();
     await expect(chosen).toBeFocused();
     const body = await box(page, "#settings .dialog-body");
