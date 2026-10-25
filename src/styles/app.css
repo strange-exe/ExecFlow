@@ -911,6 +911,11 @@ button.problem:hover { background: var(--hover); }
   .topbar { gap: var(--s1); padding: 0 var(--s1); }
   /* Edge-docked controls draw their focus ring inside, so no side is cut off by the window edge. */
   .topbar :focus-visible, .view-switch :focus-visible { outline-offset: -2px; }
+  /* Run's fill would touch its inset ring (brass on the spruce fill: 1.6:1 light, 1.16:1 dark): a
+     2 px band of the bar's own ground lies between them, as the desktop ring's 2 px offset leaves,
+     so the ring meets the bar's ground on both sides (focus on surface, a checked pair in every
+     theme). Stop and the stepped-back Run have no fill: the band is the ground they already show. */
+  .topbar .btn.primary:focus-visible { box-shadow: inset 0 0 0 3px var(--surface); }
   .drawer-toggle { display: inline-grid; }
   .palette-btn { padding: 0; }
   .palette-btn .icon { width: 1.125rem; height: 1.125rem; }

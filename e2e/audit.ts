@@ -437,7 +437,17 @@ export function focusStop(page: Page): Promise<FocusStop> {
     };
     const oc = parse(s.outlineColor);
     if (bar) ringContrast = contrast(bar.c, bar.on);
-    else if (ow > 0 && oc) ringContrast = contrast(oc, off >= 0 ? bgOf(ind.parentElement) : bgOf(ind));
+    else if (ow > 0 && oc) {
+      // A ring drawn outside (offset 0 or more) lies on the parent's ground. A ring drawn inside
+      // lies on the element's own fill, or on an inset band painted between the ring and the fill
+      // (an inset box-shadow with no offset); when its outer edge reaches the element's edge, the
+      // parent's ground is next to it as well, and the weaker side counts.
+      const band = /inset/.test(shadow) ? shadow.match(/^(rgba?\([^)]*\)|color\([^)]*\))\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset/) : null;
+      const inside = band && parseFloat(band[2]) >= 1 ? over(parse(band[1]) ?? [0, 0, 0, 0], bgOf(ind)) : bgOf(ind);
+      if (off >= 0) ringContrast = contrast(oc, bgOf(ind.parentElement));
+      else if (off + ow >= 0) ringContrast = Math.min(contrast(oc, inside), contrast(oc, bgOf(ind.parentElement)));
+      else ringContrast = contrast(oc, inside);
+    }
     return {
       tag: el.tagName.toLowerCase(), id: el.id, cls: typeof el.className === "string" ? el.className : "", role: el.getAttribute("role") ?? "",
       name: (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
