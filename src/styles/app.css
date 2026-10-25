@@ -530,6 +530,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .runlog[data-failed]::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--error-band); }
 .runlog[data-failed] { border-left: 2px solid var(--danger); padding-left: calc(var(--s3) - 2px); }
 .rl-file { font: var(--fs-2)/var(--lh-2) var(--font-name); }
+/* "Last run:" before the file's name while another file is open (B11): words in the UI face, in
+   --text-secondary (a pair on runlog-bg and on error-band@runlog-bg already). */
+.rl-owner { color: var(--text-secondary); font-family: var(--font-ui); }
 .run-status, .receipt { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s3); row-gap: var(--s1); min-width: 0; margin: 0; }
 .run-status { column-gap: var(--s2); }
 .run-status[data-phase="idle"] { display: none; }
@@ -542,9 +545,13 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .rl-status.danger .icon { color: var(--danger); }
 .rl-status.warning .icon { color: var(--warning); }
 .rl-fact { color: var(--text-secondary); }
-/* End input: an underlined text button right after the waiting words (Ctrl+D does the same). */
-.end-input { min-height: var(--target); padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
-.end-input:hover { text-decoration-thickness: 2px; }
+/* End input: an underlined text button right after the waiting words (Ctrl+D does the same). The
+   no-main offer's "Run lab1/main.c" is the same tertiary button (B13). */
+.end-input, .rl-link { min-height: var(--target); padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.end-input:hover, .rl-link:hover { text-decoration-thickness: 2px; }
+/* The no-main offer: the failed header's last line, an info icon, its sentence and the button. */
+.run-offer { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; column-gap: var(--s2); margin: 0; }
+.rl-link { overflow-wrap: anywhere; text-align: left; }
 /* The lifted exception, 16 px after the facts: its own danger icon and 1 px danger edge; the
    exception class at 600 and the message in --text, the place in --text-secondary. */
 .exc {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanFill, HELP_IDS, helpFor, helpText, MAX_FILL, type HelpSubject } from "./error-help";
+import { cleanFill, HELP_IDS, helpFor, helpForLimit, helpText, MAX_FILL, type HelpSubject } from "./error-help";
 import captured from "./__fixtures__/error-help.json";
 
 // Every message below was printed by the real runtimes: each program in the fixture ran through the
@@ -206,6 +206,26 @@ describe("error help, what it leaves alone", () => {
     expect(helpFor({ source: "python", severity: "error", message: "OSError: [Errno 44] No such file or directory: 'a.txt'" })).toBeNull();
     expect(helpFor({ source: "clang", severity: "warning", message: "unused variable 'x'", code: "-Wunused-variable" })).toBeNull();
     expect(helpFor({ source: "runtime", severity: "error", message: "The program crashed: a call through a bad function pointer" })).toBeNull();
+  });
+});
+
+describe("help for a run stopped at a limit (B13)", () => {
+  it("the time limit: says it was stopped, that a loop may never end, and to check its condition changes", () => {
+    const help = helpForLimit("timeout", { seconds: 15, chars: 524_288 })!;
+    expect(help.id).toBe("limit-time");
+    expect(helpText(help.means)).toBe("The program was still running after the 15 second time limit, so it was stopped. Often a loop never ends because its condition never becomes false.");
+    expect(helpText(help.tips)).toBe("Check that each pass of the loop changes what its condition tests, like a counter that goes up to its end. Time spent waiting for input doesn't count, and Settings has the limit.");
+  });
+
+  it("the output limit: says how much it printed, and the same check", () => {
+    const help = helpForLimit("output-limit", { seconds: 15, chars: 524_288 })!;
+    expect(help.id).toBe("limit-output");
+    expect(helpText(help.means)).toBe("The program printed more than the output limit (524,288 characters), so it was stopped. A loop that never ends prints the same lines again and again.");
+    expect(helpText(help.tips)).toBe("Check that each pass of the loop changes what its condition tests, so the loop can end. To print less, print once after the loop instead of on every pass.");
+  });
+
+  it("has nothing for a run the user stopped, or one that ended on its own", () => {
+    for (const status of ["stopped", "ok", "error", "crashed", "build-failed", "unavailable"] as const) expect(helpForLimit(status, { seconds: 15, chars: 1 }), status).toBeNull();
   });
 });
 

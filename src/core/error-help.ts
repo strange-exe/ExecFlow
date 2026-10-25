@@ -8,7 +8,7 @@
 // The message is untrusted (a program can raise any text): fill-in values are cut to a short,
 // single-line piece and are only ever drawn as text.
 
-import type { DiagSeverity, DiagSource } from "./types";
+import type { DiagSeverity, DiagSource, RunStatus } from "./types";
 
 /** What the help reads from a diagnostic (a ToolDiagnostic has all of it). */
 export interface HelpSubject {
@@ -569,6 +569,31 @@ export function helpFor(d: HelpSubject): ErrorHelp | null {
     const fill: Fill = {};
     for (const [k, v] of Object.entries({ ...raw, ...more })) fill[k] = cleanFill(v);
     return { id: entry.id, means: render(entry.means, fill), tips: render(entry.tips, fill) };
+  }
+  return null;
+}
+
+/**
+ * Help for a run the app stopped at a limit (B13, 2026-10-24): the time limit or the output limit,
+ * which a loop that never ends meets. These come from the app, not from a tool's message, so they
+ * are not in the table above (whose entries each match a captured message). A run the user stopped
+ * gets none: they know why it ended.
+ */
+export function helpForLimit(status: RunStatus, limits: { seconds: number; chars: number }): ErrorHelp | null {
+  const tip = "Check that each pass of the loop changes what its condition tests";
+  if (status === "timeout") {
+    return {
+      id: "limit-time",
+      means: [{ text: `The program was still running after the ${limits.seconds} second time limit, so it was stopped. Often a loop never ends because its condition never becomes false.` }],
+      tips: [{ text: `${tip}, like a counter that goes up to its end. Time spent waiting for input doesn't count, and Settings has the limit.` }],
+    };
+  }
+  if (status === "output-limit") {
+    return {
+      id: "limit-output",
+      means: [{ text: `The program printed more than the output limit (${limits.chars.toLocaleString("en")} characters), so it was stopped. A loop that never ends prints the same lines again and again.` }],
+      tips: [{ text: `${tip}, so the loop can end. To print less, print once after the loop instead of on every pass.` }],
+    };
   }
   return null;
 }

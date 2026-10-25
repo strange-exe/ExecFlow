@@ -73,7 +73,8 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   outputLimit.addEventListener("change", () => (outputLimit.value = String(set({ outputLimitK: Number(outputLimit.value) }).outputLimitK)));
   const cStd = select("set-c-std", C_STANDARDS.map((v) => [v, v === "gnu11" ? "gnu11 (default)" : v] as const), s().cStd);
   const cxxStd = select("set-cxx-std", CXX_STANDARDS.map((v) => [v, v === "c++17" ? "c++17 (default)" : v === "c++2a" ? "c++2a (C++20, partly)" : v] as const), s().cxxStd);
-  const opt = select("set-opt", [["0", "-O0 (none, quickest to build)"], ["1", "-O1"], ["2", "-O2 (default)"]] as const, s().opt);
+  // -O0 lets a NULL write or a stray index pass silently where -O2 stops the program (audit t7c, B13).
+  const opt = select("set-opt", [["0", "-O0 (none, quickest to build; makes memory bugs harder to see)"], ["1", "-O1"], ["2", "-O2 (default)"]] as const, s().opt);
   const wall = check("-Wall (common warnings)", s().wall, undefined, "set-wall");
   const wextra = check("-Wextra (more warnings)", s().wextra, undefined, "set-wextra");
   cStd.addEventListener("change", () => set({ cStd: cStd.value as Settings["cStd"] }));

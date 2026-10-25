@@ -13,6 +13,7 @@ import type { PyodideAPI } from "pyodide";
 import { waitForInput } from "../runner/input-channel";
 import type { BootSource, FromPython, Stream, ToPython } from "../runner/protocol";
 import { fromPythonJson } from "../runner/python-diagnostics";
+import { hasLocalCopy, trackDownload } from "../runner/python-download";
 import { collectWritten, prepareRunFiles, writeWorkspace, type FsLike } from "../runner/python-files";
 import { RUNNER_PY } from "../runner/python-helper";
 import { canonicalName, importIndex, missingPackages, packageClosure, PYTHON_PACKAGES, type LockFile } from "../runner/python-packages";
@@ -185,22 +186,32 @@ async function boot(interrupt: SharedArrayBuffer | null, packages: string[]): Pr
 
   let py: PyodideAPI | null = null;
   let source: BootSource = "fresh";
-  const snapshot = cacheStorage ? await readSnapshot() : null;
-  if (snapshot) {
-    try {
-      py = await loadPyodide({ indexURL, _loadSnapshot: snapshot });
-      source = "snapshot";
-    } catch {
-      await cacheStorage?.delete(SNAPSHOT_CACHE).catch(() => {}); // corrupt or incompatible: start fresh
+  // Counts what Pyodide fetches while it loads (the first visit's ~12 MB), for the run header. The
+  // real fetch is back before any package loads, and so long before the lockdown. A runtime the
+  // service worker already keeps on this device is no download: it is said to be done at once.
+  const local = await hasLocalCopy(cacheStorage, new URL(`${indexURL}pyodide.asm.wasm`, self.location.origin).href);
+  const download = local ? null : trackDownload(self, __PYODIDE_BYTES__, (p) => post({ type: "progress", ...p }));
+  if (local) post({ type: "progress", loaded: 0, total: __PYODIDE_BYTES__, done: true });
+  try {
+    const snapshot = cacheStorage ? await readSnapshot() : null;
+    if (snapshot) {
+      try {
+        py = await loadPyodide({ indexURL, _loadSnapshot: snapshot });
+        source = "snapshot";
+      } catch {
+        await cacheStorage?.delete(SNAPSHOT_CACHE).catch(() => {}); // corrupt or incompatible: start fresh
+      }
     }
-  }
-  if (!py) {
-    py = await loadPyodide({ indexURL, _makeSnapshot: true });
-    // Taken before any packages or per-session setup (output, interrupts), so it is a clean interpreter.
-    if (cacheStorage) {
-      const made = py.makeMemorySnapshot();
-      setTimeout(() => void saveSnapshot(made), 0); // after "ready" is posted
+    if (!py) {
+      py = await loadPyodide({ indexURL, _makeSnapshot: true });
+      // Taken before any packages or per-session setup (output, interrupts), so it is a clean interpreter.
+      if (cacheStorage) {
+        const made = py.makeMemorySnapshot();
+        setTimeout(() => void saveSnapshot(made), 0); // after "ready" is posted
+      }
     }
+  } finally {
+    download?.end();
   }
   return setUp(py, source, interrupt, packages);
 }

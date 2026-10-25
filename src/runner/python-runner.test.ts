@@ -290,6 +290,115 @@ describe("PythonRunner", () => {
     expect(h.out.join("").replace(/std(out|err):/g, "")).toHaveLength(100);
   });
 
+  describe("the first start's download (B9)", () => {
+    /** Records phases with their progress: "downloading:Python:3000/4000". */
+    function progressHooks() {
+      const phases: string[] = [];
+      const h: RunHooks = {
+        onOutput: () => {},
+        onInputRequest: () => {},
+        onPhase: (phase, detail, progress) => phases.push([phase, detail, progress && `${progress.loaded}/${progress.total}`].filter(Boolean).join(":")),
+      };
+      return { h, phases };
+    }
+    const progress = (loaded: number, total: number, finished = false): FromPython => ({ type: "progress", loaded, total, done: finished });
+
+    it("shows the download after about 1 s of start-up, with its bytes, then Starting again once they are in", async () => {
+      const { runner, workers } = setUp((w) => w.emit(done()), () => {}); // ready only when the test says
+      const { h, phases } = progressHooks();
+      const p = runner.run(request(), h);
+      await vi.advanceTimersByTimeAsync(0);
+      workers[0].emit(progress(1000, 4000));
+      await vi.advanceTimersByTimeAsync(500);
+      expect(phases, "nothing about a download in the first second").toEqual(["booting"]);
+      await vi.advanceTimersByTimeAsync(600);
+      expect(phases).toEqual(["booting", "downloading:Python:1000/4000"]);
+      expect(runner.downloadShown()).toEqual({ loaded: 1000, total: 4000 });
+      workers[0].emit(progress(3000, 4000));
+      expect(phases.at(-1)).toBe("downloading:Python:3000/4000");
+      workers[0].emit(progress(4000, 4000));
+      expect(phases.at(-1), "every byte is in: Python is starting").toBe("booting");
+      expect(runner.downloadShown()).toBeNull();
+      workers[0].emit({ type: "ready", ms: 10, source: "fresh", loaded: [], available: AVAILABLE, packageMs: 0 });
+      expect((await p).status).toBe("ok");
+      expect(phases).toEqual(["booting", "downloading:Python:1000/4000", "downloading:Python:3000/4000", "booting", "running"]);
+    });
+
+    it("a quick start (the runtime already on this device) never mentions a download", async () => {
+      const { runner, workers } = setUp((w) => w.emit(done()), () => {});
+      const { h, phases } = progressHooks();
+      const p = runner.run(request(), h);
+      await vi.advanceTimersByTimeAsync(0);
+      workers[0].emit(progress(4000, 4000));
+      await vi.advanceTimersByTimeAsync(300);
+      workers[0].emit(progress(4000, 4000, true));
+      await vi.advanceTimersByTimeAsync(900);
+      workers[0].emit({ type: "ready", ms: 10, source: "snapshot", loaded: [], available: AVAILABLE, packageMs: 0 });
+      await p;
+      expect(phases).toEqual(["booting", "running"]);
+    });
+
+    it("a size the build doesn't know shows the bytes until the download says it is done", async () => {
+      const { runner, workers } = setUp((w) => w.emit(done()), () => {});
+      const { h, phases } = progressHooks();
+      const p = runner.run(request(), h);
+      await vi.advanceTimersByTimeAsync(0);
+      workers[0].emit(progress(5000, 0));
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(phases.at(-1)).toBe("downloading:Python:5000/0");
+      workers[0].emit(progress(6000, 0, true));
+      expect(phases.at(-1)).toBe("booting");
+      workers[0].emit({ type: "ready", ms: 10, source: "fresh", loaded: [], available: AVAILABLE, packageMs: 0 });
+      await p;
+    });
+
+    it("a Run pressed after warmUp's download has gone on for a second shows it at once", async () => {
+      const { runner, workers } = setUp((w) => w.emit(done()), () => {});
+      runner.warmUp();
+      await vi.advanceTimersByTimeAsync(0);
+      workers[0].emit(progress(2000, 4000));
+      await vi.advanceTimersByTimeAsync(1500);
+      const { h, phases } = progressHooks();
+      const p = runner.run(request(), h);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(phases).toEqual(["booting", "downloading:Python:2000/4000"]);
+      workers[0].emit({ type: "ready", ms: 10, source: "fresh", loaded: [], available: AVAILABLE, packageMs: 0 });
+      await p;
+      expect(runner.downloadShown()).toBeNull();
+    });
+
+    it("tells state listeners when the download becomes worth showing, even with no new bytes then (a stalled connection)", async () => {
+      const { runner, workers } = setUp((w) => w.emit(done()), () => {});
+      const seen: (string | null)[] = [];
+      runner.onState(() => seen.push(runner.downloadShown() ? "shown" : null));
+      runner.warmUp();
+      await vi.advanceTimersByTimeAsync(0);
+      workers[0].emit(progress(2000, 4000)); // then nothing arrives
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(seen.at(-1)).toBe("shown");
+    });
+
+    it("tells state listeners about progress, ignores malformed counts, and forgets the download once ready", async () => {
+      const { runner, workers } = setUp((w) => w.emit(done()), () => {});
+      let calls = 0;
+      runner.onState(() => calls++);
+      runner.warmUp();
+      await vi.advanceTimersByTimeAsync(1100);
+      const before = calls;
+      workers[0].emit(progress(100, 4000));
+      expect(calls).toBe(before + 1);
+      workers[0].emit({ type: "progress", loaded: Number.NaN, total: -5, done: false } as FromPython);
+      workers[0].emit({ type: "progress", loaded: "9" as unknown as number, total: 4000, done: false });
+      expect(runner.downloadShown()).toEqual({ loaded: 100, total: 4000 });
+      workers[0].emit({ type: "ready", ms: 10, source: "fresh", loaded: [], available: AVAILABLE, packageMs: 0 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(runner.downloadShown()).toBeNull();
+      // A program posting progress later changes nothing (only start-up listens for it).
+      workers[0].emit(progress(1, 4000));
+      expect(runner.downloadShown()).toBeNull();
+    });
+  });
+
   it("Stop during start-up cancels the run before it is sent", async () => {
     const { runner, workers } = setUp(() => {}, () => {}); // never becomes ready
     const p = runner.run(request(), hooks());

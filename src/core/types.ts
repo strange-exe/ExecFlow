@@ -125,7 +125,8 @@ export interface RunHooks {
   onOutput(stream: "stdout" | "stderr", text: string): void;
   /** The program is blocked reading input beyond what was given up front. */
   onInputRequest(): void;
-  onPhase(phase: RunPhase, detail?: string): void;
+  /** `progress`: bytes of a download so far and in all (total 0: not known), for "downloading". */
+  onPhase(phase: RunPhase, detail?: string, progress?: { loaded: number; total: number }): void;
 }
 
 export interface RunResult {

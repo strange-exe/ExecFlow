@@ -38,6 +38,24 @@ export function summarize(diagnostics: readonly ToolDiagnostic[]): string {
   return `${plural(errors.length, "error")}${where}`;
 }
 
+/**
+ * A crash as one plain sentence for the log (B13, 2026-10-24), from cpp-wasi.ts describeCrash's
+ * words. The header already says "Crashed", so the sentence says what happened, never "crashed"
+ * again ("Crashed: The program crashed: aborted (...)" was the audit's finding). The runtime
+ * diagnostic keeps describeCrash's words: the error help and Problems match those.
+ */
+export function crashMessage(crash: string): string {
+  const after = (prefix: string) => crash.slice(prefix.length).trim();
+  if (crash.startsWith("stack overflow")) return "The program ran out of stack memory: a function keeps calling itself (infinite or very deep recursion).";
+  if (crash.startsWith("invalid memory access")) return "The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range.";
+  if (crash.startsWith("aborted")) return "The program stopped itself: abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with.";
+  if (crash.startsWith("integer division by zero")) return "The program divided a whole number by zero.";
+  if (crash.startsWith("integer overflow in division")) return "The program divided INT_MIN by -1, which gives a number too big for an int.";
+  if (crash.startsWith("a call through a bad function pointer")) return "The program called a function through a bad function pointer.";
+  if (crash.startsWith("out of memory")) return `The program ran out of memory${after("out of memory") ? ` ${after("out of memory")}` : ""}.`;
+  return `The program stopped with an error: ${crash.replace(/\.$/, "")}.`;
+}
+
 export class CppRunner {
   state: CppState = "checking";
   progress = { loaded: 0, total: __CLANG_PACK__.totalBytes };
@@ -461,7 +479,7 @@ export class CppRunner {
         if (data.type !== "done") return;
         if (data.truncated) return stop("output-limit");
         const written = acceptWritten(plan.root, data.written);
-        if (data.crash) return finish("crashed", null, data.ms, `The program crashed: ${data.crash}.`, written, data.crash);
+        if (data.crash) return finish("crashed", null, data.ms, crashMessage(data.crash), written, data.crash);
         if (data.exitCode === 0) return finish("ok", 0, data.ms, undefined, written);
         finish("error", data.exitCode, data.ms, `The program exited with code ${data.exitCode}.`, written);
       };

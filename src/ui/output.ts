@@ -13,6 +13,7 @@ import type { RunArgsStore } from "../runner/run-args";
 import type { ArgsField, RunArgs } from "./args-field";
 import { formatMs, h } from "./dom";
 import { icon, type IconName } from "./icons";
+import { showsExitCode } from "./run-words";
 
 export const STATUS_WORD: Record<RunStatus, string> = {
   ok: "Finished",
@@ -95,6 +96,11 @@ export class OutputView {
   private exception: HTMLElement | null = null;
   /** The error help under it (or under a crash's status), last in the header: see setHelp. */
   private help: { element: HTMLElement; describedBy: string } | null = null;
+  /** "This file has no main(). Run lab1/main.c?", last in a failed build's header: see offerMain. */
+  private offer: HTMLElement | null = null;
+  /** The header's run: its file's name and arguments, and whether another file is open (see showRunOwner). */
+  private runName = "";
+  private otherFile = false;
   private readonly pack: HTMLElement;
   private readonly packText: HTMLElement;
   private readonly packProgress: HTMLProgressElement;
@@ -297,11 +303,15 @@ export class OutputView {
     this.exception?.remove();
     this.exception = null;
     this.setHelp(null);
+    this.offerMain(null);
     // A run still going keeps its header (its state words); a finished one's goes with its output.
     if (this.phase === "idle") {
       this.header.hidden = true;
       this.header.removeAttribute("data-failed");
+      this.header.removeAttribute("data-other");
       this.fileName.textContent = "";
+      this.runName = "";
+      this.otherFile = false;
     }
     this.hint.hidden = false;
   }
@@ -379,17 +389,44 @@ export class OutputView {
     if (!this.stdin.value && !this.argsField?.hasText) this.showInputBox(false);
     this.hint.hidden = true;
     this.runArgs.textContent = args;
-    this.fileName.replaceChildren(file, ...(args ? [" ", this.runArgs] : []));
+    this.runName = file;
+    this.otherFile = false;
+    this.renderFile();
     this.header.removeAttribute("data-failed");
     this.header.hidden = false;
     clearInterval(this.tick);
     this.tick = setInterval(() => this.renderPhase(), 100);
   }
 
+  /** The header's first item: the run's file and arguments, after "Last run:" when another file is open. */
+  private renderFile(): void {
+    const owner = this.otherFile ? [h("span", { class: "rl-owner" }, "Last run:"), " "] : [];
+    this.fileName.replaceChildren(...owner, this.runName, ...(this.runArgs.textContent ? [" ", this.runArgs] : []));
+    this.header.toggleAttribute("data-other", this.otherFile);
+  }
+
+  /**
+   * After a run, the header names the file it belongs to: `name` (it follows a rename), with
+   * "Last run:" before it while another file is open (B11, 2026-10-24: a never-run file showed
+   * util.c's "Build failed" as if it were its own).
+   */
+  showRunOwner(name: string, other: boolean): void {
+    if (this.phase !== "idle" || this.header.hidden || (name === this.runName && other === this.otherFile)) return;
+    this.runName = name;
+    this.otherFile = other;
+    this.renderFile();
+  }
+
+  /**
+   * The run's state. The time shown counts from the start of the phase; it goes on counting while
+   * the label changes within one phase (a download's bytes) and between starting and downloading,
+   * which are one wait for the student.
+   */
   setPhase(phase: PhaseState, label: string): void {
+    const startup = (p: PhaseState) => p === "booting" || p === "downloading";
+    if (phase !== this.phase && !(startup(phase) && startup(this.phase))) this.phaseStarted = performance.now();
     this.phase = phase;
     this.phaseLabel = label;
-    this.phaseStarted = performance.now();
     this.renderPhase();
   }
 
@@ -487,7 +524,7 @@ export class OutputView {
     const tone = STATUS_TONE[result.status];
     const parts: HTMLElement[] = [h("span", { class: `rl-status ${tone}`, "data-status-chip": result.status }, icon(TONE_ICON[tone]), statusWord(result))];
     const fact = (text: string) => h("span", { class: "rl-fact" }, text);
-    if (result.exitCode !== null && !(result.status === "error")) parts.push(fact(`exit code ${result.exitCode}`));
+    if (showsExitCode(result)) parts.push(fact(`exit code ${result.exitCode}`));
     if (result.ms.build !== undefined) parts.push(fact(`built in ${formatMs(result.ms.build)}`));
     if (result.ms.run !== undefined) parts.push(fact(`ran in ${formatMs(result.ms.run)}`));
     this.receipt.dataset.status = result.status;
@@ -497,6 +534,7 @@ export class OutputView {
     this.exception = failed && lifted ? this.exceptionButton(lifted) : null;
     if (this.exception) this.header.append(this.exception);
     this.setHelp(null);
+    this.offerMain(null);
     this.header.toggleAttribute("data-failed", failed);
     this.header.hidden = false;
     this.hint.hidden = true;
@@ -545,6 +583,25 @@ export class OutputView {
     this.help = help;
     if (help) this.header.append(help.element);
     this.describeException();
+  }
+
+  /**
+   * A failed build of a file without main() whose folder has a program with one (B13): "This file
+   * has no main()." and a button "Run lab1/main.c" as the header's last line. The button is a
+   * tertiary underlined text button, like End input (one filled action per band). null removes it.
+   */
+  offerMain(offer: { path: string; run(): void } | null): void {
+    const hadFocus = this.offer?.contains(document.activeElement) ?? false;
+    this.offer?.remove();
+    this.offer = null;
+    if (offer) {
+      const button = h("button", { type: "button", class: "rl-link", id: "run-offer-button" }, `Run ${offer.path}`);
+      button.addEventListener("click", () => offer.run());
+      this.offer = h("p", { class: "run-offer", id: "run-offer" }, icon("info", "rl-icon"), h("span", null, "This file has no main()."), button);
+      this.header.append(this.offer);
+    } else if (hadFocus && this.console.hasAttribute("tabindex")) {
+      this.console.focus();
+    }
   }
 
   private describeException(): void {
@@ -621,17 +678,27 @@ export class OutputView {
 
   // ------------------------------------------------------------------ the C/C++ pack
 
-  showPack(view: { state: "offer" | "downloading" | "failed" | "hidden"; loaded: number; total: number; error?: string }): void {
+  /**
+   * The C/C++ download offer. `then`: the file Run was pressed for, which runs once the download
+   * finishes (B10, 2026-10-24), said while it downloads.
+   */
+  showPack(view: { state: "offer" | "downloading" | "failed" | "hidden"; loaded: number; total: number; error?: string; then?: string }): void {
     const mb = (bytes: number) => (bytes / 1e6).toFixed(1);
     this.pack.hidden = view.state === "hidden";
     this.pack.dataset.state = view.state;
     if (view.state === "hidden") return;
     const downloading = view.state === "downloading";
     this.packProgress.hidden = !downloading;
+    // The button goes while it downloads: a focused button hands the focus to the words, which say
+    // how far it got (a hidden button would drop the focus to the page).
+    if (downloading && this.packButton.contains(document.activeElement)) {
+      this.packText.tabIndex = -1;
+      this.packText.focus({ preventScroll: true });
+    }
     this.packButton.hidden = downloading;
     if (downloading) {
       this.packProgress.value = view.total ? view.loaded / view.total : 0;
-      this.packText.textContent = `Downloading the C/C++ compiler: ${mb(view.loaded)} of ${mb(view.total)} MB. Keep this page open.`;
+      this.packText.textContent = `Downloading the C/C++ compiler: ${mb(view.loaded)} of ${mb(view.total)} MB. Keep this page open.${view.then ? ` ${view.then} runs when it finishes.` : ""}`;
     } else if (view.state === "failed") {
       this.packText.textContent = `The download stopped (${view.error ?? "connection lost"}). Check the connection and try again; finished parts are kept.`;
       this.packButton.textContent = "Try again";
@@ -639,6 +706,16 @@ export class OutputView {
       this.packText.textContent = `C and C++ need a one-time ${mb(view.total)} MB download. After that they run offline, like Python.`;
       this.packButton.textContent = `Download C/C++ (${mb(view.total)} MB)`;
     }
+  }
+
+  /** Whether the keyboard focus is in the download offer (it goes once the pack is in). */
+  packHasFocus(): boolean {
+    return this.pack.contains(document.activeElement);
+  }
+
+  /** Whether the download offer is hidden (a focused element inside it can stay activeElement for a moment). */
+  get packHidden(): boolean {
+    return this.pack.hidden === true;
   }
 
   focusPackButton(): void {

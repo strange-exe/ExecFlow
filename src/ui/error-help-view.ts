@@ -3,7 +3,8 @@
 // so a first visit never carries either. Every piece of text goes in as a text node (h() never
 // parses markup): the fill-ins come from the error message, which a program can write.
 import lightbulb from "@phosphor-icons/core/assets/regular/lightbulb.svg?raw";
-import { helpFor, type HelpPart, type HelpSubject } from "../core/error-help";
+import { helpFor, helpForLimit, type ErrorHelp, type HelpPart, type HelpSubject } from "../core/error-help";
+import type { RunStatus } from "../core/types";
 import { h, svg } from "./dom";
 import { pathData } from "./icons";
 
@@ -29,11 +30,20 @@ const parts = (list: readonly HelpPart[]) => list.map((p) => ("code" in p ? h("c
  */
 export function renderHelp(d: HelpSubject, id: string): HelpView | null {
   const help = helpFor(d);
-  if (!help) return null;
+  return help ? draw(help, id, "What this error means") : null;
+}
+
+/** The help for a run stopped at its time or output limit (core/error-help.ts helpForLimit), drawn the same way. */
+export function renderLimitHelp(status: RunStatus, limits: { seconds: number; chars: number }, id: string): HelpView | null {
+  const help = helpForLimit(status, limits);
+  return help ? draw(help, id, "Why the program was stopped") : null;
+}
+
+function draw(help: ErrorHelp, id: string, name: string): HelpView {
   const describedBy = `${id}-text`;
   const element = h(
     "div",
-    { class: "err-help", id, role: "note", "aria-label": "What this error means", "data-help": help.id },
+    { class: "err-help", id, role: "note", "aria-label": name, "data-help": help.id },
     svg("svg", { class: "icon err-help-icon", viewBox: "0 0 256 256", fill: "currentColor", "aria-hidden": "true", focusable: "false" },
       ...pathData(lightbulb).map((path) => svg("path", { d: path }))),
     h("div", { class: "err-help-text", id: describedBy }, h("p", { class: "err-help-means" }, ...parts(help.means)), h("p", { class: "err-help-tips" }, ...parts(help.tips))),
