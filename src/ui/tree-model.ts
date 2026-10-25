@@ -124,6 +124,7 @@ export function checkName(dir: WsPath, typed: string, existing: Iterable<WsPath>
 
 // The time part of the stamp conflictName adds (core/paths.ts), with any "-2" and the extension.
 const CONFLICT_TAIL = /(\.conflict-\d{8}-)(\d{6}(?:-\d+)?(?:\.[^.]*)?)$/;
+const MAX_TAIL = 20;
 
 /**
  * A conflict copy's name in two parts for the tree: the stem may be cut with an ellipsis, the tail
@@ -134,7 +135,9 @@ export function conflictNameParts(path: string): { stem: string; tail: string } 
   const name = nameOf(path);
   if (!isConflictCopy(name)) return null;
   const m = CONFLICT_TAIL.exec(name);
-  if (!m) return null;
+  // The tail's width is reserved in ch of the mono face: only a short, printable ASCII tail is one ch
+  // a character, and a long one would leave the stem no room (the name is then cut at its end).
+  if (!m || m[2].length > MAX_TAIL || !/^[\x21-\x7e]+$/.test(m[2])) return null;
   return { stem: name.slice(0, m.index + m[1].length), tail: m[2] };
 }
 
@@ -149,7 +152,10 @@ export interface NewFileNote {
 
 /** What to say about a new file's typed name before it is created; null for a file that runs. */
 export function newFileNote(typed: string): NewFileNote | null {
-  const name = nameOf(typed.trim().replace(/\/+$/, ""));
+  // Trailing slashes are cut with a loop: the regex /\/+$/ is quadratic on a pasted run of them.
+  let end = typed.trimEnd().length;
+  while (end > 0 && typed[end - 1] === "/") end--;
+  const name = nameOf(typed.slice(0, end).trim());
   if (!name || detectLanguage(name)) return null;
   if (extensionOf(name) === "") {
     return {
@@ -169,9 +175,11 @@ const family = (lang: LanguageId) => (lang === "python" ? "python" : "c");
 
 /**
  * The first text of a new, empty file: the empty-state starter of its language, so a new program
- * runs at once. A file beside another source of the same family (a C helper next to main.c, a
- * Python module next to main.py) starts empty instead: a second main() would leave the helper out
- * of the build, and a module's input() would run on import. Conflict copies don't count.
+ * runs at once. A file in or below a folder that holds another source of the same family (a C
+ * helper next to or under main.c's folder, a Python module next to or under main.py) starts empty
+ * instead: a second main() would split the helper off its program (planProgram builds a sub-folder's
+ * C files into the program above them), and a module's input() would run on import. `existing` are
+ * file paths (a folder named x.py is no source). Conflict copies don't count.
  */
 export function starterText(path: WsPath, existing: Iterable<WsPath>): string {
   const name = nameOf(path);
@@ -179,8 +187,9 @@ export function starterText(path: WsPath, existing: Iterable<WsPath>): string {
   // __init__.py and the other dunder files are a package's plumbing: __init__.py runs on import.
   if (!lang || /^__\w+__\./.test(name)) return "";
   const dir = parentOf(path);
+  const inOrBelow = (folder: string) => folder === dir || folder === "" || dir.startsWith(folder + "/");
   for (const p of existing) {
-    if (p === path || parentOf(p) !== dir || isConflictCopy(p)) continue;
+    if (p === path || !inOrBelow(parentOf(p)) || isConflictCopy(p)) continue;
     const other = detectLanguage(nameOf(p));
     if (other && family(other.id) === family(lang.id)) return "";
   }

@@ -11,7 +11,7 @@ import { nameOf } from "../core/paths";
 import type { RunPhase, RunResult, RunStatus, WsPath } from "../core/types";
 import type { RunArgsStore } from "../runner/run-args";
 import type { ArgsField, RunArgs } from "./args-field";
-import { formatMs, h } from "./dom";
+import { formatMs, h, shown } from "./dom";
 import { icon, type IconName } from "./icons";
 import { showsExitCode } from "./run-words";
 
@@ -595,7 +595,7 @@ export class OutputView {
     this.offer?.remove();
     this.offer = null;
     if (offer) {
-      const button = h("button", { type: "button", class: "rl-link", id: "run-offer-button" }, `Run ${offer.path}`);
+      const button = h("button", { type: "button", class: "rl-link", id: "run-offer-button" }, `Run ${shown(offer.path)}`);
       button.addEventListener("click", () => offer.run());
       this.offer = h("p", { class: "run-offer", id: "run-offer" }, icon("info", "rl-icon"), h("span", null, "This file has no main()."), button);
       this.header.append(this.offer);

@@ -12,7 +12,7 @@ import { createTabCoordinator, relayChanges, type ReadOnlyReason, type TabCoordi
 import { createWorkspaceStore, type WorkspaceStore } from "../storage/workspace";
 import { attachCodeMenu } from "./code-menu";
 import { confirmDialog } from "./dialogs";
-import { h, isMac, isTyping, listNames, plural } from "./dom";
+import { h, isMac, isTyping, listNames, plural, shown } from "./dom";
 import { noEditor, type Editors } from "./editors";
 import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
@@ -756,7 +756,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   async function createEntry(kind: "file" | "dir", path: WsPath): Promise<string | null> {
     if (explainReadOnly()) return "This tab is read-only.";
     try {
-      if (kind === "file") await store.createFile(ws, path, starterText(path, entries.map((e) => e.path)));
+      if (kind === "file") await store.createFile(ws, path, starterText(path, entries.filter((e) => e.kind === "file").map((e) => e.path)));
       else await store.createDir(ws, path);
     } catch (e) {
       return storageMessage(e);
@@ -1045,7 +1045,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (lastRun?.failed && lastRun.path === active) root.dataset.lastRun = "failed";
     else delete root.dataset.lastRun;
     const running = root.dataset.run === "running" || root.dataset.run === "waiting";
-    if (lastRun && !running) output.showRunOwner(nameOf(lastRun.path), lastRun.path !== active);
+    // The name, or the path when the open file has the same name (lab1/util.c is not lab2/util.c).
+    const owner = active !== null && lastRun && lastRun.path !== active && nameOf(lastRun.path) === nameOf(active) ? lastRun.path : nameOf(lastRun?.path ?? "");
+    if (lastRun && !running) output.showRunOwner(owner, lastRun.path !== active);
   }
 
   /** An edit after a failed run (in any file: the fix may be in a file the program uses). Cheap per key. */
@@ -1101,6 +1103,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   function recordMove(from: WsPath, to: WsPath | null) {
     // A file's arguments follow its rename and go with its delete (as they do in storage).
     output.argsMoved(from, to);
+    // The file Run waited for is gone from its path: the waiting press goes with it.
+    if (runAfterPack && (runAfterPack.path === from || runAfterPack.path.startsWith(from + "/"))) dropPackRun();
     if (!runMoves) return;
     for (const [k, v] of runMoves) if (v === from) runMoves.set(k, to);
     runMoves.set(from, to);
@@ -1125,6 +1129,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     }
     runPressed = performance.now();
     stopAsked = false;
+    // The last build's "Run main.c" offer goes at once: pressed while this run starts, it would be Stop.
+    output.offerMain(null);
     // A new run: Run takes its filled style again, and the last run's error jump goes.
     if (lastRun) lastRun = { ...lastRun, failed: false };
     runError = null;
@@ -1152,24 +1158,55 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
    * download finishes, if it is still the open file and nothing else runs (B10, 2026-10-24). Run,
    * Download, done: two presses instead of Run, Download, Run again.
    */
-  let runAfterPack: WsPath | null = null;
+  // Keyed by the open file's editor id too: a file renamed, deleted, or replaced at the same path
+  // (a sync, delete and create) is not the file Run was pressed for.
+  let runAfterPack: { path: WsPath; id: FileId } | null = null;
   const PACK_NOTICE = "C and C++ need a one-time download first. The button is in the Output panel.";
+  /** The pack notice this code showed (by its exact words, never a part a file name could carry). */
+  let packNotice: string | null = null;
+  function showPackNotice(text: string) {
+    packNotice = text;
+    notice.show(text, { tone: "info" });
+  }
   /** The notice above, cleared once its button has been used (only if it is still the one shown). */
   function clearPackNotice() {
-    if (notice.element.textContent?.includes(PACK_NOTICE)) notice.clear();
+    if (packNotice !== null && notice.text === shown(packNotice)) notice.clear();
+    packNotice = null;
   }
+  /** The press that waited for the download is dropped: nothing on screen may still promise it. */
+  function dropPackRun() {
+    runAfterPack = null;
+    clearPackNotice();
+    renderPack();
+  }
+  /** Whether a download was running at the last change: one that falls back to absent has failed. */
+  let packWasDownloading = false;
   function runIfPackArrived() {
     const cpp = runtimes.cppRunner;
-    if (!cpp || cpp.state === "checking" || cpp.state === "absent" || cpp.state === "downloading") return;
+    if (!cpp || cpp.state === "checking") return;
+    if (cpp.state === "downloading") {
+      packWasDownloading = true;
+      return;
+    }
+    const failed = packWasDownloading && cpp.state === "absent";
+    packWasDownloading = false;
+    if (cpp.state === "absent") {
+      // A failed download ends the wait: a much later download must not run an old press.
+      if (failed && runAfterPack) dropPackRun();
+      return;
+    }
     clearPackNotice();
-    const path = runAfterPack;
+    const queued = runAfterPack;
     runAfterPack = null;
-    if (path === null || runPressed || cpp.state === "failed" || fileOf(editors.activeId)?.path !== path) return;
+    const open = fileOf(editors.activeId);
+    if (queued === null || runPressed || cpp.state === "failed" || open?.path !== queued.path || open.id !== queued.id) return;
     void run();
   }
 
   /** "Run lab1/main.c" from a failed build of a file without main(): opens that file and runs it. */
   async function runOffered(path: WsPath) {
+    // A run already starting or running: the offer is stale (Run removes it), never a Stop.
+    if (runPressed) return;
     const file = await openFile(path, { focus: true });
     if (file && fileOf(editors.activeId)?.path === path) await run();
   }
@@ -1214,18 +1251,18 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         });
       }
       if (cpp.state === "absent") {
-        runAfterPack = file.path;
+        runAfterPack = { path: file.path, id: file.id };
         renderPack();
         L.showPanelTab("output");
         if (L.narrow()) L.showView("output");
-        notice.show(PACK_NOTICE, { tone: "info" });
+        showPackNotice(PACK_NOTICE);
         output.focusPackButton();
         return;
       }
       if (cpp.state === "downloading") {
-        runAfterPack = file.path;
+        runAfterPack = { path: file.path, id: file.id };
         renderPack();
-        return notice.show(`The C/C++ download is still running. ${nameOf(file.path)} runs as soon as it finishes.`, { tone: "info" });
+        return showPackNotice(`The C/C++ download is still running. ${nameOf(file.path)} runs as soon as it finishes.`);
       }
     }
     // Arguments that can't be split (an unclosed quote, over a limit): the field explains, and
@@ -1443,7 +1480,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       loaded: cpp.progress.loaded,
       total: cpp.progress.total,
       error: cpp.error,
-      then: runAfterPack !== null && runAfterPack === file?.path ? nameOf(runAfterPack) : undefined,
+      then: runAfterPack !== null && runAfterPack.path === file?.path ? nameOf(runAfterPack.path) : undefined,
     });
   }
 

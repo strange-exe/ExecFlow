@@ -3,7 +3,7 @@
 // run header limited to the file they belong to (B11, owner decision), and help for runs stopped at
 // a limit, crash words, a file without main() and the -O0 label (B13).
 import type { Page } from "@playwright/test";
-import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test } from "./helpers";
+import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -169,6 +169,37 @@ test.describe("B10: the C/C++ first run", () => {
     expect(await runs(page), "it ran once").toBe(1);
   });
 
+  test.describe("a download that fails", () => {
+    test.use(
+      tolerating(
+        /^HTTP 503: http:\/\/127\.0\.0\.1:\d+\/clang\/[^/]+\/sysroot\.tar\.gz$/,
+        /^Failed to load resource: the server responded with a status of 503( \(.*\))?$/,
+      ),
+    );
+  test("drops the queued run: a later download runs nothing by itself", async ({ page }) => {
+    // The first download fails (the pack's last part is refused); the second goes through.
+    let refuse = true;
+    await page.route("**/clang/*/sysroot.tar.gz", (route) => (refuse ? route.fulfill({ status: 503, body: "busy" }) : route.continue()));
+    await openApp(page);
+    await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("late"); return 0; }\n' }]);
+    await openFromTree(page, "main.c");
+    await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
+    await page.locator("#run-button").click();
+    await expect(page.locator("#pack-download")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 60_000 });
+    // Nothing on screen still promises the run.
+    await expect(page.locator(".notice")).not.toContainText("runs as soon as it finishes");
+    await expect(page.locator(".pack-offer")).not.toContainText("runs when it finishes");
+    refuse = false;
+    await showView(page, "output");
+    await page.locator("#pack-download").click();
+    await expect(runtime(page)).not.toHaveAttribute("data-state", /absent|downloading|checking/, { timeout: 120_000 });
+    await page.waitForTimeout(1500);
+    expect(await runs(page), "the old press doesn't run the file much later").toBe(0);
+  });
+  });
+
   test("a download started from the offer alone runs nothing by itself", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("x"); return 0; }\n' }]);
@@ -221,6 +252,25 @@ test.describe("B11: Run's step-back and the run header belong to the file that r
     await expect(file).toHaveText("other.py");
     await openFromTree(page, "bad.py");
     await expect(file).toHaveText("Last run: other.py");
+  });
+
+  test("Last run names the folder when the open file has the same name (lab1/bad.py is not lab2/bad.py)", async ({ page }) => {
+    await openApp(page);
+    await importFiles(page, [{ name: "readme.txt", text: "notes\n" }]);
+    // Files in folders go in through New file, which makes the folders (import keeps base names).
+    for (const [path, code] of [["lab1/bad.py", "print('one')\n"], ["lab2/bad.py", "print(1 / 0)\n"]]) {
+      await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+      await page.locator("#new-file").click();
+      const field = page.getByRole("textbox", { name: /Name of the new file/ });
+      await field.fill(path);
+      await field.press("Enter");
+      await expect(page.locator(`.tree [role=treeitem][data-path="${path}"]`)).toHaveCount(1);
+      await setCode(page, code);
+    }
+    await openFromTree(page, "lab2/bad.py");
+    expect((await run(page)).status).toBe("error");
+    await openFromTree(page, "lab1/bad.py");
+    await expect(page.locator("#runlog .rl-file")).toHaveText("Last run: lab2/bad.py");
   });
 });
 
@@ -296,6 +346,30 @@ test.describe("B13: runs that never end, crashes, and a file without main()", ()
     await expect(page.locator("#receipt")).toHaveAttribute("data-status", "ok");
     await expect(page.locator("#console")).toContainText("49");
     await expect(offer).toHaveCount(0);
+  });
+
+  test("the offer goes as soon as Run is pressed again, so it can never act as Stop for the starting run", async ({ page }) => {
+    test.setTimeout(240_000);
+    await openApp(page);
+    await importFiles(page, [
+      { name: "main.c", text: '#include <stdio.h>\nint square(int x);\nint main(void) { printf("%d\\n", square(7)); return 0; }\n' },
+      { name: "util.c", text: "int square(int x) { return x * x; }\n" },
+    ]);
+    await openFromTree(page, "util.c");
+    await installCpp(page);
+    expect((await run(page, { timeout: 120_000 })).status).toBe("build-failed");
+    await expect(page.locator("#run-offer")).toBeVisible();
+    // Run again, then the old offer in the same task (while the run is still starting).
+    const offerLeft = await page.evaluate(() => {
+      document.querySelector<HTMLButtonElement>("#run-button")!.click();
+      const button = document.querySelector<HTMLButtonElement>("#run-offer-button");
+      button?.click();
+      return Boolean(button?.isConnected);
+    });
+    expect(offerLeft, "the offer is gone the moment Run is pressed").toBe(false);
+    await expect(page.locator("#app")).toHaveAttribute("data-runs", "2", { timeout: 120_000 });
+    await expect(page.locator("#receipt")).toHaveAttribute("data-status", "build-failed");
+    await expect(page.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", "util.c");
   });
 
   test("Settings says what -O0 costs", async ({ page }) => {

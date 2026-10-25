@@ -107,6 +107,14 @@ describe("conflict copy names", () => {
   it("leaves every other name whole", () => {
     for (const name of ["main.py", "conflict-20261024-231921.py", "main.conflict.py", "x.conflict-2026-231921.py"]) expect(conflictNameParts(name), name).toBeNull();
   });
+
+  it("isn't split when the kept tail would crowd out the stem or can't be measured in ch (a long or non-ASCII extension)", () => {
+    // The tail's width is reserved in ch: a 200-letter extension left the stem no room at all.
+    expect(conflictNameParts("a.conflict-20261024-231921." + "x".repeat(200))).toBeNull();
+    // A wide or combining character isn't one ch wide.
+    expect(conflictNameParts("a.conflict-20261024-231921." + String.fromCodePoint(0x6587, 0x4ef6))).toBeNull();
+    expect(conflictNameParts("a.conflict-20261024-231921-99.markdown")).toEqual({ stem: "a.conflict-20261024-", tail: "231921-99.markdown" });
+  });
 });
 
 describe("new file names", () => {
@@ -134,6 +142,15 @@ describe("new file names", () => {
     expect(header.text).toMatch(/header/i);
     expect(newFileNote("main.")?.bare).toBe(false);
   });
+
+  it("stay quick on a pasted run of slashes (it runs on every key)", () => {
+    const typed = "/".repeat(40000) + "x";
+    const t0 = performance.now();
+    newFileNote(typed);
+    newFileNote("lab1/" + "/".repeat(40000));
+    expect(performance.now() - t0).toBeLessThan(50);
+    expect(newFileNote("lab1/notes///")?.bare).toBe(true);
+  });
 });
 
 describe("a new file's first text", () => {
@@ -155,6 +172,19 @@ describe("a new file's first text", () => {
     expect(starterText("main.py", ["main.c"])).toBe(sample("python"));
     // Conflict copies are never part of a program.
     expect(starterText("main.c", ["main.conflict-20261024-231921.c"])).toBe(sample("c"));
+  });
+
+  it("is empty below a folder whose program it joins (a C helper in lab/lib under lab/main.c, a Python module under main.py)", () => {
+    // planProgram builds a sub-folder's C files into the nearest program above them: a main() in the
+    // helper would split it off and leave lab/main.c with an undefined symbol.
+    expect(starterText("lab/lib/util.c", ["lab/main.c"])).toBe("");
+    expect(starterText("lab/lib/deep/util.cpp", ["lab/main.c"])).toBe("");
+    // A Python module in a sub-folder is imported by the program above it: input() would run on import.
+    expect(starterText("utils/helper.py", ["main.py"])).toBe("");
+    // A program in a sibling folder or below the new file is another program.
+    expect(starterText("lab2/main.c", ["lab1/main.c", "lab1/lib/util.c"])).toBe(sample("c"));
+    expect(starterText("main.c", ["lab/main.c"])).toBe(sample("c"));
+    expect(starterText("labx/main.c", ["lab/main.c"])).toBe(sample("c"));
   });
 
   it("is empty for a package's __init__.py and other dunder files (package plumbing: __init__.py runs on import)", () => {

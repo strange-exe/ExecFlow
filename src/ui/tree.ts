@@ -6,7 +6,7 @@
 // strip, files open in a tab are marked too (an icon and the description "open in a tab").
 import { detectLanguage, isHeader } from "../core/languages";
 import type { EntryMeta, WsPath } from "../core/types";
-import { h } from "./dom";
+import { h, shown } from "./dom";
 import { icon, type IconName } from "./icons";
 import { ancestors, buildTree, checkName, conflictNameParts, newFileNote, targetFolder, typeAhead, visibleRows, type NewFileNote, type TreeNode } from "./tree-model";
 import { createAnnouncer } from "./notice";
@@ -42,13 +42,16 @@ export function fileIcon(path: string): IconName {
  * after it when it builds the name ("main.conflict-20261017- 101500.py", measured 2026-10-24).
  */
 function treeName(n: TreeNode, id: string): HTMLElement {
+  // An invisible or format character a name may still hold (one arriving from GitHub, say) is drawn
+  // as a tag, so the name can't pass for another file's (shown(), as in notices).
+  const name = shown(n.name);
   const parts = n.kind === "file" ? conflictNameParts(n.path) : null;
-  if (!parts) return h("span", { class: "tree-name", id }, n.name);
+  if (!parts) return h("span", { class: "tree-name", id }, name);
   return h(
     "span",
-    { class: "tree-name split", id, title: n.name, style: `--tail: ${parts.tail.length}ch` },
-    h("span", { class: "visually-hidden" }, n.name),
-    h("span", { "aria-hidden": "true" }, h("span", { class: "name-stem" }, parts.stem), h("span", { class: "name-tail" }, parts.tail)),
+    { class: "tree-name split", id, title: name, style: `--tail: ${parts.tail.length}ch` },
+    h("span", { class: "visually-hidden" }, name),
+    h("span", { "aria-hidden": "true" }, h("span", { class: "name-stem" }, shown(parts.stem)), h("span", { class: "name-tail" }, parts.tail)),
   );
 }
 

@@ -1,7 +1,7 @@
 // Tiny DOM helpers. Every node is built with createElement; text only ever goes in as text nodes
 // or textContent, attributes with setAttribute. Nothing here (or anywhere in the UI) parses HTML,
 // so file names, program output and repository content can never become markup.
-import { BIDI_CONTROL, CONTROL, HIDDEN } from "../core/safety";
+import { tagUnshown } from "../core/safety";
 
 type Child = Node | string | number | null | undefined | false;
 type AttrValue = string | number | boolean | null | undefined;
@@ -77,18 +77,14 @@ export function isTyping(target: EventTarget | null): boolean {
 
 export const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform);
 
-// Direction controls (Trojan Source), invisible and control characters, all of them at once.
-const UNSHOWN = new RegExp(`${BIDI_CONTROL.source}|${HIDDEN.source}|${CONTROL.source}`, "g");
-
 /**
  * Untrusted text (a file name, a repository's name, a reason that quotes one) made safe to put in
- * a sentence: each direction, invisible or control character becomes a visible tag such as
+ * a sentence: each direction, invisible, format or control character becomes a visible tag such as
  * "[U+202E]", so it can neither reorder nor hide the rest of the sentence. (A <bdi> wrapper is not
- * enough: an override inside it still reverses the text it covers.)
+ * enough: an override inside it still reverses the text it covers.) The rule is core/safety.ts
+ * tagUnshown, shared with the DOM-free snippet module.
  */
-export function shown(text: string): string {
-  return text.replace(UNSHOWN, (c) => `[U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}]`);
-}
+export const shown = tagUnshown;
 
 export function plural(n: number, word: string, many = `${word}s`): string {
   return `${n} ${n === 1 ? word : many}`;

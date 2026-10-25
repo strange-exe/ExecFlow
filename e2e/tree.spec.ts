@@ -73,6 +73,19 @@ test("the file tree follows the APG treeview keyboard pattern", async ({ page })
   await expect(page.locator(".cm-content")).toBeFocused();
 });
 
+test("a name with an invisible character can't pass for another file's name in the list", async ({ page }) => {
+  // Found by the attack review (2026-10-24): an invisible times (U+2062) inside "main.c" was drawn
+  // invisibly, so a planted file looked like the real one. The list shows it as a tag instead.
+  const sneaky = `mai${String.fromCodePoint(0x2062)}n.c`;
+  await openApp(page);
+  await importFiles(page, [
+    { name: "main.c", text: "int main(void) { return 0; }\n" },
+    { name: sneaky, text: "int main(void) { return 1; }\n" },
+  ]);
+  await expect(treeItem(page, sneaky).locator(".tree-name")).toHaveText("mai[U+2062]n.c");
+  await expect(treeItem(page, "main.c").locator(".tree-name")).toHaveText("main.c");
+});
+
 test("F2, Delete and the context menu work from the keyboard, and focus comes back", async ({ page }) => {
   await setUp(page);
   await treeItem(page, "beta.py").focus();

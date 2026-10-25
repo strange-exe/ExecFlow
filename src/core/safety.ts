@@ -57,6 +57,30 @@ export const BIDI_CONTROL = /[\u202a-\u202e\u2066-\u2069]/;
 // U+200D are left alone: Hindi and other Indic scripts need them.)
 export const HIDDEN = /[\u00ad\u115f\u1160\u180e\u200b\u200e\u200f\u2060\u3164\uffa0\ufeff]/g;
 
+// What a name drawn in a sentence must never carry unseen: the three sets above, and every other
+// control, format character, line or paragraph separator and default-ignorable code point (the
+// attack review, 2026-10-24, found C1 controls, U+061C, invisible operators, variation selectors
+// and interlinear marks drawn invisibly in names).
+const UNSHOWN = new RegExp(
+  `${BIDI_CONTROL.source}|${HIDDEN.source}|${CONTROL.source}|[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}]`,
+  "gu",
+);
+// Never tagged: zero-width non-joiner and joiner shape Hindi and other scripts, and tab, line feed,
+// form feed and carriage return are left as CONTROL leaves them (printed file text keeps its lines).
+const KEPT = new Set([0x200c, 0x200d, 0x09, 0x0a, 0x0c, 0x0d]);
+
+/**
+ * Untrusted text (a file name, a repository's name, a reason that quotes one) made safe to put in a
+ * sentence: each such character becomes a visible tag such as "[U+202E]", so it can neither reorder
+ * nor hide the rest of the sentence. ui/dom.ts and core/snippet.ts both export it as shown().
+ */
+export function tagUnshown(text: string): string {
+  return text.replace(UNSHOWN, (c) => {
+    const point = c.codePointAt(0)!;
+    return KEPT.has(point) ? c : `[U+${point.toString(16).toUpperCase().padStart(4, "0")}]`;
+  });
+}
+
 /** Checks text that will become code in the editor. */
 export function checkText(text: string): CheckedText {
   if (CONTROL.test(text)) return { ok: false, reason: "it contains control characters, so it is probably not a text file" };

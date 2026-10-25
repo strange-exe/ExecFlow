@@ -7,19 +7,14 @@
 // first visit. Kept ASCII: special characters are built from their code points. No DOM types
 // either: the worker build type-checks src/core with the WebWorker library.
 import { nameOf } from "./paths";
-import { BIDI_CONTROL, CONTROL, HIDDEN } from "./safety";
-
-// Direction controls (Trojan Source), invisible and control characters, all of them at once.
-const UNSHOWN = new RegExp(`${BIDI_CONTROL.source}|${HIDDEN.source}|${CONTROL.source}`, "g");
+import { tagUnshown } from "./safety";
 
 /**
- * ui/dom.ts shown(), for this DOM-free module (a unit test keeps the two equal): each direction,
- * invisible or control character in untrusted text (a file name, a custom theme's name) becomes a
- * visible tag such as "[U+202E]", so it can neither reorder nor hide the rest of the label.
+ * ui/dom.ts shown(), for this DOM-free module (both are core/safety.ts tagUnshown): each direction,
+ * invisible, format or control character in untrusted text (a file name, a custom theme's name)
+ * becomes a visible tag such as "[U+202E]", so it can neither reorder nor hide the rest of the label.
  */
-export function shown(text: string): string {
-  return text.replace(UNSHOWN, (c) => `[U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}]`);
-}
+export const shown = tagUnshown;
 
 /** The most lines one image shows (the user's choice). */
 export const MAX_LINES = 300;
