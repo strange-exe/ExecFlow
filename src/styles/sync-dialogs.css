@@ -74,6 +74,9 @@
 .signin-steps { margin: 0 0 var(--s3); padding-left: 1.4em; }
 .signin-steps li + li { margin-top: 4px; }
 .signin-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+/* U4: "No repository yet? Create a private one on GitHub" on both connect paths (spacing only). */
+.repo-fields .new-repo { margin-top: var(--s2); }
+.signin-empty .new-repo { margin: 0 0 var(--s3); }
 .signin-actions .btn { min-height: 44px; text-decoration: none; }
 .signin-pick .choice-list { margin-top: 0; }
 .signin-pick .repo-name { font-family: var(--font-code); overflow-wrap: anywhere; }

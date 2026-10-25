@@ -250,7 +250,8 @@ export async function goToGitHub(page: Page, si: SignInRoute, o: { remember?: bo
   const open = page.locator("#connect-dialog");
   const dialog = (await open.isVisible()) ? open : await openConnect(page);
   await expect(dialog).toHaveAttribute("data-view", "start");
-  if (o.remember === false) await page.locator("#connect-signin-remember").uncheck();
+  // Remember starts off (the owner's choice, 2026-10-24): set it only when a test says which.
+  if (o.remember !== undefined) await page.locator("#connect-signin-remember").setChecked(o.remember);
   await page.locator("#connect-signin").click();
   await page.waitForURL(/^https:\/\/github\.com\/login\/oauth\/authorize/);
   return si.lastAuthorize();
@@ -287,7 +288,7 @@ export async function appSecrets(page: Page, tokens: string[]) {
   }, tokens);
 }
 
-/** What "Remember on this computer" stored: the records' names, and whether the token shows in clear. */
+/** What "Remember on this device" stored: the records' names, and whether the token shows in clear. */
 export async function secrets(page: Page, token: string) {
   return page.evaluate(async (t) => {
     const db: IDBDatabase = await new Promise((resolve, reject) => {
