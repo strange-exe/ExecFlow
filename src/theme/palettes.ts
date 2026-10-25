@@ -153,6 +153,12 @@ export const SLATE: Record<Scheme, Palette> = {
 /** CodeEditor's own palettes (painted by tokens.css), by name. */
 export type OwnPalette = "signal" | "deep-field" | "slate";
 export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { signal: SIGNAL, "deep-field": DEEP_FIELD, slate: SLATE };
+/**
+ * The default theme's own palette (themes.ts DEFAULT_THEME_ID): what a palette theme with nothing
+ * valid to paint falls back to, the Light and Dark that Capture snippet offers under a palette
+ * theme, and Save as PDF's ink.
+ */
+export const DEFAULT_OWN: OwnPalette = "signal";
 
 /** Pocket Run's theme-file colours (a Pocket Run theme file loads here unchanged). */
 export const BASE_TOKENS = [

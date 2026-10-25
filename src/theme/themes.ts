@@ -9,7 +9,7 @@ import { checkBytes } from "../core/safety";
 import { shown } from "../ui/dom";
 import { COLOR_VARS, HEX, isTokenValue, readablePalette, type ColorVar, type Palette } from "./contrast";
 import {
-  BASE_TOKENS, baseOf, expandBase, OPTIONAL_TOKENS, OWN, POCKET_THEMES, type BaseColors, type OwnPalette, type Scheme, type ThemeGroup,
+  BASE_TOKENS, baseOf, DEFAULT_OWN, expandBase, OPTIONAL_TOKENS, OWN, POCKET_THEMES, type BaseColors, type OwnPalette, type Scheme, type ThemeGroup,
 } from "./palettes";
 
 export type { OwnPalette, Scheme };
@@ -30,8 +30,6 @@ export interface Theme {
 }
 
 export const DEFAULT_THEME_ID = "signal";
-/** The default theme's own palette: what a palette theme with nothing valid to paint falls back to. */
-const DEFAULT_OWN: OwnPalette = "signal";
 /**
  * "CodeEditor Deep Field (match device)", the default from 2026-10-18 until Signal (2026-10-25). A
  * device that kept it is moved to Signal once (storedThemeId); chosen again after that, it stays.

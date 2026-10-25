@@ -5,7 +5,7 @@
 // the DOM through the deps; the unit tests supply fakes. Lazy (the dialog's chunk).
 import type { ColorChoice, PaintFamily, PaintInfo } from "../core/snippet";
 import { checkColors, sameOptions, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
-import { OWN } from "../theme/palettes";
+import { DEFAULT_OWN, OWN } from "../theme/palettes";
 
 export { sameOptions };
 
@@ -24,12 +24,12 @@ export function paintFamily(palette: string | undefined): PaintFamily {
 
 /**
  * The colours of a choice: what this tab painted, or the own palette's light or dark. Palette
- * themes offer Deep Field's, as they did before Signal (the choices are named so: core/snippet-dialog.ts).
+ * themes offer the default theme's (Signal's; the choices are named so: core/snippet-dialog.ts).
  * Null: not all #rrggbb.
  */
 export function imageColors(choice: ColorChoice, paint: Paint): ImageColors | null {
   if (choice === "match") return checkColors(paint.computed);
-  return checkColors(OWN[paint.family === "palette" ? "deep-field" : paint.family][choice]);
+  return checkColors(OWN[paint.family === "palette" ? DEFAULT_OWN : paint.family][choice]);
 }
 
 // ---------------------------------------------------------------- the preview scheduler (7.3)

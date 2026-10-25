@@ -546,13 +546,14 @@ describe("imageColors (4.3)", () => {
     expect(paintFamily("palette")).toBe("palette");
     expect(paintFamily("evil")).toBe("palette");
   });
-  it("match gives the computed values; light and dark the own palette, Deep Field for palette themes", () => {
+  it("match gives the computed values; light and dark the own palette, the default's (Signal) for palette themes", () => {
     expect(imageColors("match", paint("deep-field"))).toEqual(computed);
     expect(imageColors("light", paint("deep-field"))).toEqual(pick(OWN["deep-field"].light));
     expect(imageColors("dark", paint("deep-field"))).toEqual(pick(OWN["deep-field"].dark));
     expect(imageColors("light", paint("slate"))).toEqual(pick(OWN.slate.light));
     expect(imageColors("dark", paint("slate"))).toEqual(pick(OWN.slate.dark));
-    expect(imageColors("light", paint("palette"))).toEqual(pick(OWN["deep-field"].light));
+    expect(imageColors("light", paint("palette"))).toEqual(pick(OWN.signal.light));
+    expect(imageColors("dark", paint("palette"))).toEqual(pick(OWN.signal.dark));
   });
   it("a computed value that isn't #rrggbb fails the choice, never a guess", () => {
     expect(imageColors("match", { ...paint("palette"), computed: { ...computed, "syn-keyword": "var(--x)" } })).toBeNull();

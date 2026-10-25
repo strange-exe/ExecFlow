@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { contrast, HEX, TEXT } from "./contrast";
-import { DEEP_FIELD } from "./palettes";
+import { SIGNAL } from "./palettes";
 import { PAPER, PRINT_INK, PRINT_RULE_TOKENS, PRINT_TEXT_TOKENS } from "./print-ink";
 
 describe("the print-safe ink (Save as PDF)", () => {
@@ -9,9 +9,9 @@ describe("the print-safe ink (Save as PDF)", () => {
     expect(ratio, `${token} ${PRINT_INK[token]} on ${PAPER}: ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(TEXT);
   });
 
-  it("is Deep Field Light's ink, plain hexes only (no translucent values reach paper)", () => {
+  it("is Signal Light's ink (the default theme's), plain hexes only (no translucent values reach paper)", () => {
     for (const token of [...PRINT_TEXT_TOKENS, ...PRINT_RULE_TOKENS]) {
-      expect(PRINT_INK[token]).toBe(DEEP_FIELD.light[token]);
+      expect(PRINT_INK[token]).toBe(SIGNAL.light[token]);
       expect(PRINT_INK[token]).toMatch(HEX);
     }
   });

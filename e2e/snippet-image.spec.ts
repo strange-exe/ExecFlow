@@ -976,7 +976,7 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   await selectFixtureLines(page);
   await openFromFileMenu(page, ITEM);
   await previewReady(page);
-  expect(await labels()).toEqual(["Match the editor (High contrast)", "CodeEditor Deep Field Light", "CodeEditor Deep Field Dark"]);
+  expect(await labels()).toEqual(["Match the editor (High contrast)", "CodeEditor Signal Light", "CodeEditor Signal Dark"]);
   await setOptions(page, "match", true, true);
   const hc = await tokens(page);
   const matched = decodeRgba(await previewPng(page));
@@ -984,8 +984,8 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   expect(off(matched.at(10, 10), matOf(hc)), "Match: this page's background").toBeLessThanOrEqual(2);
   await setOptions(page, "light", true, true);
   const light = decodeRgba(await previewPng(page));
-  expect(off(light.at(GROUND, GROUND), "#f8fbf9"), "Deep Field Light's ground").toBeLessThanOrEqual(2);
-  expect(off(light.at(10, 10), matOf({ bg: "#f8fbf9", action: "#004f3a" })), "Deep Field Light's background").toBeLessThanOrEqual(2);
+  expect(off(light.at(GROUND, GROUND), "#fcfcfd"), "Signal Light's ground").toBeLessThanOrEqual(2);
+  expect(off(light.at(10, 10), matOf({ bg: "#fcfcfd", action: "#2f5bea" })), "Signal Light's background").toBeLessThanOrEqual(2);
   await setOptions(page, "match", true, true);
   await page.keyboard.press("Escape");
 

@@ -178,8 +178,8 @@ export function colorChoices(paint: PaintInfo): { value: ColorChoice; label: str
   if (paint.family === "palette") {
     return [
       { value: "match", label: paint.themeName ? `Match the editor (${shown(paint.themeName)})` : "Match the editor" },
-      { value: "light", label: "CodeEditor Deep Field Light" },
-      { value: "dark", label: "CodeEditor Deep Field Dark" },
+      { value: "light", label: "CodeEditor Signal Light" },
+      { value: "dark", label: "CodeEditor Signal Dark" },
     ];
   }
   return [
@@ -192,8 +192,8 @@ export function colorChoices(paint: PaintInfo): { value: ColorChoice; label: str
 const OWN_PHRASE: Record<ColorChoice, string> = { match: "in the editor's colours", light: "in light colours", dark: "in dark colours" };
 const PALETTE_PHRASE: Record<ColorChoice, string> = {
   match: "in the editor's colours",
-  light: "in CodeEditor Deep Field Light colours",
-  dark: "in CodeEditor Deep Field Dark colours",
+  light: "in CodeEditor Signal Light colours",
+  dark: "in CodeEditor Signal Dark colours",
 };
 
 /** The preview's text alternative (5.3), also the dialog's description. */
