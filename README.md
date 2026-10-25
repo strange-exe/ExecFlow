@@ -371,15 +371,16 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | LLVM: clang 8 and lld, in the C/C++ pack | Apache-2.0 WITH LLVM-exception, and the legacy University of Illinois/NCSA licence (`LICENSE.llvm.txt` in the pack) | C and C++: compiling and linking |
 | libc++ 8 and libc++abi 8 (LLVM), in the C/C++ pack's sysroot | MIT or University of Illinois/NCSA, dual licensed (`licenses/libcxx-8-LICENSE.TXT`, `licenses/libcxxabi-8-LICENSE.TXT`; the pack has no copy) | C++ standard library, and the C++ names in suggestions |
 | wasi-libc (built from musl and cloudlibc), in the C/C++ pack's sysroot | Not stated in the pack. Upstream wasi-libc today: Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT, with musl's parts MIT and cloudlibc's BSD-2-Clause; not checked for this 2019 build | C library, and the C names in suggestions |
-| [Source Sans 3](https://github.com/adobe-fonts/source-sans) and [Source Code Pro](https://github.com/adobe-fonts/source-code-pro) (`@fontsource/source-sans-3`, `@fontsource/source-code-pro`) | SIL Open Font License 1.1 | Fonts: interface, and code and output |
-| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: code with "Joined symbols" on |
+| [Geist](https://github.com/vercel/geist-font) (`@fontsource-variable/geist`) | SIL Open Font License 1.1 | Font: the interface |
+| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: code, output and file names (its ligatures only with "Joined symbols" on) |
 | [Phosphor Icons](https://phosphoricons.com/) (`@phosphor-icons/core`) | MIT | Icons |
 | [Workbox](https://github.com/GoogleChrome/workbox) (through `vite-plugin-pwa`) | MIT | Offline service worker |
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto
 CodeEditor's colours and adjusted where a colour pair would be hard to read. The table lists all 36
-palette themes; High contrast, like CodeEditor Deep Field and CodeEditor Slate, is CodeEditor's own:
+palette themes; High contrast, like CodeEditor Signal (the default), CodeEditor Deep Field and CodeEditor
+Slate, is CodeEditor's own:
 
 | Theme | Source | Licence |
 |---|---|---|
