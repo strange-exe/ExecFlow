@@ -1017,6 +1017,23 @@ button.problem:hover { background: var(--hover); }
   .run { padding: 0 var(--s2); }
 }
 
+/* ------------------------------------------------------------------ short windows */
+/* 420 px tall or less (400% zoom of a 1280 x 800 window is 320 x 200 CSS px; a phone held sideways
+   is 390): the page scrolls as a whole instead of squeezing the work between fixed bars, where a
+   waiting program's input field lay under the status bar and its header under the tools row
+   (WCAG 2.4.11, 1.4.10). Nothing is fixed over the work: the top bar starts the page and the status
+   bar ends it, both reached by scrolling (a sticky top bar would hide the editor's caret, which
+   CodeMirror scrolls into the window, not below a bar). The work area keeps 360 px or more, room
+   for the Output view's header, a few lines and the input field; layout.ts brings a waiting
+   program's input line to the window's foot. The drawer opens with the page at its top (layout.ts)
+   and holds it there while it is open, so it still hangs from the top bar. */
+@media (max-height: 420px) {
+  body { overflow: auto; }
+  body:has(.workbench[data-drawer="open"]) { overflow: hidden; }
+  .workbench { height: auto; min-height: 100dvh; grid-template-rows: var(--h-topbar) auto auto; }
+  .main { height: max(calc(100dvh - var(--h-topbar)), 360px); }
+}
+
 /* ------------------------------------------------------------------ forced colours */
 /* Forced colours (Windows High Contrast) paint every author background as Canvas and drop
    box-shadows, so marks drawn that way vanished there: the selected tab's, panel tab's and view

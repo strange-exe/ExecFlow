@@ -12,6 +12,8 @@ import { icon } from "./icons";
 import { clamp, createSplitter, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
+/** A short window (app.css): the page scrolls as a whole. */
+export const SHORT = "(max-height: 420px)";
 export const SIDEBAR = { min: 200, max: 480, initial: 248 };
 export const PANEL = { min: 15, max: 80, initial: 35 };
 
@@ -105,6 +107,7 @@ export interface Layout {
 
 export function createLayout(root: HTMLElement): Layout {
   const narrowQuery = matchMedia(NARROW);
+  const shortQuery = matchMedia(SHORT);
 
   // ---------------------------------------------------------------- top bar
   const drawerToggle = h("button", { type: "button", class: "icon-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "false", "aria-controls": "sidebar", title: "Files" }, icon("sidebar-simple"));
@@ -304,6 +307,9 @@ export function createLayout(root: HTMLElement): Layout {
     return root.dataset.drawer === "open";
   }
   function openDrawer() {
+    // A short window scrolls the page (app.css): the drawer hangs from the top bar, so the page
+    // goes to its top first (and stays there while the drawer is open).
+    if (shortQuery.matches) scrollTo(0, 0);
     root.dataset.drawer = "open";
     drawerToggle.setAttribute("aria-expanded", "true");
     sidebar.inert = false; // before moving focus in: an inert element can't take focus
@@ -327,6 +333,28 @@ export function createLayout(root: HTMLElement): Layout {
       closeDrawer();
     }
   });
+  // ---------------------------------------------------------------- short windows
+  // At 420 px tall or less the page scrolls as a whole (app.css). A text field that takes focus is
+  // checked again once the layout has settled: the output log's blocks keep a placeholder height
+  // until first drawn (content-visibility), so a waiting program's input field, scrolled to at
+  // once, sat off screen a frame later (400% zoom, Chromium), or the run header above it went out
+  // of sight (Firefox), 2026-10-24. A waiting program's input line goes to the window's foot, with
+  // what leads to it (the prompt, the last lines, the run header) above it; any other field is
+  // scrolled only when it is not wholly on screen.
+  root.addEventListener("focusin", (e) => {
+    const field = e.target;
+    if (!shortQuery.matches || !(field instanceof HTMLElement) || !field.matches("input, textarea, select") || field.closest("dialog")) return;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (document.activeElement !== field || !shortQuery.matches) return;
+        const line = field.closest<HTMLElement>(".live-input");
+        if (line) return line.scrollIntoView({ block: "end" });
+        const r = field.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > innerHeight) field.scrollIntoView({ block: "nearest" });
+      }),
+    );
+  });
+
   // ---------------------------------------------------------------- the panel: collapsed to its bar
   // Desktop: the panel is its bar until the first run or problem, then opens to the remembered
   // height (the splitter's value). A collapsed body is hidden; the run's result is still read out by
