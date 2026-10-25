@@ -30,7 +30,8 @@ export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLEl
   });
   const importFiles = h("button", { type: "button", class: "btn" }, icon("upload-simple"), "Import files");
   const importFolder = h("button", { type: "button", class: "btn" }, icon("folder-plus"), "Import a folder");
-  const connect = h("button", { type: "button", class: "btn ghost" }, icon("github-logo"), "Connect GitHub");
+  // An outline button like Import: a borderless one read as plain text beside the rule-separated rows.
+  const connect = h("button", { type: "button", class: "btn" }, icon("github-logo"), "Connect GitHub");
   // The starters lead; the examples are the same step's quieter second way (a tertiary text button).
   const examples = h("button", { type: "button", class: "text-btn", id: "empty-examples" }, "New from example...");
   examples.addEventListener("click", () => actions.examples(examples));

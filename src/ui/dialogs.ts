@@ -20,7 +20,7 @@ export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement 
   const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
   const opener = returnTo ?? active;
   if (!dialog.isConnected) document.body.append(dialog);
-  watchScroll(dialog);
+  const measure = watchScroll(dialog);
   dialog.addEventListener(
     "close",
     () => {
@@ -33,22 +33,63 @@ export function openModal(dialog: HTMLDialogElement, initialFocus?: HTMLElement 
     { once: true },
   );
   dialog.showModal();
+  // Laid out now: whether the body scrolls is known before the first key (a Tab to it, say).
+  measure();
   (initialFocus ?? dialog.querySelector<HTMLElement>("[autofocus]"))?.focus();
 }
 
 /**
  * The header stays put while the body scrolls under it; once the body has scrolled, a divider
  * rule under the header shows where the two meet (data-scrolled on .dialog-head).
+ *
+ * While the body overflows (data-overflow on the dialog) the footer draws its rule too, and the body
+ * is a region named by the title with tabindex=0, so the keyboard can scroll it (WCAG 2.1.1): WebKit
+ * scrolls a box by keyboard only once something in it has focus, and the Shortcuts list has nothing
+ * focusable (axe scrollable-region-focusable). This holds for every overflowing body, not only one
+ * without controls: text after a body's last control (Connect's token steps, a long note) is reached
+ * only by scrolling the body itself, and Tab to a control in the footer never scrolls it. The cost
+ * is one Tab stop, and only while the body really scrolls; it goes once the body fits again (kept
+ * while it has focus, so focus is never dropped on the page). Returns the measuring function.
  */
-function watchScroll(dialog: HTMLDialogElement): void {
+function watchScroll(dialog: HTMLDialogElement): () => void {
   const head = dialog.querySelector<HTMLElement>(".dialog-head");
   const body = dialog.querySelector<HTMLElement>(".dialog-body");
-  if (!head || !body || body.dataset.watched) return;
+  if (!head || !body) return () => {};
+  const measure = () => {
+    head.toggleAttribute("data-scrolled", body.scrollTop > 0);
+    const scroller = /^(auto|scroll)$/.test(getComputedStyle(body).overflowY);
+    const overflow = dialog.open && scroller && body.scrollHeight > body.clientHeight + 1;
+    dialog.toggleAttribute("data-overflow", overflow);
+    if (overflow) {
+      body.tabIndex = 0;
+      body.setAttribute("role", "region");
+      const title = dialog.getAttribute("aria-labelledby");
+      if (title) body.setAttribute("aria-labelledby", title);
+    } else if (body.hasAttribute("tabindex") && document.activeElement !== body) {
+      body.removeAttribute("tabindex");
+      body.removeAttribute("role");
+      body.removeAttribute("aria-labelledby");
+    }
+  };
+  if (body.dataset.watched) return measure;
   body.dataset.watched = "true";
-  const update = () => head.toggleAttribute("data-scrolled", body.scrollTop > 0);
-  body.addEventListener("scroll", update, { passive: true });
+  body.addEventListener("scroll", () => head.toggleAttribute("data-scrolled", body.scrollTop > 0), { passive: true });
+  body.addEventListener("blur", measure);
   dialog.addEventListener("close", () => head.removeAttribute("data-scrolled"));
-  update();
+  // The window's size (the body's box) and what the body holds (an error shown, the token form
+  // opened, More themes unfolded) both change whether it scrolls: measured once per frame.
+  let queued = false;
+  const later = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      measure();
+    });
+  };
+  if (typeof ResizeObserver === "function") new ResizeObserver(later).observe(body);
+  new MutationObserver(later).observe(body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["hidden", "open", "class"] });
+  return measure;
 }
 
 /** A dialog shell: title, a close button, and a body. Labelled by its title. */

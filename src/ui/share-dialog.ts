@@ -99,7 +99,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     open = false;
   }, { once: true });
 
-  const result = h("p", { class: "connect-result share-result", id: "share-result", role: "status" });
+  const result = h("p", { class: "result-line connect-result share-result", id: "share-result", role: "status" });
   const cancel = h("button", { type: "button", class: "btn", id: "share-cancel" }, "Cancel");
   const primary = h("button", { type: "button", class: "btn primary", id: "share-primary" });
   cancel.addEventListener("click", () => dialog.close());

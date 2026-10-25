@@ -42,7 +42,7 @@
   font-size: var(--fs-hint);
   line-height: var(--lh-hint);
 }
-.snippet-note .icon { margin-top: 1px; }
+.snippet-note .icon { width: var(--icon-sm); height: var(--icon-sm); margin-top: calc((var(--lh-hint) - var(--icon-sm)) / 2); }
 
 .snippet-options {
   display: grid;
@@ -79,45 +79,21 @@
 .snippet-highlight { min-width: 0; }
 .snippet-highlight > input { width: 100%; min-width: 0; }
 .snippet-highlight .field-note { margin: 0; line-height: var(--lh-hint); }
-/* An invalid field: a 2 px danger edge (the 1 px border and a 1 px inset line, so nothing moves). */
+/* An invalid field: a 2 px danger edge (the 1 px border and a 1 px inset line, so nothing moves).
+   Its message is app.css's shared .field-error (DESIGN.md decision 13). */
 .snippet-highlight > input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
-/* The message is drawn like the Connect dialog's field error (DESIGN.md decision 13): the error
-   band, a 2 px danger bar, a danger icon, the words in --text at body size and 600 (pairs in
-   contrast.ts: text and danger on error-band@bg). */
-.snippet-highlight .field-error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s2);
-  margin: 0;
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-control);
-  background: var(--error-band);
-  box-shadow: inset 2px 0 0 var(--danger);
-  color: var(--text);
-  font: var(--w-strong) var(--fs-1)/var(--lh-prose) var(--font-ui);
-}
-.snippet-highlight .field-error .icon { flex: none; width: 1rem; height: 1rem; margin-top: calc((var(--lh-prose) - 1rem) / 2); color: var(--danger); }
 
-/* The footer: Deep Field's rule, then the status and the buttons. Where the footer is 480 px or
-   wider the status shares the buttons' row, left of them, and keeps its two lines there (the row
-   the buttons already need), so a result moves nothing and no empty band sits above them. Narrower
-   it is a line of its own above the buttons that takes no room while empty (the dialog is at its
-   tallest there: the buttons sit at its bottom, and a result only shortens the scrolled body). */
-.snippet-actions { align-items: center; padding-top: var(--s3); border-top: 1px solid var(--divider); container-type: inline-size; }
-.snippet-status {
-  display: flex;
-  flex: 1 1 100%;
-  align-items: flex-start;
-  gap: var(--s2);
-  margin: 0;
-  color: var(--text);
-  /* The line height the reserve below counts in (two of these), so a two-line result fits it exactly. */
-  line-height: var(--lh-1);
-  overflow-wrap: anywhere;
-}
-.snippet-status .icon { flex: none; margin-top: 2px; }
+/* The footer (app.css: its rule shows while the body scrolls), then the status and the buttons. The
+   status is the shared .result-line on the chrome's 20 px line. Where the footer is 480 px or wider
+   it shares the buttons' row, left of them, and keeps its two lines there (the row the buttons
+   already need), so a result moves nothing and no empty band sits above them. Narrower it is a line
+   of its own above the buttons that takes no room while empty (the dialog is at its tallest there:
+   the buttons sit at its bottom, and a result only shortens the scrolled body). */
+.snippet-actions { container-type: inline-size; }
+.snippet-status { flex: 1 1 100%; }
 @container (min-width: 480px) {
-  .snippet-status { flex: 1 1 0; min-width: 0; min-height: calc(2 * var(--lh-1)); align-items: center; }
+  /* Two reserved lines: a one-line result sits in the middle of the row, beside the buttons. */
+  .snippet-status { flex: 1 1 0; min-width: 0; min-height: calc(2 * var(--lh-1)); align-self: center; align-items: center; }
   .snippet-status .icon { margin-top: 0; }
 }
 
@@ -125,9 +101,3 @@
 .snippet-dialog[data-compact] > * { flex: none; }
 .snippet-dialog[data-compact] .dialog-body { overflow: visible; }
 .snippet-dialog[data-compact] .snippet-status { min-height: calc(2 * var(--lh-1)); }
-
-/* Forced colours paint the band as Canvas and drop box-shadows: the bar becomes a border, and the
-   invalid field keeps its 1 px edge plus aria-invalid. */
-@media (forced-colors: active) {
-  .snippet-highlight .field-error { border-left: 2px solid var(--danger); }
-}

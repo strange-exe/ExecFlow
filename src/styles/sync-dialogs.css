@@ -1,8 +1,8 @@
 /* The GitHub dialogs (src/ui/sync-connect.ts, sync-first-connect.ts): loaded with the sync screens.
-   The body scrolls; the actions stay at the bottom, under a hairline, so Connect is always in view. */
+   The body scrolls; the actions stay at the bottom, so Connect is always in view (the footer's rule
+   shows while the body scrolls under it: app.css, dialogs). */
 .sync-dialog .dialog-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .sync-dialog .dialog-form > .dialog-body { flex: 1; min-height: 0; }
-.sync-dialog .dialog-form > .dialog-actions { padding-top: var(--s3); border-top: 1px solid var(--border); }
 .sync-dialog input[type="text"], .sync-dialog input[type="password"] { width: 100%; min-width: 0; }
 .sync-dialog input[type="password"] {
   min-height: 32px;
@@ -23,7 +23,7 @@
 .connect-lede { margin: 0 0 var(--s2); }
 /* Where the token goes: body size in the secondary tier (it was the weakest text in the dialog). */
 .connect-where { display: flex; gap: var(--s2); margin: 0 0 var(--s4); color: var(--text-secondary); font-size: var(--fs-1); line-height: var(--lh-prose); }
-.connect-where .icon { flex: none; margin-top: calc((var(--lh-prose) - 1.125em) / 2); }
+.connect-where .icon { flex: none; margin-top: calc((var(--lh-prose) - var(--icon-md)) / 2); }
 /* Group titles (the repository legend, the token steps) one size step above the field labels. */
 .steps-title { margin: 0 0 var(--s2); padding: 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--w-label); }
 .repo-fields { min-width: 0; margin: 0 0 var(--s3); padding: 0; border: 0; }
@@ -32,33 +32,13 @@
 .repo-slash { padding-top: 30px; color: var(--text-muted); font: var(--fs-section)/1 var(--font-code); }
 .sync-dialog .field + .field, .repo-fields + .field { margin-top: var(--s3); }
 .field-note[data-tone="warning"] { color: var(--warning); }
+/* How many changes wait to upload (Sync with a message): a fact the student acts on, so the
+   secondary tier at its size, not a hint. */
+#sync-message-waiting { color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); }
 
 /* The error state leads with the error (DESIGN.md decision 13). A field's message sits right under
    the field, before its hint, and a failure that belongs to no field is the result line above
-   Connect. Both are drawn like the error jump: the error band, a 2 px danger bar, a danger icon,
-   the words in --text at body size and 600 (pairs in contrast.ts: text and danger on
-   error-band@bg). The public-repository warning keeps the stone ground with a warning bar. */
-.sync-dialog .field-error,
-.connect-result[data-tone] {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s2);
-  margin: 0;
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-control);
-  background: var(--error-band);
-  box-shadow: inset 2px 0 0 var(--danger);
-  color: var(--text);
-  font: var(--w-strong) var(--fs-1)/var(--lh-prose) var(--font-ui);
-}
-/* The warning is a question (Connect anyway?), not an error: its words stay at the label weight. */
-.connect-result[data-tone="warning"] { font-weight: var(--w-label); }
-.sync-dialog .field-error .icon,
-.connect-result .result-icon { flex: none; width: 1rem; height: 1rem; margin-top: calc((var(--lh-prose) - 1rem) / 2); color: var(--danger); }
-.connect-result { margin: 0; }
-.connect-result[data-tone] { margin-top: var(--s3); }
-.connect-result[data-tone="warning"] { background: var(--surface); box-shadow: inset 2px 0 0 var(--warning); }
-.connect-result[data-tone="warning"] .result-icon { color: var(--warning); }
+   Connect: both are app.css's shared .field-error and .result-line. */
 
 /* Sign in with GitHub (sync-connect.ts signInViews): the button leads, its note and Remember follow;
    "Use a token instead" opens today's form under a rule. No new colour pairs: the button is the
@@ -67,23 +47,24 @@
 .signin-start { display: grid; justify-items: start; row-gap: var(--s2); }
 .signin-start > .field-note { margin: 0; }
 .signin-start > .check { margin-top: var(--s2); }
-.signin-btn { min-height: 44px; padding-inline: var(--s4); }
+/* The primary actions' height (32 px; 44 on touch and phones, through the token), like Connect: the
+   outline Sign in (token form open) is never taller than the filled Connect. */
+.signin-btn { min-height: var(--primary-h); padding-inline: var(--s4); }
 .signin-busy, .signin-who { margin: 0 0 var(--s2); }
 .signin-who { color: var(--text-secondary); }
 .signin-empty-title { margin: 0 0 var(--s2); font-weight: var(--w-label); }
 .signin-steps { margin: 0 0 var(--s3); padding-left: 1.4em; }
 .signin-steps li + li { margin-top: 4px; }
 .signin-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
-/* U4: "No repository yet? Create a private one on GitHub" on both connect paths (spacing only). */
+/* "No repository yet? Create a private one on GitHub" on both connect paths (spacing only). */
 .repo-fields .new-repo { margin-top: var(--s2); }
 .signin-empty .new-repo { margin: 0 0 var(--s3); }
-.signin-actions .btn { min-height: 44px; text-decoration: none; }
+.signin-actions .btn { min-height: var(--primary-h); text-decoration: none; }
 .signin-pick .choice-list { margin-top: 0; }
 .signin-pick .repo-name { font-family: var(--font-code); overflow-wrap: anywhere; }
 .signin-pick .choice .field-note { margin: 0; }
 .signin-pick .pick-many { margin: var(--s2) 0 0; }
 .signin-pick .field { margin-top: var(--s3); max-width: calc(50% - var(--s3)); }
-.signin .connect-result[data-tone] { margin-top: var(--s3); }
 .token-toggle-row { margin: 0 0 var(--s2); padding-top: var(--s3); border-top: 1px solid var(--border); }
 /* Body text, not the code face the conflict list's link buttons use. */
 .link-btn.token-toggle { font: var(--fs-1)/var(--lh-prose) var(--font-ui); }
@@ -91,7 +72,7 @@
 .token-steps { margin: var(--s4) 0 var(--s2); padding-top: var(--s3); border-top: 1px solid var(--border); }
 .token-steps ol { margin: 0; padding-left: 1.4em; }
 .token-steps li + li { margin-top: 4px; }
-.ext-icon { width: 0.9em; height: 0.9em; margin-left: 2px; vertical-align: -0.1em; }
+.ext-icon { width: var(--icon-sm); height: var(--icon-sm); margin-left: 2px; vertical-align: -0.15em; }
 
 /* First connect: one bordered list of choices, the chosen one on the list-selection colour. */
 .choice-list { min-width: 0; margin: var(--s3) 0 0; padding: 0; border: 1px solid var(--border-strong); border-radius: var(--r-control); overflow: hidden; }
@@ -113,8 +94,6 @@
 .share-panel .field + .field-note { margin-top: var(--s1); }
 .share-dialog #share-link { font-family: var(--font-code); }
 .share-pending { margin: 0 0 var(--s2); }
-.share-result[data-done] { display: flex; align-items: flex-start; gap: var(--s2); margin-top: var(--s3); color: var(--text); }
-.share-result[data-done] .result-icon { color: var(--success); }
 .share-dialog .ext-link { overflow-wrap: anywhere; }
 
 .conflict-list { margin: var(--s3) 0 0; padding: 0; list-style: none; }
@@ -144,10 +123,4 @@
 @media (pointer: coarse) {
   .link-btn { min-height: 44px; }
   .choice { min-height: 44px; }
-}
-/* Forced colours paint the band as Canvas and drop box-shadows: the bars become borders (as the
-   error jump's do in app.css), and the invalid field keeps its 1 px edge plus aria-invalid. */
-@media (forced-colors: active) {
-  .sync-dialog .field-error, .connect-result[data-tone] { border-left: 2px solid var(--danger); }
-  .connect-result[data-tone="warning"] { border-left-color: var(--warning); }
 }

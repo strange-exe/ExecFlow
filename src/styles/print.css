@@ -18,7 +18,7 @@
   line-height: var(--lh-2);
 }
 .dialog-body > .pdf-next { margin-bottom: var(--s4); }
-.pdf-next .icon { flex: none; margin-top: 1px; color: var(--info); }
+.pdf-next .icon { flex: none; margin-top: calc((var(--lh-2) - var(--icon-md)) / 2); color: var(--info); }
 .pdf-dialog fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Deep Field's fieldset legend: one size step above the choices (as the snippet dialog's). */
 .pdf-dialog legend {
@@ -49,39 +49,12 @@
   gap: var(--s4) var(--s5);
   margin-top: var(--s5);
 }
-/* A choice that can't go ahead: the field error look (DESIGN.md decision 13), right under the list's title. */
-.pdf-dialog .field-error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s2);
-  margin: var(--s1) 0 var(--s2);
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-control);
-  background: var(--error-band);
-  box-shadow: inset 2px 0 0 var(--danger);
-  color: var(--text);
-  font: var(--w-strong) var(--fs-1)/var(--lh-prose) var(--font-ui);
-}
-.pdf-dialog .field-error .icon { flex: none; width: 1rem; height: 1rem; margin-top: calc((var(--lh-prose) - 1rem) / 2); color: var(--danger); }
-/* The footer: Deep Field's rule, the status, then Cancel and the primary action. */
-.pdf-actions { align-items: center; padding-top: var(--s3); border-top: 1px solid var(--divider); }
-.pdf-status {
-  display: flex;
-  flex: 1 1 12rem;
-  align-items: flex-start;
-  gap: var(--s2);
-  min-width: 0;
-  margin: 0;
-  color: var(--text);
-  line-height: var(--lh-1);
-  overflow-wrap: anywhere;
-}
-.pdf-status .icon { flex: none; margin-top: 2px; }
-.pdf-status[data-tone="error"] .icon { color: var(--danger); }
-.pdf-status[data-tone="info"] .icon { color: var(--info); }
-@media (forced-colors: active) {
-  .pdf-dialog .field-error { border-left: 2px solid var(--danger); }
-}
+/* A choice that can't go ahead: app.css's shared field error (DESIGN.md decision 13), right under
+   the list's title. */
+.pdf-dialog .field-error { margin: var(--s1) 0 var(--s2); }
+/* The footer (app.css: its rule shows while the body scrolls): the status, the shared .result-line,
+   then Cancel and the primary action. */
+.pdf-status { flex: 1 1 12rem; min-width: 0; }
 
 /* ------------------------------------------------------------------ the print layout */
 /* Never on screen: it is built when the print dialog opens and removed when it closes. */

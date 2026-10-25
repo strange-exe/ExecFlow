@@ -280,16 +280,28 @@
 /* Every theme but Deep Field light: the status bar's top edge is the 1 px region divider. */
 :root[data-palette], :root[data-theme="dark"] { --status-edge: inset 0 1px 0 var(--divider); }
 
-/* The editor's gutter-edge focus bar (editor/highlight.ts): the focus colour, except in Deep Field
-   dark, where the full-height brass bar outranked the code (plan-v2 P2): there it is the brass at 70%
-   over the code ground, one measured step down (9.65:1 to about 5.3:1 on bg, 3:1 or more on the
-   cursor line and the error band; src/styles/focus-bar.test.ts). Light keeps --focus: 4.62:1 on the
-   error band already, so a step down there would fail 3:1. Palette and custom themes keep their own. */
+/* The editor's gutter-edge focus bar (editor/highlight.ts). A full-height bar in the focus colour
+   outranked the code (plan-v2 P2, decision P-5): in Deep Field dark the brass, and in the palette
+   themes, whose focus colour is the text colour, it was the strongest line on screen (GitHub-style
+   Light 15.8:1, Dracula 13.4, High contrast 18.5). So it is the focus colour at 70% over the code
+   ground (Deep Field dark: #a2914d) in every theme where that step still keeps 3:1 or more on the
+   code, the cursor's line and the error band (src/styles/focus-bar.test.ts derives this list from the
+   colours and fails when it is wrong). The others keep --focus: Deep Field light (4.62:1 on the error
+   band leaves no room), Slate light and seven light or low-contrast palettes. "Match device" themes
+   step down on their dark side only. Custom themes keep --focus: they can't be checked ahead. */
 :root {
   --focus-bar: var(--focus);
 }
-:root[data-theme="dark"]:is([data-theme-id="deep-field"], [data-theme-id="deep-field-dark"]) {
-  --focus-bar: #a2914d;
+:root[data-theme="dark"]:is([data-theme-id="deep-field"], [data-theme-id="system"]),
+:root:is([data-theme-id="deep-field-dark"], [data-theme-id="slate-dark"], [data-theme-id="high-contrast"], [data-theme-id="github-dark"],
+  [data-theme-id="github-light"], [data-theme-id="one-dark-pro"], [data-theme-id="dracula"], [data-theme-id="tokyo-night"],
+  [data-theme-id="tokyo-night-storm"], [data-theme-id="catppuccin-mocha"], [data-theme-id="catppuccin-macchiato"],
+  [data-theme-id="catppuccin-frappe"], [data-theme-id="rose-pine"], [data-theme-id="rose-pine-moon"], [data-theme-id="rose-pine-dawn"],
+  [data-theme-id="nord"], [data-theme-id="gruvbox-dark"], [data-theme-id="gruvbox-light"], [data-theme-id="kanagawa"],
+  [data-theme-id="kanagawa-dragon"], [data-theme-id="everforest-dark"], [data-theme-id="ayu-dark"], [data-theme-id="ayu-mirage"],
+  [data-theme-id="night-owl"], [data-theme-id="vesper"], [data-theme-id="poimandres"], [data-theme-id="vitesse-dark"],
+  [data-theme-id="vitesse-light"], [data-theme-id="flexoki-dark"], [data-theme-id="flexoki-light"], [data-theme-id="nightfox"]) {
+  --focus-bar: color-mix(in srgb, var(--focus) 70%, var(--bg));
 }
 
 :root {
@@ -315,6 +327,12 @@
   --fs-display: 26px;    /* the empty-state heading only */
   --lh-display: 30px;
   --code-size: 15px;     /* user setting, 12 to 20 */
+  /* Icons on one scale (whole pixels, so no glyph is drawn blurred between two). */
+  --icon-xs: 12px;       /* carets, the twisty, the breadcrumb separator */
+  --icon-sm: 14px;       /* beside 13 px hints and the status bar, the fold caret, external-link marks */
+  --icon-md: 16px;       /* the default: beside 14 and 15 px text, in buttons and rows */
+  --icon-lg: 18px;       /* icon buttons */
+  --icon-xl: 20px;       /* the brand mark, starter and example file icons, the pack offer */
   --w-label: 500;
   --w-strong: 600;
   --tracking-title: -0.01em;

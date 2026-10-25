@@ -161,7 +161,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     ),
   );
 
-  const status = h("p", { id: "snippet-status", class: "snippet-status", role: "status" });
+  const status = h("p", { id: "snippet-status", class: "result-line snippet-status", role: "status" });
   const download = h("button", { type: "button", class: args.canCopy ? "btn" : "btn primary", autofocus: !args.canCopy }, icon("download-simple"), "Download (.png)");
   const copy = args.canCopy ? h("button", { type: "button", class: "btn primary", autofocus: true }, icon("copy"), "Copy image") : null;
   // A sibling after the body: it never scrolls away (except in compact mode, where the dialog scrolls).

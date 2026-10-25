@@ -224,7 +224,7 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
 
     // One line for what the check found when it belongs to no field (a failure, or the
     // public-repository warning). The live region below says it; this line only shows it.
-    const result = h("p", { class: "connect-result", id: "connect-result" });
+    const result = h("p", { class: "result-line connect-result", id: "connect-result" });
     const announcer = connectAnnouncer();
 
     const cancel = h("button", { type: "button", class: "btn" }, "Cancel");
@@ -467,7 +467,7 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
   let publicConfirmed: number | null = null;
 
   const section = h("section", { class: "signin", id: "connect-signin-section", "aria-label": "Sign in with GitHub" });
-  const signInResult = h("p", { class: "connect-result", id: "connect-signin-result" });
+  const signInResult = h("p", { class: "result-line connect-result", id: "connect-signin-result" });
   const say = (message: string, tone?: "error" | "warning") => {
     signInResult.replaceChildren(...(message && tone ? [syncIcon(tone === "error" ? "warning-circle" : "warning", "result-icon"), h("span", null, message)] : message ? [message] : []));
     if (tone) signInResult.dataset.tone = tone;

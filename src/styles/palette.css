@@ -24,11 +24,11 @@
 .palette .dialog-body { display: flex; flex-direction: column; min-height: 0; padding: var(--s3); overflow: hidden; }
 .palette-row { display: flex; align-items: center; gap: var(--s2); flex: none; }
 .palette-field { position: relative; flex: 1; min-width: 0; }
-.palette-glass { position: absolute; left: var(--s3); top: 50%; width: 1rem; height: 1rem; margin-top: -0.5rem; color: var(--text-muted); pointer-events: none; }
+.palette-glass { position: absolute; left: var(--s3); top: 50%; width: var(--icon-md); height: var(--icon-md); margin-top: calc(var(--icon-md) / -2); color: var(--text-muted); pointer-events: none; }
 .palette .palette-input {
   width: 100%;
   min-height: 40px;
-  padding: 0 var(--s3) 0 calc(var(--s3) + 1rem + var(--s2));
+  padding: 0 var(--s3) 0 calc(var(--s3) + var(--icon-md) + var(--s2));
   font-size: var(--fs-1);
 }
 .palette-list { flex: 1 1 auto; min-height: 0; margin-top: var(--s2); overflow-y: auto; overscroll-behavior: contain; }
@@ -46,7 +46,7 @@
 }
 /* The active option: the suggestion list's look, a wash and a 2 px location bar (never colour alone). */
 .palette-option[aria-selected="true"] { background: var(--list-selected); box-shadow: inset 2px 0 0 var(--location); }
-.palette-icon { width: 1rem; height: 1rem; color: var(--text-muted); }
+.palette-icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-muted); }
 .palette-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-name { font: var(--fs-2)/var(--lh-2) var(--font-name); }
 .palette-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font: var(--fs-hint)/var(--lh-hint) var(--font-name); }
@@ -60,7 +60,8 @@
 .palette-hint { flex: none; margin: var(--s2) 0 0; padding: var(--s2) var(--s3) 0; border-top: 1px solid var(--border); color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
 
 /* ------------------------------------------------------------------ the examples dialog */
-.examples-lede { margin: 0 0 var(--s4); color: var(--text-muted); }
+/* What the examples are for: the secondary tier (a sentence to read, not a hint). */
+.examples-lede { margin: 0 0 var(--s4); color: var(--text-secondary); }
 .examples .section-title { margin: var(--s4) 0 var(--s2); }
 .examples .examples-lede + .section-title { margin-top: 0; }
 /* The starters' look: rule-separated rows in one outlined block. */
@@ -81,7 +82,7 @@
 .example + .example { border-top: 1px solid var(--border); }
 .example:hover { background: var(--hover); }
 .example:focus-visible { outline-offset: -3px; }
-.example-icon { grid-row: 1 / 3; width: 1.25rem; height: 1.25rem; color: var(--text-secondary); }
+.example-icon { grid-row: 1 / 3; width: var(--icon-xl); height: var(--icon-xl); color: var(--text-secondary); }
 .example-name { font: var(--w-strong) var(--fs-2)/var(--lh-2) var(--font-code); }
 .example-about { grid-column: 2; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
 

@@ -22,7 +22,7 @@
    them) on the first hover: a press that started on the old icon then ended on the new one, and
    Firefox dropped that click. The button itself is always the pointer's target. */
 .sync-status > * { pointer-events: none; }
-.sync-status .icon { width: 1rem; height: 1rem; }
+.sync-status .icon { width: var(--icon-md); height: var(--icon-md); }
 .sync-status[data-tone="success"] .icon { color: var(--success); }
 .sync-status[data-tone="info"] .icon { color: var(--info); }
 .sync-status[data-tone="warning"] .icon { color: var(--warning); }
