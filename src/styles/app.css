@@ -144,6 +144,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .crumb-text { min-width: 2ch; overflow: hidden; text-overflow: ellipsis; }
 .crumb-sep { width: 12px; height: 12px; margin: 0 var(--s1); color: var(--text-muted); }
 .crumb > .crumb-file { flex: 0 1 auto; color: var(--text); font-family: var(--font-name); }
+/* The file's name cut short keeps its extension: the stem takes the ellipsis ("finding_t....py"),
+   since the extension says what the file is and how it runs (layout.ts nameParts). */
+.crumb-name { display: flex; min-width: 0; }
+.crumb-stem { min-width: 1ch; overflow: hidden; text-overflow: ellipsis; }
+.crumb-ext { flex: none; }
 /* Unsaved typing: the tab shows it here; phones, with no tab strip, show it on the file name
    (below). ", unsaved" is in the name at every width (layout.ts setCrumb). */
 .repo-name { font-family: var(--font-name); }
@@ -995,14 +1000,16 @@ button.problem:hover { background: var(--hover); }
   .editor-empty { padding: var(--s5) var(--s4); }
   .statusbar { flex-wrap: wrap; gap: var(--s1) var(--s3); }
 }
+/* Phones: the sync status is its icon (its name and tooltip keep the sentence, sync.css keeps it a
+   44 px target), so the file name keeps its room: at 390 px the words got 57 of the 86 px they
+   need and the name 52 of 59 ("Not co...", "main...."). */
 @media (max-width: 479px) {
   .sync-slot { margin-right: 0; }
-}
-/* The narrowest phones: the sync status keeps its icon (its name and tooltip keep the sentence),
-   so the file name keeps its room; whatever is left gives way with an ellipsis instead of
-   touching its neighbour. */
-@media (max-width: 359px) {
   .sync-words { display: none; }
+}
+/* The narrowest phones: whatever is left gives way with an ellipsis instead of touching its
+   neighbour. */
+@media (max-width: 359px) {
   .statusbar { gap: var(--s1) var(--s2); }
   .status-item { overflow: hidden; }
   .status-item > span { overflow: hidden; text-overflow: ellipsis; }

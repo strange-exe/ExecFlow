@@ -29,6 +29,17 @@ export function brandMark(): SVGSVGElement {
   );
 }
 
+/**
+ * A file name as its stem and its extension, so a name cut short keeps the extension ("finding_t...
+ * .py"): the stem takes the ellipsis (app.css). A name without one, or a dot file (".gitignore"),
+ * is all stem.
+ */
+function nameParts(name: string): HTMLElement[] {
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return [h("span", { class: "crumb-stem" }, name)];
+  return [h("span", { class: "crumb-stem" }, name.slice(0, dot)), h("span", { class: "crumb-ext" }, name.slice(dot))];
+}
+
 export interface Layout {
   root: HTMLElement;
   drawerToggle: HTMLButtonElement;
@@ -438,7 +449,7 @@ export function createLayout(root: HTMLElement): Layout {
               "li",
               { class: "crumb-file", "data-dirty": String(dirty) },
               icon("caret-right", "crumb-sep"),
-              h("span", { class: "crumb-text" }, part),
+              h("span", { class: "crumb-text crumb-name" }, ...nameParts(part)),
               h("span", { class: "dirty-dot", "aria-hidden": "true" }),
               dirty ? srOnly(", unsaved") : null,
             ),

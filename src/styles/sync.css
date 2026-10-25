@@ -37,7 +37,7 @@
 @media (pointer: coarse) {
   .sync-status { height: 44px; }
 }
-/* The narrowest phones show the icon only (app.css hides the words): still a 44 px target. */
-@media (max-width: 359px) {
+/* Phones below 480 px show the icon only (app.css hides the words): still a 44 px target. */
+@media (max-width: 479px) {
   .sync-status { min-width: var(--tool); justify-content: center; }
 }
