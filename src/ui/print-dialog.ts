@@ -103,7 +103,7 @@ export function openPrintDialog(args: PrintDialogArgs): void {
     ),
   );
 
-  const status = h("p", { class: "pdf-status", id: "pdf-status", role: "status" });
+  const status = h("p", { class: "result-line pdf-status", id: "pdf-status", role: "status" });
   const cancel = h("button", { type: "button", class: "btn" }, "Cancel");
   const primary = h("button", { type: "button", class: "btn primary", id: "pdf-print" }, icon("printer"), "Open print dialog");
   dialog.append(h("div", { class: "dialog-actions pdf-actions" }, status, cancel, primary));

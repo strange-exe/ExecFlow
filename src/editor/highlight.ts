@@ -9,6 +9,21 @@ import { HighlightStyle } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import keySvg from "@phosphor-icons/core/assets/regular/key.svg?raw";
+import { icon } from "../ui/icons";
+
+/**
+ * The fold gutter's marker (foldGutter's markerDOM, @codemirror/language 6.13.1): Phosphor's caret,
+ * down while the block is open and right once it is folded, in the gutter's colour. CodeMirror's own
+ * marker is a text glyph in the code font, which read as a "v". The title is CodeMirror's own
+ * wording (its default marker's phrase).
+ */
+export function foldMarker(open: boolean): HTMLElement {
+  const marker = document.createElement("span");
+  marker.className = "ce-fold";
+  marker.title = open ? "Fold line" : "Unfold line";
+  marker.append(icon(open ? "caret-down" : "caret-right"));
+  return marker;
+}
 
 /**
  * The keyword kind icon. CodeMirror draws it as the key emoji with a text-presentation selector,

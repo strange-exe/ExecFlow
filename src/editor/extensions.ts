@@ -22,7 +22,7 @@ import {
 import arrowSvg from "@phosphor-icons/core/assets/regular/arrow-elbow-down-right.svg?raw";
 import { filePath } from "./completion-context";
 import { isCallSite } from "./diagnostics";
-import { editorTheme, highlightStyle } from "./highlight";
+import { editorTheme, foldMarker, highlightStyle } from "./highlight";
 import { languageForPath, languageSupport } from "./language-support";
 import { forgetWaiting } from "./late-data";
 import { runMarks } from "./run-marks";
@@ -279,7 +279,7 @@ export const BASE: Extension = [
   Prec.highest(keymap.of([...APP_KEYS])),
   Prec.highest(keymap.of([ESCAPE_KEY])),
   lineNumbers(),
-  foldGutter(),
+  foldGutter({ markerDOM: foldMarker }),
   lintGutter({ markerFilter: withoutCallSites }),
   highlightActiveLineGutter(),
   highlightSpecialChars({ addSpecialChars: EXTRA_SPECIALS }),

@@ -36,7 +36,7 @@ export class ArgsField {
       "aria-describedby": "args-note",
     });
     this.file = h("span", { class: "args-file" });
-    this.error = h("p", { class: "args-error", id: "args-error" });
+    this.error = h("p", { class: "args-error field-error", id: "args-error" });
     this.error.hidden = true;
     row.dataset.state = "empty";
     row.append(

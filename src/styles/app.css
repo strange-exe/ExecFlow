@@ -24,7 +24,9 @@ h1, h2, h3 { letter-spacing: var(--tracking-title); }
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.icon { width: 1.125em; height: 1.125em; flex: none; }
+/* Icons sit on the token scale (12, 14, 16, 18, 20 px), never em-based: an em size beside 13, 14 or
+   15 px text drew 14.6, 15.75 and 16.9 px glyphs, between two pixels. 16 px unless a context says. */
+.icon { width: var(--icon-md); height: var(--icon-md); flex: none; }
 .noscript { padding: var(--s5); }
 
 /* ------------------------------------------------------------------ controls */
@@ -58,7 +60,7 @@ h1, h2, h3 { letter-spacing: var(--tracking-title); }
 .btn.ghost.small:hover:not(:disabled) { color: var(--text); }
 .btn.ghost.small:disabled { color: var(--text-muted); }
 .btn.small { min-height: var(--target); padding: 0 var(--s2); font-size: var(--fs-2); }
-.btn .icon { width: 1rem; height: 1rem; }
+.btn .icon { width: var(--icon-md); height: var(--icon-md); }
 
 .icon-btn {
   display: inline-grid;
@@ -74,7 +76,7 @@ h1, h2, h3 { letter-spacing: var(--tracking-title); }
   transition: background-color var(--dur), color var(--dur);
 }
 .icon-btn:hover { background: var(--hover); color: var(--text); }
-.icon-btn .icon { width: 1.125rem; height: 1.125rem; }
+.icon-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
 .icon-btn.small { width: var(--target); height: var(--target); }
 
 .keycap {
@@ -123,7 +125,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   border-bottom: 1px solid var(--divider);
 }
 .brand { display: flex; align-items: center; gap: var(--s2); font-weight: var(--w-strong); white-space: nowrap; }
-.brand-mark { width: 20px; height: 20px; flex: none; }
+.brand-mark { width: var(--icon-xl); height: var(--icon-xl); flex: none; }
 .mark-tile { fill: var(--brand); }
 .mark-glyph { fill: none; stroke: var(--on-brand); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
 /* The breadcrumb: ancestors in the secondary tier, the file in --text and the name font. A long
@@ -142,7 +144,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .crumb > li { display: flex; align-items: center; min-width: 0; flex: 0 1000 auto; }
 .crumb-text { min-width: 2ch; overflow: hidden; text-overflow: ellipsis; }
-.crumb-sep { width: 12px; height: 12px; margin: 0 var(--s1); color: var(--text-muted); }
+.crumb-sep { width: var(--icon-xs); height: var(--icon-xs); margin: 0 var(--s1); color: var(--text-muted); }
 .crumb > .crumb-file { flex: 0 1 auto; color: var(--text); font-family: var(--font-name); }
 /* Unsaved typing: the tab shows it here; phones, with no tab strip, show it on the file name
    (below). ", unsaved" is in the name at every width (layout.ts setCrumb). */
@@ -164,11 +166,12 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   background: none;
   color: var(--text-secondary);
   font-size: var(--fs-2);
+  line-height: var(--lh-2);
   white-space: nowrap;
   transition: background-color var(--dur), color var(--dur);
 }
 .palette-btn:hover { background: var(--hover); color: var(--text); }
-.palette-btn .icon { width: 1rem; height: 1rem; }
+.palette-btn .icon { width: var(--icon-md); height: var(--icon-md); }
 .sync-slot { display: flex; min-width: 0; margin-right: var(--s1); }
 .sync-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-toggle { display: none; }
@@ -206,7 +209,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .sidebar { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
 /* The sidebar head and the editor head are both --h-head: one shared edge. */
 .sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); height: var(--h-head); padding: 0 var(--s1) 0 var(--s3); flex: none; }
-.region-title { margin: 0; font-size: var(--fs-2); font-weight: var(--w-label); color: var(--text-secondary); }
+.region-title { margin: 0; font-size: var(--fs-2); font-weight: var(--w-label); line-height: var(--lh-2); color: var(--text-secondary); }
 /* The brand's place below 900 px (the top bar has none there): the drawer's own head. */
 .drawer-brand { display: none; }
 .sidebar-actions { display: flex; gap: var(--s1); }
@@ -261,14 +264,14 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   background-size: 2px calc(100% - 2 * var(--s1));
 }
 .twisty { display: inline-grid; place-items: center; width: var(--s4); flex: none; color: var(--text-muted); }
-.twisty .icon { width: 0.75rem; height: 0.75rem; }
-.tree-icon { color: var(--text-secondary); width: 1rem; height: 1rem; }
+.twisty .icon { width: var(--icon-xs); height: var(--icon-xs); }
+.tree-icon { color: var(--text-secondary); width: var(--icon-md); height: var(--icon-md); }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--fs-2)/var(--lh-2) var(--font-name); }
 [data-opaque="true"] > .tree-row .tree-name { color: var(--text-muted); }
 .tree-badge { display: inline-grid; color: var(--text-muted); }
 .tree-badge.warn { color: var(--warning); }
 .tree-badge.error { color: var(--danger); }
-.tree-badge .icon { width: 0.9rem; height: 0.9rem; }
+.tree-badge .icon { width: var(--icon-sm); height: var(--icon-sm); }
 .tree-row.editing { cursor: default; background: var(--surface-raised); }
 .tree-row.editing:hover { background: var(--surface-raised); }
 .tree-input { flex: 1; min-width: 0; min-height: var(--target); padding: 0 var(--s1); border-radius: var(--r-key); font-size: var(--fs-1); }
@@ -312,7 +315,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .head-tools .runtime { font-size: var(--fs-2); }
 /* Capture snippet's head button: the 16 px of Run's play icon beside it, so after a failed run it
    stays quieter than Run's outline in the blurred check too (look gate, 2026-10-21). */
-#snippet-button .icon { width: 1rem; height: 1rem; }
+#snippet-button .icon { width: var(--icon-md); height: var(--icon-md); }
 /* "Error in calc.py, line 2": the error band's fill, a 2 px danger bar, the words at 600. */
 .error-jump {
   display: inline-flex;
@@ -329,7 +332,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   font-weight: var(--w-strong);
   white-space: nowrap;
 }
-.error-jump .icon { width: 1rem; height: 1rem; color: var(--danger); }
+.error-jump .icon { width: var(--icon-md); height: var(--icon-md); color: var(--danger); }
 .error-jump:hover .jump-words { text-decoration: underline; text-underline-offset: 3px; }
 
 .banner {
@@ -375,7 +378,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .tab:not([data-active="true"]):hover .tab-button { color: var(--text); }
 .tab-folder { font-size: var(--fs-hint); color: var(--text-muted); }
 .tab-flag { display: inline-grid; color: var(--text-muted); }
-.tab-flag .icon { width: 1rem; height: 1rem; }
+.tab-flag .icon { width: var(--icon-md); height: var(--icon-md); }
 .tab-flag.error { color: var(--danger); }
 .tab[data-dirty="true"] .tab-name { font-style: italic; }
 .dirty-dot { display: none; width: var(--s2); height: var(--s2); border-radius: 50%; background: currentColor; }
@@ -393,20 +396,27 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   color: var(--text-muted);
 }
 .tab-close:hover { background: var(--hover); color: var(--text); }
-.tab-close .icon { width: 0.875rem; height: 0.875rem; }
+.tab-close .icon { width: var(--icon-sm); height: var(--icon-sm); }
 
 .editor-panel { position: relative; min-height: 0; min-width: 0; }
 .editor-host { position: absolute; inset: 0; }
 .editor-host .cm-editor { height: 100%; }
+/* The fold marker (editor/highlight.ts foldMarker): Phosphor's caret, down while the block is open
+   and right once folded, in the gutter's colour, centred on its line (CodeMirror's own text glyph
+   read as a "v"). */
+.ce-fold { display: flex; align-items: center; justify-content: center; height: 100%; }
+.ce-fold .icon { width: var(--icon-sm); height: var(--icon-sm); }
 .editor-panel[data-empty="true"] .editor-host { visibility: hidden; }
 .editor-empty { position: absolute; inset: 0; overflow: auto; background: var(--bg); padding: clamp(var(--s5), 8vh, 72px) var(--s6) var(--s6); }
 .editor-empty:empty { display: none; }
 
 /* ------------------------------------------------------------------ empty states */
 .empty-state { max-width: 540px; }
-.empty-title { margin: 0 0 var(--s2); font-size: var(--fs-display); font-weight: 600; line-height: 1.25; }
+.empty-title { margin: 0 0 var(--s2); font-size: var(--fs-display); font-weight: var(--w-strong); line-height: var(--lh-display); }
 .empty-state.compact .empty-title { font-size: var(--fs-title); }
-.empty-lede { margin: 0 0 var(--s5); color: var(--text-muted); max-width: 46ch; }
+/* The lede says what happens to the code (saved on this computer): the secondary tier, not a hint,
+   and the column's width (540 px holds about 75 characters; a 46ch cap broke it a line early). */
+.empty-lede { margin: 0 0 var(--s5); color: var(--text-secondary); }
 .starters { display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: var(--r-control); overflow: hidden; }
 .starter {
   display: grid;
@@ -423,9 +433,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .starter + .starter { border-top: 1px solid var(--border); }
 .starter:hover:not(:disabled) { background: var(--hover); }
 .starter:focus-visible { outline-offset: -3px; }
-.starter-icon { width: 1.25rem; height: 1.25rem; color: var(--text-secondary); }
-.starter-file { font: 600 var(--fs-2) var(--font-code); }
-.starter-lang { color: var(--text-muted); font-size: var(--fs-hint); }
+.starter-icon { width: var(--icon-xl); height: var(--icon-xl); color: var(--text-secondary); }
+.starter-file { font: var(--w-strong) var(--fs-2)/var(--lh-2) var(--font-code); }
+.starter-lang { color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
 /* New from example...: the starters' quieter second way, a tertiary underlined text button. */
 .empty-examples { margin: var(--s2) 0 0; }
 .text-btn { min-height: var(--target); padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
@@ -467,14 +477,14 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .count { min-width: 20px; padding: 0 var(--s1); border: 1px solid var(--border-strong); border-radius: var(--r-key); font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui); text-align: center; }
 .count:empty { display: none; }
 .count[data-errors]:not([data-errors="0"]) { color: var(--danger); border-color: var(--danger); }
-.panel-toggle .icon { width: 1rem; height: 1rem; }
+.panel-toggle .icon { width: var(--icon-md); height: var(--icon-md); }
 .panel-actions { display: flex; align-items: center; gap: var(--s1); flex: none; margin-left: auto; }
 .panel-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-body:focus-visible { outline-offset: -2px; }
 
 .output-view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 /* Input, behind the panel bar's toggle: text given to the program first, above the log. */
-.toggle-caret { width: 0.75rem; height: 0.75rem; transition: transform var(--dur); }
+.toggle-caret { width: var(--icon-xs); height: var(--icon-xs); transition: transform var(--dur); }
 .input-toggle[aria-expanded="true"] .toggle-caret { transform: rotate(90deg); }
 .stdin-box { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); padding: var(--s2) var(--s3); background: var(--surface); border-bottom: 1px solid var(--border); }
 /* Arguments (track R, batch 3): beside the Input text from 900 px, under it on phones. Its error is
@@ -485,10 +495,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .args-field[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
 .args-file { font-family: var(--font-name); }
 .args-note { margin: var(--s1) 0 0; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
-.args-error { display: flex; align-items: flex-start; gap: var(--s2); margin: var(--s1) 0 0; padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--error-band); box-shadow: inset 2px 0 0 var(--danger); color: var(--text); font: var(--w-strong) var(--fs-1)/var(--lh-prose) var(--font-ui); }
-.args-error .icon { flex: none; width: 1rem; height: 1rem; margin-top: calc((var(--lh-prose) - 1rem) / 2); color: var(--danger); }
+/* Its look is the shared .field-error (dialogs section below); here only where it sits. */
+.args-error.field-error { margin-top: var(--s1); }
 .rl-args { color: var(--text-secondary); overflow-wrap: anywhere; }
-@media (forced-colors: active) { .args-error { border-left: 2px solid var(--danger); } }
 .stdin-label { display: block; margin-bottom: var(--s1); color: var(--text-secondary); font-size: var(--fs-2); }
 .stdin-field {
   display: block;
@@ -504,7 +513,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .pack-offer { display: flex; align-items: center; gap: var(--s3); flex: none; padding: var(--s2) var(--s3); background: var(--surface); border-bottom: 1px solid var(--border); }
 .pack-offer > div { flex: 1; min-width: 0; }
-.pack-icon { color: var(--text-secondary); width: 1.25rem; height: 1.25rem; }
+.pack-icon { color: var(--text-secondary); width: var(--icon-xl); height: var(--icon-xl); }
 .pack-text { margin: 0; }
 .pack-offer progress { width: 100%; height: var(--s2); accent-color: var(--control-on); }
 
@@ -533,11 +542,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .run-status, .receipt { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s3); row-gap: var(--s1); min-width: 0; margin: 0; }
 .run-status { column-gap: var(--s2); }
 .run-status[data-phase="idle"] { display: none; }
-.rl-icon { width: 1rem; height: 1rem; color: var(--text-secondary); }
+.rl-icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-secondary); }
 .rl-muted { color: var(--text-muted); }
 .phase-time { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .rl-status { display: inline-flex; align-items: center; gap: var(--s2); }
-.rl-status .icon { width: 1rem; height: 1rem; }
+.rl-status .icon { width: var(--icon-md); height: var(--icon-md); }
 .rl-status.success .icon { color: var(--success); }
 .rl-status.danger .icon { color: var(--danger); }
 .rl-status.warning .icon { color: var(--warning); }
@@ -562,7 +571,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   text-align: left;
 }
 .exc:hover { background: var(--hover); }
-.exc .icon { width: 1rem; height: 1rem; }
+.exc .icon { width: var(--icon-md); height: var(--icon-md); }
 .exc-icon { color: var(--danger); }
 .exc-class { font-weight: var(--w-strong); }
 .exc-where, .exc-go { color: var(--text-secondary); }
@@ -571,14 +580,16 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
    the code font (same size: both faces share an x-height). It is the failed header's last line, or
    sits under the first Problems row of its kind, lined up with the severity word. No new colour
    pair: text and text-secondary on error-band@runlog-bg and on bg are rows already. */
-.err-help { display: grid; grid-template-columns: 1rem minmax(0, 1fr); column-gap: var(--s2); align-items: start; color: var(--text); font: var(--fs-2)/var(--lh-2) var(--font-ui); }
-.err-help-icon { width: 1rem; height: 1rem; margin-top: calc((var(--lh-2) - 1rem) / 2); color: var(--text-secondary); }
+.err-help { display: grid; grid-template-columns: var(--icon-md) minmax(0, 1fr); column-gap: var(--s2); align-items: start; color: var(--text); font: var(--fs-2)/var(--lh-2) var(--font-ui); }
+.err-help-icon { width: var(--icon-md); height: var(--icon-md); margin-top: calc((var(--lh-2) - var(--icon-md)) / 2); color: var(--text-secondary); }
 .err-help-text { max-width: 80ch; }
 .err-help p { margin: 0; }
 .err-help-tips { color: var(--text-secondary); }
-.err-help code { font-family: var(--font-code); overflow-wrap: anywhere; }
+/* A name or a snippet from the message is a quiet chip, so "//" reads as one token, not "/ /"
+   (text and text-secondary on hover@error-band@runlog-bg and hover@bg: src/styles/consistency.test.ts). */
+.err-help code { padding: 0 2px; border-radius: var(--r-key); background: var(--hover); font-family: var(--font-code); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .runlog > .err-help { flex: 1 1 100%; padding-block: var(--s1); }
-.problems > li > .err-help { padding: 0 var(--s3) var(--s2) calc(var(--s3) + 1rem + var(--s2)); }
+.problems > li > .err-help { padding: 0 var(--s3) var(--s2) calc(var(--s3) + var(--icon-md) + var(--s2)); }
 
 /* The log. Its focus ring is drawn on the scroller, inset, so scrolling never cuts its top or bottom
    (drawn on the log itself it was clipped whenever the log outgrew the panel), 10 px clear of the
@@ -615,7 +626,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .console .echo { color: var(--input-echo); font-weight: var(--w-strong); text-decoration: underline; text-underline-offset: 3px; }
 .console .echo.end { color: var(--text-muted); font-style: italic; font-weight: 400; text-decoration: none; }
 .console .note { color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-hint); }
-.console .note .icon { vertical-align: -0.2em; }
+.console .note .icon { width: var(--icon-sm); height: var(--icon-sm); vertical-align: -0.2em; }
 .console .note.warning .icon { color: var(--warning); }
 /* Live input on the prompt's line: the prompt, a borderless field with a 1 px rule, Send. */
 .live-input { padding: 0 var(--s3) var(--s3); }
@@ -655,16 +666,16 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 button.problem:hover { background: var(--hover); }
 .problem:focus-visible { outline-offset: -2px; }
-.problem-icon { align-self: center; width: 1rem; height: 1rem; }
+.problem-icon { align-self: center; width: var(--icon-md); height: var(--icon-md); }
 .problem-severity { font-weight: var(--w-strong); }
 [data-severity="error"] > .problem-icon, [data-severity="error"] > .problem-severity { color: var(--danger); }
 [data-severity="warning"] > .problem-icon, [data-severity="warning"] > .problem-severity { color: var(--warning); }
 [data-severity="info"] > .problem-icon { color: var(--info); }
 /* A hint's ring is muted, as its lint ring in the editor is. */
 [data-severity="hint"] > .problem-icon { color: var(--text-muted); }
-.problem-where { font: var(--fs-hint) var(--font-code); color: var(--text-muted); white-space: nowrap; }
+.problem-where { font: var(--fs-hint)/var(--lh-hint) var(--font-code); color: var(--text-muted); white-space: nowrap; }
 .problem-message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.problem-source { color: var(--text-muted); font-size: var(--fs-hint); white-space: nowrap; }
+.problem-source { color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); white-space: nowrap; }
 /* Phones: the message gets a line of its own and wraps (WCAG 1.4.10); the tool's name steps aside. */
 @media (max-width: 599px) {
   .problem { grid-template-columns: auto auto minmax(0, 1fr); row-gap: 2px; }
@@ -692,9 +703,9 @@ button.problem:hover { background: var(--hover); }
 }
 .statusbar :focus-visible { outline-offset: -2px; }
 .status-item { display: inline-flex; align-items: center; gap: var(--s1); min-width: 0; white-space: nowrap; }
-.status-item .icon { width: 0.9rem; height: 0.9rem; }
+.status-item .icon, .status-btn .icon { width: var(--icon-sm); height: var(--icon-sm); }
 .runtime { display: inline-flex; align-items: center; gap: var(--s2); min-width: 0; color: var(--text-secondary); white-space: nowrap; }
-.runtime .icon { width: 1rem; height: 1rem; }
+.runtime .icon { width: var(--icon-md); height: var(--icon-md); }
 .runtime[data-state="ready"] .icon { color: var(--success); }
 .runtime[data-state="failed"] { color: var(--danger); }
 .runtime[data-state="absent"] .icon { color: var(--info); }
@@ -713,7 +724,7 @@ button.problem:hover { background: var(--hover); }
 /* Kept rendered (a live region must exist before it speaks), just without height. */
 .notice[data-empty="true"] { height: 0; overflow: hidden; }
 .notice-icon { display: inline-grid; flex: none; }
-.notice-icon .icon { width: 1rem; height: 1rem; }
+.notice-icon .icon { width: var(--icon-md); height: var(--icon-md); }
 .notice[data-tone="error"] .notice-icon { color: var(--danger); }
 .notice[data-tone="warning"] .notice-icon { color: var(--warning); }
 .notice[data-tone="success"] .notice-icon { color: var(--success); }
@@ -763,7 +774,7 @@ button.problem:hover { background: var(--hover); }
    fill still follows the pointer, and a menu opened under a still pointer never shows two chosen rows. */
 .menu-item:focus { background: var(--hover); }
 .menu-item:focus-visible { outline-offset: -2px; }
-.menu-item .icon { width: 1rem; height: 1rem; color: var(--text-muted); }
+.menu-item .icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-muted); }
 .menu-item.danger, .menu-item.danger .icon { color: var(--danger); }
 .menu-label { flex: 1; }
 /* Between groups (open and close; new, rename, delete; import and export; Capture snippet; the file list's width). */
@@ -776,7 +787,7 @@ button.problem:hover { background: var(--hover); }
   width: 0;
   min-width: 100%;
   margin-top: var(--s1);
-  padding: var(--s1) var(--s2) 0 calc(2 * var(--s2) + 1rem);
+  padding: var(--s1) var(--s2) 0 calc(2 * var(--s2) + var(--icon-md));
   border-top: 1px solid var(--border);
   font: var(--fs-hint)/var(--lh-hint) var(--font-ui);
   color: var(--text-muted);
@@ -801,12 +812,64 @@ button.problem:hover { background: var(--hover); }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s4) var(--s3) var(--s2) var(--s5); }
 /* The body scrolls under the header: a divider shows where once it has (dialogs.ts). */
 .dialog-head[data-scrolled] { box-shadow: inset 0 -1px 0 var(--divider); }
-.dialog-title { margin: 0; font-size: var(--fs-title); font-weight: 600; line-height: 1.3; }
+.dialog-title { margin: 0; font-size: var(--fs-title); font-weight: var(--w-strong); line-height: var(--lh-title); }
 .dialog-body { padding: 0 var(--s5) var(--s5); overflow: auto; }
 .dialog-body > p { margin: 0 0 var(--s3); }
-.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s2); padding: 0 var(--s5) var(--s5); }
-.dialog.confirm .dialog-body { color: var(--text-muted); }
-.section-title { margin: var(--s4) 0 var(--s2); font-size: var(--fs-section); font-weight: 600; }
+.dialog-body > :last-child { margin-bottom: 0; }
+/* A body that scrolls is a region the keyboard can scroll (dialogs.ts gives it tabindex=0 while it
+   overflows): its ring is drawn inside it, where the dialog can't clip it. */
+.dialog-body:focus-visible { outline-offset: -2px; }
+/* The footer, one rule for every dialog: the body and the footer share one 24 px gap (12 + 12), so
+   no empty band sits above a short dialog's buttons; a --divider rule shows only while the body
+   scrolls under it (data-overflow, dialogs.ts), as the header's rule does. Its buttons are primary
+   actions' height: 32 px, 44 on touch and phones. */
+.dialog-body:not(:last-child) { padding-bottom: var(--s3); }
+.dialog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s2); padding: var(--s3) var(--s5) var(--s5); }
+.dialog[data-overflow] .dialog-actions { box-shadow: inset 0 1px 0 var(--divider); }
+.dialog-actions .btn { min-height: var(--primary-h); }
+/* The question asked before deleting is what the student must read: body text, not a hint. */
+.dialog.confirm .dialog-body { color: var(--text); }
+/* Section headings, group titles and legends: one weight, the label's (size makes the step). */
+.section-title { margin: var(--s4) 0 var(--s2); font-size: var(--fs-section); font-weight: var(--w-label); line-height: var(--lh-section); }
+
+/* A field's error (DESIGN.md decision 13), the one look for every field: the error band, a 2 px
+   danger bar, a danger icon, the words in --text at body size and 600 (pairs in contrast.ts: text
+   and danger on error-band@bg and on error-band@surface). Connect, Capture snippet, Save as PDF and
+   the program's arguments all use it; an error or a warning on a dialog's result line takes it too. */
+.field-error,
+.dialog-body .result-line[data-tone="error"],
+.dialog-body .result-line[data-tone="warning"] {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--error-band);
+  box-shadow: inset 2px 0 0 var(--danger);
+  color: var(--text);
+  font: var(--w-strong) var(--fs-1)/var(--lh-prose) var(--font-ui);
+}
+.field-error .icon,
+.dialog-body .result-line[data-tone="error"] .icon,
+.dialog-body .result-line[data-tone="warning"] .icon { flex: none; margin-top: calc((var(--lh-prose) - var(--icon-md)) / 2); color: var(--danger); }
+/* A warning is a question (Connect anyway?), not an error: the stone ground, a warning bar, the
+   label weight. */
+.dialog-body .result-line[data-tone="warning"] { background: var(--surface); box-shadow: inset 2px 0 0 var(--warning); font-weight: var(--w-label); }
+.dialog-body .result-line[data-tone="warning"] .icon { color: var(--warning); }
+
+/* A dialog's result line, one component (Connect, Share link, Sync with a message, Capture snippet,
+   Save as PDF): an icon in its tone and the words in --text, on the chrome's 15 / 20 px line. A
+   result that is done or informs is a plain line; in the body an error or a warning leads on the
+   band above. In a footer (Capture snippet, Save as PDF) it stays a plain line beside the buttons,
+   whose height it reserves. */
+.result-line { display: flex; align-items: flex-start; gap: var(--s2); margin: 0; color: var(--text); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.result-line .icon { flex: none; margin-top: calc((var(--lh-1) - var(--icon-md)) / 2); }
+.result-line[data-tone="success"] .icon, .result-line[data-done] .icon { color: var(--success); }
+.result-line[data-tone="info"] .icon { color: var(--info); }
+.result-line[data-tone="error"] .icon { color: var(--danger); }
+.result-line[data-tone="warning"] .icon { color: var(--warning); }
+.dialog-body .result-line:not(:empty) { margin-top: var(--s3); }
 .dialog-body > .section-title:first-child, .settings-section:first-child > .section-title { margin-top: 0; }
 .settings-section + .settings-section { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); }
 .field { display: flex; flex-direction: column; gap: var(--s1); }
@@ -841,7 +904,9 @@ button.problem:hover { background: var(--hover); }
 .theme-option:hover { background: var(--hover); }
 .theme-option:has(input:checked) { border-color: transparent; background: var(--list-selected); box-shadow: inset 0 0 0 2px var(--location); }
 .theme-name { min-width: 0; }
-.tag { margin-left: var(--s1); padding: 0 var(--s1); border: 1px solid var(--border-strong); border-radius: var(--r-key); color: var(--text-muted); font-size: var(--fs-hint); }
+/* "Default" beside a theme's name: a quiet word in the secondary tier, not a box that reads as a
+   button. */
+.tag { margin-left: var(--s1); color: var(--text-secondary); font-size: var(--fs-2); }
 .theme-more summary { padding: var(--s2) 0; color: var(--text-secondary); font-weight: var(--w-label); cursor: pointer; }
 .theme-more[open] summary { margin-bottom: var(--s2); }
 .tile-prev {
@@ -878,19 +943,29 @@ button.problem:hover { background: var(--hover); }
   color: var(--tile-on-action);
   font: var(--w-label) 12px/20px var(--font-ui);
 }
-.tp-run .icon { width: 10px; height: 10px; }
+.tp-run .icon { width: var(--icon-xs); height: var(--icon-xs); }
 
 .refusal-list { margin: 0; padding: 0; list-style: none; }
 .refusal-list li { display: flex; flex-wrap: wrap; column-gap: var(--s2); padding: var(--s1) 0; border-top: 1px solid var(--border); }
 .refusal-name { font: var(--fs-hint)/1.5 var(--font-code); overflow-wrap: anywhere; }
 .refusal-reason { color: var(--text-muted); }
 
-/* One key column for every group: each list is a subgrid of the dialog's grid. */
-.shortcut-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: var(--s4); }
+/* One key column for every group: each list is a subgrid of the dialog's grid. The column is as
+   wide as the keys need up to 45% of the list (a long pair like "Ctrl Alt Up or Ctrl Alt Down"
+   wraps inside it), and the keys sit against their description, so a short key never leaves a
+   wide gap before its words. */
+.shortcut-grid { display: grid; grid-template-columns: fit-content(45%) minmax(0, 1fr); column-gap: var(--s4); }
 .shortcut-grid > .section-title { grid-column: 1 / -1; }
 .shortcut-list { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; row-gap: var(--s2); margin: 0; }
-.shortcut-list dt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1); color: var(--text-muted); }
+.shortcut-list dt { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s1); color: var(--text-muted); }
 .shortcut-list dd { margin: 0; }
+/* Phones: the keys above their description, which takes the whole width (one word per line before). */
+@media (max-width: 599px) {
+  .shortcut-grid { grid-template-columns: minmax(0, 1fr); }
+  .shortcut-list { row-gap: var(--s1); }
+  .shortcut-list dt { justify-content: flex-start; }
+  .shortcut-list dd + dt { margin-top: var(--s2); }
+}
 
 /* ------------------------------------------------------------------ touch */
 @media (pointer: coarse) {
@@ -913,7 +988,7 @@ button.problem:hover { background: var(--hover); }
   .topbar :focus-visible, .view-switch :focus-visible { outline-offset: -2px; }
   .drawer-toggle { display: inline-grid; }
   .palette-btn { padding: 0; }
-  .palette-btn .icon { width: 1.125rem; height: 1.125rem; }
+  .palette-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
   .palette-btn-label { display: none; }
   .brand { display: none; }
   .crumb { margin: 0 0 0 var(--s1); flex: 0 1 auto; }
@@ -1024,6 +1099,10 @@ button.problem:hover { background: var(--hover); }
   }
   [role="treeitem"][aria-selected="true"] > .tree-row::after { content: ""; position: absolute; inset: 0; border: 1px solid var(--location); pointer-events: none; }
   .error-jump { border: 1px solid var(--danger); border-left-width: 2px; }
+  /* The field error and an error on a result line: the bar becomes a border; an invalid field keeps
+     its 1 px edge plus aria-invalid. */
+  .field-error, .dialog-body .result-line[data-tone="error"] { border-left: 2px solid var(--danger); }
+  .dialog-body .result-line[data-tone="warning"] { border-left: 2px solid var(--warning); }
   .cm-editor .cm-lineNumbers .cm-gutterElement.ce-error-line { border-left: 2px solid var(--danger); }
   .cm-editor .cm-lint-marker-error { border: 0.4em solid var(--danger); }
   .cm-editor .cm-lint-marker-warning { border: 0.4em solid var(--warning); }

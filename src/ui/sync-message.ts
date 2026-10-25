@@ -49,7 +49,7 @@ export function openMessageDialog(deps: MessageDeps): void {
       : deps.unsynced > 0
         ? `${plural(deps.unsynced, "change")} on this computer ${deps.unsynced === 1 ? "waits" : "wait"} to upload.`
         : "Nothing has changed here since the last sync, so there may be nothing to upload; then no commit is made.";
-  const result = h("p", { class: "connect-result", id: `${id}-result` });
+  const result = h("p", { class: "result-line connect-result", id: `${id}-result` });
   const announcer = createAnnouncer();
   announcer.element.id = `${id}-announce`;
   announcer.element.removeAttribute("data-announcer");
