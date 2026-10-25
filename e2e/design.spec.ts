@@ -646,6 +646,40 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   expect(Math.round(width)).toBe(200);
 });
 
+// A phone-wide window allows the file list 200 px at most; its refresh used to overwrite the
+// width the user had with that (248 became 200 for good: polish audit, 2026-10-24).
+test("the file list keeps the width it was given through a trip to a phone-wide window", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openApp(page);
+  const splitter = page.getByRole("separator", { name: "Resize the file list" });
+  const width = async () => Math.round((await page.locator("#sidebar").boundingBox())!.width);
+  const narrowTrip = async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator("#app")).toHaveAttribute("data-narrow", "true");
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator("#app")).toHaveAttribute("data-narrow", "false");
+  };
+  await expect(splitter).toHaveAttribute("aria-valuenow", "248");
+  expect(await width()).toBe(248);
+
+  // The default width, through a phone-wide window and back.
+  await narrowTrip();
+  await expect(splitter).toHaveAttribute("aria-valuenow", "248");
+  expect(await width()).toBe(248);
+
+  // A width chosen with the keyboard, through the same trip, and after a reload.
+  await splitter.focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "312");
+  await narrowTrip();
+  await expect(splitter).toHaveAttribute("aria-valuenow", "312");
+  expect(await width()).toBe(312);
+  await page.reload();
+  await waitReady(page);
+  await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "312");
+});
+
 // WCAG 2.2 SC 2.5.7: every size the splitters set by dragging can also be set with single clicks.
 test("the panel and the file list resize without dragging: Maximise the panel, and Wider or Narrower file list", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
