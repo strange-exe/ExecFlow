@@ -26,8 +26,8 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
-  // 15 px: Source Code Pro is small for its size (x-height 0.486 em), so 15 keeps the line pitch.
-  // A saved size stays as saved.
+  // 15 px (the default since Deep Field, kept with JetBrains Mono in the Signal round: the approved
+  // previews were drawn at 15). A saved size stays as saved.
   codeSize: 15,
   lineWrapping: false,
   suggestOnTyping: true,

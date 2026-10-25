@@ -7,9 +7,9 @@
 // shown, or the editor fetched early when the pointer heads for the file list) it is loaded when
 // the page is next idle, with the CSS Font Loading API (w3.org/TR/css-font-loading-3,
 // FontFaceSet.load()), which draws nothing. The file is precached with the app, so this works
-// offline too. Turning "Joined symbols" on or off mid-visit switches the code font (JetBrains Mono
-// or Source Code Pro), and the new font's italic is then loaded at idle the same way
-// (onCodeFontSwitch). Only the editor chunk imports this file, so the first visit doesn't carry it.
+// offline too. The code font is JetBrains Mono in every theme ("Joined symbols" turns on its
+// ligatures only, never another font), so this is needed once. Only the editor chunk imports this
+// file, so the first visit doesn't carry it.
 
 /** How long an idle callback may wait while the page stays busy (ms). */
 const IDLE_TIMEOUT_MS = 2000;
@@ -23,23 +23,12 @@ export function atIdle(run: () => void): void {
 }
 
 /**
- * Loads the italic face of the code font in use (--font-code: Source Code Pro, or JetBrains Mono
- * with "Joined symbols" on). Never rejects and never logs: a load that fails, or that a reload
- * cancels (Firefox and WebKit then reject with a NetworkError), only means the face loads at its
- * first use, as before.
+ * Loads the italic face of the code font (--font-code, JetBrains Mono). Never rejects and never
+ * logs: a load that fails, or that a reload cancels (Firefox and WebKit then reject with a
+ * NetworkError), only means the face loads at its first use, as before.
  */
 export function loadCodeItalic(): void {
   const family = getComputedStyle(document.documentElement).getPropertyValue("--font-code").trim();
   if (!family || !("fonts" in document)) return;
   document.fonts.load(`italic 400 1em ${family}`).catch(() => undefined);
-}
-
-/**
- * Calls `run` whenever "Joined symbols" switches the code font (theme/ligatures.ts sets or removes
- * <html data-ligatures>, and tokens.css picks --font-code from it). Returns a function that stops.
- */
-export function onCodeFontSwitch(run: () => void): () => void {
-  const watch = new MutationObserver(() => run());
-  watch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ligatures"] });
-  return () => watch.disconnect();
 }

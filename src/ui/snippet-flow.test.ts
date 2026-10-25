@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_IMAGE_OPTIONS, IMAGE_TOKENS, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { OWN } from "../theme/palettes";
 import {
-  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, PENDING_MS, previewFit,
+  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, PENDING_MS, previewFit,
   type Drawn, type ExportResult, type Paint, type PreviewState, type RenderFailure, type RenderOutcome, type RenderSignal,
 } from "./snippet-flow";
 
@@ -534,6 +534,18 @@ describe("imageColors (4.3)", () => {
   const computed = Object.fromEntries(IMAGE_TOKENS.map((t) => [t, "#010203"]));
   const paint = (family: Paint["family"]): Paint => ({ family, scheme: "dark", themeName: null, computed });
   const pick = (p: Record<string, string>) => Object.fromEntries(IMAGE_TOKENS.map((t) => [t, p[t]]));
+  it("Signal, the default: light and dark give Signal's own palettes", () => {
+    expect(imageColors("match", paint("signal"))).toEqual(computed);
+    expect(imageColors("light", paint("signal"))).toEqual(pick(OWN.signal.light));
+    expect(imageColors("dark", paint("signal"))).toEqual(pick(OWN.signal.dark));
+  });
+  it("the family is read from data-palette: none is Deep Field, signal and slate their own, anything else a palette theme", () => {
+    expect(paintFamily(undefined)).toBe("deep-field");
+    expect(paintFamily("signal")).toBe("signal");
+    expect(paintFamily("slate")).toBe("slate");
+    expect(paintFamily("palette")).toBe("palette");
+    expect(paintFamily("evil")).toBe("palette");
+  });
   it("match gives the computed values; light and dark the own palette, Deep Field for palette themes", () => {
     expect(imageColors("match", paint("deep-field"))).toEqual(computed);
     expect(imageColors("light", paint("deep-field"))).toEqual(pick(OWN["deep-field"].light));

@@ -37,9 +37,9 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(reducedMotion === "reduce");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  // And the colours really are that scheme's (CodeEditor Deep Field, the default: no data-palette).
-  await expect(page.locator("html")).not.toHaveAttribute("data-palette");
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(19, 32, 27)" : "rgb(248, 251, 249)");
+  // And the colours really are that scheme's (CodeEditor Signal, the default: data-palette="signal").
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(14, 17, 22)" : "rgb(252, 252, 253)");
 }
 
 /**
@@ -678,7 +678,9 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   // Past the gutter (its edge is a line of its own), over the empty end of the code.
   const splitter = await rect(".center > .splitter");
   const gutters = await rect(".cm-editor .cm-gutters");
-  const above: Box = { x: gutters.x + gutters.width + 40, y: splitter.y - 2, width: 200, height: 2 };
+  // The two whole pixel rows above the splitter's own: its box can start on a half pixel (the
+  // editor's share of the column is a fraction), and then its line is drawn in the row it starts in.
+  const above: Box = { x: gutters.x + gutters.width + 40, y: Math.floor(splitter.y) - 2, width: 200, height: 2 };
   const focused = await shot();
   await page.keyboard.press("Shift+Tab");
   await expect(page.getByRole("separator", { name: "Resize the output panel" })).not.toBeFocused();

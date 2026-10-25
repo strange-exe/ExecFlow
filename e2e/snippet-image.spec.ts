@@ -135,10 +135,11 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(dialog.locator("#snippet-size")).toHaveText("822 x 357 pixels.");
     for (const chunk of ["tEXt", "iTXt", "zTXt", "eXIf", "tIME"]) expect(info.chunks, `no ${chunk} chunk`).not.toContain(chunk);
     const t = await tokens(page);
-    expect(t.bg).toBe(scheme === "light" ? "#f8fbf9" : "#13201b");
-    expect(t["syn-keyword"]).toBe(scheme === "light" ? "#713882" : "#d9a9e8");
-    expect(t["text-secondary"]).toBe(scheme === "light" ? "#4b524d" : "#bdbfb8");
-    expect(t.border).toBe(scheme === "light" ? "#c4d7cb" : "#2e423a");
+    // CodeEditor Signal, the default (src/theme/palettes.ts SIGNAL).
+    expect(t.bg).toBe(scheme === "light" ? "#fcfcfd" : "#0e1116");
+    expect(t["syn-keyword"]).toBe(scheme === "light" ? "#8b2a81" : "#e896dc");
+    expect(t["text-secondary"]).toBe(scheme === "light" ? "#3a4049" : "#b9c0ca");
+    expect(t.border).toBe(scheme === "light" ? "#d6dbe2" : "#252c35");
     pixelMap(d.bytes, t);
     await expect(app(page)).toHaveAttribute("data-capture", "downloaded");
     await expect(dialog.locator("#snippet-status")).toHaveText("Downloading main-py-lines-2-3.png.");
@@ -338,7 +339,7 @@ test("7: the options change the image: every combination's size, Light in a dark
   await openDialog(page);
   await setOptions(page, "light", false, false);
   const png = await expectDownload(page, "code-lines-2-3.png", [772, 270]);
-  expect(off(decodeRgba(png).at(GROUND, GROUND), "#f8fbf9"), "Light's ground in a dark theme").toBeLessThanOrEqual(2);
+  expect(off(decodeRgba(png).at(GROUND, GROUND), "#fcfcfd"), "Light's ground (Signal Light) in a dark theme").toBeLessThanOrEqual(2);
   for (const colors of ["match", "light", "dark"] as const) {
     for (const numbers of [true, false]) {
       for (const name of [true, false]) {
@@ -534,7 +535,7 @@ for (const key of ["Enter", "Space"] as const) {
   });
 }
 
-test("11: the head button: last in the head after Run, named, quiet, 28 px; it opens the dialog and gets focus back; none on phones", async ({ page }) => {
+test("11: the head button: last in the head after Run, named, quiet, 30 px (the desktop icon button); it opens the dialog and gets focus back; none on phones", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWith(page);
   const button = page.locator("#snippet-button");
@@ -547,7 +548,7 @@ test("11: the head button: last in the head after Run, named, quiet, 28 px; it o
   await expect(button).toHaveAttribute("title", "Capture snippet of the selected lines");
   await expect(button).not.toHaveAttribute("aria-haspopup");
   const b = await box(button);
-  expect([b.width, b.height]).toEqual([28, 28]);
+  expect([b.width, b.height]).toEqual([30, 30]);
   await selectFixtureLines(page);
   await button.click();
   await previewReady(page);
@@ -939,7 +940,7 @@ test("19: no request leaves the site; the first opening fetches only same-origin
   expect(urls).toEqual([]);
 });
 
-test("20: the Colours choices name what they give, in Deep Field, Slate and High contrast; Match is this tab's paint", async ({ page, context }) => {
+test("20: the Colours choices name what they give, in Signal, Slate and High contrast; Match is this tab's paint", async ({ page, context }) => {
   const labels = async () => dialogOf(page).locator(".snippet-options fieldset").first().locator("label").allTextContents();
   await openIn(page, "/", "light");
   await openDialog(page);
@@ -993,6 +994,8 @@ test("20: the Colours choices name what they give, in Deep Field, Slate and High
   await openApp(b);
   await b.locator("#settings-button").click();
   const settings = b.getByRole("dialog", { name: /Settings/ });
+  // Deep Field is folded under More themes since Signal became the default.
+  await settings.locator(".theme-more summary").click();
   await settings.locator('input[name=theme][value="deep-field-dark"]').check();
   await expect(b.locator("html")).toHaveAttribute("data-theme-id", "deep-field-dark");
   await page.bringToFront();
@@ -1604,9 +1607,9 @@ test("35: the scale gives the exact PNG size at 1x, 2x and 3x; the size line say
   // The sizes below need the code face itself (an advance of 0.6 em): a fallback font would draw a
   // different image, and the size check alone could hide it. Its measured advance is kept for CI.
   const face = await page.evaluate(() => {
-    const f = [...document.fonts].find((x) => x.family.replace(/"/g, "") === "Source Code Pro" && x.style === "normal" && x.weight === "400");
+    const f = [...document.fonts].find((x) => x.family.replace(/"/g, "") === "JetBrains Mono" && x.style === "normal" && x.weight === "400");
     const m = document.createElement("canvas").getContext("2d")!;
-    m.font = '400 15px "Source Code Pro"';
+    m.font = '400 15px "JetBrains Mono"';
     return { status: f?.status ?? "missing", advance: m.measureText("0").width };
   });
   test.info().annotations.push({ type: "code face", description: JSON.stringify(face) });

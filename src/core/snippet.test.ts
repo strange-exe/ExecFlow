@@ -115,6 +115,9 @@ describe("labels", () => {
 describe("colorChoices", () => {
   const labels = (p: PaintInfo) => colorChoices(p).map((c) => [c.value, c.label]);
   it("own palettes name the scheme", () => {
+    expect(labels({ family: "signal", scheme: "light", themeName: "CodeEditor Signal (match device)" })).toEqual([
+      ["match", "Match the editor (light)"], ["light", "Light"], ["dark", "Dark"],
+    ]);
     expect(labels({ family: "deep-field", scheme: "dark", themeName: "CodeEditor Deep Field Dark" })).toEqual([
       ["match", "Match the editor (dark)"], ["light", "Light"], ["dark", "Dark"],
     ]);

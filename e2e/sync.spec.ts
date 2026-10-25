@@ -321,7 +321,7 @@ test("offline: an edit waits and says so, then syncs once the connection is back
   // The same for a font face first needed after the edit: an unsaved tab's name is italic in the
   // file-name (code) font since layout v2, and with the service worker blocked that face can't
   // arrive once the network is gone.
-  await page.evaluate(() => document.fonts.load("italic 400 15px 'Source Code Pro'"));
+  await page.evaluate(() => document.fonts.load("italic 400 15px 'JetBrains Mono'"));
   await page.waitForLoadState("networkidle");
   await context.setOffline(true);
   await setCode(page, "print('offline edit')\n");

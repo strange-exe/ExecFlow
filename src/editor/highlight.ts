@@ -72,10 +72,10 @@ export const CHROME_SPEC = {
   "&.cm-focused": { outline: "none" },
   "&.cm-focused .cm-gutters::after": {
     content: "''", position: "absolute", top: "0", bottom: "0", right: "0", width: "2px",
-    // --focus-bar is --focus, one step quieter in Deep Field dark (tokens.css, plan-v2 P2).
+    // --focus-bar is --focus, one step quieter where that keeps 3:1 (tokens.css, plan-v2 P2).
     backgroundColor: "var(--focus-bar)", outline: "1px solid transparent", outlineOffset: "-1px", zIndex: "1", pointerEvents: "none",
   },
-  // 15 px code at 1.5: a 22.5 px line pitch (Deep Field type scale).
+  // 15 px code at 1.5: a 22.5 px line pitch (the default code size).
   ".cm-scroller": { fontFamily: "var(--font-code)", fontSize: "var(--code-size)", lineHeight: "1.5" },
   // The caret is the user's hand: the focus colour, not the action colour.
   ".cm-content": { caretColor: "var(--focus)", padding: "8px 0" },

@@ -1,7 +1,7 @@
-// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). CodeEditor's own two
-// palettes, Deep Field (the default) and Slate, are painted by tokens.css before any script runs (a
-// unit test keeps the two files equal); both pass every pair as designed, so the guard never moves
-// them.
+// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). CodeEditor's own three
+// palettes, Signal (the default since 2026-10-25), Deep Field (the default before it) and Slate, are
+// painted by tokens.css before any script runs (a unit test keeps the two files equal); all three
+// pass every pair as designed, so the guard never moves them.
 //
 // The other palettes are Pocket Run's editor themes (its src/themes.ts, same author, MIT), kept as
 // their 16 base colours and expanded onto CodeEditor's variable contract
@@ -47,6 +47,40 @@
 import { lift, luminance, over, type Palette, type Scheme } from "./contrast";
 
 export type { Scheme };
+
+/**
+ * CodeEditor Signal, light and dark (redesign 2, option a "Slate Signal", chosen 2026-10-25): cool
+ * slate neutrals with a surface ladder (the chrome on --surface, the code on a near-white or
+ * near-black sheet), one electric blue for the action, the location bars and checked controls, and a
+ * teal focus apart from it (the caret, the focus ring and typed input). Red marks errors only. The
+ * values are the guard-checked ones (the design round's tuned.json): every pair passes as designed
+ * and every distinctness rule and region step holds (separation "surface"). The four band tokens are
+ * translucent (#rrggbbaa) so a selection shows through the cursor line and the error line.
+ */
+export const SIGNAL: Record<Scheme, Palette> = {
+  light: {
+    bg: "#fcfcfd", surface: "#edf0f3", "surface-raised": "#ffffff", "terminal-bg": "#eff1f4", "terminal-fg": "#14171c", "runlog-bg": "#e6e9ee", divider: "#d0d6de", border: "#d6dbe2", "border-strong": "#6e7682",
+    text: "#14171c", "text-secondary": "#3a4049", "text-muted": "#4f5662", "gutter-text": "#5d646f",
+    action: "#2f5bea", "action-hover": "#2449c4", "on-action": "#ffffff", "control-on": "#2f5bea",
+    focus: "#0b6e80", selection: "#2f5bea2e", "list-selected": "#2f5bea1f", "active-line": "#14171c08", location: "#2f5bea",
+    danger: "#9d2025", warning: "#935100", success: "#2d7737", info: "#0e7490",
+    "error-band": "#e5484d30", "call-site": "#c4282e", "input-echo": "#0b6e80",
+    link: "#2448c8", brand: "#14171c", "on-brand": "#ffffff",
+    "syn-keyword": "#8b2a81", "syn-string": "#1c5e2e", "syn-number": "#8f3d0a", "syn-comment": "#4f565f", "syn-function": "#0d5c68",
+    "syn-type": "#5a40a7", "syn-variable": "#1f242b", "syn-operator": "#4a5563", "syn-macro": "#96294e", "syn-punctuation": "#4c525c",
+  },
+  dark: {
+    bg: "#0e1116", surface: "#151a21", "surface-raised": "#1d232c", "terminal-bg": "#050709", "terminal-fg": "#e6e9ee", "runlog-bg": "#121820", divider: "#2a313b", border: "#252c35", "border-strong": "#737d8b",
+    text: "#e8ebf0", "text-secondary": "#b9c0ca", "text-muted": "#a3aab5", "gutter-text": "#9198a5",
+    action: "#7ea2ff", "action-hover": "#9ab6ff", "on-action": "#0b1020", "control-on": "#7ea2ff",
+    focus: "#4fd1df", selection: "#7ea2ff33", "list-selected": "#7ea2ff24", "active-line": "#e8ebf00a", location: "#7ea2ff",
+    danger: "#ff7b7b", warning: "#f5a35c", success: "#6fd08c", info: "#5bc6d6",
+    "error-band": "#ff5d6640", "call-site": "#ff7b7b", "input-echo": "#4fd1df",
+    link: "#9ab6ff", brand: "#2a313b", "on-brand": "#e8ebf0",
+    "syn-keyword": "#e896dc", "syn-string": "#8bd79a", "syn-number": "#f4a87a", "syn-comment": "#abb1ba", "syn-function": "#6fd3e0",
+    "syn-type": "#bba8ff", "syn-variable": "#dce1e8", "syn-operator": "#aeb8c6", "syn-macro": "#ff9dbb", "syn-punctuation": "#acb3bd",
+  },
+};
 
 /**
  * CodeEditor Deep Field, light and dark: three 12-step OKLCH scales per mode (sage-stone neutral,
@@ -117,8 +151,8 @@ export const SLATE: Record<Scheme, Palette> = {
 };
 
 /** CodeEditor's own palettes (painted by tokens.css), by name. */
-export type OwnPalette = "deep-field" | "slate";
-export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { "deep-field": DEEP_FIELD, slate: SLATE };
+export type OwnPalette = "signal" | "deep-field" | "slate";
+export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { signal: SIGNAL, "deep-field": DEEP_FIELD, slate: SLATE };
 
 /** Pocket Run's theme-file colours (a Pocket Run theme file loads here unchanged). */
 export const BASE_TOKENS = [

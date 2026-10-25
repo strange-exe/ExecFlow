@@ -2,8 +2,8 @@
 // MIT). Native radio buttons: one Tab stop, arrow keys move through the themes and apply each at
 // once. Each theme is a tile round its radio: the name, and a preview drawn in that theme's own
 // colours (two lines of calc.py, the second on its error band, and a small Run), hidden from
-// assistive technology, so the radio's name stays the theme's name. Deep Field and High contrast
-// lead; "More themes" (Slate, the popular editor themes and the others) starts folded unless one of
+// assistive technology, so the radio's name stays the theme's name. Signal and High contrast lead;
+// "More themes" (Deep Field, Slate, the popular editor themes and the others) starts folded unless one of
 // them is chosen, so Settings' editor options stay on its first screen (review D, 2026-10-18: with
 // every group open they were about 1,300 px down). The list is not a scroll box of its own: the
 // dialog scrolls once.
@@ -91,19 +91,27 @@ export function createThemePicker(options: { download(name: string, text: string
     const heading = (text: string) => h("p", { class: "theme-group" }, text);
     const tiles = (themes: Theme[]) => h("div", { class: "theme-grid" }, ...themes.map((t) => option(t, current)));
     const of = (group: Theme["group"]) => BUILT_IN.filter((t) => t.group === group);
-    // Up front: Deep Field (the default, in its three forms) and High contrast. Folded: Slate (v1's
-    // palette), the popular editor themes and the others; the fold opens when the chosen theme is in it.
+    // Up front: Signal (the default, in its three forms) and High contrast. Folded: Deep Field (the
+    // default before Signal), Slate (v1's palette), the popular editor themes and the others; the
+    // fold opens when the chosen theme is in it.
     const own = of("codeeditor");
+    const deepField = own.filter((t) => t.own === "deep-field");
     const slate = own.filter((t) => t.own === "slate");
     const popular = of("popular");
     const others = of("more");
     const folded = h("details", { class: "theme-more" });
-    folded.open = [...slate, ...popular, ...others].some((t) => t.id === current);
-    const summary = h("summary", null, `More themes (${slate.length + popular.length + others.length})`);
-    folded.append(summary, heading("CodeEditor Slate"), tiles(slate), heading("Popular editor themes"), tiles(popular), heading("Other editor themes"), tiles(others));
+    folded.open = [...deepField, ...slate, ...popular, ...others].some((t) => t.id === current);
+    const summary = h("summary", null, `More themes (${deepField.length + slate.length + popular.length + others.length})`);
+    folded.append(
+      summary,
+      heading("CodeEditor Deep Field"), tiles(deepField),
+      heading("CodeEditor Slate"), tiles(slate),
+      heading("Popular editor themes"), tiles(popular),
+      heading("Other editor themes"), tiles(others),
+    );
     const yours = allThemes().filter((t) => t.custom);
     // The section's heading ("Colour theme") names the group, so the first tiles need no title of their own.
-    list.replaceChildren(tiles(own.filter((t) => t.own !== "slate")), folded, ...(yours.length ? [heading("Yours"), tiles(yours)] : []));
+    list.replaceChildren(tiles(own.filter((t) => t.own !== "slate" && t.own !== "deep-field")), folded, ...(yours.length ? [heading("Yours"), tiles(yours)] : []));
   }
 
   const load = h("button", { type: "button", class: "btn" }, icon("upload-simple"), "Load theme file");

@@ -12,7 +12,7 @@ import "../styles/snippet-image.css";
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { nameOf } from "../core/paths";
-import { lineWords, type CaptureMessage, type LineSpan, type PaintFamily, type Tone } from "../core/snippet";
+import { lineWords, type CaptureMessage, type LineSpan, type Tone } from "../core/snippet";
 import {
   captureMessage, cleanImageOptions, colorChoices, CREDIT_TEXT, dialogTitle, downloadName, highlightHint, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING,
   parseHighlight, previewLabel, readImageOptions, sizeLine, writeImageOptions, type ImageOptions, type StoredOptions,
@@ -25,7 +25,7 @@ import { downloadBlob, h } from "./dom";
 import { icon, type IconName } from "./icons";
 import type { Notice } from "./notice";
 import {
-  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, previewFit, sameOptions,
+  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, previewFit, sameOptions,
   type BudgetMeasures, type ExportKind, type ExportResult, type Paint, type RenderFailure,
 } from "./snippet-flow";
 
@@ -58,8 +58,7 @@ const STAGE_LAYOUTS = [true, false].flatMap((numbers) => [true, false].map((name
 /** What the document root painted, once per opening (never #app, which carries no theme attributes). */
 function readPaint(): Paint {
   const root = document.documentElement;
-  const palette = root.dataset.palette;
-  const family: PaintFamily = palette === undefined ? "deep-field" : palette === "slate" ? "slate" : "palette";
+  const family = paintFamily(root.dataset.palette);
   const style = getComputedStyle(root);
   return {
     family,

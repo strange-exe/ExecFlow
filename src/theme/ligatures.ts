@@ -1,9 +1,8 @@
 // "Joined symbols" in code (from Pocket Run's src/ligatures.ts, same author, MIT). Code is set in
-// Source Code Pro, which has no programming ligatures, so turning this on also switches the code
-// font to JetBrains Mono, whose ligatures draw != as one symbol and -> as an arrow (tokens.css,
-// :root[data-ligatures="on"]; its files download only then). Off by default, so code shows exactly
-// the characters typed; this is the opt-in. public/theme-boot.js applies the choice before first
-// paint, and tokens.css turns ligatures off everywhere unless <html data-ligatures="on">.
+// JetBrains Mono, whose ligatures draw != as one symbol and -> as an arrow; this setting turns them
+// on and changes nothing else (the font stays). Off by default, so code shows exactly the
+// characters typed; this is the opt-in. public/theme-boot.js applies the choice before first paint,
+// and tokens.css turns ligatures off everywhere unless <html data-ligatures="on">.
 export const LIGATURES_KEY = "codeeditor:ligatures";
 
 export function ligaturesOn(): boolean {

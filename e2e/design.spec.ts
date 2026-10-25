@@ -21,9 +21,9 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   await waitReady(page);
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  // And the colours really are that scheme's (CodeEditor Deep Field, the default: no data-palette).
-  await expect(page.locator("html")).not.toHaveAttribute("data-palette");
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(19, 32, 27)" : "rgb(248, 251, 249)");
+  // And the colours really are that scheme's (CodeEditor Signal, the default: data-palette="signal").
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(14, 17, 22)" : "rgb(252, 252, 253)");
 }
 
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -270,7 +270,7 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   await openApp(page);
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const html = page.locator("html");
-  await expect(html).not.toHaveAttribute("data-palette");
+  await expect(html).toHaveAttribute("data-palette", "signal");
   await page.locator("#settings-button").click();
   // Slate (v1's palette) is folded under More themes (review D, 2026-10-18).
   await page.getByRole("dialog", { name: "Settings" }).locator(".theme-more summary").click();
@@ -303,54 +303,8 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   expect(await bg()).toBe("rgb(14, 18, 23)");
 });
 
-test("fonts: Source Sans 3 and Source Code Pro load at every weight used, weights really differ, and JetBrains Mono is not fetched", async ({ page }) => {
-  await openApp(page);
-  await page.locator('.starter[data-language="python"]').click();
-  await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
-  const family = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).fontFamily);
-  expect(await family("body")).toMatch(/^"?Source Sans 3"?,/);
-  expect(await family(".cm-content")).toMatch(/^"?Source Code Pro"?,/);
-
-  // document.fonts.check() is true for a family with no faces at all, so ask for each face and
-  // require that a real, loaded face answered.
-  const faces = await page.evaluate(async () => {
-    const want = [
-      ["Source Sans 3", "400", "normal"], ["Source Sans 3", "500", "normal"], ["Source Sans 3", "600", "normal"],
-      ["Source Code Pro", "400", "normal"], ["Source Code Pro", "400", "italic"], ["Source Code Pro", "600", "normal"],
-    ];
-    const out: string[] = [];
-    // The last one is a control: a family nobody declared must come out missing, or this check proves nothing.
-    for (const [fam, weight, style] of [...want, ["No Such Family", "400", "normal"]]) {
-      const loaded = await document.fonts.load(`${style} ${weight} 16px "${fam}"`);
-      const ok = loaded.some((f) => f.family.replace(/"/g, "") === fam && f.weight === weight && f.style === style && f.status === "loaded");
-      out.push(`${fam} ${weight} ${style}: ${ok ? "loaded" : `missing (${loaded.length} faces answered)`}`);
-    }
-    return out;
-  });
-  expect(faces.pop(), "the control family is reported missing").toMatch(/^No Such Family 400 normal: missing/);
-  expect(faces.filter((f) => !f.endsWith(": loaded"))).toEqual([]);
-
-  // The same 20 characters at 400 and 600 take different widths: the static 600 face is drawn, not
-  // a flattened variable font (WebKit drew Inter's weights alike; audit item 21).
-  const widths = await page.evaluate(() => {
-    const span = (weight: string) => {
-      const s = document.createElement("span");
-      s.textContent = "Waiting for input 42";
-      s.style.cssText = `font: ${weight} 15px var(--font-ui); position: absolute; white-space: nowrap; visibility: hidden;`;
-      document.body.append(s);
-      const w = s.getBoundingClientRect().width;
-      s.remove();
-      return w;
-    };
-    return [span("400"), span("600")];
-  });
-  expect(Math.abs(widths[1] - widths[0]), `400 vs 600 widths ${widths.join(" vs ")}`).toBeGreaterThan(1);
-
-  // Only "Joined symbols" uses JetBrains Mono, and it is off: no face of it was ever requested.
-  const jetbrains = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/"/g, "") === "JetBrains Mono").map((f) => `${f.weight} ${f.style} ${f.status}`));
-  expect(jetbrains.length, "JetBrains Mono is declared (for Joined symbols)").toBeGreaterThan(0);
-  expect(jetbrains.filter((f) => !f.endsWith(" unloaded"))).toEqual([]);
-});
+// The fonts (Geist and JetBrains Mono, every weight used, weights that really differ) and the
+// ligature setting are checked in e2e/signal.spec.ts.
 
 /** The load status of each face of `family` in `style` (document.fonts). */
 const faceStatus = (page: Page, family: string, style: string) =>
@@ -362,31 +316,10 @@ const faceStatus = (page: Page, family: string, style: string) =>
 // the page is next idle after the editor is shown (theme/fonts.ts), before anything uses it.
 test("the code font's italic face loads at idle once the editor is shown, before anything is italic", async ({ page }) => {
   await openApp(page);
-  expect(await faceStatus(page, "Source Code Pro", "italic"), "nothing on the empty workspace uses it").toEqual(["unloaded"]);
+  expect(await faceStatus(page, "JetBrains Mono", "italic"), "nothing on the empty workspace uses it").toEqual(["unloaded"]);
   await page.locator('.starter[data-language="python"]').click();
   await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
   // The starter has no comment and nothing is unsaved: no italic text is on the page.
-  await expect(page.locator('.tab[data-dirty="true"]')).toHaveCount(0);
-  expect(await page.locator(".cm-content").textContent()).not.toContain("#");
-  await expect.poll(() => faceStatus(page, "Source Code Pro", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
-  // Only the code font in use: Joined symbols is off, so JetBrains Mono's italic is not fetched.
-  expect(await faceStatus(page, "JetBrains Mono", "italic")).toEqual(["unloaded"]);
-});
-
-// "Joined symbols" switches the code font to JetBrains Mono mid-visit: its italic then loads at idle
-// too, so the next edit's italic tab name doesn't bring that first-use task back (theme/fonts.ts).
-test("turning Joined symbols on mid-visit loads JetBrains Mono's italic at idle, before anything is italic", async ({ page }) => {
-  await openApp(page);
-  await page.locator('.starter[data-language="python"]').click();
-  await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
-  await expect.poll(() => faceStatus(page, "Source Code Pro", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
-  expect(await faceStatus(page, "JetBrains Mono", "italic"), "not before the switch").toEqual(["unloaded"]);
-  await page.locator("#settings-button").click();
-  await page.getByLabel("Joined symbols in code").check();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
-  expect(await page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?JetBrains Mono"?,/);
-  // Nothing on the page is italic: no comment in the starter, nothing unsaved.
   await expect(page.locator('.tab[data-dirty="true"]')).toHaveCount(0);
   expect(await page.locator(".cm-content").textContent()).not.toContain("#");
   await expect.poll(() => faceStatus(page, "JetBrains Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
@@ -402,7 +335,7 @@ test("a reload while the italic face is still downloading logs no error and no f
       for (const rule of sheet.cssRules) {
         if (!(rule instanceof CSSFontFaceRule)) continue;
         const style = rule.style;
-        if (style.getPropertyValue("font-family").includes("Source Code Pro") && style.getPropertyValue("font-style") === "italic") {
+        if (style.getPropertyValue("font-family").includes("JetBrains Mono") && style.getPropertyValue("font-style") === "italic") {
           const src = /url\("?([^")]+)"?\)/.exec(style.getPropertyValue("src"));
           if (src) return new URL(src[1], location.href).href;
         }
@@ -439,7 +372,7 @@ test("a reload while the italic face is still downloading logs no error and no f
   test.info().annotations.push({ type: "cancel", description: cancelled.join("; ") || "no requestfailed event" });
   await page.unrouteAll({ behavior: "ignoreErrors" });
   // The restored tab shows the editor again, and the face loads this time.
-  await expect.poll(() => faceStatus(page, "Source Code Pro", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+  await expect.poll(() => faceStatus(page, "JetBrains Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
 });
 
 // The first suggestion list's task looked up system fallback fonts for the kind icons' glyphs and
@@ -484,24 +417,20 @@ test("'match device' follows the system light and dark setting live", async ({ p
   await expect.poll(theme).toBe("light");
 });
 
-test("ligatures stay off unless chosen, and choosing them switches the code font to JetBrains Mono", async ({ page }) => {
+test("ligatures stay off unless chosen, and choosing them keeps the code font (JetBrains Mono)", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="c"]').click();
   const lig = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontVariantLigatures);
   const codeFont = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontFamily);
   expect(await lig()).toBe("none");
-  expect(await codeFont()).toMatch(/^"?Source Code Pro"?,/);
+  expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
   await page.locator("#settings-button").click();
   await page.getByLabel("Joined symbols in code").check();
   expect(await lig()).not.toBe("none");
   expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
-  // Now the code uses it, its regular face is fetched (so the fonts test's "unloaded" check can fail).
-  await page.evaluate(() => document.fonts.ready);
-  const regular = () => page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/"/g, "") === "JetBrains Mono" && f.weight === "400" && f.style === "normal").map((f) => f.status));
-  await expect.poll(regular).toEqual(["loaded"]);
   await page.getByLabel("Joined symbols in code").uncheck();
   expect(await lig()).toBe("none");
-  expect(await codeFont()).toMatch(/^"?Source Code Pro"?,/);
+  expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
 });
 
 // Icons are fetched out of band, so no console error or axe rule catches a

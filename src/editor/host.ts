@@ -4,7 +4,7 @@
 
 import type { EditorState, StateEffect, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { atIdle, loadCodeItalic, onCodeFontSwitch } from "../theme/fonts";
+import { atIdle, loadCodeItalic } from "../theme/fonts";
 import { notifyDocChanged } from "./extensions";
 import { warmListIcons } from "./highlight";
 
@@ -39,12 +39,11 @@ export function viewHost(parent: HTMLElement): HostFactory {
     });
     // First uses that cost a long task when they come with a key: the code font's italic (the
     // first edit's unsaved tab name) and the suggestion list's kind icons. Done once the page is
-    // idle after the view exists, and the italic again when "Joined symbols" switches the code font.
+    // idle after the view exists.
     atIdle(() => {
       loadCodeItalic();
       if (view.dom.isConnected) warmListIcons(view);
     });
-    const stopFontWatch = onCodeFontSwitch(() => atIdle(loadCodeItalic));
     return {
       view,
       get state() {
@@ -54,10 +53,7 @@ export function viewHost(parent: HTMLElement): HostFactory {
       dispatch: (tr) => view.dispatch(tr),
       scrollSnapshot: () => view.scrollSnapshot(),
       focus: () => view.focus(),
-      destroy: () => {
-        stopFontWatch();
-        view.destroy();
-      },
+      destroy: () => view.destroy(),
     };
   };
 }

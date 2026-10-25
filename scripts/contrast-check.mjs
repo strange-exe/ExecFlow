@@ -4,10 +4,10 @@
 //   node scripts/contrast-check.mjs            summary per theme; exits 1 if any pair fails
 //   node scripts/contrast-check.mjs --rows     also print every pair of CodeEditor's own palettes
 //   node scripts/contrast-check.mjs --json     machine-readable result
-// CodeEditor's own palettes (Deep Field and Slate) must pass as designed: the guard may move
-// nothing in them. Deep Field must also meet every role-distinctness rule and region step
-// (checkRules); Slate's misses there are its v1 identity (one azure for action, focus and
-// location; near-equal grounds) and are reported, not failed. Palette themes are checked after the
+// CodeEditor's own palettes (Signal, Deep Field and Slate) must pass as designed: the guard may
+// move nothing in them. Signal and Deep Field must also meet every role-distinctness rule and
+// region step (checkRules); Slate's misses there are its v1 identity (one azure for action, focus
+// and location; near-equal grounds) and are reported, not failed. Palette themes are checked after the
 // readability guard (the colours the app really paints), and the colours it moved are listed.
 //
 // The theme modules are TypeScript, loaded with Node's built-in type stripping. Their imports have
@@ -59,7 +59,7 @@ if (args.has("--json")) {
     for (const f of r.failed) console.log(`        ${f.fg} ${f.fgHex} on ${f.bg} ${f.bgHex}: ${fmt(f.ratio)} < ${f.min} (${f.use})`);
     if (r.wouldMove.length) console.log(`        not as designed: the guard would move ${r.wouldMove.join(", ")}`);
     if (r.own) {
-      const label = r.own === "deep-field" ? "rules" : "rules (reported only: Slate's v1 identity)";
+      const label = r.own !== "slate" ? "rules" : "rules (reported only: Slate's v1 identity)";
       console.log(`        ${label}: ${r.ruleMisses.length ? `missed ${r.ruleMisses.join(", ")}` : "every distinctness rule and region step passes"}`);
     }
   }
@@ -72,8 +72,8 @@ if (args.has("--json")) {
 }
 const failures = report.reduce((n, r) => n + r.failed.length, 0);
 const ownMoved = report.filter((r) => r.wouldMove.length);
-const deepFieldMisses = report.filter((r) => r.own === "deep-field" && r.ruleMisses.length);
-if (failures || ownMoved.length || deepFieldMisses.length) {
-  if (!args.has("--json")) console.error(`\n${failures} failing pair(s); own palettes the guard would move: ${ownMoved.length}; Deep Field rule misses: ${deepFieldMisses.length}`);
+const ruleMisses = report.filter((r) => r.own && r.own !== "slate" && r.ruleMisses.length);
+if (failures || ownMoved.length || ruleMisses.length) {
+  if (!args.has("--json")) console.error(`\n${failures} failing pair(s); own palettes the guard would move: ${ownMoved.length}; Signal or Deep Field rule misses: ${ruleMisses.length}`);
   process.exit(1);
 }

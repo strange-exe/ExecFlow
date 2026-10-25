@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CHROME_SPEC } from "../editor/highlight";
 import { contrast, over, resolve, type Palette } from "../theme/contrast";
-import { DEEP_FIELD } from "../theme/palettes";
+import { DEEP_FIELD, SIGNAL } from "../theme/palettes";
 import { BUILT_IN, themePalette } from "../theme/themes";
 
 const tokens = readFileSync("src/styles/tokens.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -86,6 +86,15 @@ describe("the editor's focus bar (--focus-bar)", () => {
   it("the palette themes that drew the strongest line now step down (GitHub-style Light, Dracula, High contrast)", () => {
     const { anyScheme } = steppedRule();
     for (const id of ["github-light", "dracula", "high-contrast"]) expect(anyScheme.has(id), id).toBe(true);
+  });
+
+  it("Signal, the default, steps down in dark (its teal at 70% keeps 3:1 on every ground); light keeps the focus colour (2.98:1 on the cursor's line)", () => {
+    const { anyScheme, darkOnly } = steppedRule();
+    for (const g of GROUNDS) expect(contrast(step(SIGNAL.dark), resolve(SIGNAL.dark, g)), `dark ${g}`).toBeGreaterThanOrEqual(3);
+    expect(contrast(step(SIGNAL.light), resolve(SIGNAL.light, "active-line@bg"))).toBeLessThan(3);
+    for (const g of GROUNDS) expect(contrast(SIGNAL.light.focus, resolve(SIGNAL.light, g)), `light ${g}`).toBeGreaterThanOrEqual(3);
+    expect(anyScheme.has("signal-dark") && darkOnly.has("signal")).toBe(true);
+    expect(anyScheme.has("signal-light") || anyScheme.has("signal")).toBe(false);
   });
 
   it("Deep Field dark keeps its measured step (#a2914d, 70% brass over the field); light keeps the focus colour", () => {

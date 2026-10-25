@@ -281,7 +281,7 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(empty).toBeVisible();
     expect(await color(empty.locator(".empty-lede"))).toBe(secondary);
     expect((await empty.locator(".empty-lede").boundingBox())!.width, "the lede is as wide as its column").toBeCloseTo((await empty.boundingBox())!.width, 0);
-    expect(await empty.locator(".empty-title").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("30px");
+    expect(await empty.locator(".empty-title").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("36px");
     const connect = empty.getByRole("button", { name: "Connect GitHub" });
     const importBtn = empty.getByRole("button", { name: "Import files" });
     const edge = (l: Locator) => l.evaluate((e) => `${getComputedStyle(e).borderTopWidth} ${getComputedStyle(e).borderTopStyle} ${getComputedStyle(e).borderTopColor}`);
@@ -293,7 +293,7 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(examples).toBeVisible();
     expect(await color(examples.locator(".examples-lede"))).toBe(secondary);
     for (const h of await examples.locator(".section-title").all()) expect(await h.evaluate((e) => getComputedStyle(e).fontWeight)).toBe("500");
-    expect(await examples.locator(".dialog-title").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("28px");
+    expect(await examples.locator(".dialog-title").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("26px");
     await page.keyboard.press("Escape");
 
     // Settings: section titles at 500; the Default tag is quiet text.
@@ -312,9 +312,9 @@ for (const scheme of ["light", "dark"] as const) {
     for (const p of await confirm.locator(".dialog-body p").all()) expect(await color(p)).toBe(text);
     await page.keyboard.press("Escape");
 
-    // Chrome text on its own line heights.
-    expect(await page.locator(".region-title").first().evaluate((e) => getComputedStyle(e).lineHeight)).toBe("20px");
-    expect(await page.locator("#palette-button").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("20px");
+    // Chrome text on its own line heights (tier 2: 13 / 18 px since the Signal round).
+    expect(await page.locator(".region-title").first().evaluate((e) => getComputedStyle(e).lineHeight)).toBe("18px");
+    expect(await page.locator("#palette-button").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("18px");
   });
 }
 
@@ -372,7 +372,7 @@ test("C18: icons render at 12, 14, 16, 18 or 20 px across the views; the fold ma
   const code = page.locator(".runlog .err-help code").first();
   await expect(code).toBeVisible();
   const chip = await code.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, radius: getComputedStyle(e).borderTopLeftRadius }));
-  expect(chip.radius).toBe("4px");
+  expect(chip.radius).toBe("5px"); // --r-key (5 px since the Signal round)
   expect(chip.bg, "a ground of its own").not.toMatch(/^(transparent|rgba\(0, 0, 0, 0\))$/);
   bad.push(...(await offScale(page, "failed run")));
   await showPanel(page, "problems");

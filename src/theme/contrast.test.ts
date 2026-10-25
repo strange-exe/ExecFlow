@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALPHA_OK, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
 } from "./contrast";
-import { DEEP_FIELD, expandBase, POCKET_THEMES, SLATE } from "./palettes";
+import { DEEP_FIELD, expandBase, POCKET_THEMES, SIGNAL, SLATE } from "./palettes";
 import { BUILT_IN, themePalette } from "./themes";
 
 const failures = (p: Palette) => checkPalette(p).filter((r) => !r.pass).map((r) => `${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)} < ${r.min}`);
@@ -129,6 +129,42 @@ describe("CodeEditor Deep Field (the default)", () => {
   });
 });
 
+describe("CodeEditor Signal (the default)", () => {
+  it.each(SCHEMES)("%s passes every pair the UI draws, exactly as designed", (scheme) => {
+    expect(failures(SIGNAL[scheme])).toEqual([]);
+    expect(readablePalette(SIGNAL[scheme]).adjusted).toEqual([]);
+  });
+
+  it.each(SCHEMES)("%s keeps every role distinct and every region step and band visible (separation: surface)", (scheme) => {
+    const { distinct, steps } = checkRules(SIGNAL[scheme], { scheme, separation: "surface" });
+    expect(distinct).toHaveLength(13);
+    expect(steps).toHaveLength(scheme === "light" ? 15 : 17);
+    expect([...distinct, ...steps].filter((r) => !r.pass).map((r) => `${r.a} vs ${r.b}`)).toEqual([]);
+  });
+
+  it("is a valid token for every name, alpha only on the four band tokens", () => {
+    for (const scheme of SCHEMES) {
+      for (const v of COLOR_VARS) {
+        const value = SIGNAL[scheme][v];
+        expect(isTokenValue(v, value), `${scheme} --${v} ${value}`).toBe(true);
+        expect(value.length === 9, `${scheme} --${v} translucent`).toBe((ALPHA_OK as readonly string[]).includes(v));
+      }
+    }
+  });
+
+  it("one electric blue for the action, location and checked controls; a teal focus apart from it", () => {
+    for (const scheme of SCHEMES) {
+      const p = SIGNAL[scheme];
+      expect(p.location, scheme).toBe(p.action);
+      expect(p["control-on"], scheme).toBe(p.action);
+      expect(p.focus, scheme).not.toBe(p.action);
+      expect(p["input-echo"], scheme).toBe(p.focus);
+    }
+    expect(contrast(SIGNAL.light["on-action"], SIGNAL.light.action)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(SIGNAL.dark["on-action"], SIGNAL.dark.action)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe("CodeEditor Slate (a picker theme)", () => {
   it.each(SCHEMES)("%s passes every pair as designed (nothing moved)", (scheme) => {
     expect(failures(SLATE[scheme])).toEqual([]);
@@ -164,10 +200,12 @@ describe("tokens.css and the first paint", () => {
     return css.slice(start, css.indexOf("}", start));
   };
 
-  it("paints the same values as palettes.ts: Deep Field and Slate, light and dark", () => {
+  it("paints the same values as palettes.ts: Signal, Deep Field and Slate, light and dark", () => {
     const blocks = [
       [DEEP_FIELD.light, ":root {"],
       [DEEP_FIELD.dark, ':root[data-theme="dark"] {'],
+      [SIGNAL.light, ':root[data-palette="signal"] {'],
+      [SIGNAL.dark, ':root[data-palette="signal"][data-theme="dark"] {'],
       [SLATE.light, ':root[data-palette="slate"] {'],
       [SLATE.dark, ':root[data-palette="slate"][data-theme="dark"] {'],
     ] as const;
@@ -180,16 +218,26 @@ describe("tokens.css and the first paint", () => {
     }
   });
 
+  it("e2e/signal.spec.ts checks Signal's own values (its copy, written out so the spec can fail on any build)", () => {
+    const spec = readFileSync("e2e/signal.spec.ts", "utf8");
+    for (const scheme of SCHEMES) {
+      const line = new RegExp(`^  ${scheme}: \\{([^}]+)\\}`, "m").exec(spec)?.[1] ?? "";
+      const pairs = [...line.matchAll(/([a-z-]+): "(#[0-9a-f]{6})"/g)];
+      expect(pairs.length, scheme).toBeGreaterThanOrEqual(6);
+      for (const [, name, hex] of pairs) expect(hex, `${scheme} ${name}`).toBe(SIGNAL[scheme][name as keyof Palette]);
+    }
+  });
+
   it("derives each UI mix exactly as the contrast check computes it", () => {
     for (const [name, mix] of Object.entries(UI_MIXES)) {
       expect(css).toContain(`--${name}: color-mix(in srgb, var(--${mix.top}) ${mix.pct}%, transparent);`);
     }
   });
 
-  it("theme-boot.js knows both own palettes' chrome colours, and index.html starts on Deep Field's (no flash)", () => {
+  it("theme-boot.js knows the three own palettes' chrome colours, and index.html starts on Signal's, the default's (no flash)", () => {
     const boot = readFileSync("public/theme-boot.js", "utf8");
     expect(boot).toContain(
-      `OWN_SURFACE = { "deep-field": { light: "${DEEP_FIELD.light.surface}", dark: "${DEEP_FIELD.dark.surface}" }, slate: { light: "${SLATE.light.surface}", dark: "${SLATE.dark.surface}" } }`,
+      `OWN_SURFACE = { signal: { light: "${SIGNAL.light.surface}", dark: "${SIGNAL.dark.surface}" }, "deep-field": { light: "${DEEP_FIELD.light.surface}", dark: "${DEEP_FIELD.dark.surface}" }, slate: { light: "${SLATE.light.surface}", dark: "${SLATE.dark.surface}" } }`,
     );
     expect(boot).toContain('"codeeditor:theme-paint"');
     expect(boot).toContain('"codeeditor:ligatures"');
@@ -199,8 +247,8 @@ describe("tokens.css and the first paint", () => {
     const colors = /COLORS = "([a-z0-9 -]+)"/.exec(boot)?.[1] ?? "";
     expect(colors.split(" ")).toEqual([...COLOR_VARS]);
     const html = readFileSync("index.html", "utf8");
-    expect(html).toContain(`content="${DEEP_FIELD.light.surface}" media="(prefers-color-scheme: light)"`);
-    expect(html).toContain(`content="${DEEP_FIELD.dark.surface}" media="(prefers-color-scheme: dark)"`);
+    expect(html).toContain(`content="${SIGNAL.light.surface}" media="(prefers-color-scheme: light)"`);
+    expect(html).toContain(`content="${SIGNAL.dark.surface}" media="(prefers-color-scheme: dark)"`);
   });
 });
 
@@ -251,10 +299,31 @@ describe("scripts/contrast-check.mjs", () => {
   it("passes for every theme and lists the pairs", () => {
     const out = execFileSync(process.execPath, ["scripts/contrast-check.mjs"], { encoding: "utf8", timeout: 60_000 });
     expect(out).toContain(`${PAIRS.length} pairs per theme`);
+    expect(out).toContain("pass    CodeEditor Signal Light");
+    expect(out).toContain("pass    CodeEditor Signal Dark");
     expect(out).toContain("pass    CodeEditor Deep Field Light");
     expect(out).toContain("pass    CodeEditor Deep Field Dark");
     expect(out).toContain("pass    CodeEditor Slate Light");
     expect(out).not.toMatch(/^FAIL/m);
+    // Signal, like Deep Field, is held to every rule; only Slate's misses are reported.
+    const after = (name: string) => out.slice(out.indexOf(name)).split("\n")[1];
+    for (const name of ["CodeEditor Signal Light", "CodeEditor Signal Dark"]) {
+      expect(after(name), name).toContain("rules: every distinctness rule and region step passes");
+      expect(after(name), name).not.toContain("reported only");
+    }
+  });
+
+  it("fails when Signal misses a distinctness rule (a rule miss in an own palette other than Slate is an error)", () => {
+    const run = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { registerHooks } from "node:module";
+      registerHooks({ resolve(s, c, n) { if (/^\\.{1,2}\\//.test(s) && !/\\.[cm]?[jt]s$/.test(s)) { try { return n(s + ".ts", c); } catch {} } return n(s, c); } });
+      const { SIGNAL } = await import("./src/theme/palettes.ts");
+      SIGNAL.dark.focus = SIGNAL.dark.action;
+      SIGNAL.dark["input-echo"] = SIGNAL.dark.action;
+      await import("./scripts/contrast-check.mjs");
+    `], { encoding: "utf8", timeout: 60_000 });
+    expect(run.status).toBe(1);
+    expect(run.stdout).toMatch(/CodeEditor Signal Dark[^\n]*\n\s+rules: missed [^\n]*focus/);
   });
 
   it("exits with an error code and names the pair when a theme fails", () => {

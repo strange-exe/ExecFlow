@@ -3,7 +3,7 @@
 // rendered while an export is busy), the exporter (readback, clipboard write and encode inside the
 // click), and the dialog's frame budget. The dialog (snippet-dialog.ts) supplies the canvas work and
 // the DOM through the deps; the unit tests supply fakes. Lazy (the dialog's chunk).
-import type { ColorChoice, PaintInfo } from "../core/snippet";
+import type { ColorChoice, PaintFamily, PaintInfo } from "../core/snippet";
 import { checkColors, sameOptions, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { OWN } from "../theme/palettes";
 
@@ -16,10 +16,20 @@ export interface Paint extends PaintInfo {
   readonly computed: Readonly<Record<string, string>>;
 }
 
-/** The colours of a choice: what this tab painted, or the own palette's light or dark (Deep Field for palette themes). Null: not all #rrggbb. */
+/** The family of the root's data-palette (themes.ts applyTheme): none is Deep Field; anything not an own palette is a palette theme. */
+export function paintFamily(palette: string | undefined): PaintFamily {
+  if (palette === undefined) return "deep-field";
+  return palette === "signal" || palette === "slate" ? palette : "palette";
+}
+
+/**
+ * The colours of a choice: what this tab painted, or the own palette's light or dark. Palette
+ * themes offer Deep Field's, as they did before Signal (the choices are named so: core/snippet-dialog.ts).
+ * Null: not all #rrggbb.
+ */
 export function imageColors(choice: ColorChoice, paint: Paint): ImageColors | null {
   if (choice === "match") return checkColors(paint.computed);
-  return checkColors(OWN[paint.family === "slate" ? "slate" : "deep-field"][choice]);
+  return checkColors(OWN[paint.family === "palette" ? "deep-field" : paint.family][choice]);
 }
 
 // ---------------------------------------------------------------- the preview scheduler (7.3)

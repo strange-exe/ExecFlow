@@ -5,25 +5,30 @@
 // (COLORS: never a layout, size or font token), each as #rrggbb, or #rrggbbaa for the four band
 // tokens that may be translucent.
 (function () {
-  // The chrome colour per own palette and scheme (src/theme/palettes.ts DEEP_FIELD and SLATE
+  // The chrome colour per own palette and scheme (src/theme/palettes.ts SIGNAL, DEEP_FIELD and SLATE
   // surface; a unit test keeps them equal). Their other colours are in tokens.css: Deep Field on
-  // :root, Slate under data-palette="slate", so nothing else is needed for them.
-  var OWN_SURFACE = { "deep-field": { light: "#dbeee2", dark: "#152a22" }, slate: { light: "#f6f8fa", dark: "#14171d" } };
+  // :root, Signal and Slate under data-palette, so nothing else is needed for them.
+  var OWN_SURFACE = { signal: { light: "#edf0f3", dark: "#151a21" }, "deep-field": { light: "#dbeee2", dark: "#152a22" }, slate: { light: "#f6f8fa", dark: "#14171d" } };
   // src/theme/contrast.ts COLOR_VARS, in order (contrast.test.ts keeps them equal).
   var COLORS = "bg surface surface-raised terminal-bg terminal-fg runlog-bg divider border border-strong text text-secondary text-muted gutter-text action action-hover on-action control-on focus selection list-selected active-line location danger warning success info error-band call-site input-echo link brand on-brand syn-keyword syn-string syn-number syn-comment syn-function syn-type syn-variable syn-operator syn-macro syn-punctuation".split(" ");
   var BANDS = { "active-line": true, "error-band": true, selection: true, "list-selected": true };
-  var root = document.documentElement, saved = null;
+  var root = document.documentElement, saved = null, seen = null;
   try { saved = JSON.parse(localStorage.getItem("codeeditor:theme-paint")); } catch (e) {}
-  // Nothing stored: the default, Deep Field following the device.
-  if (!saved || typeof saved !== "object") saved = { system: true, scheme: "light", palette: "deep-field", colors: null };
+  try { seen = localStorage.getItem("codeeditor:theme-default"); } catch (e) {}
+  // Nothing stored: the default, Signal following the device.
+  if (!saved || typeof saved !== "object") saved = { system: true, scheme: "light", palette: "signal", colors: null };
   var colors = !saved.system && saved.colors && typeof saved.colors === "object" ? saved.colors : null;
   var palette = saved.palette;
   // Written before Deep Field (no "palette" field): the only own palette was Slate, so a payload
   // without colours is Slate (its "match device" included) and one with colours a palette theme.
   if (palette === undefined) palette = colors ? "palette" : "slate";
-  if (palette !== "deep-field" && palette !== "slate" && palette !== "palette") palette = "deep-field";
+  // Deep Field following the device was the default before Signal. The app moves that choice to
+  // Signal once and then marks the device (src/theme/themes.ts storedThemeId); until it is marked,
+  // its paint is Signal's already, so the move shows no flash.
+  if (palette === "deep-field" && saved.system && seen !== "signal") palette = "signal";
+  if (palette !== "signal" && palette !== "deep-field" && palette !== "slate" && palette !== "palette") palette = "signal";
   if (palette !== "palette") colors = null;
-  else if (!colors) palette = "deep-field"; // a palette theme with nothing to paint: the default's colours
+  else if (!colors) palette = "signal"; // a palette theme with nothing to paint: the default's colours
   var dark = matchMedia("(prefers-color-scheme: dark)").matches;
   var scheme = saved.system ? (dark ? "dark" : "light") : saved.scheme === "dark" ? "dark" : "light";
   root.dataset.theme = scheme;
@@ -35,14 +40,14 @@
     if (valid(COLORS[n], colors[COLORS[n]])) root.style.setProperty("--" + COLORS[n], colors[COLORS[n]]);
   }
   // The browser's toolbar colour follows the theme too (the <meta> tags come before this script).
-  var own = OWN_SURFACE[palette === "slate" ? "slate" : "deep-field"];
+  var own = OWN_SURFACE[palette === "palette" ? "signal" : palette];
   var metas = document.querySelectorAll('meta[name="theme-color"]');
   for (var i = 0; i < metas.length; i++) {
     var metaScheme = /dark/.test(metas[i].getAttribute("media") || "") ? "dark" : "light";
     var surface = colors && valid("surface", colors.surface) ? colors.surface : own[saved.system ? metaScheme : scheme];
     metas[i].setAttribute("content", surface);
   }
-  // Joined symbols in code (ligatures, drawn with JetBrains Mono) are opt-in: src/theme/ligatures.ts.
+  // Joined symbols in code (JetBrains Mono's ligatures) are opt-in: src/theme/ligatures.ts.
   var ligatures = null;
   try { ligatures = localStorage.getItem("codeeditor:ligatures"); } catch (e) {}
   if (ligatures === "on") root.dataset.ligatures = "on";

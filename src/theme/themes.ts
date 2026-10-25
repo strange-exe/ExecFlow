@@ -1,5 +1,5 @@
 // The theme engine (adapted from Pocket Run's src/themes.ts, same author, MIT). A theme is either
-// one of CodeEditor's own palettes, Deep Field (the default) or Slate, whose colours live in
+// one of CodeEditor's own palettes, Signal (the default), Deep Field or Slate, whose colours live in
 // tokens.css so the first paint needs no script, or a palette whose colours are expanded onto the
 // variable contract, passed through the readability guard and set as inline CSS variables on
 // <html>. public/theme-boot.js repaints the saved choice before the app loads, from what
@@ -29,7 +29,14 @@ export interface Theme {
   custom?: boolean;
 }
 
-export const DEFAULT_THEME_ID = "deep-field";
+export const DEFAULT_THEME_ID = "signal";
+/** The default theme's own palette: what a palette theme with nothing valid to paint falls back to. */
+const DEFAULT_OWN: OwnPalette = "signal";
+/**
+ * "CodeEditor Deep Field (match device)", the default from 2026-10-18 until Signal (2026-10-25). A
+ * device that kept it is moved to Signal once (storedThemeId); chosen again after that, it stays.
+ */
+export const DEEP_FIELD_SYSTEM_ID = "deep-field";
 /**
  * "CodeEditor Slate (match device)". The id is historical: before Deep Field, "system" was the
  * default theme, so a device that saved it keeps Slate (an explicit choice is never re-pointed).
@@ -37,7 +44,10 @@ export const DEFAULT_THEME_ID = "deep-field";
 export const SLATE_SYSTEM_ID = "system";
 
 export const BUILT_IN: readonly Theme[] = [
-  { id: DEFAULT_THEME_ID, name: "CodeEditor Deep Field (match device)", scheme: "light", group: "codeeditor", own: "deep-field", system: true },
+  { id: DEFAULT_THEME_ID, name: "CodeEditor Signal (match device)", scheme: "light", group: "codeeditor", own: "signal", system: true },
+  { id: "signal-light", name: "CodeEditor Signal Light", scheme: "light", group: "codeeditor", own: "signal" },
+  { id: "signal-dark", name: "CodeEditor Signal Dark", scheme: "dark", group: "codeeditor", own: "signal" },
+  { id: DEEP_FIELD_SYSTEM_ID, name: "CodeEditor Deep Field (match device)", scheme: "light", group: "codeeditor", own: "deep-field", system: true },
   { id: "deep-field-light", name: "CodeEditor Deep Field Light", scheme: "light", group: "codeeditor", own: "deep-field" },
   { id: "deep-field-dark", name: "CodeEditor Deep Field Dark", scheme: "dark", group: "codeeditor", own: "deep-field" },
   { id: SLATE_SYSTEM_ID, name: "CodeEditor Slate (match device)", scheme: "light", group: "codeeditor", own: "slate", system: true },
@@ -52,7 +62,7 @@ const cache = new Map<string, { palette: Palette; adjusted: ColorVar[] }>();
 
 /** A palette theme's colours after the guard, plus what the guard moved. The own palettes are returned as designed. */
 export function themePalette(theme: Theme, scheme: Scheme = theme.scheme): { palette: Palette; adjusted: ColorVar[] } {
-  if (!theme.base) return { palette: { ...OWN[theme.own ?? "deep-field"][scheme] }, adjusted: [] };
+  if (!theme.base) return { palette: { ...OWN[theme.own ?? DEFAULT_OWN][scheme] }, adjusted: [] };
   const key = theme.custom ? null : theme.id;
   const hit = key ? cache.get(key) : undefined;
   if (hit) return { palette: { ...hit.palette }, adjusted: [...hit.adjusted] };
@@ -129,6 +139,12 @@ export const CHOSEN_KEY = "codeeditor:theme";
 export const CUSTOM_KEY = "codeeditor:custom-themes";
 /** Read by public/theme-boot.js, so the theme is painted before any module loads. */
 export const PAINT_KEY = "codeeditor:theme-paint";
+/**
+ * Set to DEFAULT_THEME_ID by the one-time move (storedThemeId) and by every choice (chooseTheme): a
+ * saved Deep Field "match device" is then the student's own choice. Read by public/theme-boot.js
+ * too: until it is set, the old default's paint is painted as Signal already.
+ */
+export const DEFAULT_SEEN_KEY = "codeeditor:theme-default";
 
 const storage = {
   get(key: string): string | null {
@@ -182,8 +198,23 @@ export function allThemes(): Theme[] {
 
 export const defaultTheme = (): Theme => BUILT_IN.find((t) => t.id === DEFAULT_THEME_ID)!;
 
+/**
+ * The saved theme's id. A Deep Field "match device" saved by a build from before Signal (the
+ * default then) becomes Signal, once (the owner's call, 2026-10-25): the move marks the device, and
+ * so does every choice made in this build (chooseTheme), so a Deep Field "match device" chosen since
+ * stays. Deep Field's fixed light and dark, and every other saved theme, were explicit choices and
+ * stay. Nothing is written for a device with nothing to move.
+ */
+function storedThemeId(): string | null {
+  const id = storage.get(CHOSEN_KEY);
+  if (id !== DEEP_FIELD_SYSTEM_ID || storage.get(DEFAULT_SEEN_KEY) === DEFAULT_THEME_ID) return id;
+  storage.set(CHOSEN_KEY, DEFAULT_THEME_ID);
+  storage.set(DEFAULT_SEEN_KEY, DEFAULT_THEME_ID);
+  return DEFAULT_THEME_ID;
+}
+
 export function chosenTheme(): Theme {
-  const id = storage.get(CHOSEN_KEY) ?? DEFAULT_THEME_ID;
+  const id = storedThemeId() ?? DEFAULT_THEME_ID;
   return allThemes().find((t) => t.id === id) ?? defaultTheme();
 }
 
@@ -208,13 +239,13 @@ export function paintFor(theme: Theme): Paint {
   const scheme = activeScheme(theme);
   const system = Boolean(theme.system);
   if (theme.base) return { system, scheme, palette: "palette", colors: themePalette(theme).palette };
-  return { system, scheme, palette: theme.own ?? "deep-field", colors: null };
+  return { system, scheme, palette: theme.own ?? DEFAULT_OWN, colors: null };
 }
 
 /**
- * Paints a theme. data-theme picks light or dark; data-palette picks Slate's block in tokens.css
- * ("slate") or marks a palette theme ("palette"), and is absent for Deep Field (tokens.css :root);
- * palette themes set every colour inline, each value checked first.
+ * Paints a theme. data-theme picks light or dark; data-palette picks Signal's or Slate's block in
+ * tokens.css ("signal", "slate") or marks a palette theme ("palette"), and is absent for Deep Field
+ * (tokens.css :root); palette themes set every colour inline, each value checked first.
  */
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
@@ -228,13 +259,16 @@ export function applyTheme(theme: Theme): void {
   // The browser's toolbar colour: per scheme for "match device", the theme's own chrome otherwise.
   for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
     const scheme = meta.media.includes("dark") ? "dark" : "light";
-    meta.content = paint.colors ? paint.colors.surface : OWN[paint.palette === "slate" ? "slate" : "deep-field"][paint.system ? scheme : paint.scheme].surface;
+    const own = OWN[paint.palette === "palette" ? DEFAULT_OWN : paint.palette];
+    meta.content = paint.colors ? paint.colors.surface : own[paint.system ? scheme : paint.scheme].surface;
   }
   storage.set(PAINT_KEY, JSON.stringify(paint));
 }
 
 export function chooseTheme(theme: Theme): void {
   storage.set(CHOSEN_KEY, theme.id);
+  // Chosen in a build whose default is Signal: never moved (storedThemeId, theme-boot.js).
+  storage.set(DEFAULT_SEEN_KEY, DEFAULT_THEME_ID);
   applyTheme(theme);
 }
 

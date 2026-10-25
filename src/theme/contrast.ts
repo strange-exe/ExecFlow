@@ -232,7 +232,7 @@ function ported(): Pair[] {
     add("text", `hover@${bg}`, TEXT, "hovered row or ghost button");
     add("text-muted", `hover@${bg}`, TEXT, "hovered ghost button label");
     add("link", bg, TEXT, "links (always underlined)");
-    add("focus", bg, UI, "focus ring; on bg also the editor's focus bar on the gutter edge (Deep Field dark paints --focus-bar, a step quieter: src/styles/focus-bar.test.ts)");
+    add("focus", bg, UI, "focus ring; on bg also the editor's focus bar on the gutter edge (where it keeps 3:1, --focus-bar paints it a step quieter: src/styles/focus-bar.test.ts)");
     add("border-strong", bg, UI, "control and input boundaries, keycaps, search and bracket outlines");
     for (const s of ["danger", "warning", "success"] as const) add(s, bg, TEXT, `${s} text and icons: notices, problems, field notes, status words`);
   }

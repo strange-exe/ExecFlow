@@ -1,59 +1,24 @@
-/* CodeEditor design tokens: Deep Field (token contract v2).
-   "Spruce is the product, brass is your hand, red is an error." The colour values are CodeEditor's
-   own palettes from src/theme/palettes.ts (a unit test keeps every block equal to it): Deep Field on
-   :root (the default; no attribute needed) and Slate, the picker theme kept from v1, under
-   [data-palette="slate"]. Palette themes from the picker override the colour variables inline on
-   <html> (src/theme/themes.ts); public/theme-boot.js sets data-theme and data-palette before the
-   first paint. Components use these variables only. */
+/* CodeEditor design tokens (token contract v2). The colour values are CodeEditor's own palettes
+   from src/theme/palettes.ts (a unit test keeps every block equal to it): Deep Field on :root (no
+   attribute needed), Signal, the default since 2026-10-25, under [data-palette="signal"], and Slate,
+   the picker theme kept from v1, under [data-palette="slate"]. Palette themes from the picker
+   override the colour variables inline on <html> (src/theme/themes.ts); public/theme-boot.js sets
+   data-theme and data-palette before the first paint. Fonts, sizes and shapes are global: every
+   theme uses them. Components use these variables only. */
 
-/* Self-hosted, Latin subset only, static instances (WebKit drew the variable files at their
-   default instance): @fontsource/source-sans-3 5.3.1, @fontsource/source-code-pro 5.3.1 and
-   @fontsource/jetbrains-mono 5.3.0, SIL Open Font License 1.1. A face is downloaded only when
-   something on the page uses it, so JetBrains Mono loads only with "Joined symbols" on. */
+/* Self-hosted, Latin subset only, SIL Open Font License 1.1. A face is downloaded only when
+   something on the page uses it. Geist (@fontsource-variable/geist 5.3.0) is one variable file for
+   every interface weight: its wght axis draws 400, 500 and 600 apart in Chromium, Firefox and
+   WebKit (measured 2026-10-25; Source Sans 3's variable file had drawn at its ExtraLight default in
+   WebKit). JetBrains Mono (@fontsource/jetbrains-mono 5.3.0) is static: 400, its real italic for
+   comments, and 600. */
 @font-face {
-  font-family: "Source Sans 3";
+  font-family: "Geist";
   font-style: normal;
   font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  src: url("@fontsource-variable/geist/files/geist-latin-wght-normal.woff2") format("woff2");
 }
-@font-face {
-  font-family: "Source Sans 3";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 500;
-  src: url("@fontsource/source-sans-3/files/source-sans-3-latin-500-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Source Sans 3";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 600;
-  src: url("@fontsource/source-sans-3/files/source-sans-3-latin-600-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Source Code Pro";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/source-code-pro/files/source-code-pro-latin-400-normal.woff2") format("woff2");
-}
-/* Comments are italic: the real italic, not a slanted copy. */
-@font-face {
-  font-family: "Source Code Pro";
-  font-style: italic;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/source-code-pro/files/source-code-pro-latin-400-italic.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Source Code Pro";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 600;
-  src: url("@fontsource/source-code-pro/files/source-code-pro-latin-600-normal.woff2") format("woff2");
-}
-/* JetBrains Mono: only for "Joined symbols in code" (its ligatures); see data-ligatures below. */
 @font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
@@ -61,6 +26,7 @@
   font-weight: 400;
   src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
 }
+/* Comments are italic: the real italic, not a slanted copy. */
 @font-face {
   font-family: "JetBrains Mono";
   font-style: italic;
@@ -181,6 +147,104 @@
   --shadow-pop: none;
 }
 
+:root[data-palette="signal"] {
+  /* CodeEditor Signal light, the default: slate chrome on --surface, the code on a near-white
+     sheet, one electric blue for the action and location, a teal focus, red for errors only. */
+  --bg: #fcfcfd;
+  --surface: #edf0f3;
+  --surface-raised: #ffffff;
+  --terminal-bg: #eff1f4;
+  --terminal-fg: #14171c;
+  --runlog-bg: #e6e9ee;
+  --divider: #d0d6de;
+  --border: #d6dbe2;
+  --border-strong: #6e7682;
+  --text: #14171c;
+  --text-secondary: #3a4049;
+  --text-muted: #4f5662;
+  --gutter-text: #5d646f;
+  --action: #2f5bea;
+  --action-hover: #2449c4;
+  --on-action: #ffffff;
+  --control-on: #2f5bea;
+  --focus: #0b6e80;
+  --selection: #2f5bea2e;
+  --list-selected: #2f5bea1f;
+  --active-line: #14171c08;
+  --location: #2f5bea;
+  --danger: #9d2025;
+  --warning: #935100;
+  --success: #2d7737;
+  --info: #0e7490;
+  --error-band: #e5484d30;
+  --call-site: #c4282e;
+  --input-echo: #0b6e80;
+  --link: #2448c8;
+  --brand: #14171c;
+  --on-brand: #ffffff;
+  --syn-keyword: #8b2a81;
+  --syn-string: #1c5e2e;
+  --syn-number: #8f3d0a;
+  --syn-comment: #4f565f;
+  --syn-function: #0d5c68;
+  --syn-type: #5a40a7;
+  --syn-variable: #1f242b;
+  --syn-operator: #4a5563;
+  --syn-macro: #96294e;
+  --syn-punctuation: #4c525c;
+  /* The scrim and the popover shadow tinted to its ink (#14171c), as Deep Field's are to its field. */
+  --scrim: rgb(20 23 28 / 0.45);
+  --shadow-pop: 0 1px 2px rgb(20 23 28 / 0.06), 0 8px 24px rgb(20 23 28 / 0.08);
+}
+
+:root[data-palette="signal"][data-theme="dark"] {
+  /* CodeEditor Signal dark: a near-black sheet in a slate frame; the pale blue Run is the brightest object. */
+  --bg: #0e1116;
+  --surface: #151a21;
+  --surface-raised: #1d232c;
+  --terminal-bg: #050709;
+  --terminal-fg: #e6e9ee;
+  --runlog-bg: #121820;
+  --divider: #2a313b;
+  --border: #252c35;
+  --border-strong: #737d8b;
+  --text: #e8ebf0;
+  --text-secondary: #b9c0ca;
+  --text-muted: #a3aab5;
+  --gutter-text: #9198a5;
+  --action: #7ea2ff;
+  --action-hover: #9ab6ff;
+  --on-action: #0b1020;
+  --control-on: #7ea2ff;
+  --focus: #4fd1df;
+  --selection: #7ea2ff33;
+  --list-selected: #7ea2ff24;
+  --active-line: #e8ebf00a;
+  --location: #7ea2ff;
+  --danger: #ff7b7b;
+  --warning: #f5a35c;
+  --success: #6fd08c;
+  --info: #5bc6d6;
+  --error-band: #ff5d6640;
+  --call-site: #ff7b7b;
+  --input-echo: #4fd1df;
+  --link: #9ab6ff;
+  --brand: #2a313b;
+  --on-brand: #e8ebf0;
+  --syn-keyword: #e896dc;
+  --syn-string: #8bd79a;
+  --syn-number: #f4a87a;
+  --syn-comment: #abb1ba;
+  --syn-function: #6fd3e0;
+  --syn-type: #bba8ff;
+  --syn-variable: #dce1e8;
+  --syn-operator: #aeb8c6;
+  --syn-macro: #ff9dbb;
+  --syn-punctuation: #acb3bd;
+  --scrim: rgb(5 7 9 / 0.70);
+  --shadow-pop: none;
+}
+
 :root[data-palette="slate"] {
   /* CodeEditor Slate light (the picker theme kept from v1, on contract v2). */
   --bg: #fdfdff;
@@ -277,8 +341,11 @@
   --shadow-pop: none;
 }
 
-/* Every theme but Deep Field light: the status bar's top edge is the 1 px region divider. */
+/* Every theme but Deep Field light and Signal light: the status bar's top edge is the 1 px region
+   divider. Signal light keeps the 2 px rule in its location blue, as in the approved previews (from
+   900 px the status bar sits on the frame below the editor's sheet and draws no edge: app.css). */
 :root[data-palette], :root[data-theme="dark"] { --status-edge: inset 0 1px 0 var(--divider); }
+:root[data-palette="signal"]:not([data-theme="dark"]) { --status-edge: inset 0 2px 0 var(--location); }
 
 /* The editor's gutter-edge focus bar (editor/highlight.ts). A full-height bar in the focus colour
    outranked the code (plan-v2 P2, decision P-5): in Deep Field dark the brass, and in the palette
@@ -286,14 +353,15 @@
    Light 15.8:1, Dracula 13.4, High contrast 18.5). So it is the focus colour at 70% over the code
    ground (Deep Field dark: #a2914d) in every theme where that step still keeps 3:1 or more on the
    code, the cursor's line and the error band (src/styles/focus-bar.test.ts derives this list from the
-   colours and fails when it is wrong). The others keep --focus: Deep Field light (4.62:1 on the error
-   band leaves no room), Slate light and seven light or low-contrast palettes. "Match device" themes
-   step down on their dark side only. Custom themes keep --focus: they can't be checked ahead. */
+   colours and fails when it is wrong). The others keep --focus: Signal light (its teal at 70% is
+   2.98:1 on the cursor's line), Deep Field light (4.62:1 on the error band leaves no room), Slate
+   light and seven light or low-contrast palettes. "Match device" themes step down on their dark
+   side only. Custom themes keep --focus: they can't be checked ahead. */
 :root {
   --focus-bar: var(--focus);
 }
-:root[data-theme="dark"]:is([data-theme-id="deep-field"], [data-theme-id="system"]),
-:root:is([data-theme-id="deep-field-dark"], [data-theme-id="slate-dark"], [data-theme-id="high-contrast"], [data-theme-id="github-dark"],
+:root[data-theme="dark"]:is([data-theme-id="signal"], [data-theme-id="deep-field"], [data-theme-id="system"]),
+:root:is([data-theme-id="signal-dark"], [data-theme-id="deep-field-dark"], [data-theme-id="slate-dark"], [data-theme-id="high-contrast"], [data-theme-id="github-dark"],
   [data-theme-id="github-light"], [data-theme-id="one-dark-pro"], [data-theme-id="dracula"], [data-theme-id="tokyo-night"],
   [data-theme-id="tokyo-night-storm"], [data-theme-id="catppuccin-mocha"], [data-theme-id="catppuccin-macchiato"],
   [data-theme-id="catppuccin-frappe"], [data-theme-id="rose-pine"], [data-theme-id="rose-pine-moon"], [data-theme-id="rose-pine-dawn"],
@@ -308,24 +376,25 @@
   /* ---- derived (src/theme/contrast.ts UI_MIXES; script-checked as drawn over each surface) ---- */
   --hover: color-mix(in srgb, var(--text) 7%, transparent);
 
-  /* ---- type: Source Sans 3 for the interface, Source Code Pro for code, the log and file names ---- */
-  --font-ui: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-code: "Source Code Pro", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* ---- type: Geist for the interface, JetBrains Mono for code, the log and file names ---- */
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --font-name: var(--font-code);
-  /* Three chrome tiers, each a size step and a colour step (text, text-secondary, text-muted). */
-  --fs-hint: 13px;       /* tier 3: hints, keycaps, field notes, status bar facts */
-  --lh-hint: 18px;
-  --fs-2: 14px;          /* tier 2: secondary chrome, file names in the mono */
-  --lh-2: 20px;
-  --fs-1: 15px;          /* tier 1: body and controls */
+  /* Three chrome tiers, each a size step and a colour step (text, text-secondary, text-muted). The
+     scale is redesign 2's (option a): each chrome tier 1 px below Deep Field's, titles tighter. */
+  --fs-hint: 12px;       /* tier 3: hints, keycaps, field notes, status bar facts */
+  --lh-hint: 16px;
+  --fs-2: 13px;          /* tier 2: secondary chrome, file names in the mono */
+  --lh-2: 18px;
+  --fs-1: 14px;          /* tier 1: body and controls */
   --lh-1: 20px;
-  --lh-prose: 23px;
-  --fs-section: 18px;    /* dialog sections, the fieldset legend */
-  --lh-section: 24px;
-  --fs-title: 22px;      /* dialog titles */
-  --lh-title: 28px;
-  --fs-display: 26px;    /* the empty-state heading only */
-  --lh-display: 30px;
+  --lh-prose: 22px;
+  --fs-section: 16px;    /* dialog sections, the fieldset legend */
+  --lh-section: 22px;
+  --fs-title: 20px;      /* dialog titles */
+  --lh-title: 26px;
+  --fs-display: 30px;    /* the empty-state heading only */
+  --lh-display: 36px;
   --code-size: 15px;     /* user setting, 12 to 20 */
   /* Icons on one scale (whole pixels, so no glyph is drawn blurred between two). */
   --icon-xs: 12px;       /* carets, the twisty, the breadcrumb separator */
@@ -335,7 +404,7 @@
   --icon-xl: 20px;       /* the brand mark, starter and example file icons, the pack offer */
   --w-label: 500;
   --w-strong: 600;
-  --tracking-title: -0.01em;
+  --tracking-title: -0.02em;
 
   /* ---- space (4 px base), shape, heights, motion ---- */
   --s1: 4px;
@@ -344,9 +413,13 @@
   --s4: 16px;
   --s5: 24px;
   --s6: 32px;
-  --r-key: 4px;          /* marks: keycaps, counts, the brand tile */
+  --r-key: 5px;          /* marks: keycaps, counts, the brand tile */
   --r-control: 8px;      /* every control, menus, tooltips */
-  --r-dialog: 12px;      /* dialogs */
+  --r-dialog: 14px;      /* dialogs */
+  /* The editor's sheet from 900 px (app.css): its outer corners, and the frame of --surface right of
+     it and below it (off the 4 px scale on purpose: the approved preview's 10 px). */
+  --r-sheet: 12px;
+  --sheet-gap: 10px;
   --ring: 2px solid var(--focus);
   --h-topbar: 40px;
   --h-head: 40px;
@@ -363,10 +436,6 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Code shows exactly the characters typed unless "Joined symbols in code" is on: then the code font
-   is JetBrains Mono, which draws != and -> as single shapes (Source Code Pro has no such ligatures). */
-:root[data-ligatures="on"] { --font-code: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; }
-
 /* Touch screens and narrow windows: primary actions 44 px tall, every other target 44 px where it fits. */
 @media (pointer: coarse), (max-width: 899px) {
   :root {
@@ -382,6 +451,19 @@
    44 px icon buttons inside it. Phones have no editor head; the drawer's head shows only below 900 px. */
 @media (pointer: coarse) and (min-width: 900px) {
   :root { --h-head: 48px; }
+}
+/* Desktop (a fine pointer, 900 px and wider): roomier bars and rows. Every target stays 24 px or
+   more; touch screens and phones keep the 44 px ones above. */
+@media (min-width: 900px) and (pointer: fine) {
+  :root {
+    --h-topbar: 48px;
+    --h-head: 44px;
+    --h-panel-bar: 40px;
+    --h-row: 30px;
+    --h-status: 28px;
+    --tool: 30px;
+    --primary-h: 32px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

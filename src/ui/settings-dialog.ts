@@ -60,7 +60,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const codeSize = h("input", { type: "number", id: "set-code-size", min: LIMITS.codeSize[0], max: LIMITS.codeSize[1], step: "1", inputmode: "numeric" });
   const wrap = check("Wrap long lines", s().lineWrapping, undefined, "set-wrap");
   const suggest = check("Suggestions while typing", s().suggestOnTyping, "Ctrl+Space always shows them.", "set-suggest");
-  const ligatures = check("Joined symbols in code", ligaturesOn(), "Switches code to JetBrains Mono, which draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
+  const ligatures = check("Joined symbols in code", ligaturesOn(), "Draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
   codeSize.addEventListener("change", () => (codeSize.value = String(set({ codeSize: Number(codeSize.value) }).codeSize)));
   wrap.input.addEventListener("change", () => set({ lineWrapping: wrap.input.checked }));
   suggest.input.addEventListener("change", () => set({ suggestOnTyping: suggest.input.checked }));

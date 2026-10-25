@@ -334,7 +334,7 @@ describe("the image's colours in every theme (4.6)", () => {
   const TEXT_TOKENS = IMAGE_TOKENS.filter((t) => t === "text" || t === "text-secondary" || t === "gutter-text" || t === "danger" || t.startsWith("syn-"));
   const cases: [string, Record<string, string>][] = [];
   for (const theme of BUILT_IN) for (const scheme of schemesOf(theme)) cases.push([`${theme.id} ${scheme}`, themePalette(theme, scheme).palette]);
-  for (const family of ["deep-field", "slate"] as const) for (const scheme of ["light", "dark"] as const) cases.push([`OWN ${family} ${scheme}`, OWN[family][scheme]]);
+  for (const family of ["signal", "deep-field", "slate"] as const) for (const scheme of ["light", "dark"] as const) cases.push([`OWN ${family} ${scheme}`, OWN[family][scheme]]);
 
   it.each(cases)("%s", (_, p) => {
     for (const t of IMAGE_TOKENS) expect(p[t], t).toMatch(HEX6);

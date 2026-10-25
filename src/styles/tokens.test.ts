@@ -80,6 +80,42 @@ describe("every var() names a real token", () => {
   });
 });
 
+describe("type, shape and desktop heights (redesign 2, option a)", () => {
+  const body = tokens.replace(/\/\*[\s\S]*?\*\//g, "");
+  /** The declarations of the first block that starts with `head`, as name to value. */
+  const block = (head: string) => {
+    const start = body.indexOf(head);
+    expect(start, head).toBeGreaterThanOrEqual(0);
+    const text = body.slice(start + head.length, body.indexOf("}", start));
+    return Object.fromEntries([...text.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+  };
+  const root = Object.assign({}, ...[...body.matchAll(/(?:^|\n):root \{([^}]*)\}/g)].map((m) => Object.fromEntries([...m[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((d) => [d[1], d[2].trim()]))));
+
+  it("Geist for the interface, JetBrains Mono for code, the log and file names, in every theme", () => {
+    expect(root["--font-ui"]).toMatch(/^"Geist", /);
+    expect(root["--font-code"]).toMatch(/^"JetBrains Mono", /);
+    expect(root["--font-name"]).toBe("var(--font-code)");
+    // "Joined symbols" switches ligatures only, never the font.
+    expect(body).not.toMatch(/data-ligatures="on"\][^{]*\{[^}]*--font-code/);
+    expect(body).not.toMatch(/Source Sans 3|Source Code Pro/);
+  });
+
+  it("the type scale and shapes", () => {
+    expect(root).toMatchObject({
+      "--fs-hint": "12px", "--lh-hint": "16px", "--fs-2": "13px", "--lh-2": "18px", "--fs-1": "14px", "--lh-1": "20px", "--lh-prose": "22px",
+      "--fs-section": "16px", "--lh-section": "22px", "--fs-title": "20px", "--lh-title": "26px", "--fs-display": "30px", "--lh-display": "36px",
+      "--tracking-title": "-0.02em", "--r-key": "5px", "--r-control": "8px", "--r-dialog": "14px",
+    });
+  });
+
+  it("roomier bars on desktop only (a fine pointer, 900 px and wider); touch and phones keep their 44 px targets", () => {
+    expect(block("@media (min-width: 900px) and (pointer: fine) {\n  :root {")).toEqual({
+      "--h-topbar": "48px", "--h-head": "44px", "--h-panel-bar": "40px", "--h-row": "30px", "--h-status": "28px", "--tool": "30px", "--primary-h": "32px",
+    });
+    expect(block("@media (pointer: coarse), (max-width: 899px) {\n  :root {")).toMatchObject({ "--h-row": "44px", "--tool": "44px", "--primary-h": "44px" });
+  });
+});
+
 describe("components hold no raw colour (only tokens.css and palettes.ts do)", () => {
   it.each(sheets.filter((s) => s.file !== "tokens.css").map((s) => [s.file, s.text] as const))("%s", (_, text) => {
     expect(rawColours(text)).toEqual([]);

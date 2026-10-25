@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { checkPalette, COLOR_VARS, oklch } from "./contrast";
-import { BASE_TOKENS, DEEP_FIELD, POCKET_THEMES, SLATE } from "./palettes";
+import { BASE_TOKENS, DEEP_FIELD, POCKET_THEMES, SIGNAL, SLATE } from "./palettes";
 import {
-  applyTheme, BUILT_IN, CHOSEN_KEY, chosenTheme, DEFAULT_THEME_ID, PAINT_KEY, paintFor, parseThemeFile, SLATE_SYSTEM_ID, themePalette, themeTemplate,
+  applyTheme, BUILT_IN, CHOSEN_KEY, chooseTheme, chosenTheme, DEFAULT_SEEN_KEY, DEFAULT_THEME_ID, PAINT_KEY, paintFor, parseThemeFile, SLATE_SYSTEM_ID, themePalette, themeTemplate,
   type Theme,
 } from "./themes";
 
@@ -42,15 +42,31 @@ afterEach(() => {
 });
 
 describe("built-in themes", () => {
-  it("defaults to CodeEditor Deep Field following the device, painted by tokens.css", () => {
+  it("defaults to CodeEditor Signal following the device, painted by tokens.css", () => {
     const def = byId(DEFAULT_THEME_ID);
-    expect(def.id).toBe("deep-field");
-    expect(def.name).toBe("CodeEditor Deep Field (match device)");
+    expect(def.id).toBe("signal");
+    expect(def.name).toBe("CodeEditor Signal (match device)");
     expect(def.system).toBe(true);
-    expect(def.own).toBe("deep-field");
+    expect(def.own).toBe("signal");
     expect(def.base).toBeUndefined();
-    expect(paintFor(def)).toMatchObject({ palette: "deep-field", colors: null }); // no inline colours
-    expect(themePalette(def, "dark").palette).toEqual(DEEP_FIELD.dark);
+    expect(paintFor(def)).toMatchObject({ palette: "signal", colors: null }); // no inline colours
+    expect(themePalette(def, "light").palette).toEqual(SIGNAL.light);
+    expect(themePalette(def, "dark").palette).toEqual(SIGNAL.dark);
+    for (const [id, name, scheme] of [["signal-light", "CodeEditor Signal Light", "light"], ["signal-dark", "CodeEditor Signal Dark", "dark"]] as const) {
+      expect(byId(id), id).toMatchObject({ name, scheme, own: "signal", group: "codeeditor" });
+      expect(byId(id).system, id).toBeFalsy();
+      expect(themePalette(byId(id)).palette, id).toEqual(SIGNAL[scheme]);
+    }
+  });
+
+  it("keeps CodeEditor Deep Field as a picker theme with its ids unchanged", () => {
+    for (const [id, name, system] of [["deep-field", "CodeEditor Deep Field (match device)", true], ["deep-field-light", "CodeEditor Deep Field Light", false], ["deep-field-dark", "CodeEditor Deep Field Dark", false]] as const) {
+      const t = byId(id);
+      expect(t, id).toMatchObject({ name, own: "deep-field", group: "codeeditor" });
+      expect(Boolean(t.system), id).toBe(system);
+      expect(paintFor(t)).toMatchObject({ palette: "deep-field", colors: null });
+    }
+    expect(themePalette(byId("deep-field"), "dark").palette).toEqual(DEEP_FIELD.dark);
   });
 
   it("keeps CodeEditor Slate as a picker theme with its ids unchanged", () => {
@@ -64,9 +80,9 @@ describe("built-in themes", () => {
     expect(themePalette(byId("slate-dark")).palette).toEqual(SLATE.dark);
   });
 
-  it("lists CodeEditor's group in order: Deep Field x3, Slate x3, High contrast", () => {
+  it("lists CodeEditor's group in order: Signal x3, Deep Field x3, Slate x3, High contrast", () => {
     expect(BUILT_IN.filter((t) => t.group === "codeeditor").map((t) => t.id)).toEqual([
-      "deep-field", "deep-field-light", "deep-field-dark", "system", "slate-light", "slate-dark", "high-contrast",
+      "signal", "signal-light", "signal-dark", "deep-field", "deep-field-light", "deep-field-dark", "system", "slate-light", "slate-dark", "high-contrast",
     ]);
   });
 
@@ -102,13 +118,59 @@ describe("built-in themes", () => {
     expect(paint.colors?.bg).toBe("#1a1b26");
   });
 
-  it("a device that saved Slate's 'match device' (the old default) stays on Slate; nothing saved gets Deep Field", () => {
+  it("a device that saved Slate's 'match device' (an old default) stays on Slate; nothing saved gets Signal", () => {
     vi.stubGlobal("localStorage", memoryStorage({ [CHOSEN_KEY]: "system" }));
     expect(chosenTheme()).toMatchObject({ id: "system", own: "slate", system: true });
     vi.stubGlobal("localStorage", memoryStorage());
-    expect(chosenTheme()).toMatchObject({ id: "deep-field", own: "deep-field", system: true });
+    expect(chosenTheme()).toMatchObject({ id: "signal", own: "signal", system: true });
     vi.stubGlobal("localStorage", memoryStorage({ [CHOSEN_KEY]: "no-such-theme" }));
+    expect(chosenTheme().id).toBe("signal");
+  });
+});
+
+describe("moving the old default to Signal (once)", () => {
+  it("a device that kept Deep Field's 'match device' (the default before Signal) moves to Signal, and the move is saved", () => {
+    const storage = memoryStorage({ [CHOSEN_KEY]: "deep-field" });
+    vi.stubGlobal("localStorage", storage);
+    expect(chosenTheme().id).toBe("signal");
+    expect(storage.data.get(CHOSEN_KEY)).toBe("signal");
+    expect(storage.data.get(DEFAULT_SEEN_KEY)).toBe("signal");
+  });
+
+  it("happens once: Deep Field's 'match device' chosen again afterwards stays", () => {
+    const storage = memoryStorage({ [CHOSEN_KEY]: "deep-field" });
+    vi.stubGlobal("localStorage", storage);
+    vi.stubGlobal("document", fakeDocument().document);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(chosenTheme().id).toBe("signal");
+    chooseTheme(byId("deep-field"));
     expect(chosenTheme().id).toBe("deep-field");
+    expect(chosenTheme().id).toBe("deep-field");
+    expect(storage.data.get(CHOSEN_KEY)).toBe("deep-field");
+  });
+
+  it.each(["deep-field-light", "deep-field-dark", "system", "slate-light", "dracula", "high-contrast"])("an explicit choice stays: %s", (id) => {
+    const storage = memoryStorage({ [CHOSEN_KEY]: id });
+    vi.stubGlobal("localStorage", storage);
+    expect(chosenTheme().id).toBe(id);
+    expect(storage.data.get(CHOSEN_KEY)).toBe(id);
+  });
+
+  it("a device with nothing to move gets nothing written; Deep Field's 'match device' chosen there later is never moved", () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    vi.stubGlobal("document", fakeDocument().document);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(chosenTheme().id).toBe("signal");
+    expect([...storage.data.keys()]).toEqual([]);
+    chooseTheme(byId("deep-field"));
+    expect(storage.data.get(DEFAULT_SEEN_KEY)).toBe("signal");
+    expect(chosenTheme().id).toBe("deep-field");
+  });
+
+  it("storage that throws: Signal for this visit, nothing breaks", () => {
+    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }, removeItem: () => undefined });
+    expect(chosenTheme().id).toBe("signal");
   });
 });
 
@@ -123,6 +185,17 @@ describe("applyTheme", () => {
     applyTheme(theme);
     return { ...doc, stored: JSON.parse(storage.data.get(PAINT_KEY)!) };
   };
+
+  it("Signal (the default): data-palette=signal, no inline colours, Signal's toolbar colour per scheme", () => {
+    const r = paint(byId("signal"), true);
+    expect(r.dataset).toMatchObject({ theme: "dark", palette: "signal", themeId: "signal" });
+    expect(r.props.size).toBe(0);
+    expect(r.metas.map((m) => m.content)).toEqual([SIGNAL.light.surface, SIGNAL.dark.surface]);
+    expect(r.stored).toEqual({ system: true, scheme: "dark", palette: "signal", colors: null });
+    const light = paint(byId("signal-light"), true);
+    expect(light.dataset).toMatchObject({ theme: "light", palette: "signal" });
+    expect(light.metas.map((m) => m.content)).toEqual([SIGNAL.light.surface, SIGNAL.light.surface]);
+  });
 
   it("Deep Field: no data-palette, no inline colours, the toolbar colour per scheme", () => {
     const r = paint(byId("deep-field"), true);
@@ -159,14 +232,36 @@ describe("public/theme-boot.js (runs before any module)", () => {
   };
   const paintOf = (theme: Theme, scheme: "light" | "dark") => JSON.stringify({ ...paintFor(theme), scheme });
 
-  it("nothing stored: Deep Field following the device, no data-palette", () => {
+  it("nothing stored: Signal following the device (data-palette=signal), and its toolbar colours", () => {
     for (const dark of [false, true]) {
       const r = boot({}, dark);
       expect(r.dataset.theme).toBe(dark ? "dark" : "light");
-      expect("palette" in r.dataset).toBe(false);
+      expect(r.dataset.palette).toBe("signal");
       expect(r.props.size).toBe(0);
-      expect(r.metas.map((m) => m.getAttribute("content"))).toEqual([DEEP_FIELD.light.surface, DEEP_FIELD.dark.surface]);
+      expect(r.metas.map((m) => m.getAttribute("content"))).toEqual([SIGNAL.light.surface, SIGNAL.dark.surface]);
     }
+  });
+
+  it("the old default's paint (Deep Field, match device) is painted as Signal until the move is marked, so the app's move shows no flash", () => {
+    const old = JSON.stringify({ system: true, scheme: "light", palette: "deep-field", colors: null });
+    const moved = boot({ [PAINT_KEY]: old }, true);
+    expect(moved.dataset).toMatchObject({ theme: "dark", palette: "signal" });
+    expect(moved.metas.map((m) => m.getAttribute("content"))).toEqual([SIGNAL.light.surface, SIGNAL.dark.surface]);
+    // Once the device is marked, Deep Field's "match device" is a choice made since: painted as stored.
+    const kept = boot({ [PAINT_KEY]: old, [DEFAULT_SEEN_KEY]: "signal" }, true);
+    expect(kept.dataset.theme).toBe("dark");
+    expect("palette" in kept.dataset).toBe(false);
+    expect(kept.metas.map((m) => m.getAttribute("content"))).toEqual([DEEP_FIELD.light.surface, DEEP_FIELD.dark.surface]);
+    // Deep Field's fixed light and dark were explicit choices: never moved.
+    const fixed = boot({ [PAINT_KEY]: paintOf(byId("deep-field-light"), "light") }, true);
+    expect(fixed.dataset.theme).toBe("light");
+    expect("palette" in fixed.dataset).toBe(false);
+  });
+
+  it("the boot script's keys are the app's", () => {
+    expect(source).toContain(`"${PAINT_KEY}"`);
+    expect(source).toContain(`"${DEFAULT_SEEN_KEY}"`);
+    expect(source).toContain(`"${DEFAULT_THEME_ID}"`);
   });
 
   it("a payload written before Deep Field (no palette field) paints Slate, its 'match device' included", () => {
@@ -177,7 +272,8 @@ describe("public/theme-boot.js (runs before any module)", () => {
     expect(fixed.dataset).toMatchObject({ theme: "dark", palette: "slate" });
   });
 
-  it("repaints what applyTheme() stored: Slate, Deep Field and a palette theme (band alpha only on bands)", () => {
+  it("repaints what applyTheme() stored: Signal, Slate, Deep Field and a palette theme (band alpha only on bands)", () => {
+    expect(boot({ "codeeditor:theme-paint": paintOf(byId("signal-dark"), "dark") }, false).dataset).toMatchObject({ theme: "dark", palette: "signal" });
     expect(boot({ "codeeditor:theme-paint": paintOf(byId("slate-light"), "light") }, true).dataset).toMatchObject({ theme: "light", palette: "slate" });
     const deep = boot({ "codeeditor:theme-paint": paintOf(byId("deep-field-dark"), "dark") }, false);
     expect(deep.dataset.theme).toBe("dark");
@@ -195,10 +291,13 @@ describe("public/theme-boot.js (runs before any module)", () => {
     expect(r.props.size).toBe(COLOR_VARS.length - 2);
   });
 
-  it("an unknown palette name falls back to Deep Field", () => {
+  it("an unknown palette name, or a palette theme with nothing to paint, falls back to the default, Signal", () => {
     const r = boot({ "codeeditor:theme-paint": JSON.stringify({ system: false, scheme: "light", palette: "evil", colors: null }) }, false);
-    expect("palette" in r.dataset).toBe(false);
+    expect(r.dataset.palette).toBe("signal");
     expect(r.dataset.theme).toBe("light");
+    const empty = boot({ "codeeditor:theme-paint": JSON.stringify({ system: false, scheme: "dark", palette: "palette", colors: null }) }, false);
+    expect(empty.dataset).toMatchObject({ theme: "dark", palette: "signal" });
+    expect(empty.props.size).toBe(0);
   });
 
   it("applies the 42 colour names only: a layout or size token given a colour (a tampered payload) is refused", () => {
@@ -277,7 +376,7 @@ describe("theme files", () => {
       "syn-number": "syn-number", "syn-comment": "syn-comment", "syn-def": "syn-function", "syn-type": "syn-type", "syn-variable": "syn-variable",
       "syn-operator": "syn-operator", "syn-macro": "syn-macro", "syn-punctuation": "syn-punctuation",
     } as const;
-    for (const [label, palette, scheme] of [["Slate light", SLATE.light, "light"], ["Slate dark", SLATE.dark, "dark"], ["Deep Field light", DEEP_FIELD.light, "light"], ["Deep Field dark", DEEP_FIELD.dark, "dark"]] as const) {
+    for (const [label, palette, scheme] of [["Slate light", SLATE.light, "light"], ["Slate dark", SLATE.dark, "dark"], ["Deep Field light", DEEP_FIELD.light, "light"], ["Deep Field dark", DEEP_FIELD.dark, "dark"], ["Signal light", SIGNAL.light, "light"], ["Signal dark", SIGNAL.dark, "dark"]] as const) {
       const text = themeTemplate(`My ${label}`, scheme, palette);
       const data = JSON.parse(text);
       expect(Object.keys(data.colors).sort(), label).toEqual(Object.keys(FILE_TO_TOKEN).sort());
