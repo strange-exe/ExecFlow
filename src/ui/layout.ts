@@ -314,6 +314,10 @@ export function createLayout(root: HTMLElement): Layout {
     drawerToggle.setAttribute("aria-expanded", "true");
     sidebar.inert = false; // before moving focus in: an inert element can't take focus
     for (const el of behind()) el.inert = true;
+    // WebKit can judge the row by the drawer's closed (hidden) style when nothing has made it compute
+    // the open one yet, and refuse the focus (from the page body, 2 times in 6, 2026-10-25): reading
+    // a computed value brings the style up to date first.
+    void getComputedStyle(sidebar).visibility;
     (sidebar.querySelector<HTMLElement>("[role=treeitem][tabindex='0']") ?? sidebar.querySelector<HTMLElement>("button"))?.focus();
   }
   function closeDrawer(focusToggle = true) {

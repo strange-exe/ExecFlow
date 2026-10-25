@@ -367,6 +367,24 @@ test("the shortcuts dialog lines every description up on one x", async ({ page }
 test.describe("phones", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
+  test("Files opened with the focus on the page itself (a dismissed notice, a tap in Safari) puts the focus in the list, every time", async ({ page }) => {
+    // WebKit judged the tree row by the drawer's closed (hidden) style when nothing had made it
+    // compute the open one yet: from the page body the row didn't take the focus 2 times in 6
+    // (2026-10-25 probe). Opened from the code, the editor's blur computed it first.
+    await openApp(page);
+    await importFiles(page, [{ name: "main.py", text: "print('hi')\n" }]);
+    await openFromTree(page, "main.py");
+    for (let i = 0; i < 8; i++) {
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      expect(await page.evaluate(() => document.activeElement === document.body), "the focus starts on the page").toBe(true);
+      await page.keyboard.press("Control+Shift+E");
+      await expect(page.locator(".drawer-toggle")).toHaveAttribute("aria-expanded", "true");
+      expect(await page.evaluate(() => document.activeElement?.getAttribute("role")), `round ${i}: the focus is in the list`).toBe("treeitem");
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".drawer-toggle")).toHaveAttribute("aria-expanded", "false");
+    }
+  });
+
   test("no tab strip: the drawer marks open files, Alt+W and the file menu's Close tab close them, and one switch moves between Code, Output and Problems", async ({ page }) => {
     await openApp(page);
     await importFiles(page, FILES);
