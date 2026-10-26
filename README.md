@@ -76,7 +76,8 @@ npm run dev
 
 `npm run dev` first copies Pyodide out of `node_modules` and downloads, with a SHA-256 check for
 every file, the numpy and pandas wheels (about 7.5 MB, from Pyodide's CDN) and the C/C++ pack
-(about 19 MB, from the wasm-clang repository at a pinned commit) into `public/`. Later runs use a
+(about 19 MB, from the wasm-clang repository at a pinned commit), and the flowchart's three grammars
+(about 4.3 MB of `.wasm`, from jsDelivr) into `public/`. Later runs use a
 cache in `node_modules/.cache/`. Then it serves the app on http://localhost:5173.
 
 Other commands:
@@ -377,6 +378,10 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: code, output and file names (its ligatures only with "Joined symbols" on) |
 | [Phosphor Icons](https://phosphoricons.com/) (`@phosphor-icons/core`) | MIT | Icons |
 | [Workbox](https://github.com/GoogleChrome/workbox) (through `vite-plugin-pwa`) | MIT | Offline service worker |
+| [web-tree-sitter](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_web) 0.27.1 | MIT | Flowchart: reading the code |
+| [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c) 0.24.1 (its `.wasm`) | MIT | Flowchart: the C grammar |
+| [tree-sitter-cpp](https://github.com/tree-sitter/tree-sitter-cpp) 0.23.4 (its `.wasm`) | MIT | Flowchart: the C++ grammar |
+| [tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python) 0.25.0 (its `.wasm`) | MIT | Flowchart: the Python grammar |
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto
