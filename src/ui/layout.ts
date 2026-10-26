@@ -9,6 +9,7 @@
 import type { WsPath } from "../core/types";
 import { h, isMac, srOnly, svg } from "./dom";
 import { icon } from "./icons";
+import { chartPanelSize } from "./panel-size";
 import { clamp, createSplitter, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
@@ -403,7 +404,18 @@ export function createLayout(root: HTMLElement): Layout {
     const visible = chartVisible();
     if (visible === chartWasVisible) return;
     chartWasVisible = visible;
+    if (visible && !narrowQuery.matches) growForChart();
     for (const listener of chartListeners) listener(visible);
+  }
+  /**
+   * Desktop: the Flowchart tab opening grows a small panel (panel-size.ts), through the splitter, so
+   * its value and the remembered size agree. Never shrinks; leaving the tab keeps the size; a size
+   * set later by dragging or keys stands until it is below the threshold at another opening.
+   */
+  function growForChart() {
+    const rows = editorArea.getBoundingClientRect().height + panel.getBoundingClientRect().height;
+    const next = chartPanelSize(panelSplit.value, rows, panelSplit.max());
+    if (next !== null) panelSplit.set(next);
   }
   function expandPanel() {
     collapsed = false;
