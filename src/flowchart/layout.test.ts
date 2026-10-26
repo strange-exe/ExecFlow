@@ -4,7 +4,7 @@
 // run outside their loop, and the same model always gives the same layout.
 import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { layoutChart, type Layout, type LaidBox, type Point } from "./layout";
+import { CHANNEL, labelRect, layoutChart, rectMeetsBox, type Layout, type LaidBox, type Point } from "./layout";
 import { entryOf, type FlowChart, type Step } from "./model";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 import { randomProgram } from "./fixtures/random";
@@ -151,6 +151,69 @@ function problems(chart: FlowChart, layout: Layout, name: string): string[] {
       const left = Math.min(...e.points.map((p) => p.x));
       if (!(left < minX)) out.push(`${name}: back edge ${key(e)} runs at x ${left}, not left of its loop (${minX})`);
     }
+  }
+  out.push(...spacingProblems(layout, name), ...labelProblems(layout, name));
+  return out;
+}
+
+interface Seg {
+  edge: number;
+  /** The fixed coordinate (x of a vertical run, y of a horizontal one) and the span along the other axis. */
+  at: number;
+  a: number;
+  b: number;
+}
+
+function segmentsOf(layout: Layout): { v: Seg[]; h: Seg[] } {
+  const v: Seg[] = [];
+  const h: Seg[] = [];
+  layout.edges.forEach((e, edge) => {
+    for (let i = 1; i < e.points.length; i++) {
+      const [p, q] = [e.points[i - 1], e.points[i]];
+      if (p.x === q.x) v.push({ edge, at: p.x, a: Math.min(p.y, q.y), b: Math.max(p.y, q.y) });
+      else h.push({ edge, at: p.y, a: Math.min(p.x, q.x), b: Math.max(p.x, q.x) });
+    }
+  });
+  return { v, h };
+}
+
+/**
+ * Two different edges never run side by side closer than CHANNEL px (they share a line exactly,
+ * where they join, or keep a readable channel between them).
+ */
+function spacingProblems(layout: Layout, name: string): string[] {
+  const out: string[] = [];
+  const { v, h } = segmentsOf(layout);
+  for (const [segs, axis] of [[v, "x"], [h, "y"]] as const) {
+    const sorted = [...segs].sort((s, t) => s.at - t.at);
+    for (let i = 0; i < sorted.length; i++) {
+      for (let j = i + 1; j < sorted.length && sorted[j].at - sorted[i].at < CHANNEL; j++) {
+        const [s, t] = [sorted[i], sorted[j]];
+        if (s.edge === t.edge || t.at === s.at) continue;
+        const overlap = Math.min(s.b, t.b) - Math.max(s.a, t.a);
+        if (overlap > 0) {
+          const [e1, e2] = [layout.edges[s.edge], layout.edges[t.edge]];
+          out.push(`${name}: edges ${e1.from}>${e1.to} and ${e2.from}>${e2.to} run ${t.at - s.at} px apart at ${axis} ${s.at} for ${overlap} px`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Edge labels touch no box, no edge (their own included) and no other label. */
+function labelProblems(layout: Layout, name: string): string[] {
+  const out: string[] = [];
+  const { v, h } = segmentsOf(layout);
+  const rects = layout.edges.flatMap((e) => (e.label && e.labelAt ? [{ e, r: labelRect(e.labelAt, e.label) }] : []));
+  const hit = (r: { x0: number; y0: number; x1: number; y1: number }, x0: number, y0: number, x1: number, y1: number) => r.x0 < x1 && x0 < r.x1 && r.y0 < y1 && y0 < r.y1;
+  for (const [i, { e, r }] of rects.entries()) {
+    const tag = `${name}: label "${e.label}" of ${e.from}>${e.to}`;
+    // The drawn shape: a decision's diamond leaves its corners free.
+    for (const b of layout.boxes) if (rectMeetsBox(r, b)) out.push(`${tag} touches box ${b.id}`);
+    for (const s of v) if (hit(r, s.at, s.a, s.at + 0.01, s.b)) out.push(`${tag} touches the line at x ${s.at}`);
+    for (const s of h) if (hit(r, s.a, s.at, s.b, s.at + 0.01)) out.push(`${tag} touches the line at y ${s.at}`);
+    for (const [j, o] of rects.entries()) if (j > i && hit(r, o.r.x0, o.r.y0, o.r.x1, o.r.y1)) out.push(`${tag} touches the label "${o.e.label}"`);
   }
   return out;
 }

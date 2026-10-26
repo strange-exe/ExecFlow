@@ -58,13 +58,26 @@ export const METRICS = {
   lane: 16,
   margin: 24,
   /** Room above a switch column for its case label. */
-  caseDrop: 24,
+  caseDrop: 28,
   /** Parallelogram slant and the predefined process's side bars. */
   skew: 12,
   bar: 10,
 } as const;
 
 const M = METRICS;
+
+/** Two different edges running side by side are this far apart at least, or share the line exactly. */
+export const CHANNEL = 12;
+
+/** Edge labels: the renderer's 12 px interface font, about 7 px a character. */
+const LABEL = { charW: 7, ascent: 10, descent: 3, clear: 2 };
+
+/** The area an edge label covers (its text plus a 2 px clearance), from its anchor point and text. */
+export function labelRect(at: { x: number; y: number; anchor: "start" | "end" }, text: string): { x0: number; y0: number; x1: number; y1: number } {
+  const w = [...text].length * LABEL.charW;
+  const x0 = at.anchor === "start" ? at.x : at.x - w;
+  return { x0: x0 - LABEL.clear, y0: at.y - LABEL.ascent - LABEL.clear, x1: x0 + w + LABEL.clear, y1: at.y + LABEL.descent + LABEL.clear };
+}
 const even = (n: number) => 2 * Math.ceil(n / 2);
 
 /** A box's size from its label lines (and note). */
@@ -304,18 +317,26 @@ class Builder {
       return { f, label: c.label, exit: c.exit, colL: Math.max(f.L, 12), colR: Math.max(f.R, labelW) };
     });
     const total = raw.reduce((n, c) => n + c.colL + c.colR, 0) + M.gapX * (raw.length - 1);
-    let x = -total / 2;
+    // Whole pixels, centred under the test; a column whose line would pass within a channel of the
+    // switch's own line moves onto it (all columns move together, so their gaps stay).
+    let x = Math.round(-total / 2);
     const cols = raw.map((c) => {
-      const col = { f: c.f, x: Math.round(x + c.colL), label: c.label, exit: c.exit, colR: c.colR };
+      const col = { f: c.f, x: x + c.colL, label: c.label, exit: c.exit, colR: c.colR };
       x += c.colL + c.colR + M.gapX;
       return col;
     });
+    const nearest = cols.reduce((a, c) => (Math.abs(c.x) < Math.abs(a.x) ? c : a));
+    if (nearest.x !== 0 && Math.abs(nearest.x) < CHANNEL) {
+      const shift = nearest.x;
+      for (const c of cols) c.x -= shift;
+    }
     const maxH = Math.max(0, ...cols.map((c) => c.f.H));
     const ftY = colTop + maxH + M.gapY / 2;
     const collectY = ftY + M.gapY / 2;
     const H = collectY + M.gapY;
-    const left = Math.round(-total / 2);
-    return { t: "switch", d, cols, busY, colTop, ftY, collectY, L: Math.max(hw, -left), R: Math.max(hw, left + total), H };
+    const L = Math.max(hw, ...cols.map((c, i) => -(c.x - raw[i].colL)));
+    const R = Math.max(hw, ...cols.map((c) => c.x + c.colR));
+    return { t: "switch", d, cols, busY, colTop, ftY, collectY, L, R, H };
   }
 }
 
@@ -333,6 +354,12 @@ interface Rect {
   y1: number;
 }
 
+/** A drawn polyline and the box its edge goes to (edges to the same box may share a line). */
+interface Owned {
+  pts: Point[];
+  to: number;
+}
+
 /** A fixed run of points, or a search to a goal (inside `region` first, when it has one). */
 type Leg = { pts: Point[] } | { goal: Goal; region?: Rect };
 
@@ -341,6 +368,8 @@ interface Route {
   label?: string;
   legs: Leg[];
   labelAt?: LaidEdge["labelAt"];
+  /** A switch case: its label goes beside the drop into its column, which ends at this point. */
+  labelOnDrop?: Point;
   to?: number;
 }
 
@@ -369,16 +398,20 @@ function extend(r: Route, ...pts: Point[]): Route {
   return r;
 }
 
-function labelNear(p: Point, dir: Dir): LaidEdge["labelAt"] {
+/**
+ * A label's preferred place as its edge leaves p going `dir`: the first candidate placeLabels tries,
+ * and the area the break and continue search keeps clear.
+ */
+function labelNear(p: Point, dir: Dir): NonNullable<LaidEdge["labelAt"]> {
   switch (dir) {
     case "down":
-      return { x: p.x + 5, y: p.y + 14, anchor: "start" };
+      return { x: p.x + 6, y: p.y + 14, anchor: "start" };
     case "right":
-      return { x: p.x + 6, y: p.y - 5, anchor: "start" };
+      return { x: p.x + 4, y: p.y - 6, anchor: "start" };
     case "left":
-      return { x: p.x - 6, y: p.y - 5, anchor: "end" };
+      return { x: p.x - 4, y: p.y - 6, anchor: "end" };
     default:
-      return { x: p.x + 5, y: p.y - 5, anchor: "start" };
+      return { x: p.x + 6, y: p.y - 4, anchor: "start" };
   }
 }
 
@@ -665,7 +698,8 @@ class Router {
     this.push(ctx, f, x, y);
     f.cols.forEach((c, i) => {
       const cx = x + c.x;
-      const r: Route = { from: d.id, label: c.label, labelAt: { x: cx + 5, y: colTop - 7, anchor: "start" }, legs: [{ pts: [{ x, y: y + d.h }, { x, y: y + f.busY }, { x: cx, y: y + f.busY }, { x: cx, y: colTop }] }] };
+      const drop = { x: cx, y: colTop };
+      const r: Route = { from: d.id, label: c.label, labelOnDrop: drop, labelAt: { x: cx + 6, y: colTop - 6, anchor: "start" }, legs: [{ pts: [{ x, y: y + d.h }, { x, y: y + f.busY }, { x: cx, y: y + f.busY }, { x: cx, y: colTop }] }] };
       const colOut = this.route(c.f, cx, colTop, [...falling, r]);
       const bottom = colTop + c.f.H;
       if (c.exit === "fall" && i < f.cols.length - 1) {
@@ -699,9 +733,12 @@ class Grid {
   /** Blocked steps: vertical from (i, j) to (i, j+1), horizontal from (i, j) to (i+1, j). */
   private readonly vBlock: Uint8Array;
   private readonly hBlock: Uint8Array;
-  /** Steps that already carry an edge. */
-  private readonly vUsed: Uint8Array;
-  private readonly hUsed: Uint8Array;
+  /** Steps that already carry an edge: 0 none, the edge's target box + 1, or -1 for edges to several targets. */
+  private readonly vUsed: Int32Array;
+  private readonly hUsed: Int32Array;
+  /** Steps running beside an edge, closer than CHANNEL. */
+  private readonly vNear: Uint8Array;
+  private readonly hNear: Uint8Array;
   /** Search buffers, 8 bytes per (cell, direction), made once per layout. */
   private best: Float32Array | null = null;
   private prev: Int32Array | null = null;
@@ -709,7 +746,7 @@ class Grid {
 
   constructor(
     boxes: LaidBox[],
-    fixed: Point[][],
+    fixed: Owned[],
     goals: { from: Point; goal: Goal }[],
     /** The area searched, when not the whole chart: its border is the outer ring. */
     private readonly region?: Rect,
@@ -721,15 +758,20 @@ class Grid {
     let minY = Infinity;
     let maxY = -Infinity;
     for (const b of boxes) {
-      xs.add(b.x - CLEAR).add(b.x + b.w + CLEAR).add(b.x + b.w / 2);
-      ys.add(b.y - CLEAR).add(b.y + b.h + CLEAR).add(b.y + b.h / 2);
+      xs.add(b.x - CLEAR).add(b.x + b.w + CLEAR);
+      ys.add(b.y - CLEAR).add(b.y + b.h + CLEAR);
+      // A box's centre lines carry its ports; a kept-clear label area (id -1) has none.
+      if (b.id >= 0) {
+        xs.add(b.x + b.w / 2);
+        ys.add(b.y + b.h / 2);
+      }
       minX = Math.min(minX, b.x);
       maxX = Math.max(maxX, b.x + b.w);
       minY = Math.min(minY, b.y);
       maxY = Math.max(maxY, b.y + b.h);
     }
     for (const line of fixed)
-      for (const p of line) {
+      for (const p of line.pts) {
         xs.add(p.x);
         ys.add(p.y);
         minX = Math.min(minX, p.x);
@@ -759,10 +801,12 @@ class Grid {
     const n = this.xs.length * this.ys.length;
     this.vBlock = new Uint8Array(n);
     this.hBlock = new Uint8Array(n);
-    this.vUsed = new Uint8Array(n);
-    this.hUsed = new Uint8Array(n);
+    this.vUsed = new Int32Array(n);
+    this.hUsed = new Int32Array(n);
+    this.vNear = new Uint8Array(n);
+    this.hNear = new Uint8Array(n);
     for (const b of boxes) this.block(b);
-    for (const line of fixed) for (let i = 1; i < line.length; i++) this.use(line[i - 1], line[i]);
+    for (const line of fixed) for (let i = 1; i < line.pts.length; i++) this.use(line.pts[i - 1], line.pts[i], line.to);
   }
 
   private idx(i: number, j: number) {
@@ -801,27 +845,41 @@ class Grid {
     }
   }
 
-  /** Marks the grid steps an edge segment runs along (a segment off the grid's lines marks nothing). */
-  private use(p: Point, q: Point) {
+  /**
+   * Marks the grid steps an edge segment runs along, and as "near" the parallel steps less than
+   * CHANNEL px beside it (a careful search never takes those: two edges either share a line or keep
+   * a readable channel between them).
+   */
+  private use(p: Point, q: Point, to: number) {
     const { xs, ys } = this;
-    if (p.x === q.x) {
-      const i = this.xi.get(p.x);
-      if (i === undefined) return;
-      const a = Grid.lower(ys, Math.min(p.y, q.y));
-      const b = Grid.lower(ys, Math.max(p.y, q.y) + 0.001) - 1;
-      for (let j = a; j < b; j++) this.vUsed[this.idx(i, j)] = 1;
-    } else if (p.y === q.y) {
-      const j = this.yi.get(p.y);
-      if (j === undefined) return;
-      const a = Grid.lower(xs, Math.min(p.x, q.x));
-      const b = Grid.lower(xs, Math.max(p.x, q.x) + 0.001) - 1;
-      for (let i = a; i < b; i++) this.hUsed[this.idx(i, j)] = 1;
+    const vertical = p.x === q.x;
+    if (!vertical && p.y !== q.y) return;
+    const at = vertical ? p.x : p.y;
+    const lines = vertical ? xs : ys;
+    const along = vertical ? ys : xs;
+    const lo = Math.min(vertical ? p.y : p.x, vertical ? q.y : q.x);
+    const hi = Math.max(vertical ? p.y : p.x, vertical ? q.y : q.x);
+    // Steps (k to k+1) along the segment whose span overlaps (lo, hi).
+    const first = Math.max(0, Grid.lower(along, lo + 0.001) - 1);
+    const last = Grid.lower(along, hi - 0.001);
+    for (let l = Grid.lower(lines, at - CHANNEL + 0.001); l < lines.length && lines[l] < at + CHANNEL; l++) {
+      const same = lines[l] === at;
+      for (let k = first; k < last && k < along.length - 1; k++) {
+        if (along[k + 1] <= lo || along[k] >= hi) continue;
+        const step = vertical ? this.idx(l, k) : this.idx(k, l);
+        if (same) {
+          const used = vertical ? this.vUsed : this.hUsed;
+          used[step] = used[step] === 0 || used[step] === to + 1 ? to + 1 : -1;
+        } else {
+          (vertical ? this.vNear : this.hNear)[step] = 1;
+        }
+      }
     }
   }
 
   /** Records a found path so later searches avoid running along it. */
-  record(path: Point[]) {
-    for (const line of this.region ? clipLine(path, this.region) : [path]) for (let i = 1; i < line.length; i++) this.use(line[i - 1], line[i]);
+  record(path: Point[], to: number) {
+    for (const line of this.region ? clipLine(path, this.region) : [path]) for (let i = 1; i < line.length; i++) this.use(line[i - 1], line[i], to);
   }
 
   /** Whether a point is a grid crossing (inside the area) the search can start or end at. */
@@ -833,7 +891,13 @@ class Grid {
    * Cheapest orthogonal path from `from` to the goal that crosses no box, or null. `heading` is the
    * direction the line was already going: going on costs no bend and turning straight back is not allowed.
    */
-  search(from: Point, goal: Goal, heading: Dir | null, { weight = 1.5, plain = false }: { weight?: number; plain?: boolean } = {}): Point[] | null {
+  search(
+    from: Point,
+    goal: Goal,
+    heading: Dir | null,
+    to: number,
+    { weight = 1.5, plain = false, keepChannel = true }: { weight?: number; plain?: boolean; keepChannel?: boolean } = {},
+  ): Point[] | null {
     const { xs, ys } = this;
     const W = xs.length;
     if (!this.has(from) || !this.xi.has(goal.x)) return null;
@@ -899,11 +963,14 @@ class Grid {
         const vertical = di === 0;
         const step = vertical ? this.idx(i, Math.min(j, nj)) : this.idx(Math.min(i, ni), j);
         if (vertical ? this.vBlock[step] : this.hBlock[step]) continue;
+        if (keepChannel && (vertical ? this.vNear[step] : this.hNear[step])) continue;
         const len = vertical ? Math.abs(ys[nj] - ys[j]) : Math.abs(xs[ni] - xs[i]);
         let cost = len;
         if (d !== 4 && d !== k) cost += BEND;
         if (!plain) {
-          if (vertical ? this.vUsed[step] : this.hUsed[step]) cost += len * OVERLAP;
+          // Running along another edge costs extra, unless it goes to the same box: then the two join.
+          const used = vertical ? this.vUsed[step] : this.hUsed[step];
+          if (used !== 0 && used !== to + 1) cost += len * OVERLAP;
           // Crossing an edge that runs the other way at the cell we arrive at.
           const crossing = vertical
             ? (ni > 0 && this.hUsed[this.idx(ni - 1, nj)]) || (ni < W - 1 && this.hUsed[this.idx(ni, nj)])
@@ -1032,22 +1099,35 @@ export function layoutChart(chart: FlowChart): Layout {
   router.route(frame, x0, M.margin, []);
 
   // Fixed legs first; then each break and continue, in order, avoiding what is already drawn.
-  const boxes = [...router.boxes.values()];
-  const fixed: Point[][] = [];
+  const kindOf = new Map(chart.nodes.map((n) => [n.id, n.kind]));
+  const boxes = [...router.boxes.values()].map((b) => Object.assign(b, { kind: kindOf.get(b.id)! }));
+  const fixed: Owned[] = [];
   const searches: { from: Point; goal: Goal }[] = [];
   for (const r of router.done) {
     let at: Point | null = null;
+    const to = r.to!;
     for (const leg of r.legs) {
       if ("pts" in leg) {
-        fixed.push(at ? [at, ...leg.pts] : leg.pts);
+        // A fixed run after a search starts where the search arrives, unknown yet: it joins at its own start.
+        fixed.push({ pts: at ? [at, ...leg.pts] : leg.pts, to });
         if (leg.pts.length) at = leg.pts[leg.pts.length - 1];
-      } else if (at) {
-        searches.push({ from: at, goal: leg.goal });
+      } else {
+        if (at) searches.push({ from: at, goal: leg.goal });
+        at = null;
+        // A lane the search may join is taken as drawn along its whole length: other edges keep their
+        // channel from all of it.
+        if (leg.goal.t === "vseg") fixed.push({ pts: [{ x: leg.goal.x, y: leg.goal.y0 }, { x: leg.goal.x, y: leg.goal.y1 }], to });
       }
     }
   }
-  const lines = fixed.map(simplify).filter((l) => l.length > 1);
-  const found: Point[][] = [];
+  const lines = fixed.map((l) => ({ pts: simplify(l.pts), to: l.to })).filter((l) => l.pts.length > 1);
+  // Each label's preferred place is kept clear of the searched edges, so the label fits there.
+  const reserved: LaidBox[] = router.done.flatMap((r) => {
+    if (r.label === undefined || !r.labelAt) return [];
+    const q = labelRect(r.labelAt, r.label);
+    return [{ id: -1, kind: "process" as const, x: q.x0, y: q.y0, w: q.x1 - q.x0, h: q.y1 - q.y0 }];
+  });
+  const found: Owned[] = [];
   // One grid per loop area (small, so the search's memory stays small), and one for the whole chart.
   const grids = new Map<string, Grid>();
   const gridFor = (region: Rect | undefined): Grid => {
@@ -1056,9 +1136,9 @@ export function layoutChart(chart: FlowChart): Layout {
     if (!g) {
       const inside = (p: Point) => !region || (p.x >= region.x0 && p.x <= region.x1 && p.y >= region.y0 && p.y <= region.y1);
       const meets = (b: LaidBox) => !region || (b.x < region.x1 && b.x + b.w > region.x0 && b.y < region.y1 && b.y + b.h > region.y0);
-      const clip = (l: Point[]) => (region ? clipLine(l, region) : [l]);
+      const clip = (l: Owned): Owned[] => (region ? clipLine(l.pts, region).map((pts) => ({ pts, to: l.to })) : [l]);
       g = new Grid(
-        boxes.filter(meets),
+        [...boxes, ...reserved].filter(meets),
         [...lines, ...found].flatMap(clip),
         searches.filter((s) => inside(s.from)),
         region,
@@ -1082,17 +1162,19 @@ export function layoutChart(chart: FlowChart): Layout {
       }
       const from = pts[pts.length - 1];
       const dir = heading(pts);
-      // Inside the loop's own area first; then the whole chart; then a greedier search that ignores
-      // other edges (very large charts).
+      // Inside the loop's own area first; then the whole chart; then a greedier search that only
+      // keeps the channel between edges; then one that may squeeze beside them (very large charts).
       const local = leg.region ? gridFor(leg.region) : null;
       const all = () => gridFor(undefined);
+      const to = r.to!;
       const path =
-        local?.search(from, leg.goal, dir) ??
-        all().search(from, leg.goal, dir) ??
-        all().search(from, leg.goal, dir, { weight: 4, plain: true }) ??
+        local?.search(from, leg.goal, dir, to) ??
+        all().search(from, leg.goal, dir, to) ??
+        all().search(from, leg.goal, dir, to, { weight: 4, plain: true }) ??
+        all().search(from, leg.goal, dir, to, { weight: 4, plain: true, keepChannel: false }) ??
         fallback(from, leg.goal);
-      found.push(path);
-      for (const g of grids.values()) g.record(path);
+      found.push({ pts: path, to });
+      for (const g of grids.values()) g.record(path, to);
       pts.push(...path.slice(1));
     }
     const k = `${r.from}>${r.to}>${r.label ?? ""}`;
@@ -1102,25 +1184,97 @@ export function layoutChart(chart: FlowChart): Layout {
     if (r.labelAt) edge.labelAt = r.labelAt;
     return edge;
   });
+  placeLabels(edges, boxes, new Map(router.done.flatMap((r, i) => (r.labelOnDrop ? [[i, r.labelOnDrop] as const] : []))));
 
-  // Fill in kinds, move everything so the top-left corner is (margin, margin).
-  const kindOf = new Map(chart.nodes.map((n) => [n.id, n.kind]));
+  // Move everything so the top-left corner is (margin, margin).
   const allPts = edges.flatMap((e) => e.points);
-  const minX = Math.min(...boxes.map((b) => b.x), ...allPts.map((p) => p.x), ...edges.flatMap((e) => (e.labelAt?.anchor === "end" ? [e.labelAt.x - 40] : [])));
-  const minY = Math.min(...boxes.map((b) => b.y), ...allPts.map((p) => p.y));
+  const rects = edges.flatMap((e) => (e.label !== undefined && e.labelAt ? [labelRect(e.labelAt, e.label)] : []));
+  const minX = Math.min(...boxes.map((b) => b.x), ...allPts.map((p) => p.x), ...rects.map((r) => r.x0));
+  const minY = Math.min(...boxes.map((b) => b.y), ...allPts.map((p) => p.y), ...rects.map((r) => r.y0));
   const dx = M.margin - minX;
   const dy = M.margin - minY;
   const outBoxes = boxes
-    .map((b) => ({ ...b, kind: kindOf.get(b.id)!, x: b.x + dx, y: b.y + dy }))
+    .map((b) => ({ ...b, x: b.x + dx, y: b.y + dy }))
     .sort((a, b) => a.id - b.id);
   const outEdges = edges.map((e) => {
     const moved: LaidEdge = { ...e, points: e.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
     if (e.labelAt) moved.labelAt = { ...e.labelAt, x: e.labelAt.x + dx, y: e.labelAt.y + dy };
     return moved;
   });
-  const maxX = Math.max(...outBoxes.map((b) => b.x + b.w), ...outEdges.flatMap((e) => e.points.map((p) => p.x)), ...outEdges.flatMap((e) => (e.labelAt?.anchor === "start" ? [e.labelAt.x + 60] : [])));
-  const maxY = Math.max(...outBoxes.map((b) => b.y + b.h), ...outEdges.flatMap((e) => e.points.map((p) => p.y)));
+  const outRects = outEdges.flatMap((e) => (e.label !== undefined && e.labelAt ? [labelRect(e.labelAt, e.label)] : []));
+  const maxX = Math.max(...outBoxes.map((b) => b.x + b.w), ...outEdges.flatMap((e) => e.points.map((p) => p.x)), ...outRects.map((r) => r.x1));
+  const maxY = Math.max(...outBoxes.map((b) => b.y + b.h), ...outEdges.flatMap((e) => e.points.map((p) => p.y)), ...outRects.map((r) => r.y1));
   return { width: Math.ceil(maxX + M.margin), height: Math.ceil(maxY + M.margin), boxes: outBoxes, edges: outEdges };
+}
+
+type Rect4 = { x0: number; y0: number; x1: number; y1: number };
+
+/** Does a rectangle meet the drawn shape of a box? A decision is its diamond, every other box its rectangle. */
+export function rectMeetsBox(r: Rect4, b: { kind: NodeKind; x: number; y: number; w: number; h: number }): boolean {
+  if (!(r.x0 < b.x + b.w && b.x < r.x1 && r.y0 < b.y + b.h && b.y < r.y1)) return false;
+  if (b.kind !== "decision") return true;
+  // |dx|/a + |dy|/b < 1 inside the diamond; its smallest value over the rectangle is at the point
+  // of the rectangle nearest the centre.
+  const cx = b.x + b.w / 2;
+  const cy = b.y + b.h / 2;
+  const nx = Math.min(Math.max(cx, r.x0), r.x1);
+  const ny = Math.min(Math.max(cy, r.y0), r.y1);
+  return Math.abs(nx - cx) / (b.w / 2) + Math.abs(ny - cy) / (b.h / 2) < 1;
+}
+
+/** Places each edge label where it touches no box, no edge (its own included) and no other label. */
+function placeLabels(edges: LaidEdge[], boxes: LaidBox[], onDrop: Map<number, Point>): void {
+  const segs = edges.flatMap((e) => e.points.slice(1).map((q, i) => ({ p: e.points[i], q })));
+  const placed: Rect4[] = [];
+  const meets = (r: Rect4, x0: number, y0: number, x1: number, y1: number) => r.x0 < x1 && x0 < r.x1 && r.y0 < y1 && y0 < r.y1;
+  const hits = (r: Rect4) => {
+    let n = 0;
+    for (const b of boxes) if (rectMeetsBox(r, b)) n++;
+    for (const { p, q } of segs) if (meets(r, Math.min(p.x, q.x), Math.min(p.y, q.y), Math.max(p.x, q.x) + 0.01, Math.max(p.y, q.y) + 0.01)) n++;
+    for (const o of placed) if (meets(r, o.x0, o.y0, o.x1, o.y1)) n++;
+    return n;
+  };
+  edges.forEach((e, i) => {
+    if (e.label === undefined) return;
+    const text = e.label;
+    // Along the edge's first segment (a decision's Yes or No as it leaves the box), or its last one
+    // (a switch case on the drop into its column, since the cases share their first segments).
+    // When the first segment is too short to hold the label, the second one is tried too. A case
+    // label sits just above its column, between the bus and the column's top.
+    const drop = onDrop.get(i);
+    const candidates: NonNullable<LaidEdge["labelAt"]>[] = drop
+      ? [
+          { x: drop.x + 6, y: drop.y - 6, anchor: "start" },
+          { x: drop.x - 6, y: drop.y - 6, anchor: "end" },
+        ]
+      : [];
+    const runs: [Point, Point][] = drop ? [] : e.points.slice(1, 3).map((q, k) => [e.points[k], q]);
+    for (const [p, q] of runs) {
+      const len = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
+      for (const t of [4, 16, 28, 40, 52]) {
+        if (t > len + 12) break;
+        if (p.x === q.x) {
+          const down = q.y > p.y;
+          const y = down ? p.y + t + 10 : p.y - t;
+          candidates.push({ x: p.x + 6, y, anchor: "start" }, { x: p.x - 6, y, anchor: "end" });
+        } else {
+          const right = q.x > p.x;
+          const x = right ? p.x + t : p.x - t;
+          const anchor = right ? "start" : "end";
+          candidates.push({ x, y: p.y - 6, anchor }, { x, y: p.y + 16, anchor });
+        }
+      }
+    }
+    let best = candidates[0] ?? e.labelAt!;
+    let bestHits = Infinity;
+    for (const c of candidates) {
+      const h = hits(labelRect(c, text));
+      if (h < bestHits) [best, bestHits] = [c, h];
+      if (h === 0) break;
+    }
+    e.labelAt = best;
+    placed.push(labelRect(best, text));
+  });
 }
 
 /** The direction of a polyline's last non-empty segment. */
