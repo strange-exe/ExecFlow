@@ -20,10 +20,19 @@ import { createFlowchartClient, type FlowchartClient, type FlowchartResult } fro
 import { layoutChart, type Layout } from "../flowchart/layout";
 import type { ChartResult, FlowChart, FlowFile } from "../flowchart/model";
 import type { FlowLanguage } from "../flowchart/pack";
+import { canCopyImages } from "../core/snippet";
+import { BRAND_MARK } from "../editor/brand-mark";
+import {
+  chooseExportScale, drawExport, exportFileName, exportSize, exportSvg, footerWhat, markSpot, printColors, type ExportColors, type ExportInput, type ExportLook,
+} from "../flowchart/export";
 import { renderChart, stepList } from "../flowchart/render";
 import { openModal } from "./dialogs";
-import { h, svg } from "./dom";
+import { downloadBlob, h, svg } from "./dom";
 import { icon, pathData } from "./icons";
+import { menuButton, type MenuItem } from "./menu";
+
+/** The export's colours, one choice remembered for the session (this page's life). */
+let exportChoice: "print" | "match" = "print";
 
 /** The open file, as the view needs it. */
 export interface ChartFile {
@@ -81,6 +90,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   const zoomIn = h("button", { type: "button", class: "icon-btn", id: "fc-zoom-in", "aria-label": "Zoom in", title: "Zoom in (Ctrl+wheel)" }, localIcon("plus"));
   const stepsToggle = h("button", { type: "button", class: "fc-tool", id: "fc-steps-toggle", "aria-expanded": "false", "aria-controls": "fc-steps" }, localIcon("list"), h("span", null, "Steps as text"));
   const fullButton = h("button", { type: "button", class: "icon-btn", id: "fc-full", "aria-label": "Full screen", title: "Full screen" }, localIcon("out"));
+  const exportButton = h("button", { type: "button", class: "fc-tool", id: "fc-export", title: "Export the flowchart" }, icon("download-simple"), h("span", null, "Export"));
   const toolbar = h(
     "div",
     { class: "fc-toolbar" },
@@ -88,8 +98,11 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     h("div", { class: "fc-group", role: "group", "aria-label": "Zoom" }, zoomOut, fitButton, zoomIn),
     h("div", { class: "fc-spacer" }),
     stepsToggle,
+    exportButton,
     fullButton,
   );
+  // An export's result, said politely (Capture snippet's status line).
+  const status = h("p", { class: "fc-status", id: "fc-status", role: "status" });
   const bannerText = h("span", { class: "fc-banner-text" });
   const bannerGo = h("button", { type: "button", class: "text-btn fc-banner-go" });
   const banner = h("div", { class: "fc-banner" }, icon("warning", "fc-banner-icon"), bannerText, bannerGo);
@@ -105,7 +118,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   retry.hidden = true;
   // A polite live region: what the view says (loading, a mistake, too big, failed) is heard once.
   const message = h("div", { class: "fc-message", role: "status" }, messageText, skeleton, retry);
-  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, banner, stage, steps, message);
+  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, status, banner, stage, steps, message);
   panel.append(root);
   const dialog = h("dialog", { class: "fc-dialog", id: "fc-dialog", "aria-label": "Flowchart, full screen" });
 
@@ -139,7 +152,8 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     steps.hidden = !drawn || stepsToggle.getAttribute("aria-expanded") !== "true";
     // The picker stays for a function that is too big (another may fit); zoom needs a drawing.
     toolbar.hidden = !(drawn || state === "too-big");
-    for (const b of [zoomOut, fitButton, zoomIn, stepsToggle]) b.hidden = !drawn;
+    for (const b of [zoomOut, fitButton, zoomIn, stepsToggle, exportButton]) b.hidden = !drawn;
+    if (!drawn) say("", "");
     message.hidden = drawn;
     if (!drawn) banner.hidden = true;
   }
@@ -462,6 +476,185 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     setFullLabel(true);
     openModal(dialog, fullButton, () => fullButton);
     if (fitting) fit();
+  });
+
+  // ---------------------------------------------------------------- export: PNG, SVG, copy
+  function say(text: string, tone: "" | "info" | "success" | "error") {
+    status.textContent = text;
+    if (tone) status.dataset.tone = tone;
+    else delete status.dataset.tone;
+  }
+  /** Where a download's link goes: the open dialog (the page behind it is inert), else the page. */
+  const linkParent = () => (dialog.open ? dialog : document.body);
+
+  let probe: CanvasRenderingContext2D | null | undefined;
+  /** A CSS colour as #rrggbb (the canvas spells opaque colours so), or `fallback` when it isn't one. */
+  function hex(value: string, fallback: string): string {
+    probe ??= document.createElement("canvas").getContext("2d");
+    const v = value.trim();
+    if (!probe || !v) return fallback;
+    // Set over two different colours: an invalid value leaves each as it was, a valid one wins both.
+    const read = (base: string) => ((probe!.fillStyle = base), (probe!.fillStyle = v), String(probe!.fillStyle));
+    const [a, b] = [read("#000000"), read("#ffffff")];
+    return a === b && /^#[0-9a-f]{6}$/.test(a) ? a : fallback;
+  }
+
+  /** The look at click time: Print-safe light, or the editor's theme read from the view's own tokens. */
+  function exportLook(): ExportLook {
+    const print = printColors();
+    const css = getComputedStyle(root);
+    const fonts = { codeFont: css.getPropertyValue("--font-code").trim() || "monospace", uiFont: css.getPropertyValue("--font-ui").trim() || "sans-serif" };
+    if (exportChoice === "print") return { colors: print, ...fonts };
+    const colors = { ...print };
+    for (const k of Object.keys(print) as (keyof ExportColors)[]) colors[k] = hex(css.getPropertyValue(`--${k}`), print[k]);
+    return { colors, ...fonts };
+  }
+
+  /** The chart on screen, ready to export (null when nothing is drawn). */
+  function exportInput(): ExportInput | null {
+    const f = host.file();
+    if (!chart || !layout || !shown || !f || f.id !== shown.id || root.dataset.state !== "ready") return null;
+    return { chart, layout, file: f.path, look: exportLook() };
+  }
+
+  type Failure = "too-big" | "device" | "privacy";
+  const failure = (reason: Failure) => Object.assign(new Error(reason), { reason });
+  const failText = (e: unknown) => {
+    switch ((e as { reason?: Failure }).reason) {
+      case "too-big":
+        return "This chart is too big for a PNG. Download SVG instead.";
+      case "device":
+        return "Couldn't make an image this big on this device. Download SVG instead.";
+      case "privacy":
+        return "This browser's privacy settings blocked the image. If the address bar offers to allow it, allow it and try again.";
+      default:
+        return "Couldn't make the image. Try again.";
+    }
+  };
+
+  /**
+   * The mark's tile, read back: blank pixels mean the canvas failed (too big for this device);
+   * other colours mean the browser hid the drawing (privacy settings add noise or blank it).
+   */
+  function readback(ctx: CanvasRenderingContext2D, spot: { x: number; y: number; size: number }, scale: number): "ok" | Failure {
+    const k = spot.size / BRAND_MARK.view;
+    const want = [0x2f, 0x5b, 0xea];
+    let blank = true;
+    // Two points of the tile clear of the chevrons: between their tops, and the middle.
+    for (const [vx, vy] of [[16, 5], [16, 16]]) {
+      let d: Uint8ClampedArray;
+      try {
+        d = ctx.getImageData(Math.floor((spot.x + vx * k) * scale), Math.floor((spot.y + vy * k) * scale), 1, 1).data;
+      } catch {
+        return "privacy";
+      }
+      if (d[3] !== 0) blank = false;
+      if (d[3] !== 255 || want.some((c, i) => Math.abs(d[i] - c) > 2)) return blank ? "device" : "privacy";
+    }
+    return "ok";
+  }
+
+  /** The PNG: drawn on a canvas at 2x (less past the browsers' safe size) once the fonts are in. */
+  function makePng(input: ExportInput) {
+    const size = exportSize(input.layout, footerWhat(input.file, input.chart));
+    const fit = chooseExportScale(size.width, size.height);
+    const png = new Promise<Blob>((resolve, reject) => {
+      if (!fit) return reject(failure("too-big"));
+      void document.fonts.ready.then(() => {
+        const canvas = document.createElement("canvas");
+        canvas.width = fit.width;
+        canvas.height = fit.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(failure("device"));
+        try {
+          drawExport(ctx, input, fit.scale);
+        } catch {
+          return reject(failure("device"));
+        }
+        const read = readback(ctx, markSpot(input.layout), fit.scale);
+        if (read !== "ok") return reject(failure(read));
+        canvas.toBlob((b) => (b ? resolve(b) : reject(failure("device"))), "image/png");
+      }, reject);
+    });
+    png.catch(() => {}); // each caller handles the failure; this keeps it from reading as unhandled
+    return { png, fit };
+  }
+  const withScale = (text: string, fit: ReturnType<typeof chooseExportScale>) =>
+    fit?.reduced ? `${text} The chart is too big for a 2x image, so this one is ${fit.scale}x.` : text;
+
+  let busy = false;
+  let makingTimer: ReturnType<typeof setTimeout> | undefined;
+  /** One export at a time; "Making the PNG..." shows only when it takes a while. */
+  function run(work: () => Promise<{ text: string; tone: "success" | "error" }>) {
+    if (busy) return;
+    busy = true;
+    root.dataset.export = "busy";
+    say("", "");
+    makingTimer = setTimeout(() => say("Making the PNG...", "info"), LOADING_WORDS_MS);
+    void work()
+      .catch((e: unknown) => ({ text: failText(e), tone: "error" as const }))
+      .then(({ text, tone }) => {
+        busy = false;
+        clearTimeout(makingTimer);
+        root.dataset.export = "done";
+        say(text, tone);
+      });
+  }
+
+  function downloadPng() {
+    const input = exportInput();
+    if (!input) return;
+    const name = exportFileName(input.file, input.chart.name, "png");
+    const { png, fit } = makePng(input);
+    run(() =>
+      png.then((blob) => {
+        downloadBlob(name, blob, { parent: linkParent() });
+        return { text: withScale(`Downloading ${name}.`, fit), tone: "success" as const };
+      }),
+    );
+  }
+
+  function downloadSvg() {
+    const input = exportInput();
+    if (!input || busy) return;
+    const name = exportFileName(input.file, input.chart.name, "svg");
+    const xml = new XMLSerializer().serializeToString(exportSvg(input));
+    downloadBlob(name, new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${xml}\n`], { type: "image/svg+xml" }), { parent: linkParent() });
+    root.dataset.export = "done";
+    say(`Downloading ${name}.`, "success");
+  }
+
+  function copyImage() {
+    const input = exportInput();
+    if (!input || busy) return;
+    const { png, fit } = makePng(input);
+    // The write starts in this click (the user's activation), holding the PNG still being made.
+    let written: Promise<void>;
+    try {
+      written = navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+    } catch (e) {
+      written = Promise.reject(e);
+    }
+    run(() =>
+      written.then(
+        () => ({ text: withScale("Copied the image.", fit), tone: "success" as const }),
+        // A refused write with a good PNG is the clipboard's refusal; a failed PNG says why.
+        () => png.then(() => ({ text: "Couldn't copy the image. Use Download PNG instead.", tone: "error" as const })),
+      ),
+    );
+  }
+
+  menuButton(exportButton, "Export", () => {
+    const items: MenuItem[] = [
+      { label: "Download PNG", icon: "image", run: downloadPng },
+      { label: "Download SVG", icon: "download-simple", run: downloadSvg },
+    ];
+    if (canCopyImages(globalThis)) items.push({ label: "Copy image", icon: "copy", run: copyImage });
+    items.push(
+      { label: "Print-safe light", checked: exportChoice === "print", separatorBefore: true, run: () => (exportChoice = "print") },
+      { label: "Match the editor", checked: exportChoice === "match", run: () => (exportChoice = "match") },
+    );
+    return items;
   });
 
   // ---------------------------------------------------------------- what the workbench calls

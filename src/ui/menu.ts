@@ -18,6 +18,8 @@ export interface MenuItem {
   danger?: boolean;
   /** Starts a new group: a separator line above it (none above the first item). */
   separatorBefore?: boolean;
+  /** One of a choice (role menuitemradio): true marks the chosen one with a check and aria-checked. */
+  checked?: boolean;
   run(): void;
 }
 
@@ -68,8 +70,10 @@ export function openMenu(items: readonly MenuItem[], anchor: MenuAnchor, options
   const buttons = items.map((item) =>
     h(
       "button",
-      { type: "button", role: "menuitem", tabindex: "-1", class: `menu-item${item.danger ? " danger" : ""}` },
-      item.icon ? icon(item.icon) : h("span", { class: "icon" }),
+      item.checked === undefined
+        ? { type: "button", role: "menuitem", tabindex: "-1", class: `menu-item${item.danger ? " danger" : ""}` }
+        : { type: "button", role: "menuitemradio", "aria-checked": String(item.checked), tabindex: "-1", class: "menu-item" },
+      item.checked ? icon("check-circle") : item.icon ? icon(item.icon) : h("span", { class: "icon" }),
       h("span", { class: "menu-label" }, item.label),
       item.shortcut ? h("kbd", { class: "keycap" }, item.shortcut) : null,
     ),
@@ -81,7 +85,8 @@ export function openMenu(items: readonly MenuItem[], anchor: MenuAnchor, options
     ...buttons.flatMap((b, i) => (i > 0 && items[i].separatorBefore ? [h("div", { class: "menu-sep", role: "separator" }), b] : [b])),
     hintId ? h("div", { class: "menu-hint", id: hintId, "aria-hidden": "true" }, options.hint) : null,
   );
-  document.body.append(menu);
+  // Inside an open modal dialog the page behind is inert: a menu opened from it lives in the dialog.
+  ((anchor instanceof Element && anchor.closest("dialog[open]")) || document.body).append(menu);
 
   // Position: below and right of the anchor when it fits, else above or left of it; 4 px inside the viewport.
   const [rect, gap]: [AnchorRect, number] =

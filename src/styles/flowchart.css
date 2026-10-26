@@ -51,6 +51,12 @@
 .fc-tool[aria-expanded="true"] { color: var(--text); }
 .fc-tool .icon { width: var(--icon-md); height: var(--icon-md); }
 
+/* ------------------------------------------------------------------ an export's result (polite status) */
+/* Empty, it keeps no height but stays in the page, so its first words are heard. */
+.fc-status { flex: none; margin: 0; padding: var(--s1) var(--s3); border-bottom: 1px solid var(--border); color: var(--text); font-size: var(--fs-2); line-height: var(--lh-2); }
+.fc-status:empty { padding: 0; border: 0; }
+.fc-status[data-tone="error"] { color: var(--danger); }
+
 /* ------------------------------------------------------------------ the syntax-mistake banner */
 .fc-banner {
   display: flex;

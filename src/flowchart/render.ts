@@ -15,15 +15,37 @@ const NS = "http://www.w3.org/2000/svg";
 /** The DOM calls the renderer uses (a Document; tests pass a small stand-in). */
 export type SvgDocument = Pick<Document, "createElementNS" | "createTextNode">;
 
-const STYLE = {
-  shape: "fill:var(--surface-raised);stroke:var(--border-strong);stroke-width:1.5",
-  bar: "fill:none;stroke:var(--border-strong);stroke-width:1.5",
-  text: "fill:var(--text);font-family:var(--font-code);font-size:13px",
-  note: "fill:var(--text-secondary);font-family:var(--font-ui);font-size:11px;font-style:italic",
-  edge: "fill:none;stroke:var(--border-strong);stroke-width:1.5;stroke-linejoin:round",
-  arrow: "fill:var(--border-strong);stroke:none",
-  edgeLabel: "fill:var(--text-secondary);font-family:var(--font-ui);font-size:12px",
-} as const;
+/** The colour tokens a chart is drawn with. */
+export const CHART_TOKENS = ["surface-raised", "border-strong", "text", "text-secondary"] as const;
+export type ChartToken = (typeof CHART_TOKENS)[number];
+
+/**
+ * How a chart is painted. The view's look names the theme's custom properties and is interactive
+ * (rings, one Tab stop, list items); the export's gives resolved colours and font lists and none of that.
+ */
+export interface ChartLook {
+  color(token: ChartToken): string;
+  codeFont: string;
+  uiFont: string;
+  interactive: boolean;
+}
+
+export const VIEW_LOOK: ChartLook = { color: (t) => `var(--${t})`, codeFont: "var(--font-code)", uiFont: "var(--font-ui)", interactive: true };
+
+type Styles = Record<"shape" | "bar" | "text" | "note" | "edge" | "arrow" | "edgeLabel", string>;
+
+function styles(look: ChartLook): Styles {
+  const c = look.color;
+  return {
+    shape: `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1.5`,
+    bar: `fill:none;stroke:${c("border-strong")};stroke-width:1.5`,
+    text: `fill:${c("text")};font-family:${look.codeFont};font-size:13px`,
+    note: `fill:${c("text-secondary")};font-family:${look.uiFont};font-size:11px;font-style:italic`,
+    edge: `fill:none;stroke:${c("border-strong")};stroke-width:1.5;stroke-linejoin:round`,
+    arrow: `fill:${c("border-strong")};stroke:none`,
+    edgeLabel: `fill:${c("text-secondary")};font-family:${look.uiFont};font-size:12px`,
+  };
+}
 
 /** Words a screen reader says before a box's text. */
 function kindWords(node: FlowNode): string {
@@ -53,7 +75,7 @@ function el<K extends keyof SVGElementTagNameMap>(doc: SvgDocument, tag: K, attr
 
 const pts = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
 
-function shape(doc: SvgDocument, node: FlowNode, b: LaidBox): SVGElement[] {
+function shape(doc: SvgDocument, node: FlowNode, b: LaidBox, STYLE: Styles): SVGElement[] {
   const { x, y, w, h } = b;
   const cx = x + w / 2;
   const cy = y + h / 2;
@@ -83,7 +105,7 @@ function shape(doc: SvgDocument, node: FlowNode, b: LaidBox): SVGElement[] {
 }
 
 /** The label lines (and the note) centred in the box, one tspan per line. */
-function label(doc: SvgDocument, node: FlowNode, b: LaidBox): SVGTextElement {
+function label(doc: SvgDocument, node: FlowNode, b: LaidBox, STYLE: Styles): SVGTextElement {
   const lines = node.note ? [...node.label, node.note] : node.label;
   const lh = METRICS.lineH;
   const cx = b.x + b.w / 2;
@@ -99,7 +121,7 @@ function label(doc: SvgDocument, node: FlowNode, b: LaidBox): SVGTextElement {
 }
 
 /** A filled triangle at the end of the edge, pointing the way its last segment goes. */
-function arrow(doc: SvgDocument, edge: LaidEdge): SVGPolygonElement {
+export function arrowCorners(edge: LaidEdge): Point[] {
   const end = edge.points[edge.points.length - 1];
   const before = edge.points[edge.points.length - 2];
   const dx = Math.sign(end.x - before.x);
@@ -107,28 +129,34 @@ function arrow(doc: SvgDocument, edge: LaidEdge): SVGPolygonElement {
   const len = 8;
   const half = 4;
   const back = { x: end.x - dx * len, y: end.y - dy * len };
-  const corners = [end, { x: back.x + dy * half, y: back.y + dx * half }, { x: back.x - dy * half, y: back.y - dx * half }];
-  return el(doc, "polygon", { points: pts(corners), style: STYLE.arrow, "data-part": "arrow" });
+  return [end, { x: back.x + dy * half, y: back.y + dx * half }, { x: back.x - dy * half, y: back.y - dx * half }];
 }
 
-/** The chart as an <svg> element (not yet in the page). */
-export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument = document): SVGSVGElement {
-  const svg = el(doc, "svg", {
-    xmlns: NS,
-    viewBox: `0 0 ${layout.width} ${layout.height}`,
-    width: layout.width,
-    height: layout.height,
-    role: "group",
-    "aria-label": `Flowchart of ${chart.name}`,
-    "data-chart": chart.name,
-  });
+function arrow(doc: SvgDocument, edge: LaidEdge, STYLE: Styles, interactive: boolean): SVGPolygonElement {
+  return el(doc, "polygon", interactive ? { points: pts(arrowCorners(edge)), style: STYLE.arrow, "data-part": "arrow" } : { points: pts(arrowCorners(edge)), style: STYLE.arrow });
+}
+
+/**
+ * The chart as an <svg> element (not yet in the page). With the export's look (interactive false)
+ * it carries no rings, Tab stops, list roles, classes or data attributes: only the drawing.
+ */
+export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument = document, look: ChartLook = VIEW_LOOK): SVGSVGElement {
+  const STYLE = styles(look);
+  const live = look.interactive;
+  const svg = el(
+    doc,
+    "svg",
+    live
+      ? { xmlns: NS, viewBox: `0 0 ${layout.width} ${layout.height}`, width: layout.width, height: layout.height, role: "group", "aria-label": `Flowchart of ${chart.name}`, "data-chart": chart.name }
+      : { xmlns: NS, viewBox: `0 0 ${layout.width} ${layout.height}`, width: layout.width, height: layout.height },
+  );
   const unreachable = new Set(chart.unreachable);
 
-  const edges = el(doc, "g", { "data-part": "edges", "aria-hidden": "true" });
+  const edges = el(doc, "g", live ? { "data-part": "edges", "aria-hidden": "true" } : {});
   for (const e of layout.edges) {
-    const g = el(doc, "g", { "data-from": e.from, "data-to": e.to, "data-kind": e.kind });
+    const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind } : {});
     g.appendChild(el(doc, "polyline", { points: pts(e.points), style: STYLE.edge }));
-    g.appendChild(arrow(doc, e));
+    g.appendChild(arrow(doc, e, STYLE, live));
     if (e.label !== undefined && e.labelAt) {
       const t = el(doc, "text", { x: e.labelAt.x, y: e.labelAt.y, "text-anchor": e.labelAt.anchor, style: STYLE.edgeLabel });
       t.textContent = e.label;
@@ -138,7 +166,7 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   }
   svg.appendChild(edges);
 
-  const list = el(doc, "g", { role: "list", "aria-label": "Steps", "data-part": "steps" });
+  const list = el(doc, "g", live ? { role: "list", "aria-label": "Steps", "data-part": "steps" } : {});
   const boxes = new Map(layout.boxes.map((b) => [b.id, b]));
   for (const node of chart.nodes) {
     const b = boxes.get(node.id);
@@ -146,24 +174,21 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
     const lines = node.from === node.to ? `line ${node.from}` : `lines ${node.from} to ${node.to}`;
     const name = [kindWords(node), node.note, unreachable.has(node.id) ? "never reached" : undefined, lines].filter(Boolean).join(", ");
     // Out of the Tab order: the view keeps one box at tabindex 0 (one Tab stop, arrows move).
-    const g = el(doc, "g", {
-      class: "fc-node",
-      role: "listitem",
-      tabindex: -1,
-      "aria-label": name,
-      "data-node": node.id,
-      "data-kind": node.kind,
-      "data-line-from": node.from,
-      "data-line-to": node.to,
-    });
+    const g = el(
+      doc,
+      "g",
+      live
+        ? { class: "fc-node", role: "listitem", tabindex: -1, "aria-label": name, "data-node": node.id, "data-kind": node.kind, "data-line-from": node.from, "data-line-to": node.to }
+        : {},
+    );
     const title = el(doc, "title", {});
     title.textContent = name;
     g.appendChild(title);
     // The ring the view shows round a focused box and round the caret's box (styled by its CSS:
     // interaction only, so an exported image never carries it).
-    g.appendChild(el(doc, "rect", { class: "fc-ring", x: b.x - 4, y: b.y - 4, width: b.w + 8, height: b.h + 8, rx: 6 }));
-    for (const s of shape(doc, node, b)) g.appendChild(s);
-    g.appendChild(label(doc, node, b));
+    if (live) g.appendChild(el(doc, "rect", { class: "fc-ring", x: b.x - 4, y: b.y - 4, width: b.w + 8, height: b.h + 8, rx: 6 }));
+    for (const s of shape(doc, node, b, STYLE)) g.appendChild(s);
+    g.appendChild(label(doc, node, b, STYLE));
     list.appendChild(g);
   }
   svg.appendChild(list);
