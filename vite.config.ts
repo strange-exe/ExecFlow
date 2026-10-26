@@ -124,6 +124,27 @@ function headersFor(path: string, rules = securityRules): Record<string, string>
   return out;
 }
 
+/**
+ * web-tree-sitter finds its .wasm with `new URL("web-tree-sitter.wasm", import.meta.url)`, which
+ * Vite would bundle as a hashed asset, and the service worker would then precache it (205 KB on the
+ * first visit, a second copy of public/flowchart/'s). The flowchart engine always hands the runtime
+ * its bytes (wasmBinary, sha256-checked), so that URL is never fetched: it becomes a plain name. If
+ * an update changes the text, the build stops here instead of quietly shipping the extra file.
+ */
+function flowchartRuntimeUrl(): Plugin {
+  const original = 'new URL("web-tree-sitter.wasm", import.meta.url).href';
+  return {
+    name: "code-editor:flowchart-runtime-url",
+    enforce: "pre",
+    transform(code, id) {
+      if (!/[\\/]web-tree-sitter[\\/]web-tree-sitter\.js$/.test(id.split("?")[0])) return null;
+      const found = code.split(original).length - 1;
+      if (found !== 1) throw new Error(`web-tree-sitter.js: expected ${original} once, found it ${found} times; re-check the flowchart runtime's loading.`);
+      return { code: code.replace(original, '"web-tree-sitter.wasm"'), map: null };
+    },
+  };
+}
+
 /** Writes Cloudflare Pages' _headers file from the rules above, so the two can't drift apart. */
 function pagesHeaders(): Plugin {
   return {
@@ -173,7 +194,8 @@ export default defineConfig(({ mode }) => ({
   // The CSP is enforced on the production build (`vite preview`, which the end-to-end tests use).
   // The dev server keeps only the isolation headers.
   server: { headers: isolation },
-  worker: { format: "es", rolldownOptions: { output: workerNames } },
+  // Workers have their own plugin list: the flowchart worker is where web-tree-sitter lives.
+  worker: { format: "es", plugins: () => [flowchartRuntimeUrl()], rolldownOptions: { output: workerNames } },
   build: {
     // No source maps in production: DevTools can't rebuild the src/ tree. Nothing secret lives in the client.
     sourcemap: false,
@@ -193,6 +215,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     devIsolation(),
     flowchartPack(),
+    flowchartRuntimeUrl(),
     pagesHeaders(),
     previewHeaders(),
     VitePWA({
