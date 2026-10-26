@@ -415,6 +415,8 @@ export function createExporter<R extends Drawn>(deps: ExporterDeps<R>): Exporter
 
 export interface BudgetMeasures {
   readonly innerHeight: number;
+  /** The window is 900 px wide or more (the app's own breakpoint): side by side unless compact. */
+  readonly wide: boolean;
   /** The dialog head's height (the title may wrap). */
   readonly head: number;
   /** The footer's height, its empty status line included. */
@@ -425,14 +427,27 @@ export interface BudgetMeasures {
   readonly firstRow: number;
 }
 
-/** The frame's room in the dialog, measured once per opening and on resize. Compact: the dialog itself becomes the one scroller. */
-export function frameBudget(m: BudgetMeasures): { cap: number; compact: boolean; frameCap: number } {
+/** How the dialog lays out: the stage left of the options ("side"), or above them ("stack"). */
+export type SnippetLayout = "side" | "stack";
+
+/**
+ * The frame's room in the dialog, measured once per opening and on resize. Compact: the dialog
+ * itself becomes the one scroller (very short or zoomed windows, at any width). Otherwise round 3:
+ * side by side from 900 px wide (the stage fills the dialog's height, its size set by CSS), or
+ * stacked with the preview at most 45% of the window's height and the first options row in view.
+ */
+export function frameBudget(m: BudgetMeasures): { cap: number; compact: boolean; frameCap: number; layout: SnippetLayout } {
   const dialogMax = Math.min(760, m.innerHeight - 32);
-  const fixed = 2 + m.head + m.footer + 24 + 16 + m.notes.reduce((sum, h) => sum + h + 8, 0) + m.firstRow;
+  const notes = m.notes.reduce((sum, h) => sum + h + 8, 0);
+  const fixed = 2 + m.head + m.footer + 24 + 16 + notes + m.firstRow;
   // 18: the frame's padding (2 x 8) and border (2 x 1).
   const cap = dialogMax - fixed - 18;
-  const compact = cap < 96;
-  return { cap, compact, frameCap: compact ? Math.max(96, Math.round(dialogMax / 2) - 18) : Math.min(420, cap) };
+  // Side by side the options don't sit under the stage: the stage has the body's height less the
+  // rows under it (the body's 12 px foot), and needs 96 px of it.
+  const side = dialogMax - 2 - m.head - m.footer - 12 - notes - 18;
+  const compact = m.wide ? side < 96 : cap < 96;
+  const frameCap = compact ? Math.max(96, Math.round(dialogMax / 2) - 18) : Math.min(Math.round(0.45 * m.innerHeight) - 18, cap);
+  return { cap, compact, frameCap, layout: m.wide && !compact ? "side" : "stack" };
 }
 
 /**
@@ -446,16 +461,13 @@ export function frameContent(layouts: readonly { readonly width: number; readonl
 }
 
 /**
- * How much the preview shrinks an image: to the frame's inner width, never enlarged, and, where the
- * stage shows the default look whole (`stage`, its content height; null when the stage is capped
- * and scrolls), to the stage's height as well, so a taller look (a larger background, the window
- * frame) shrinks a little instead of scrolling or reserving room for itself.
+ * How much the preview shrinks an image (round 3): the whole image inside the stage's inner box,
+ * both ways, never enlarged, so a long snippet reads as a tall thumbnail and the stage never
+ * scrolls. `actual`: the "Actual size" toggle, 1:1 (the stage then scrolls).
  */
-export function previewFit(layout: { readonly width: number; readonly height: number }, innerWidth: number, stage: number | null): number {
-  const byWidth = Math.min(1, Math.max(1, innerWidth) / layout.width);
-  // Only a look taller than the stage shrinks by height (it then fills the stage's height exactly,
-  // as the default look does); the looks that fit keep their width fit.
-  return stage !== null && layout.height * byWidth > stage ? Math.min(byWidth, stage / layout.height) : byWidth;
+export function previewFit(layout: { readonly width: number; readonly height: number }, innerWidth: number, innerHeight: number, actual = false): number {
+  if (actual) return 1;
+  return Math.min(1, Math.max(1, innerWidth) / layout.width, Math.max(1, innerHeight) / layout.height);
 }
 
 /**

@@ -6,8 +6,8 @@ import {
 } from "./snippet";
 import {
   captureMessage, checkColors, cleanImageOptions, colorChoices, DEFAULT_IMAGE_OPTIONS, dialogTitle, downloadName, highlightExample, highlightHint,
-  IMAGE_OPTIONS_KEY, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING, parseHighlight, previewLabel, rangesOf, readImageOptions, sameOptions, sizeLine,
-  writeImageOptions, type ImageOptions,
+  IMAGE_OPTIONS_KEY, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING, parseHighlight, previewLabel, rangesOf, readImageOptions, sameOptions, scaleNote,
+  sizeText, writeImageOptions, type ImageOptions,
 } from "./snippet-dialog";
 import { shown as domShown } from "../ui/dom";
 
@@ -400,9 +400,13 @@ describe("highlighted lines (round 2)", () => {
     expect(rangesOf([1, 2, 3, 5, 7, 8])).toEqual(["1-3", "5", "7-8"]);
   });
 
-  it("the size line says the PNG's size, and the step when the chosen scale can't fit", () => {
-    expect(sizeLine(822, 357, 2, 2)).toBe("822 x 357 pixels.");
-    expect(sizeLine(1466, 6855, 3, 1.5)).toBe("1466 x 6855 pixels. 3x is too big for this image, so it is 1.5x.");
+  it("the footer's size says the PNG's size; the Scale note says the step only when the chosen scale can't fit (round 3)", () => {
+    expect(sizeText(822, 357)).toBe("822 x 357 px");
+    expect(sizeText(1466, 6855)).toBe("1466 x 6855 px");
+    expect(scaleNote(2, 2)).toBe("");
+    expect(scaleNote(3, 3)).toBe("");
+    expect(scaleNote(3, 1.5)).toBe("3x is too big for this image, so it is 1.5x.");
+    expect(scaleNote(2, 1)).toBe("2x is too big for this image, so it is 1x.");
   });
 });
 

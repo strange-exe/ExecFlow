@@ -10,7 +10,7 @@ import { BUILT_IN, themePalette, type Scheme } from "../theme/themes";
 import { EXTRA_SPECIALS } from "./extensions";
 import { languageSupport } from "./language-support";
 import {
-  BAR_STEP, cardRect, chooseScale, CREDIT, creditInk, creditSize, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, windowBarGround, wrapRows,
+  BAR_STEP, cardRect, chooseScale, CREDIT, creditInk, creditMark, creditSize, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, windowBarGround, wrapRows,
   type Run, type StyledLine,
 } from "./snippet-render";
 
@@ -225,6 +225,24 @@ describe("layoutImage and chooseScale (4.1, 4.5)", () => {
     // 20 px code: a 17 px credit on a 25.5 px box needs a 39.5 band, over medium's 32; 11 px is the floor.
     expect(layoutImage(numbered(2, 2), { ch: 12, lineH: 30, widest: 144 }, { ...plain(true, true), pad: 32, credit: true }).padBottom).toBe(39.5);
     expect(creditSize(18)).toBe(CREDIT.MIN_SIZE);
+  });
+
+  it("round 3: the brand mark sits before the credit's text, at the text's size, centred on its line box; the layout's size is unchanged", () => {
+    const m = { ch: 9, lineH: 22.5, widest: 144 };
+    const l = layoutImage(numbered(2, 2), m, { ...plain(true, true), pad: 32, credit: true });
+    // "Made with CodeEditor" at 12 px in the code font (0.6 em advance): 144 px wide.
+    const mark = creditMark(l.credit!, 144);
+    expect(mark.size).toBe(12);
+    expect(mark.x + mark.size + CREDIT.MARK_GAP * 12).toBeCloseTo(347 - 144, 9);
+    expect(mark.y).toBeCloseTo(l.credit!.top + (18 - 12) / 2, 9);
+    // Inside the image: the mark never needs room the layout doesn't give (the card is at least 32 columns).
+    expect(mark.x).toBeGreaterThan(0);
+    expect([l.width, l.height]).toEqual([411, 178.5]);
+    // The smallest credit (11 px) on the narrowest card (32 columns of 6.6 px): still inside the card's padding.
+    const small = layoutImage(numbered(1, 1), { ch: 6.6, lineH: 16.5, widest: 10 }, { ...plain(false, false), credit: true });
+    const at = creditMark(small.credit!, 20 * 6.6);
+    expect(at.size).toBe(CREDIT.MIN_SIZE);
+    expect(at.x).toBeGreaterThanOrEqual(1 + 16);
   });
 
   it("the card's place leaves the credit's taller band under it", () => {
