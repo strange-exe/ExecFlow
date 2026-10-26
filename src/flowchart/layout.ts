@@ -145,6 +145,24 @@ type Frame = { L: number; R: number; H: number } & (
   | { t: "switch"; d: Box; cols: { f: Frame; x: number; label: string; exit: "break" | "fall"; colR: number }[]; busY: number; colTop: number; ftY: number; collectY: number }
 );
 
+/** Does the frame hold a break or continue anywhere inside it? */
+function hasJump(f: Frame): boolean {
+  switch (f.t) {
+    case "jump":
+      return true;
+    case "seq":
+      return f.items.some((it) => hasJump(it.f));
+    case "if":
+      return hasJump(f.yes) || hasJump(f.no);
+    case "loop":
+      return hasJump(f.s) || (f.orelse !== null && hasJump(f.orelse));
+    case "switch":
+      return f.cols.some((c) => hasJump(c.f));
+    default:
+      return false;
+  }
+}
+
 /** Draws nothing and jumps nowhere. */
 const isBlank = (f: Frame): boolean => f.t === "seq" && f.items.every((it) => isBlank(it.f));
 
@@ -297,7 +315,9 @@ class Builder {
     const sTop = dTop + d.h + M.gapY;
     const backY = sTop + s.H + M.gapY / 2;
     const xBack = -(Math.max(hw, s.L) + M.lane);
-    const xExit = Math.max(hw, s.R) + M.lane;
+    // A break or continue inside is routed later down the right of the body's boxes (CLEAR past
+    // them): the exit lane keeps a channel beyond that run instead of being crossed by it.
+    const xExit = Math.max(hw, s.R) + (hasJump(s) ? Math.max(M.lane, CLEAR + CHANNEL) : M.lane);
     const exitY = backY + M.gapY / 2;
     let H = exitY;
     let oTop = 0;

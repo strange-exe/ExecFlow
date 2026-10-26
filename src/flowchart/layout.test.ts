@@ -272,11 +272,16 @@ describe("structured layout", () => {
 
   test("a continue or break beside a loop's test stays inside the loop's exit lane: no crossing", async () => {
     const src = `#include <stdio.h>\nint main(void) {\n  int n, score;\n  scanf("%d", &n);\n  for (int i = 0; i < n; i++) {\n    scanf("%d", &score);\n    if (score < 0) continue;\n    printf("%d", score);\n  }\n  return 0;\n}\n`;
-    for (const jump of ["continue", "break"]) {
-      const chart = ok((await chartFile("c", src.replace("continue", jump))).charts[0]);
-      const l = layoutChart(chart);
-      expectGoodLayout(chart, l, jump);
-      expect(crossings(l), jump).toEqual([]);
+    // And with a body box wider than the test's run past its label (a call to a function in the file).
+    const wide = `char grade(int s) { return s > 50 ? 'P' : 'F'; }\n${src.replace(`printf("%d", score)`, `printf("%c", grade(score))`)}`;
+    for (const [name, code] of [["narrow", src], ["wide", wide]]) {
+      for (const jump of ["continue", "break"]) {
+        const result = (await chartFile("c", code.replace("continue", jump))).charts.find((c) => c.name === "main")!;
+        const chart = ok(result);
+        const l = layoutChart(chart);
+        expectGoodLayout(chart, l, `${name} ${jump}`);
+        expect(crossings(l), `${name} ${jump}`).toEqual([]);
+      }
     }
   });
 
