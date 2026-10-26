@@ -8,9 +8,10 @@ import { fitCut, ELLIPSIS, type LineSpan } from "../core/snippet";
 import { CREDIT_TEXT, PADDING, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { IMAGE_MIXES, over } from "../theme/contrast";
 import type { Drawn, RenderOutcome, RenderSignal } from "../ui/snippet-flow";
+import { drawBrandMark } from "./brand-mark";
 import {
-  cardRect, chooseScale, creditInk, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimRuns, windowBarGround, wrapRows,
-  type ImageLayout, type Metrics, type Row,
+  cardRect, chooseScale, creditInk, creditMark, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimRuns, windowBarGround,
+  wrapRows, type CreditPlace, type ImageLayout, type Metrics, type Row,
 } from "./snippet-render";
 
 /** Rows wrap at 100 columns, after a space at column 50 or later. */
@@ -206,11 +207,17 @@ function nameUnits(name: string): { text: string; special: boolean }[] {
   return units;
 }
 
-/** The "Made with CodeEditor" line, right-aligned at its place (card coordinates, under the drawing's scale). */
-function drawCredit(ctx: CanvasRenderingContext2D, at: { top: number; right: number; size: number }, font: CodeFont, ink: string): void {
+/**
+ * The "Made with CodeEditor" line, right-aligned at its place (card coordinates, under the drawing's
+ * scale), with the brand mark before it (round 3; its fixed brand colours, brand-mark.ts).
+ */
+function drawCredit(ctx: CanvasRenderingContext2D, at: CreditPlace, font: CodeFont, ink: string): void {
   ctx.font = fontOf(font, at.size, false);
+  const width = onGrid(ctx.measureText(CREDIT_TEXT).width);
   ctx.fillStyle = ink;
-  ctx.fillText(CREDIT_TEXT, at.right - ctx.measureText(CREDIT_TEXT).width, baselineIn(at.top, at.size * 1.5, vertical(ctx, at.size)));
+  ctx.fillText(CREDIT_TEXT, at.right - width, baselineIn(at.top, at.size * 1.5, vertical(ctx, at.size)));
+  const mark = creditMark(at, width);
+  drawBrandMark(ctx, mark.x, mark.y, mark.size);
 }
 
 /**

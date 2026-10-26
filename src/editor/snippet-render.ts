@@ -267,8 +267,11 @@ export interface LayoutOptions {
  * padding, right-aligned with the card's edge and centred in a band of at least its line box and
  * 7 px above and below (so a small background grows at its bottom only); without one, it is the
  * card's last row, 4 px under the code and 8 px above the edge, right-aligned with the code's padding.
+ * Round 3: the brand mark comes before the text, a tile as tall as the font size, a third of it
+ * apart (MARK_GAP, in ems), centred on the line box; it fits in the card's padding at every size
+ * (the card is 32 columns at least), so no image grows for it.
  */
-export const CREDIT = { MIN_SIZE: 11, UNDER: 3, BAND_GAP: 7, IN_GAP: 4, IN_BOTTOM: 8 } as const;
+export const CREDIT = { MIN_SIZE: 11, UNDER: 3, BAND_GAP: 7, IN_GAP: 4, IN_BOTTOM: 8, MARK_GAP: 1 / 3 } as const;
 
 /** The credit's font size for a code line box of `lineH` (the code size times 1.5). */
 export const creditSize = (lineH: number): number => Math.max(CREDIT.MIN_SIZE, lineH / 1.5 - CREDIT.UNDER);
@@ -278,6 +281,12 @@ export interface CreditPlace {
   readonly top: number;
   readonly right: number;
   readonly size: number;
+}
+
+/** The brand mark's tile before the credit's text (`textWidth`, as measured): its top-left corner and side, card coordinates. */
+export function creditMark(at: CreditPlace, textWidth: number): { x: number; y: number; size: number } {
+  const size = at.size;
+  return { x: at.right - textWidth - CREDIT.MARK_GAP * size - size, y: at.top + (at.size * 1.5 - size) / 2, size };
 }
 
 export interface ImageLayout {
