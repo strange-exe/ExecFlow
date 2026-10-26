@@ -438,19 +438,23 @@ export class EditorManager {
     return cmd({ state: s.state, dispatch: (tr) => this.commitInactive(s, tr) });
   }
 
-  /** Selects [from, to] in a file, shows it centred and focuses the editor. */
-  reveal(id: FileId, from: number, to: number = from): boolean {
+  /**
+   * Selects [from, to] in a file, shows it centred and focuses the editor. With `focus` false the
+   * selection moves and stays in view but the focus stays where it is (the flowchart's keyboard
+   * browsing shows each box's lines without leaving the chart).
+   */
+  reveal(id: FileId, from: number, to: number = from, focus = true): boolean {
     if (!this.sessions.has(id)) return false;
     if (this.depth > 0) {
-      queueMicrotask(() => this.reveal(id, from, to));
+      queueMicrotask(() => this.reveal(id, from, to, focus));
       return true;
     }
     this.activate(id);
     const state = this.host.state;
     const anchor = clampPos(state.doc, from);
     const head = clampPos(state.doc, to);
-    this.host.dispatch(state.update({ selection: { anchor, head }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) }));
-    this.host.focus();
+    this.host.dispatch(state.update({ selection: { anchor, head }, effects: EditorView.scrollIntoView(anchor, { y: focus ? "center" : "nearest" }) }));
+    if (focus) this.host.focus();
     return true;
   }
 
