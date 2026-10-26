@@ -8,6 +8,7 @@ dev-dist/
 # Generated runtimes (copied or fetched by scripts)
 public/pyodide/
 public/clang/
+public/flowchart/
 # Test output
 test-results/
 playwright-report/

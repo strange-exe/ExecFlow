@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -26,6 +27,23 @@ function clangPack(mode: string) {
   if (dir) return JSON.parse(readFileSync(`public/clang/${dir}/manifest.json`, "utf8"));
   if (mode === "test") return { version: "test", source: "none", totalBytes: 0, files: {} };
   throw new Error("The C/C++ pack is missing: run `node scripts/fetch-clang.mjs` (npm run dev/build do this).");
+}
+
+/**
+ * The flowchart's parser files (src/flowchart/pack.ts), written by scripts/fetch-flowchart-grammars.mjs.
+ * Dev and build stop with a clear message when one is missing; unit tests don't need them here.
+ */
+function flowchartPack(): Plugin {
+  return {
+    name: "code-editor:flowchart-pack",
+    config(_config, { mode }) {
+      if (mode === "test") return;
+      const missing = PACK_FILES.filter((f) => !existsSync(`public/flowchart/${FLOWCHART_DIR}/${f.file}`)).map((f) => f.file);
+      if (missing.length) {
+        throw new Error(`The flowchart parser files are missing (${missing.join(", ")}): run \`node scripts/fetch-flowchart-grammars.mjs\` (npm run dev/build do this).`);
+      }
+    },
+  };
 }
 
 // Cross-origin isolation enables SharedArrayBuffer: live input while a program runs, and stopping
@@ -88,6 +106,7 @@ const cacheRules: [string, Record<string, string>][] = [
   ["/assets/*", { "Cache-Control": IMMUTABLE }],
   [`/pyodide/${pyodideDir}/*`, { "Cache-Control": IMMUTABLE }],
   ["/clang/*", { "Cache-Control": IMMUTABLE }], // the folder name is the pack's version
+  [`/flowchart/${FLOWCHART_DIR}/*`, { "Cache-Control": IMMUTABLE }], // the folder name carries every file's version
 ];
 
 /** Cloudflare-style path match: "*" matches anything, including "/". */
@@ -173,6 +192,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     devIsolation(),
+    flowchartPack(),
     pagesHeaders(),
     previewHeaders(),
     VitePWA({
@@ -201,7 +221,9 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ["**/*.{js,mjs,css,html,svg,png,woff2,wasm,zip,json}"],
         // The C/C++ pack (~20 MB) is downloaded by the compiler worker into its own cache when first needed.
         // _routes.json is Cloudflare's (which paths run the sign-in function), not the app's.
-        globIgnores: ["clang/**", "_routes.json"],
+        // The flowchart's parser files (~4.5 MB) are not precached either: they download the first time
+        // a flowchart is asked for, and are runtime-cached below.
+        globIgnores: ["clang/**", "flowchart/**", "_routes.json"],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Versioned or hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the
         // service worker can reuse what the page already downloaded (no second 6 MB download).
@@ -220,6 +242,17 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "codeeditor-python-packages",
               expiration: { maxEntries: 16 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          // The flowchart's runtime and grammars: versioned folder, so a cached file never goes stale;
+          // the flowchart worker also checks each one's sha256 before using it.
+          {
+            urlPattern: new RegExp(`/flowchart/${FLOWCHART_DIR.replace(/\./g, "\\.")}/[^/]+\\.wasm$`),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "codeeditor-flowchart",
+              expiration: { maxEntries: 8 },
               cacheableResponse: { statuses: [200] },
             },
           },

@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs",
+    "predev": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs && node scripts/fetch-flowchart-grammars.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs",
+    "prebuild": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs && node scripts/fetch-flowchart-grammars.mjs",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "dev:pages": "wrangler pages dev dist --ip 127.0.0.1 --port 8788 --compatibility-date 2026-10-01",

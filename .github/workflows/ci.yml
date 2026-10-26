@@ -47,6 +47,11 @@ jobs:
       - name: C/C++ pack
         run: node scripts/fetch-clang.mjs
 
+      # The flowchart's parser files (SHA-256 checked): the unit tests load each grammar with the real
+      # runtime, and fail in CI when the files are missing instead of skipping.
+      - name: Flowchart parser files
+        run: node scripts/fetch-flowchart-grammars.mjs
+
       - name: Unit tests
         run: npm test
 
