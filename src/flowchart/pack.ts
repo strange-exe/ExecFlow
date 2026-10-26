@@ -9,10 +9,8 @@
 // pins its integrity). The folder name carries every version, so a new version is a new URL: the
 // files are served as immutable and runtime-cached by the service worker under that name.
 
-import type { LanguageId } from "../core/languages";
-
-/** Every language the editor runs has a flowchart. */
-export type FlowLanguage = LanguageId;
+/** Every language the editor runs has a flowchart (protocol.ts checks this matches LanguageId). */
+export type FlowLanguage = "c" | "cpp" | "python";
 
 export interface PackFile {
   /** File name inside the folder. */

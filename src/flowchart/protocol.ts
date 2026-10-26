@@ -1,4 +1,5 @@
 // Messages between the page and the flowchart worker (src/workers/flowchart.worker.ts).
+import type { LanguageId } from "../core/languages";
 import type { LoadFailure } from "./engine";
 import type { FlowFile } from "./model";
 import type { FlowLanguage } from "./pack";
@@ -16,6 +17,9 @@ export type FromFlowchart =
   | { type: "failed"; id: number; message: string };
 
 export const LANGUAGES: readonly FlowLanguage[] = ["c", "cpp", "python"];
+
+/** Type check: the flowchart covers exactly the editor's languages (pack.ts can't import them: Vite's config loads it). */
+export const SAME_LANGUAGES: [FlowLanguage] extends [LanguageId] ? ([LanguageId] extends [FlowLanguage] ? true : false) : false = true;
 
 /** The worker answers only well-formed requests. */
 export function isRequest(msg: unknown): msg is ToFlowchart {
