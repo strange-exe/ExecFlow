@@ -234,7 +234,10 @@ class Builder {
       const xYes = pure ? hw : hw + M.gapX / 2 + yes.L;
       const yYes = pure ? d.h / 2 : d.h / 2 + M.gapY / 2;
       const H = Math.max(d.h, pure ? 0 : yYes + yes.H + M.gapY / 2);
-      return { t: "if", variant: "guard", d, yes, no, xYes, xNo: 0, yYes, yNo: d.h, yJoin: H, L: hw, R: Math.max(hw, xYes + yes.R), H };
+      // A bare jump is routed later from the tip, past its "Yes" label: keep room for that run, so
+      // an enclosing loop's exit lane passes outside it instead of crossing it.
+      const jumpRoom = pure ? hw + labelRect({ x: 0, y: 0, anchor: "start" }, "Yes").x1 + 2 * CHANNEL : hw;
+      return { t: "if", variant: "guard", d, yes, no, xYes, xNo: 0, yYes, yNo: d.h, yJoin: H, L: hw, R: Math.max(jumpRoom, xYes + yes.R), H };
     }
     if (blank(step.no)) {
       // No else: Yes straight down the spine, No around the right.

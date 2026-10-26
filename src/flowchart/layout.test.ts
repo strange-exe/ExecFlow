@@ -201,6 +201,22 @@ function spacingProblems(layout: Layout, name: string): string[] {
   return out;
 }
 
+/** Places where a vertical run of one edge passes through a horizontal run of another (not at an end). */
+function crossings(layout: Layout): string[] {
+  const out: string[] = [];
+  const { v, h } = segmentsOf(layout);
+  for (const s of v) {
+    for (const t of h) {
+      if (s.edge === t.edge) continue;
+      if (s.at > t.a && s.at < t.b && t.at > s.a && t.at < s.b) {
+        const [e1, e2] = [layout.edges[s.edge], layout.edges[t.edge]];
+        out.push(`${e1.from}>${e1.to} crosses ${e2.from}>${e2.to} at ${s.at},${t.at}`);
+      }
+    }
+  }
+  return out;
+}
+
 /** Edge labels touch no box, no edge (their own included) and no other label. */
 function labelProblems(layout: Layout, name: string): string[] {
   const out: string[] = [];
@@ -252,6 +268,16 @@ describe("structured layout", () => {
     // return 0 below everything, back on the spine.
     expect(cx(8)).toBe(cx(0));
     for (const x of l.boxes.filter((x) => x.id !== 8)) expect(b(8).y).toBeGreaterThan(x.y + x.h);
+  });
+
+  test("a continue or break beside a loop's test stays inside the loop's exit lane: no crossing", async () => {
+    const src = `#include <stdio.h>\nint main(void) {\n  int n, score;\n  scanf("%d", &n);\n  for (int i = 0; i < n; i++) {\n    scanf("%d", &score);\n    if (score < 0) continue;\n    printf("%d", score);\n  }\n  return 0;\n}\n`;
+    for (const jump of ["continue", "break"]) {
+      const chart = ok((await chartFile("c", src.replace("continue", jump))).charts[0]);
+      const l = layoutChart(chart);
+      expectGoodLayout(chart, l, jump);
+      expect(crossings(l), jump).toEqual([]);
+    }
   });
 
   test("a 400-step chart lays out quickly", async () => {
