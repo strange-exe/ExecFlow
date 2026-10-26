@@ -1,20 +1,23 @@
 /* The Capture snippet dialog (src/ui/snippet-dialog.ts, final-v3 sections 5.1 and 5.2; round 2,
-   .claude/design/batch3/s.md). A lazy stylesheet: the dialog's module imports it, and Vite's preload
-   helper waits for it before the module runs, so the dialog never shows unstyled. Tokens only
-   (tokens.test.ts checks). The frame's height is set in px from script, once per opening. */
+   .claude/design/batch3/s.md; round 3, .claude/tasks/snippet-dialog-v3.md). A lazy stylesheet: the
+   dialog's module imports it, and Vite's preload helper waits for it before the module runs, so the
+   dialog never shows unstyled. Tokens only (tokens.test.ts checks). Three layouts, set by script on
+   the dialog (data-layout, data-compact): stacked (the body the one scroller), side by side from
+   900 px wide (the stage left, the options column right, only that column may scroll), and compact
+   (the dialog the one scroller). The stage's height is set in px from script when stacked. */
 
-/* Normal mode: the body scrolls between the head and the footer, so a focused option is never under the footer. */
+/* Stacked: the body scrolls between the head and the footer, so a focused option is never under the footer. */
 .snippet-dialog .dialog-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 /* A wrapped title breaks into even lines ("Capture snippet of / lines 2 to 3"), never a lone "3". */
 .snippet-dialog .dialog-title { text-wrap: balance; }
 
-/* The preview: the export bitmap itself, shrunk to the frame's width, never enlarged, and centred on
-   a stage that keeps one height for the opening (the default look's tallest layout; a taller look
-   shrinks to it). Auto margins centre it; an image taller than a capped stage still scrolls from its
-   top. The stage has no ground or border
-   of its own (round 2): the image brings its card and background, and a second frame round them
-   read as boxes in boxes. The 1 px transparent border keeps round 1's geometry and shows in forced
-   colours. */
+/* The preview: the export bitmap itself, fitted whole inside the stage (never enlarged, never
+   scrolled), centred by auto margins. The stage has no ground or border of its own (round 2): the
+   image brings its card and background, and a second frame round them read as boxes in boxes. The
+   1 px transparent border keeps round 1's geometry and shows in forced colours. Actual size
+   (data-actual) shows the image 1:1 and the stage scrolls; an image larger than it then starts at
+   its top-left corner (auto margins never push it out of reach). */
+.snippet-stage { display: flex; flex-direction: column; min-width: 0; }
 .snippet-frame {
   display: flex;
   flex-direction: column;
@@ -22,17 +25,27 @@
   border: 1px solid transparent;
   border-radius: var(--r-control);
   color: var(--text);
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-gutter: stable both-edges;
+  overflow: hidden;
+  /* A picture, not text: a double click (the second click of the one that opened the dialog over
+     it, side by side) selected the canvas in WebKit, and the next press then dragged the selection. */
+  -webkit-user-select: none;
+  user-select: none;
 }
+.snippet-frame[data-actual] { overflow: auto; }
 .snippet-frame > canvas { display: block; flex: none; margin: auto; }
 /* The ring inside the frame's edge: the body that scrolls the frame clips anything outside its box,
    and the frame sits flush with the body's top (as .panel-body's ring). */
 .snippet-frame:focus-visible { outline-offset: -2px; }
 .snippet-frame-text { margin: 0; padding: var(--s2); }
 
-/* Notes under the frame: an info icon and words, the field-note size. */
+/* Under the stage, right-aligned: the Actual size toggle. Pressed, it takes the selected look the
+   theme tiles and the segments use (the location ring, the list-selected ground, the strong weight). */
+.snippet-stagebar { display: flex; justify-content: flex-end; margin-top: var(--s2); }
+/* A row's height: 44 px on touch screens and phones, like the choices beside it. */
+.snippet-stagebar .btn { min-height: var(--h-row); }
+.snippet-stagebar .btn[aria-pressed="true"] { border-color: transparent; background: var(--list-selected); box-shadow: inset 0 0 0 2px var(--location); font-weight: var(--w-strong); }
+
+/* Notes under the stage: an info icon and words, the field-note size. */
 .snippet-note {
   display: flex;
   align-items: flex-start;
@@ -70,10 +83,50 @@
   min-height: var(--h-row);
 }
 .snippet-choice > label { overflow-wrap: anywhere; }
-/* Short choices in one row (Scale: 1x 2x 3x). */
-.snippet-row { display: flex; flex-wrap: wrap; column-gap: var(--s4); }
-/* The PNG's exact size, under the Scale choices: tier 3. */
-.snippet-size { margin: 2px 0 0; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+
+/* Background, Frame and Scale (round 3): one row of segments in a track. Each segment is a native
+   radio (one Tab stop for the group, arrows choose) and its label, the segment's face. Selected: the list-selected ground, a 2 px location ring (3:1 or more
+   against the track and its own ground: contrast.ts "location" on bg and on list-selected@bg) and
+   the strong weight, so the state is never colour alone. */
+.snippet-segments {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+}
+.snippet-segment { position: relative; display: flex; min-width: 0; min-height: var(--h-row); border-radius: calc(var(--r-control) - 3px); }
+/* The radio itself covers the segment, invisible, above its label: a press anywhere on the segment
+   lands on the native control. */
+.snippet-segment > input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; appearance: none; cursor: pointer; }
+.snippet-segment > label {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--s2);
+  border-radius: inherit;
+  color: var(--text);
+  text-align: center;
+}
+.snippet-segment:hover > label { background: var(--hover); }
+.snippet-segment:has(> input:checked) { background: var(--list-selected); box-shadow: inset 0 0 0 2px var(--location); }
+.snippet-segment:has(> input:checked) > label { background: none; font-weight: var(--w-strong); }
+.snippet-segment:has(> input:focus-visible) { outline: var(--ring); outline-offset: 1px; }
+/* The radio's own ring would be drawn on an invisible box: the segment carries it. */
+.snippet-segment > input:focus-visible { outline: none; }
+/* Forced colours drop box-shadow: the selected segment keeps an outline in the system's text colour. */
+@media (forced-colors: active) {
+  .snippet-segment:has(> input:checked) { outline: 2px solid; outline-offset: -2px; }
+}
+
+/* Only when the chosen scale can't fit: the step taken, under the Scale segments (tier 3). */
+.snippet-scale-note { margin: var(--s1) 0 0; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+.snippet-scale-note:empty { display: none; }
 
 /* Highlight lines: a text field, its message (when there is one), then its hint. */
 .snippet-highlight { min-width: 0; }
@@ -83,18 +136,74 @@
    Its message is app.css's shared .field-error (DESIGN.md decision 13). */
 .snippet-highlight > input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
 
-/* The footer (app.css: its rule shows while the body scrolls), then the status and the buttons. The
-   status is the shared .result-line on the chrome's 20 px line. Where the footer is 480 px or wider
-   it shares the buttons' row, left of them, and keeps its two lines there (the row the buttons
-   already need), so a result moves nothing and no empty band sits above them. Narrower it is a line
-   of its own above the buttons that takes no room while empty (the dialog is at its tallest there:
-   the buttons sit at its bottom, and a result only shortens the scrolled body). */
+/* Side by side (round 3, 900 px wide and taller than compact): a wider dialog of a fixed height; the
+   stage fills the left of the body, the options are a column of their own on the right that scrolls
+   when it must; the body itself never scrolls. A quiet divider rule separates the two. */
+.snippet-dialog[data-layout="side"] { width: min(1120px, calc(100vw - 32px)); height: min(760px, calc(100dvh - 32px)); }
+.snippet-dialog[data-layout="side"] .dialog-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 32%, 360px);
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: var(--s5);
+  overflow: hidden;
+}
+.snippet-dialog[data-layout="side"] .snippet-stage { min-height: 0; }
+.snippet-dialog[data-layout="side"] .snippet-frame { flex: 1 1 auto; min-height: 0; }
+.snippet-dialog[data-layout="side"] .snippet-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-height: 0;
+  margin: 0;
+  padding: 0 var(--s1) var(--s1) var(--s5);
+  border-left: 1px solid var(--divider);
+  overflow-y: auto;
+}
+
+/* The footer (app.css: its rule shows while the body scrolls), then the status, the PNG's size and
+   the buttons. The status is the shared .result-line on the chrome's 20 px line. Where the footer is
+   640 px or wider, one row: the status (its two lines reserved), the size and the buttons. From 480
+   px the status keeps the row's left and its two lines, the size sits above the buttons. Narrower
+   the status is a line of its own that takes no room while empty (the dialog is at its tallest
+   there: the buttons sit at its bottom, and a result only shortens the scrolled body), then the
+   size, then the buttons. So a result moves nothing, and no empty band sits above the buttons. */
 .snippet-actions { container-type: inline-size; }
-.snippet-status { flex: 1 1 100%; }
+.snippet-footer {
+  flex: 1 1 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "status" "size" "buttons";
+  align-items: center;
+  gap: 0 var(--s3);
+}
+.snippet-status { grid-area: status; }
+.snippet-status:not(:empty) { margin-bottom: var(--s2); }
+/* Tier 3, its width kept for any size up to 16384 x 16384 px, so a new size never moves the status. */
+.snippet-size {
+  grid-area: size;
+  justify-self: end;
+  min-width: 15ch;
+  min-height: var(--lh-hint);
+  margin: 0 0 var(--s1);
+  color: var(--text-muted);
+  font-size: var(--fs-hint);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-hint);
+  text-align: end;
+  white-space: nowrap;
+}
+.snippet-buttons { grid-area: buttons; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s2); }
 @container (min-width: 480px) {
+  .snippet-footer { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "status size" "status buttons"; }
   /* Two reserved lines: a one-line result sits in the middle of the row, beside the buttons. */
-  .snippet-status { flex: 1 1 0; min-width: 0; min-height: calc(2 * var(--lh-1)); align-self: center; align-items: center; }
+  .snippet-status { min-width: 0; min-height: calc(2 * var(--lh-1)); align-items: center; }
+  .snippet-status:not(:empty) { margin-bottom: 0; }
   .snippet-status .icon { margin-top: 0; }
+}
+@container (min-width: 640px) {
+  .snippet-footer { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "status size buttons"; }
+  .snippet-size { margin: 0; }
 }
 
 /* Compact mode (very short or zoomed windows): the dialog is the one scroller, and every part keeps its height. */

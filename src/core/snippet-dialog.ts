@@ -1,7 +1,7 @@
 // Capture snippet: the pure parts only the dialog needs (final-v3 sections 4.3, 4.8, 5.3, 5.4 and
 // 6.2; round 2, .claude/design/batch3/s.md): its title, the options (their memory, cleaning and
 // migration), the Colours choices and the preview's label, the image's colour tokens, the highlight
-// field's parsing and messages, the size line, the download's name, and every message the dialog
+// field's parsing and messages, the size and its scale note, the download's name, and every message the dialog
 // speaks. A module of its own, imported by the lazy dialog chunk only, so none of it reaches the
 // first visit; the shell keeps what it decides with (core/snippet.ts). Type-only imports from the
 // shell module are free. Kept ASCII; no DOM types (the worker build type-checks src/core with the
@@ -160,11 +160,11 @@ export function parseHighlight(text: string, plan: LineSpan): HighlightParse {
 
 // ---------------------------------------------------------------- the size line (round 2)
 
-/** Under the Scale choices: the PNG's exact pixel size, and the step taken when the chosen scale can't fit. */
-export function sizeLine(width: number, height: number, requested: Scale, used: number): string {
-  const size = `${width} x ${height} pixels`;
-  return used === requested ? `${size}.` : `${size}. ${requested}x is too big for this image, so it is ${used}x.`;
-}
+/** In the footer beside Download (round 3): the PNG's exact pixel size, tier 3. */
+export const sizeText = (width: number, height: number): string => `${width} x ${height} px`;
+
+/** Under the Scale choices, only when the chosen scale can't fit: the step taken. */
+export const scaleNote = (requested: Scale, used: number): string => (used === requested ? "" : `${requested}x is too big for this image, so it is ${used}x.`);
 
 /** The dialog's title: line numbers only, never the file's name. */
 export function dialogTitle(plan: LinePlan): string {

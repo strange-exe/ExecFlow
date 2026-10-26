@@ -1,13 +1,16 @@
-// The Capture snippet dialog (final-v3 section 5; round 2, .claude/design/batch3/s.md), a lazy chunk
-// with its stylesheet: the preview (the export bitmap itself, named by its text alternative, centred
-// on a stage that keeps one height for the opening), the options (Colours; Show: line numbers, file
-// name, the "Made with CodeEditor" line; Background; Frame; Scale with the PNG's exact size; Highlight lines), and Copy image /
-// Download (.png) in a footer that never scrolls away, the status sharing the buttons' row where it
-// fits. Built per opening and removed on close, so no listener outlives it. The preview and the
-// exports run through snippet-flow.ts; results speak in the status line while open and in the page's
-// notice after close. State attributes (data-preview, data-renders, data-preview-options,
-// data-preview-pending, data-compact; #app data-capture, data-capture-reason, data-captures) are
-// what tests wait on, never wording.
+// The Capture snippet dialog (final-v3 section 5; round 2, .claude/design/batch3/s.md; round 3,
+// .claude/tasks/snippet-dialog-v3.md), a lazy chunk with its stylesheet: the preview (the export
+// bitmap itself, named by its text alternative, the whole image fitted to its stage, or 1:1 with
+// "Actual size"), the options (Colours; Show: line numbers, file name, the "Made with CodeEditor"
+// line; Highlight lines; then Background, Frame and Scale as segmented radio groups), and the PNG's
+// size, Download (.png) and Copy image in a footer that never scrolls away, the status sharing the
+// buttons' row where it fits. Side by side from 900 px wide (the stage left, the options in a column
+// of their own), stacked below that, and compact (the dialog the one scroller) in very short windows.
+// Built per opening and removed on close, so no listener outlives it. The preview and the exports
+// run through snippet-flow.ts; results speak in the status line while open and in the page's notice
+// after close. State attributes (data-preview, data-renders, data-preview-options,
+// data-preview-pending, data-compact, data-layout; #app data-capture, data-capture-reason,
+// data-captures) are what tests wait on, never wording.
 import "../styles/snippet-image.css";
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -15,18 +18,18 @@ import { nameOf } from "../core/paths";
 import { lineWords, type CaptureMessage, type LineSpan, type Tone } from "../core/snippet";
 import {
   captureMessage, cleanImageOptions, colorChoices, CREDIT_TEXT, dialogTitle, downloadName, highlightHint, IMAGE_TOKENS, NO_PREVIEW, optionsWord, PADDING,
-  parseHighlight, previewLabel, readImageOptions, sizeLine, writeImageOptions, type ImageOptions, type StoredOptions,
+  parseHighlight, previewLabel, readImageOptions, scaleNote, sizeText, writeImageOptions, type ImageOptions, type StoredOptions,
 } from "../core/snippet-dialog";
 import { drawImage, freeCanvas, layoutOf, prepare, readbackOk, type CodeFont, type DrawnImage, type Prepared } from "../editor/snippet-canvas";
 import { chooseScale, layoutImage, type Metrics } from "../editor/snippet-render";
 import { allThemes } from "../theme/themes";
 import { dialogShell, openModal } from "./dialogs";
-import { downloadBlob, h } from "./dom";
+import { downloadBlob, h, srOnly } from "./dom";
 import { icon, type IconName } from "./icons";
 import type { Notice } from "./notice";
 import {
   createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, previewFit, sameOptions,
-  type BudgetMeasures, type ExportKind, type ExportResult, type Paint, type RenderFailure,
+  type BudgetMeasures, type ExportKind, type ExportResult, type Paint, type RenderFailure, type SnippetLayout,
 } from "./snippet-flow";
 
 export interface SnippetDialogArgs {
@@ -49,9 +52,10 @@ const TONE_ICON: Record<Tone, IconName> = { info: "info", error: "warning-circle
 /** iOS fetches a download only after its prompt: the blob URL lives a minute. */
 const KEEP_MS = 60_000;
 /**
- * The default look's layouts (medium background, plain frame) with either toggle: the stage keeps
- * the tallest for the opening. A taller look shrinks to the stage (previewFit) rather than reserving
- * room that pushes the options below the fold (fix stage, 2026-10-23).
+ * Stacked: the default look's layouts (medium background, plain frame) with either toggle; the stage
+ * keeps the tallest for the opening (at most 45% of the window). A taller look shrinks to the stage
+ * (previewFit) rather than reserving room that pushes the options below the fold (fix stage,
+ * 2026-10-23). Side by side the stage's size comes from the dialog's own (CSS).
  */
 const STAGE_LAYOUTS = [true, false].flatMap((numbers) => [true, false].map((name) => ({ numbers, name, frame: "plain" as const, pad: PADDING.medium, credit: true })));
 
@@ -103,15 +107,28 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   const gapsNote = plan.gaps ? note("snippet-gaps", { kind: "gaps" }) : null;
   if (gapsNote) describedBy.push("snippet-gaps");
   dialog.setAttribute("aria-describedby", describedBy.join(" "));
+  // Fit (the whole image in the stage) at every opening; "Actual size" shows it 1:1, and the stage scrolls.
+  let actual = false;
+  const actualButton = h(
+    "button",
+    { type: "button", id: "snippet-actual", class: "btn small", "aria-pressed": "false", "aria-controls": "snippet-frame" },
+    icon("corners-out"), "Actual size",
+  );
+  const stageColumn = h("div", { class: "snippet-stage" }, frame, h("div", { class: "snippet-stagebar" }, actualButton), ...(gapsNote ? [gapsNote] : []));
 
-  // ---------------------------------------------------------------- the options (5.4; round 2)
+  // ---------------------------------------------------------------- the options (5.4; round 2; round 3)
   const choice = (input: HTMLInputElement, label: string) => h("div", { class: "snippet-choice" }, input, h("label", { for: input.id }, label));
   /** A radio group: one Tab stop, arrows change the choice at once (Settings' theme radios do the same). */
-  function radios(group: string, items: readonly { value: string; label: string }[], checked: string) {
+  function radios(group: string, items: readonly { value: string; label: string; hidden?: string }[], checked: string, segmented = false) {
     return items.map((c) => {
       const input = h("input", { type: "radio", name: `snippet-${group}`, value: c.value, id: `snippet-${group}-${c.value}` });
       input.checked = c.value === checked;
-      return { input, row: choice(input, c.label) };
+      // A segment: the native radio under its label, the label drawn as the segment (the words after
+      // the visible one stay in the accessible name, round 2's).
+      const row = segmented
+        ? h("div", { class: "snippet-segment" }, input, h("label", { for: input.id }, c.label, ...(c.hidden ? [srOnly(c.hidden)] : [])))
+        : choice(input, c.label);
+      return { input, row };
     });
   }
   const box = (id: string, checked: boolean) => {
@@ -125,12 +142,15 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   const markBox = box("snippet-mark", stored.mark);
   const backgroundRadios = radios(
     "background",
-    [{ value: "none", label: "None (the card alone)" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "large", label: "Large" }],
+    [{ value: "none", label: "None", hidden: " (the card alone)" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "large", label: "Large" }],
     stored.background ? stored.padding : "none",
+    true,
   );
-  const frameRadios = radios("frame", [{ value: "plain", label: "Plain" }, { value: "window", label: "Window" }], stored.frame);
-  const scaleRadios = radios("scale", [{ value: "1", label: "1x" }, { value: "2", label: "2x" }, { value: "3", label: "3x" }], String(stored.scale));
+  const frameRadios = radios("frame", [{ value: "plain", label: "Plain" }, { value: "window", label: "Window" }], stored.frame, true);
+  const scaleRadios = radios("scale", [{ value: "1", label: "1x" }, { value: "2", label: "2x" }, { value: "3", label: "3x" }], String(stored.scale), true);
+  // The PNG's size sits beside Download (tier 3); the step a too-big scale took is said under Scale.
   const size = h("p", { id: "snippet-size", class: "snippet-size" });
+  const stepNote = h("p", { id: "snippet-scale-note", class: "snippet-scale-note" });
 
   const field = h("input", {
     type: "text", id: "snippet-highlight", autocomplete: "off", spellcheck: "false", maxlength: "200", "aria-describedby": "snippet-highlight-hint",
@@ -140,31 +160,32 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   const live = h("div", { class: "snippet-highlight-live", "aria-live": "polite" });
   const fieldset = (legend: string, rows: readonly HTMLElement[]) => h("fieldset", null, h("legend", null, legend), ...rows);
   const rowsOf = (list: readonly { row: HTMLElement }[]) => list.map((r) => r.row);
+  /** Background, Frame and Scale: one row of segments. */
+  const segmented = (legend: string, list: readonly { row: HTMLElement }[], extra: Record<string, string> = {}, ...after: HTMLElement[]) =>
+    h("fieldset", { class: "snippet-segmented", ...extra }, h("legend", null, legend), h("div", { class: "snippet-segments" }, ...rowsOf(list)), ...after);
   const colours = fieldset("Colours", rowsOf(colorRadios));
   const show = fieldset("Show", [choice(numbersBox, "Line numbers"), choice(nameBox, "File name"), choice(markBox, `"${CREDIT_TEXT}" line`)]);
-  const scaleSet = h("fieldset", { class: "snippet-scale", "aria-describedby": "snippet-size" },
-    h("legend", null, "Scale"), h("div", { class: "snippet-row" }, ...rowsOf(scaleRadios)), size);
+  const scaleSet = segmented("Scale", scaleRadios, { "aria-describedby": "snippet-scale-note snippet-size" }, stepNote);
   const highlightGroup = h("div", { class: "snippet-highlight field" }, h("label", { for: "snippet-highlight" }, "Highlight lines"), field, live, hint);
-  body.append(
-    frame,
-    ...(gapsNote ? [gapsNote] : []),
-    h(
-      "div",
-      { class: "snippet-options" },
-      colours,
-      show,
-      fieldset("Background", rowsOf(backgroundRadios)),
-      fieldset("Frame", rowsOf(frameRadios)),
-      scaleSet,
-      highlightGroup,
-    ),
+  // In the order a student changes them most: Colours, Show, Highlight lines; then the look.
+  const optionsColumn = h(
+    "div",
+    { class: "snippet-options" },
+    colours,
+    show,
+    highlightGroup,
+    segmented("Background", backgroundRadios),
+    segmented("Frame", frameRadios),
+    scaleSet,
   );
+  body.append(stageColumn, optionsColumn);
 
   const status = h("p", { id: "snippet-status", class: "result-line snippet-status", role: "status" });
   const download = h("button", { type: "button", class: args.canCopy ? "btn" : "btn primary", autofocus: !args.canCopy }, icon("download-simple"), "Download (.png)");
   const copy = args.canCopy ? h("button", { type: "button", class: "btn primary", autofocus: true }, icon("copy"), "Copy image") : null;
   // A sibling after the body: it never scrolls away (except in compact mode, where the dialog scrolls).
-  const actions = h("div", { class: "dialog-actions snippet-actions" }, status, download, copy);
+  // The footer is a size container; its row is laid out inside it (a container query styles only what is inside).
+  const actions = h("div", { class: "dialog-actions snippet-actions" }, h("div", { class: "snippet-footer" }, status, size, h("div", { class: "snippet-buttons" }, download, copy)));
   dialog.append(actions);
   const primary = copy ?? download;
 
@@ -213,8 +234,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   let metrics: Metrics | null = null;
   let layouts: { width: number; height: number }[] | null = null;
   let frameCap = 420;
-  /** The stage's content height when it shows the default look whole; null while capped (it scrolls) or before the first render. */
-  let stage: number | null = null;
+  let layout: SnippetLayout = "stack";
   function measures(): BudgetMeasures {
     const height = (el: Element | null) => el?.getBoundingClientRect().height ?? 0;
     const firstChoice = colours.querySelector(".snippet-choice");
@@ -224,24 +244,40 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     const reserve = status.getBoundingClientRect().height < 1 ? 2 * (Number.isFinite(lines) ? lines : 20) : 0;
     return {
       innerHeight,
+      wide: matchMedia("(min-width: 900px)").matches,
       head: height(dialog.querySelector(".dialog-head")),
       footer: height(actions) + reserve,
-      notes: [...body.querySelectorAll(".snippet-note")].map(height),
+      // The rows under the frame: the Actual size bar, then the notes (each counts its height and 8).
+      notes: [...stageColumn.querySelectorAll(".snippet-stagebar, .snippet-note")].map(height),
       firstRow: firstChoice ? firstChoice.getBoundingClientRect().bottom - colours.getBoundingClientRect().top : 0,
     };
   }
+  /** Stacked and compact: the frame keeps one height for the opening. Side by side: CSS sizes it (the dialog's height). */
   function sizeFrame() {
+    if (layout === "side") {
+      frame.style.height = "";
+      return;
+    }
     const inner = frame.clientWidth - 16;
     const content = layouts
       ? frameContent(layouts, inner, frameCap)
       : Math.min(frameCap, Math.max(96, frameEstimate(plan.last - plan.first + 1, font.size * 1.5, true, PADDING.medium)));
-    stage = layouts && frameContent(layouts, inner, Infinity) <= frameCap ? content : null;
     frame.style.height = `${content + 18}px`;
   }
+  /** The image fitted whole inside the frame's padding (or 1:1 with Actual size). */
   function fitCanvas(r: DrawnImage) {
-    const fit = previewFit(r.layout, frame.clientWidth - 16, stage);
+    const fit = previewFit(r.layout, frame.clientWidth - 16, frame.clientHeight - 16, actual);
     r.canvas.style.width = `${r.layout.width * fit}px`;
     r.canvas.style.height = `${r.layout.height * fit}px`;
+  }
+  function setActual(on: boolean) {
+    actual = on;
+    actualButton.setAttribute("aria-pressed", String(on));
+    frame.toggleAttribute("data-actual", on);
+    const shownNow = scheduler.current()?.result;
+    if (shownNow) fitCanvas(shownNow);
+    frame.scrollTop = 0;
+    frame.scrollLeft = 0;
   }
   /**
    * Compact mode makes the dialog the one scroller after the primary action already took focus (and
@@ -261,12 +297,26 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
   }
   let budgeted = false;
   function applyBudget() {
-    const b = frameBudget(measures());
-    dialog.toggleAttribute("data-compact", b.compact);
-    frameCap = b.frameCap;
+    const apply = () => {
+      const b = frameBudget(measures());
+      dialog.toggleAttribute("data-compact", b.compact);
+      dialog.dataset.layout = layout = b.layout;
+      frameCap = b.frameCap;
+      return b;
+    };
+    const before = layout;
+    let b = apply();
+    // A new layout changes the head's and the footer's widths (and so their heights): measured again once.
+    if (b.layout !== before) b = apply();
     sizeFrame();
     const shownNow = scheduler.current()?.result;
     if (shownNow) fitCanvas(shownNow);
+    if (!budgeted) {
+      // Every opening starts at the top. Firefox gave a new options column the scroll position of the
+      // last opening's (measured: 250 px at insertion, 2026-10-26), so a reopened dialog hid Colours.
+      optionsColumn.scrollTop = 0;
+      body.scrollTop = 0;
+    }
     if (!budgeted && b.compact) {
       // Opening in compact mode: focus on the primary action would scroll the title and the preview
       // out of view, so the preview frame, the dialog's first content, takes it and the dialog shows
@@ -301,7 +351,8 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
       fitCanvas(r);
       frame.replaceChildren(r.canvas);
       keepFocusInView();
-      size.textContent = sizeLine(r.canvas.width, r.canvas.height, o.scale, r.scale);
+      size.textContent = sizeText(r.canvas.width, r.canvas.height);
+      stepNote.textContent = scaleNote(o.scale, r.scale);
       dialog.dataset.renders = String((Number(dialog.dataset.renders) || 0) + 1);
       dialog.dataset.previewOptions = optionsWord(o);
       frame.setAttribute("aria-label", previewLabel(plan, name, o, paint, partial));
@@ -312,6 +363,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
       frame.replaceChildren(h("p", { class: "snippet-frame-text" }, captureMessage(m, at).text));
       frame.setAttribute("aria-label", reason === "too-big" ? NO_PREVIEW["too-big"] : NO_PREVIEW.failed);
       size.textContent = "";
+      stepNote.textContent = "";
       dialog.dataset.renders = String((Number(dialog.dataset.renders) || 0) + 1);
       dialog.dataset.previewOptions = optionsWord(o);
       say(m);
@@ -406,11 +458,12 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     if (statusKind !== "export-pending") setStatus(null, "empty");
     const o = options();
     if (metrics && prepared) {
-      // The size line describes the Scale group, so it changes with the choice, in the same task,
-      // not when the render lands: the newly checked radio is read with the size it will make.
-      const layout = layoutImage(prepared.rows, metrics, layoutOf(o));
-      const fit = chooseScale(layout.width, layout.height, o.scale);
-      size.textContent = fit ? sizeLine(fit.width, fit.height, o.scale, fit.scale) : "";
+      // The size and the step note describe the Scale group, so they change with the choice, in the
+      // same task, not when the render lands: the newly checked radio is read with the size it will make.
+      const look = layoutImage(prepared.rows, metrics, layoutOf(o));
+      const fit = chooseScale(look.width, look.height, o.scale);
+      size.textContent = fit ? sizeText(fit.width, fit.height) : "";
+      stepNote.textContent = fit ? scaleNote(o.scale, fit.scale) : "";
     }
     scheduler.request(o);
   }
@@ -492,12 +545,23 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     },
     true,
   );
+  actualButton.addEventListener("click", () => setActual(!actual));
   const onResize = () => applyBudget();
+  // The stage's box also changes without a resize (a note added under it, the footer's status):
+  // the shown image is fitted again whenever it does.
+  const stageWatch = typeof ResizeObserver === "function"
+    ? new ResizeObserver(() => {
+      const shownNow = scheduler.current()?.result;
+      if (shownNow) fitCanvas(shownNow);
+    })
+    : null;
+  stageWatch?.observe(frame);
   dialog.addEventListener(
     "close",
     () => {
       scheduler.cancel();
       removeEventListener("resize", onResize);
+      stageWatch?.disconnect();
       dialog.remove();
     },
     { once: true },
@@ -510,7 +574,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     prepared = p;
     if (p.partial && isOpen()) {
       partial = true;
-      (gapsNote ?? frame).after(note("snippet-partial", { kind: "partial" }));
+      stageColumn.append(note("snippet-partial", { kind: "partial" }));
       dialog.setAttribute("aria-describedby", [...describedBy, "snippet-partial"].join(" "));
       applyBudget();
     }

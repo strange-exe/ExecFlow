@@ -132,7 +132,7 @@ for (const scheme of ["light", "dark"] as const) {
     expect([info.width, info.height]).toEqual([822, 357]);
     const derived = await derivedSize(page);
     expect([derived.width, derived.height], `derived from ch ${derived.ch} at ${derived.size} px`).toEqual([822, 357]);
-    await expect(dialog.locator("#snippet-size")).toHaveText("822 x 357 pixels.");
+    await expect(dialog.locator("#snippet-size")).toHaveText("822 x 357 px");
     for (const chunk of ["tEXt", "iTXt", "zTXt", "eXIf", "tIME"]) expect(info.chunks, `no ${chunk} chunk`).not.toContain(chunk);
     const t = await tokens(page);
     // CodeEditor Signal, the default (src/theme/palettes.ts SIGNAL).
@@ -310,7 +310,8 @@ test("6: 300 lines fit at scale 2; case B steps down to 1.5 and says so, and its
   await previewReady(page);
   // Round 1's 730 x 13639 card in the medium background (64 bitmap px each side).
   await expectDownload(page, "x-py-lines-1-300.png", [858, 13767]);
-  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("858 x 13767 pixels.");
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("858 x 13767 px");
+  await expect(dialogOf(page).locator("#snippet-scale-note")).toHaveText("");
   await page.keyboard.press("Escape");
   await openFromTree(page, "b.py");
   await selectAll(page);
@@ -318,7 +319,8 @@ test("6: 300 lines fit at scale 2; case B steps down to 1.5 and says so, and its
   await previewReady(page);
   // 1041 x 4633.5 CSS px: 2x is 2082 x 9267 = 19,293,894 px, over the area cap; 1.5x fits.
   const png = await expectDownload(page, "b-py-lines-1-200.png", [1562, 6951]);
-  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("1562 x 6951 pixels. 2x is too big for this image, so it is 1.5x.");
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("1562 x 6951 px");
+  await expect(dialogOf(page).locator("#snippet-scale-note")).toHaveText("2x is too big for this image, so it is 1.5x.");
   const px = decodeRgba(png);
   const t = await tokens(page);
   // The card sits 48 px (32 CSS px at 1.5x) inside the image; its rounded corners are 12 px.
@@ -402,9 +404,11 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { w
     await page.setViewportSize(vp);
     await openWith(page, [{ name: "main.py", text: FIXTURE }, { name: "b.py", text: CASE_B }]);
     const parts = ["#snippet-frame", ".snippet-options fieldset:nth-of-type(1)", ".snippet-options fieldset:nth-of-type(2)", "#snippet-status", ".snippet-actions .btn >> nth=0", ".snippet-actions .btn >> nth=-1"];
-    // Measured with the body at its top: checking a lower choice scrolls it into view (the test's own doing).
+    // Measured with the body (and, side by side, the options column) at its top: checking a lower
+    // choice scrolls it into view (the test's own doing).
     const boxes = async () => {
       await dialogOf(page).locator(".dialog-body").evaluate((b) => (b.scrollTop = 0));
+      await dialogOf(page).locator(".snippet-options").evaluate((o) => (o.scrollTop = 0));
       return Promise.all(parts.map(async (p) => box(dialogOf(page).locator(p))));
     };
     const near = (a: { x: number; y: number; width: number; height: number }[], b: typeof a, what: string) =>
@@ -479,8 +483,9 @@ for (const key of ["Enter", "Space"] as const) {
     await expect(dialogOf(page).locator("#snippet-status")).toHaveText("");
     if (key === "Space") return;
 
-    // Tab: close, frame, the Colours group, Line numbers, File name, the Background, Frame and Scale
-    // groups, Highlight lines, Download, Copy; never outside the dialog.
+    // Tab: close, frame, Actual size, the Colours group, Line numbers, File name, the credit line,
+    // Highlight lines, the Background, Frame and Scale groups (round 3's order), Download, Copy;
+    // never outside the dialog.
     await dialogOf(page).getByRole("button", { name: "Close" }).focus();
     const seen: string[] = [];
     for (let i = 0; i < 24; i++) {
@@ -489,6 +494,7 @@ for (const key of ["Enter", "Space"] as const) {
         if (!a || a === document.body) return "body";
         if (!a.closest("#snippet-dialog")) return `outside:${a.tagName}#${a.id}`;
         if (a.classList.contains("dialog-body")) return "dialog-body";
+        if (a.classList.contains("snippet-options")) return "options-column";
         return a.id || a.getAttribute("aria-label") || a.textContent?.trim() || a.tagName;
       }));
       await page.keyboard.press("Tab");
@@ -496,12 +502,13 @@ for (const key of ["Enter", "Space"] as const) {
     expect(seen.filter((s) => s.startsWith("outside")), seen.join(" | ")).toEqual([]);
     // Between cycles the focus may rest on the page (body) or, in WebKit, on the dialog element itself.
     // Firefox also stops on a scroll container that overflows (the body, now that round 2's options make
-    // it scroll at 1280 x 720): the browser's own stop for keyboard scrolling, recorded, not ours.
-    if (seen.includes("dialog-body")) test.info().annotations.push({ type: "10 scroller", description: `${test.info().project.name}: the scrolling body is a Tab stop` });
-    const cycle = seen.filter((s) => s !== "body" && s !== "snippet-dialog" && s !== "dialog-body");
+    // it scroll at 1280 x 720; side by side, round 3's options column): the browser's own stop for
+    // keyboard scrolling, recorded, not ours.
+    for (const s of ["dialog-body", "options-column"]) if (seen.includes(s)) test.info().annotations.push({ type: "10 scroller", description: `${test.info().project.name}: the scrolling ${s} is a Tab stop` });
+    const cycle = seen.filter((s) => s !== "body" && s !== "snippet-dialog" && s !== "dialog-body" && s !== "options-column");
     const order = [
-      "Close", "snippet-frame", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-mark", "snippet-background-medium", "snippet-frame-plain", "snippet-scale-2",
-      "snippet-highlight", "Download (.png)", ...((await canCopy(page)) ? ["Copy image"] : []),
+      "Close", "snippet-frame", "snippet-actual", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-mark", "snippet-highlight",
+      "snippet-background-medium", "snippet-frame-plain", "snippet-scale-2", "Download (.png)", ...((await canCopy(page)) ? ["Copy image"] : []),
     ];
     expect(cycle.slice(0, order.length)).toEqual(order);
     // Past the last control the focus leaves for the browser's own UI. Chromium and WebKit bring it back to the
@@ -576,7 +583,7 @@ test.describe("12: coarse pointer at 1280 x 800 (Chromium)", () => {
     await selectFixtureLines(page);
     await openFromFileMenu(page, ITEM);
     await previewReady(page);
-    for (const el of await dialogOf(page).locator(".snippet-actions .btn, .snippet-choice, .dialog-head .icon-btn").all()) expect((await box(el)).height).toBeGreaterThanOrEqual(44);
+    for (const el of await dialogOf(page).locator(".snippet-actions .btn, .snippet-choice, .snippet-segment, #snippet-actual, .dialog-head .icon-btn").all()) expect((await box(el)).height).toBeGreaterThanOrEqual(44);
     await page.keyboard.press("Escape");
     // On a touch screen the refusal names no right-click or Shift+F10.
     await page.locator(".cm-content").click();
@@ -607,7 +614,7 @@ test.describe("13: phones (Chromium, WebKit)", () => {
       return document.documentElement.scrollWidth <= document.documentElement.clientWidth && dlg.scrollWidth <= dlg.clientWidth;
     });
     expect(await overflow()).toBe(true);
-    for (const el of await dialogOf(page).locator(".snippet-actions .btn, .snippet-choice, .dialog-head .icon-btn").all()) expect((await box(el)).height).toBeGreaterThanOrEqual(44);
+    for (const el of await dialogOf(page).locator(".snippet-actions .btn, .snippet-choice, .snippet-segment, #snippet-actual, .dialog-head .icon-btn").all()) expect((await box(el)).height).toBeGreaterThanOrEqual(44);
     await expect((await canCopy(page)) ? copyButton(page) : downloadButton(page)).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Files", exact: true })).toBeFocused();
@@ -633,6 +640,8 @@ test.describe("13: phones (Chromium, WebKit)", () => {
 /** The frame's bottom edge and the first Colours row lie inside the body's visible box. */
 async function normalMode(page: Page) {
   await expect(dialogOf(page)).not.toHaveAttribute("data-compact");
+  await expect(dialogOf(page)).toHaveAttribute("data-layout", "stack");
+  await wholeInStage(page, "stacked");
   const body = await box(dialogOf(page).locator(".dialog-body"));
   const frame = await box(dialogOf(page).locator("#snippet-frame"));
   const row = await box(dialogOf(page).locator(".snippet-choice").first());
@@ -660,34 +669,78 @@ async function normalMode(page: Page) {
     .toBeLessThanOrEqual(0.5);
 }
 
-// 1093 x 460: 1366 x 768 at 125% with more browser toolbars; the budget's frame cap is small there (about 150).
-for (const vp of [{ width: 1440, height: 900 }, { width: 1093, height: 504 }, { width: 1093, height: 460 }]) {
-  test(`14: normal mode at ${vp.width} x ${vp.height}: the frame and the first choice in view, the body scrolls to the rest`, async ({ page }) => {
+/**
+ * Side by side (round 3, 900 px wide and taller than compact): the stage and Download in view, the
+ * whole image in the stage, the body itself never scrolls; the options column is the one scroller
+ * when it overflows, and a wheel over it reaches its last group.
+ */
+async function sideMode(page: Page) {
+  const dialog = dialogOf(page);
+  await expect(dialog).not.toHaveAttribute("data-compact");
+  await expect(dialog).toHaveAttribute("data-layout", "side");
+  await wholeInStage(page, "side");
+  await expect(dialog.locator("#snippet-frame")).toBeInViewport({ ratio: 1 });
+  await expect(downloadButton(page)).toBeInViewport({ ratio: 1 });
+  const where = await dialog.evaluate((d) => {
+    const r = (sel: string) => {
+      const el = d.querySelector(sel) as HTMLElement;
+      const b = el.getBoundingClientRect();
+      return { top: Math.round(b.top), bottom: Math.round(b.bottom), scrollTop: el.scrollTop, scroll: el.scrollHeight, client: el.clientHeight };
+    };
+    return { body: r(".dialog-body"), options: r(".snippet-options"), choice: r(".snippet-choice"), active: document.activeElement?.id || document.activeElement?.textContent };
+  });
+  await expect(dialog.locator(".snippet-choice").first(), JSON.stringify(where)).toBeInViewport({ ratio: 1 });
+  const body = await dialog.locator(".dialog-body").evaluate((b) => b.scrollHeight - b.clientHeight);
+  expect(body, "the body never scrolls side by side").toBeLessThanOrEqual(1);
+  const list = await scrollers(page);
+  expect(list.filter((s) => s !== "snippet-options"), `scrollers: ${list.join(", ")}`).toEqual([]);
+  const last = dialog.locator("#snippet-scale-3").locator("..");
+  if (list.includes("snippet-options")) {
+    const row = await box(dialog.locator(".snippet-choice").first());
+    await page.mouse.move(row.x + row.width / 2, row.y + row.height / 2);
+    for (let i = 0; i < 40; i++) {
+      const l = await box(last);
+      const col = await box(dialog.locator(".snippet-options"));
+      if (l.y + l.height <= col.y + col.height - 0.5) break;
+      await page.mouse.wheel(0, 40);
+      await expect.poll(async () => (await box(last)).y, "the wheel scrolls the options column").toBeLessThan(l.y);
+    }
+  }
+  await expect(last).toBeInViewport({ ratio: 1 });
+}
+
+// 1093 x 460: 1366 x 768 at 125% with more browser toolbars. Round 3: 900 px and wider is side by
+// side; 600 x 900 keeps the stacked layout (preview on top, the body the one scroller).
+for (const vp of [{ width: 1440, height: 900 }, { width: 1093, height: 504 }, { width: 1093, height: 460 }, { width: 600, height: 900 }]) {
+  const side = vp.width >= 900;
+  test(`14: ${side ? "side by side" : "stacked"} at ${vp.width} x ${vp.height}: the preview whole, the first choice in view, ${side ? "the options column" : "the body"} scrolls to the rest`, async ({ page }) => {
     await page.setViewportSize(vp);
     await openWith(page, [{ name: "main.py", text: FIXTURE }, { name: "b.py", text: CASE_B }]);
     await selectFixtureLines(page);
+    if (!side) await page.locator(".drawer-toggle").click();
     await openFromFileMenu(page, ITEM);
     await previewReady(page);
-    await normalMode(page);
+    await (side ? sideMode(page) : normalMode(page));
     await page.keyboard.press("Escape");
     await openFromTree(page, "b.py");
     await selectAll(page);
+    if (!side) await page.locator(".drawer-toggle").click();
     await openFromFileMenu(page, /^Capture snippet of b\.py, lines 1 to 200\.\.\./);
     await previewReady(page);
-    await normalMode(page);
+    await (side ? sideMode(page) : normalMode(page));
   });
 }
 
 test.describe("14 and 15: coarse pointer sizes (Chromium)", () => {
   test.skip(({ browserName }) => browserName !== "chromium", "Playwright emulates pointer: coarse in Chromium only");
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 1280, height: 800 } });
-  test("1280 x 800 coarse is normal mode; 844 x 390 coarse is compact", async ({ page }) => {
+  test("1280 x 800 coarse is side by side; 844 x 390 coarse is compact", async ({ page }) => {
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     await openWith(page);
     await selectFixtureLines(page);
     await openFromFileMenu(page, ITEM);
     await previewReady(page);
-    await normalMode(page);
+    await sideMode(page);
     await page.keyboard.press("Escape");
     await page.setViewportSize({ width: 844, height: 390 });
     await page.locator(".drawer-toggle").click();
@@ -700,6 +753,7 @@ test.describe("14 and 15: coarse pointer sizes (Chromium)", () => {
 /** Compact mode: the dialog scrolls as one; every control comes into view when focused; no sideways scroll. */
 async function compactMode(page: Page) {
   await expect(dialogOf(page)).toHaveAttribute("data-compact", "");
+  await expect(dialogOf(page), "compact is always stacked, at any width").toHaveAttribute("data-layout", "stack");
   // At open the preview frame, the dialog's top, has focus (the APG dialog pattern for content that
   // would scroll the start out of view): the title and the preview are in view, not the footer.
   await expect(dialogOf(page).locator("#snippet-frame")).toBeFocused();
@@ -709,8 +763,8 @@ async function compactMode(page: Page) {
   expect(frameTop, "the focused frame's top edge is in view at open").toBeGreaterThanOrEqual(0);
   expect(frameTop).toBeLessThan(await dialogOf(page).evaluate((d) => d.clientHeight));
   const controls = [
-    "Close", "#snippet-frame", "#snippet-colors-match", "#snippet-numbers", "#snippet-name", "#snippet-background-medium", "#snippet-frame-plain",
-    "#snippet-scale-2", "#snippet-highlight", "Download (.png)", "Copy image",
+    "Close", "#snippet-frame", "#snippet-actual", "#snippet-colors-match", "#snippet-numbers", "#snippet-name", "#snippet-highlight", "#snippet-background-medium",
+    "#snippet-frame-plain", "#snippet-scale-2", "Download (.png)", "Copy image",
   ];
   for (const c of controls) {
     const el = c.startsWith("#") ? dialogOf(page).locator(c) : dialogOf(page).getByRole("button", { name: c });
@@ -731,7 +785,8 @@ async function compactMode(page: Page) {
   })).toBe(true);
 }
 
-for (const vp of [{ width: 683, height: 330 }, { width: 455, height: 213 }, { width: 320, height: 256 }]) {
+// 1093 x 300: wide enough for side by side, too short for it; compact wins (round 3).
+for (const vp of [{ width: 683, height: 330 }, { width: 455, height: 213 }, { width: 320, height: 256 }, { width: 1093, height: 300 }]) {
   test(`15: compact mode at ${vp.width} x ${vp.height}`, async ({ page }) => {
     await page.setViewportSize(vp);
     await openWith(page);
@@ -800,7 +855,7 @@ for (const vp of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone"
   }
 }
 
-test("17: a tall preview is a named, focusable image that scrolls by keyboard, and shows ink at its end", async ({ page }) => {
+test("17: a tall preview is a named, focusable image, whole in Fit; at Actual size it scrolls by keyboard and shows ink at its end", async ({ page }) => {
   await openWith(page, [{ name: "b.py", text: CASE_B }]);
   await selectAll(page);
   await openFromFileMenu(page, /^Capture snippet of b\.py, lines 1 to 200\.\.\./);
@@ -808,6 +863,9 @@ test("17: a tall preview is a named, focusable image that scrolls by keyboard, a
   const frame = dialogOf(page).locator("#snippet-frame");
   await expect(frame).toHaveAttribute("role", "img");
   await expect(frame).toHaveAccessibleName(`Preview of b.py, lines 1 to 200, in the editor's colours; line numbers shown; file name shown. Plain frame, medium background, "Made with CodeEditor" under the card.`);
+  // Round 3: Fit shows the whole image, so the stage has nothing to scroll; Actual size makes it scroll.
+  await wholeInStage(page, "fit");
+  await dialogOf(page).getByRole("button", { name: "Actual size" }).click();
   await frame.focus();
   await expect(frame).toBeFocused();
   const page0 = await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
@@ -827,8 +885,9 @@ test("17: a tall preview is a named, focusable image that scrolls by keyboard, a
 
 test("17 (ring): the frame's focus ring shows on all four sides, inside the body that scrolls it", async ({ page }) => {
   await openDialog(page);
-  // By keyboard, so the ring is the :focus-visible one: from the first Colours choice, Shift+Tab.
-  await dialogOf(page).locator("#snippet-colors-match").focus();
+  // By keyboard, so the ring is the :focus-visible one: from Actual size (round 3: between the frame
+  // and the Colours group), Shift+Tab.
+  await dialogOf(page).locator("#snippet-actual").focus();
   await page.keyboard.press("Shift+Tab");
   const frame = dialogOf(page).locator("#snippet-frame");
   await expect(frame).toBeFocused();
@@ -1620,7 +1679,7 @@ test("35: the scale gives the exact PNG size at 1x, 2x and 3x; the size line say
   for (const [scale, size] of [[1, [411, 179]], [3, [1233, 536]], [2, [822, 357]]] as const) {
     await dialogOf(page).locator(`#snippet-scale-${scale}`).check();
     await previewReady(page, `match numbers name ${scale}x medium plain`);
-    await expect(dialogOf(page).locator("#snippet-size")).toHaveText(`${size[0]} x ${size[1]} pixels.`);
+    await expect(dialogOf(page).locator("#snippet-size")).toHaveText(`${size[0]} x ${size[1]} px`);
     const png = await expectDownload(page, "main-py-lines-2-3.png", [...size]);
     const px = decodeRgba(png);
     const c = 32 * scale;
@@ -1631,25 +1690,29 @@ test("35: the scale gives the exact PNG size at 1x, 2x and 3x; the size line say
     expect(off(px.at(c + scale - 1, y), t.divider), `${scale}x: the edge's last pixel`).toBeLessThanOrEqual(2);
     expect(off(px.at(c + scale + 1, y), t.bg), `${scale}x: ground after the edge`).toBeLessThanOrEqual(2);
   }
-  // The Scale group is described by the size line, so the line is current in the change's own task
-  // (before the render lands): a screen reader reading the newly checked choice hears the new size.
+  // The Scale group is described by the size (in the footer since round 3) and the step note under
+  // it, so both are current in the change's own task (before the render lands): a screen reader
+  // reading the newly checked choice hears the new size.
   const sizeAtChange = (id: string) =>
     dialogOf(page).locator(id).evaluate((input) => {
       (input as HTMLInputElement).click();
-      return document.getElementById("snippet-size")!.textContent;
+      return [document.getElementById("snippet-size")!.textContent, document.getElementById("snippet-scale-note")!.textContent];
     });
-  expect(await sizeAtChange("#snippet-scale-1"), "the size line at the change, before the render").toBe("411 x 179 pixels.");
+  expect(await sizeAtChange("#snippet-scale-1"), "the size at the change, before the render").toEqual(["411 x 179 px", ""]);
   await previewReady(page, "match numbers name 1x medium plain");
-  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("411 x 179 pixels.");
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("411 x 179 px");
+  await expect(dialogOf(page).getByRole("group", { name: "Scale" })).toHaveAccessibleDescription("411 x 179 px");
   await page.keyboard.press("Escape");
-  // Case B at 3x: 3x and 2x are over the area cap; 1.5x fits, and the size line says so (at once too).
+  // Case B at 3x: 3x and 2x are over the area cap; 1.5x fits, and the note under Scale says so (at once too).
   await openFromTree(page, "b.py");
   await selectAll(page);
   await openFromFileMenu(page, /^Capture snippet of b\.py, lines 1 to 200\.\.\./);
   await previewReady(page);
-  expect(await sizeAtChange("#snippet-scale-3"), "the stepped size at the change").toBe("1562 x 6951 pixels. 3x is too big for this image, so it is 1.5x.");
+  expect(await sizeAtChange("#snippet-scale-3"), "the stepped size at the change").toEqual(["1562 x 6951 px", "3x is too big for this image, so it is 1.5x."]);
   await previewReady(page, "match numbers name 3x medium plain");
-  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("1562 x 6951 pixels. 3x is too big for this image, so it is 1.5x.");
+  await expect(dialogOf(page).locator("#snippet-size")).toHaveText("1562 x 6951 px");
+  await expect(dialogOf(page).locator("#snippet-scale-note")).toHaveText("3x is too big for this image, so it is 1.5x.");
+  await expect(dialogOf(page).getByRole("group", { name: "Scale" })).toHaveAccessibleDescription("3x is too big for this image, so it is 1.5x. 1562 x 6951 px");
   await expectDownload(page, "b-py-lines-1-200.png", [1562, 6951]);
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem("codeeditor:snippet-image")))!).scale).toBe(3);
 });
@@ -1671,9 +1734,10 @@ test("36: the background: none is the card alone with transparent corners; small
     // The line's ink, right-aligned with the card (its padding without a background), reads at 4.5:1 on its ground.
     const ground = background === "none" ? t.bg : mat;
     // Bitmap px at 2x: the line is about 288 px wide ("Made with CodeEditor", 20 characters of 7.2 CSS px).
+    // Round 3: the brand mark sits left of the words (test 45), so the words' ink is read from their own box.
     const right = background === "none" ? 694 - 2 * 17 : pad + 694;
     const rows = background === "none" ? { y0: 2 * (56.5 + 45) + 2, y1: h - 2 * 9 } : { y0: pad + 229, y1: h - 1 };
-    const ink = inkOf(px, { x0: right - 320, x1: right, ...rows }, ground);
+    const ink = inkOf(px, { x0: right - 290, x1: right, ...rows }, ground);
     const expected = lift(t["text-secondary"], [ground], 4.5);
     expect(ink && off(hexRgb(ink), expected), `${background}: the credit's ink ${ink} (${expected} on ${ground})`).toBeLessThanOrEqual(12);
     expect(contrast(expected, ground), `${background}: the credit on its ground`).toBeGreaterThanOrEqual(4.5);
@@ -1787,9 +1851,9 @@ test("38: highlighted lines: a band behind the listed lines, nothing dimmed; the
   await expect(error).toHaveCount(0);
   await field.press("Tab");
   await expect(error).toHaveText("Line 9 isn't in the image: it shows lines 1 to 5.");
-  // Tab took focus to the footer, and the message under the field is brought into the body's view
-  // (it would lie under the footer's edge otherwise).
-  await expect(downloadButton(page)).toBeFocused();
+  // Round 3: Tab goes on to the Background group (Highlight lines now comes before it), and the
+  // message under the field stays in view.
+  await expect(dialogOf(page).locator("#snippet-background-medium")).toBeFocused();
   await expect(error).toBeInViewport({ ratio: 1 });
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(field).toHaveAccessibleDescription("Line 9 isn't in the image: it shows lines 1 to 5. Numbers or ranges from 1 to 5, separated by commas, such as 1-3.");
@@ -1895,8 +1959,11 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 600, height: 900 }, { w
       if (vp.width === 1440) expect(footer.height, "rule, 12, a 40 px row, 24").toBeLessThanOrEqual(78);
     } else {
       expect(s.height, "the empty status takes no room on a narrow footer").toBe(0);
-      // Rule, 12, the 8 px gap, the 44 px buttons, 24.
-      expect(footer.height).toBeLessThanOrEqual(90);
+      // Round 3: rule, 12, the PNG's size (16 and 4) above the buttons, the 44 px buttons, 24.
+      expect(footer.height).toBeLessThanOrEqual(101);
+      const sizeBox = await box(dialogOf(page).locator("#snippet-size"));
+      expect(sizeBox.y + sizeBox.height, "the size sits just above Download").toBeLessThanOrEqual(download.y + 0.5);
+      expect(sizeBox.x + sizeBox.width, "right-aligned with the buttons").toBeGreaterThan(download.x);
     }
     // The stage centres the image: as much room above it as below.
     const frame = await dialogOf(page).locator("#snippet-frame").evaluate((f) => {
@@ -1911,14 +1978,10 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 600, height: 900 }, { w
       await body.evaluate((b) => (b.scrollTop = 0));
       await expect(dialogOf(page).locator("#snippet-frame canvas")).toBeInViewport({ ratio: 1 });
       await expect(dialogOf(page).locator("#snippet-highlight-hint")).toBeInViewport({ ratio: 1 });
-      // A taller look (large background, window frame) shrinks to fit the stage instead of scrolling it.
+      // A taller look (large background, window frame) stays whole in the stage instead of scrolling it
+      // (round 3: side by side the stage is tall enough to show it at 1:1; tests 42 and 43 cover the shrink).
       await setOptions(page, "match", true, true, { background: "large", frame: "window" });
-      const fit = await dialogOf(page).locator("#snippet-frame").evaluate((f) => {
-        const c = f.querySelector("canvas")!;
-        return { scroll: f.scrollHeight - f.clientHeight, shown: c.getBoundingClientRect().height, drawn: c.height / 2 };
-      });
-      expect(fit.scroll, `no scrolling in the stage ${JSON.stringify(fit)}`).toBeLessThanOrEqual(0);
-      expect(fit.shown, `shrunk to fit ${JSON.stringify(fit)}`).toBeLessThan(fit.drawn);
+      await wholeInStage(page, "large window");
       await setOptions(page, "match", true, true);
     }
     // A result appears without moving the buttons or the body's bottom edge (test 9 covers every
@@ -1955,6 +2018,308 @@ test.describe("41: the highlight field and the new choices on a coarse pointer (
     expect(await error.evaluate((e) => getComputedStyle(e).boxShadow)).toMatch(/inset/);
   });
 });
+
+// ---------------------------------------------------------------- 42 to 45: round 3 (.claude/tasks/snippet-dialog-v3.md)
+
+/** The lead's audit file (.claude/verify/snippet-audit/dialog.audit.ts): 67 lines of C. */
+const TREE_C = (() => {
+  const lines = [
+    "#include <stdio.h>", "#include <stdlib.h>", "", "struct node {", "    int data;", "    struct node *left, *right;", "};", "",
+    "struct node *make(int value) {", "    struct node *n = malloc(sizeof *n);", "    n->data = value;", "    n->left = n->right = NULL;", "    return n;", "}", "",
+  ];
+  for (let i = 0; i < 48; i++) lines.push(`int step${i}(int x) { return x + ${i}; }`);
+  lines.push("int main(void) {", '    printf("Number of leaf nodes: %d", step0(1));', "    return 0;", "}", "");
+  return lines.join("\n");
+})();
+const TREE_ITEM = /^Capture snippet of tree\.c, lines 1 to 67\.\.\./;
+
+/** The dialog's elements that scroll now (either way), by class or id. */
+const scrollers = (page: Page) =>
+  dialogOf(page).evaluate((d) =>
+    [d, ...d.querySelectorAll<HTMLElement>("*")]
+      .filter((el) => {
+        const s = getComputedStyle(el);
+        const y = /(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1;
+        const x = /(auto|scroll)/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 1;
+        return x || y;
+      })
+      .map((el) => el.id || el.className),
+  );
+
+/** The preview canvas lies wholly inside the stage's box, and the stage doesn't scroll. */
+async function wholeInStage(page: Page, what: string) {
+  const g = await dialogOf(page).locator("#snippet-frame").evaluate((f) => {
+    const r = f.getBoundingClientRect();
+    const c = f.querySelector("canvas")!.getBoundingClientRect();
+    return {
+      stage: { top: r.top, left: r.left, right: r.right, bottom: r.bottom }, canvas: { top: c.top, left: c.left, right: c.right, bottom: c.bottom },
+      scrolls: f.scrollHeight > f.clientHeight + 1 || f.scrollWidth > f.clientWidth + 1,
+    };
+  });
+  const msg = `${what}: ${JSON.stringify(g)}`;
+  expect(g.canvas.top, msg).toBeGreaterThanOrEqual(g.stage.top - 0.5);
+  expect(g.canvas.left, msg).toBeGreaterThanOrEqual(g.stage.left - 0.5);
+  expect(g.canvas.right, msg).toBeLessThanOrEqual(g.stage.right + 0.5);
+  expect(g.canvas.bottom, msg).toBeLessThanOrEqual(g.stage.bottom + 0.5);
+  expect(g.scrolls, msg).toBe(false);
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`42: 1440 x 900, 67 lines (${scheme}): side by side, the whole snippet in the stage, one scroller at most, preview and Download in view; Actual size scrolls the stage and Fit undoes it`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIn(page, "/", scheme);
+    await openWith(page, [{ name: "tree.c", text: TREE_C }]);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    await selectAll(page);
+    await openFromFileMenu(page, TREE_ITEM);
+    await previewReady(page);
+    const dialog = dialogOf(page);
+    await expect(dialog).toHaveAttribute("data-layout", "side");
+    // Wider than round 2's 680, inside the 16 px gutters; the options a column of 320 to 360 px to the right of the stage.
+    const d = await box(dialog);
+    expect(d.width).toBeGreaterThan(1000);
+    expect(d.width).toBeLessThanOrEqual(1120 + 0.5);
+    const stage = await box(dialog.locator("#snippet-frame"));
+    const options = await box(dialog.locator(".snippet-options"));
+    expect(options.x, "the options are right of the stage").toBeGreaterThanOrEqual(stage.x + stage.width - 0.5);
+    expect(options.width).toBeGreaterThanOrEqual(320 - 0.5);
+    expect(options.width).toBeLessThanOrEqual(360 + 0.5);
+    await wholeInStage(page, "fit");
+    expect((await scrollers(page)).length, `scrollers in Fit: ${(await scrollers(page)).join(", ")}`).toBeLessThanOrEqual(1);
+    // Nothing was scrolled to get here: the preview and Download are both in view.
+    await expect(dialog.locator("#snippet-frame canvas")).toBeInViewport({ ratio: 1 });
+    await expect(downloadButton(page)).toBeInViewport({ ratio: 1 });
+    // The size sits beside Download in the footer, and the Scale group is still described by it.
+    await expect(dialog.locator(".snippet-actions #snippet-size")).toHaveText("1146 x 3282 px");
+    await expect(dialog.getByRole("group", { name: "Scale" })).toHaveAccessibleDescription(/^1146 x 3282 px/);
+    const size = await box(dialog.locator("#snippet-size"));
+    const dl = await box(downloadButton(page));
+    expect(size.x + size.width, "the size is left of Download, in its row").toBeLessThanOrEqual(dl.x + 0.5);
+    expect(Math.abs(size.y + size.height / 2 - (dl.y + dl.height / 2))).toBeLessThanOrEqual(2);
+
+    // Actual size: 1:1 in the stage, which scrolls; Fit undoes it.
+    const toggle = dialog.getByRole("button", { name: "Actual size" });
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    const actual = await dialog.locator("#snippet-frame").evaluate((f) => {
+      const c = f.querySelector("canvas")!;
+      return { shown: c.getBoundingClientRect().width, drawn: c.width / 2, scrolls: f.scrollHeight > f.clientHeight + 1 };
+    });
+    expect(actual.shown, JSON.stringify(actual)).toBeCloseTo(actual.drawn, 0);
+    expect(actual.scrolls, JSON.stringify(actual)).toBe(true);
+    // An option change keeps Actual size for this opening.
+    await setOptions(page, "match", true, true, { frame: "window" });
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await wholeInStage(page, "fit again");
+    expect((await scrollers(page)).length).toBeLessThanOrEqual(1);
+    // Fit is the default at each opening.
+    await toggle.click();
+    await page.keyboard.press("Escape");
+    await openFromFileMenu(page, TREE_ITEM);
+    await previewReady(page);
+    await expect(dialog.getByRole("button", { name: "Actual size" })).toHaveAttribute("aria-pressed", "false");
+    await wholeInStage(page, "reopened");
+    await page.keyboard.press("Escape");
+
+    // A few lines: the image at 1:1 (never enlarged), centred, whole.
+    await page.locator(".cm-content").click();
+    await page.keyboard.press(`${MOD}+Home`);
+    await expect(page.locator("#status-pos")).toHaveText("Ln 1, Col 1");
+    // Four lines (line 3 is blank, and a blank last line is never captured).
+    for (let i = 0; i < 4; i++) await page.keyboard.press("Shift+ArrowDown");
+    await expect(page.locator("#status-pos")).toHaveText("Ln 5, Col 1");
+    await openFromFileMenu(page, /^Capture snippet of tree\.c, lines 1 to 4\.\.\./);
+    await previewReady(page);
+    await wholeInStage(page, "4 lines");
+    const small = await dialog.locator("#snippet-frame canvas").evaluate((c) => ({ shown: c.getBoundingClientRect().width, drawn: (c as HTMLCanvasElement).width / 2 }));
+    expect(small.shown, JSON.stringify(small)).toBeCloseTo(small.drawn, 0);
+  });
+}
+
+test("43: 390 x 844, 67 lines: stacked, the preview above the options at most 45% of the window, no sideways scroll, the body the one scroller", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWith(page, [{ name: "tree.c", text: TREE_C }]);
+  await selectAll(page);
+  await page.locator(".drawer-toggle").click();
+  await openFromFileMenu(page, TREE_ITEM);
+  await previewReady(page);
+  const dialog = dialogOf(page);
+  await expect(dialog).toHaveAttribute("data-layout", "stack");
+  await wholeInStage(page, "phone fit");
+  const stage = await box(dialog.locator("#snippet-frame"));
+  const first = await box(dialog.locator(".snippet-options fieldset").first());
+  expect(stage.y + stage.height, "the preview is above the options").toBeLessThanOrEqual(first.y + 0.5);
+  expect(stage.height, "at most 45% of the window's height").toBeLessThanOrEqual(0.45 * 844 + 1);
+  expect(await page.evaluate(() => {
+    const dlg = document.querySelector("#snippet-dialog")!;
+    return document.documentElement.scrollWidth <= document.documentElement.clientWidth && dlg.scrollWidth <= dlg.clientWidth;
+  }), "no sideways scroll").toBe(true);
+  expect(await scrollers(page)).toEqual(["dialog-body"]);
+  // Actual size scrolls the stage (both ways here), and Fit brings the whole image back.
+  const toggle = dialog.getByRole("button", { name: "Actual size" });
+  await toggle.click();
+  await expect.poll(async () => (await scrollers(page)).includes("snippet-frame")).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), "still no sideways page scroll").toBe(true);
+  await toggle.click();
+  await wholeInStage(page, "phone fit again");
+});
+
+/** The three segmented groups, as round 2 named them: legends, radio names and values. */
+const SEGMENTS = [
+  { legend: "Background", id: "background", items: [["none", "None (the card alone)"], ["small", "Small"], ["medium", "Medium"], ["large", "Large"]] },
+  { legend: "Frame", id: "frame", items: [["plain", "Plain"], ["window", "Window"]] },
+  { legend: "Scale", id: "scale", items: [["1", "1x"], ["2", "2x"], ["3", "3x"]] },
+] as const;
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`44: Background, Frame and Scale are segmented radio groups: names, arrows, a selected state that is not colour alone at 3:1, 24 px targets; the order (${scheme})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIn(page, "/", scheme);
+    await openDialog(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    const dialog = dialogOf(page);
+    // The order: Colours, Show, Highlight lines, then Background, Frame, Scale.
+    const order = await dialog.locator(".snippet-options").evaluate((o) =>
+      [...o.children].map((c) => (c.querySelector(":scope > legend, :scope > label")?.textContent ?? "").trim()));
+    expect(order).toEqual(["Colours", "Show", "Highlight lines", "Background", "Frame", "Scale"]);
+    // Colours keeps its list: "Match the editor (light)" does not fit a segment.
+    await expect(dialog.locator(".snippet-segments input[name=snippet-colors]")).toHaveCount(0);
+    for (const g of SEGMENTS) {
+      const group = dialog.getByRole("group", { name: g.legend });
+      await expect(group).toBeVisible();
+      await expect(group.locator(".snippet-segments")).toHaveCount(1);
+      const radios = group.getByRole("radio");
+      await expect(radios).toHaveCount(g.items.length);
+      for (const [value, name] of g.items) {
+        const radio = group.getByRole("radio", { name, exact: true });
+        await expect(radio).toHaveAttribute("value", value);
+        await expect(radio).toHaveAttribute("id", `snippet-${g.id}-${value}`);
+        await expect(radio).toHaveAttribute("name", `snippet-${g.id}`);
+      }
+      // One row of segments, each a 24 px target or more.
+      const boxes = await Promise.all(g.items.map(([value]) => box(dialog.locator(`#snippet-${g.id}-${value}`).locator(".."))));
+      for (const b of boxes) {
+        expect(b.height).toBeGreaterThanOrEqual(24);
+        expect(b.width).toBeGreaterThanOrEqual(24);
+        expect(Math.abs(b.y - boxes[0].y), `${g.legend}: one row`).toBeLessThanOrEqual(0.5);
+      }
+      // The selected segment: its 2 px ring at 3:1 or more against the neighbour's ground and its own, and a heavier label.
+      const look = await group.evaluate((fs) => {
+        const segs = [...fs.querySelectorAll<HTMLElement>(".snippet-segment")];
+        const sel = segs.find((s) => s.querySelector("input")!.checked)!;
+        const other = segs.find((s) => s !== sel)!;
+        const css = (el: Element) => getComputedStyle(el);
+        // A colour as the page paints it: a canvas fill read back (resolves color-mix, oklch and alpha over the dialog's ground).
+        const paint = (color: string, ground: string) => {
+          const c = document.createElement("canvas");
+          c.width = c.height = 1;
+          const x = c.getContext("2d", { willReadFrequently: true })!;
+          x.fillStyle = ground;
+          x.fillRect(0, 0, 1, 1);
+          x.fillStyle = color;
+          x.fillRect(0, 0, 1, 1);
+          const [r, g2, b] = x.getImageData(0, 0, 1, 1).data;
+          return `#${[r, g2, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+        };
+        const dialogBg = css(fs.closest("dialog")!).backgroundColor;
+        const shadow = css(sel).boxShadow;
+        const ring = /(rgba?\([^)]*\)|#[0-9a-f]+|oklch\([^)]*\)|color\([^)]*\))/i.exec(shadow)?.[1] ?? "";
+        return {
+          shadow, ring: paint(ring || "transparent", dialogBg),
+          selGround: paint(css(sel).backgroundColor, dialogBg), otherGround: paint(css(other).backgroundColor, dialogBg),
+          selWeight: Number(css(sel.querySelector("label")!).fontWeight), otherWeight: Number(css(other.querySelector("label")!).fontWeight),
+        };
+      });
+      expect(look.shadow, `${g.legend}: a ring on the selected segment`).toMatch(/inset/);
+      expect(contrast(look.ring, look.otherGround), `${g.legend}: ring ${look.ring} against the neighbour ${look.otherGround}`).toBeGreaterThanOrEqual(3);
+      expect(contrast(look.ring, look.selGround), `${g.legend}: ring ${look.ring} against its own ground ${look.selGround}`).toBeGreaterThanOrEqual(3);
+      expect(look.selWeight, `${g.legend}: the selected label is heavier`).toBeGreaterThan(look.otherWeight);
+    }
+    // Arrows change the value (radio semantics), and the preview follows.
+    await dialog.locator("#snippet-background-medium").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(dialog.locator("#snippet-background-large")).toBeChecked();
+    await expect(dialog.locator("#snippet-background-large")).toBeFocused();
+    await previewReady(page, "match numbers name 2x large plain");
+    await page.keyboard.press("ArrowLeft");
+    await expect(dialog.locator("#snippet-background-medium")).toBeChecked();
+    await dialog.locator("#snippet-frame-plain").focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(dialog.locator("#snippet-frame-window")).toBeChecked();
+    await previewReady(page, "match numbers name 2x medium window");
+    await dialog.locator("#snippet-scale-2").focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(dialog.locator("#snippet-scale-1")).toBeChecked();
+    // The window frame's card at 1x: 411 x 174.5 CSS px (test 37's 822 x 349 at 2x).
+    await expect(dialog.locator("#snippet-size")).toHaveText("411 x 175 px");
+    await previewReady(page, "match numbers name 1x medium window");
+    // A press on a segment, anywhere on it (its corner too), checks it.
+    const small = await box(dialog.locator("#snippet-background-small").locator(".."));
+    await page.mouse.click(small.x + 4, small.y + small.height - 4);
+    await expect(dialog.locator("#snippet-background-small")).toBeChecked();
+    // The focused segment shows the focus ring (reached by Tab from Highlight lines, so it is keyboard focus in every engine).
+    await dialog.locator("#snippet-highlight").focus();
+    await page.keyboard.press("Tab");
+    await expect(dialog.locator("#snippet-background-small")).toBeFocused();
+    const ring = await dialog.locator("#snippet-background-small").evaluate((i) => {
+      const seg = i.parentElement!;
+      const s = getComputedStyle(seg);
+      return { focusVisible: i.matches(":focus-visible"), outline: s.outlineStyle, width: parseFloat(s.outlineWidth) };
+    });
+    expect(ring.focusVisible && ring.outline !== "none" && ring.width >= 2, JSON.stringify(ring)).toBe(true);
+  });
+}
+
+/** The brand mark's tile in the image (bitmap px at scale 2): the credit's text is measured in the page with the code font. */
+async function markBox(page: Page, background: "none" | "small" | "medium" | "large") {
+  const textWidth = await page.locator(".cm-content").evaluate((el) => {
+    const c = document.createElement("canvas").getContext("2d")!;
+    c.font = `400 12px ${getComputedStyle(el).fontFamily}`;
+    return Math.round(c.measureText("Made with CodeEditor").width * 64) / 64;
+  });
+  // The fixture's card at 1x: 347 x 114.5; a 12 px credit on an 18 px line box (snippet-render.test.ts).
+  const pad = { none: 0, small: 16, medium: 32, large: 64 }[background];
+  const band = Math.max(pad, 18 + 14);
+  const top = background === "none" ? 56.5 + 45 + 4 : pad + 114.5 + (band - 18) / 2;
+  const right = background === "none" ? 347 - 17 : pad + 347;
+  const size = 12;
+  const x = right - textWidth - size / 3 - size;
+  const y = top + (18 - size) / 2;
+  return { x: x * 2, y: y * 2, size: size * 2 };
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`45: the exported PNG carries the brand mark before "Made with CodeEditor": the tile's blue and the glyph's white, every background (${scheme})`, async ({ page }) => {
+    await openIn(page, "/", scheme);
+    await openDialog(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    const BLUE = "#2f5bea";
+    for (const background of ["none", "small", "medium", "large"] as const) {
+      await setOptions(page, "match", true, true, { background });
+      const px = decodeRgba((await downloadPng(page)).bytes);
+      const m = await markBox(page, background);
+      const at = (u: number, v: number) => px.at(Math.round(m.x + u * m.size), Math.round(m.y + v * m.size));
+      // The tile's blue above and below the glyph, and on both sides of it.
+      for (const [u, v] of [[0.5, 0.16], [0.5, 0.84], [0.5, 0.5], [0.09, 0.5], [0.91, 0.5]] as const) {
+        expect(off(at(u, v), BLUE), `${background}: blue at ${u}, ${v} of the tile (${at(u, v)})`).toBeLessThanOrEqual(8);
+      }
+      // The glyph's white: each chevron's arms hold white pixels.
+      const count = (u0: number, u1: number, v0: number, v1: number, hex: string) => {
+        let n = 0;
+        for (let y = Math.round(m.y + v0 * m.size); y <= Math.round(m.y + v1 * m.size); y++)
+          for (let x = Math.round(m.x + u0 * m.size); x <= Math.round(m.x + u1 * m.size); x++) if (off(px.at(x, y), hex) <= 8) n++;
+        return n;
+      };
+      expect(count(0.15, 0.42, 0.25, 0.75, "#ffffff"), `${background}: the left chevron's white`).toBeGreaterThanOrEqual(8);
+      expect(count(0.58, 0.85, 0.25, 0.75, "#ffffff"), `${background}: the right chevron's white`).toBeGreaterThanOrEqual(8);
+      // Nothing blue left of the tile (the line stays right-aligned).
+      expect(count(-1.5, -0.2, 0, 1, BLUE), `${background}: nothing of the mark left of its tile`).toBe(0);
+    }
+  });
+}
 
 test.describe("the file menu fits a short coarse window (Chromium)", () => {
   test.skip(({ browserName }) => browserName !== "chromium", "Playwright emulates pointer: coarse in Chromium only");

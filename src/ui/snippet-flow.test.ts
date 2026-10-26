@@ -563,26 +563,33 @@ describe("imageColors (4.3)", () => {
 
 describe("the frame budget (5.2)", () => {
   // The table's measures (head, footer, first row) and its viewports; cap and frame cap from the formula.
+  // Round 3: side by side from 900 px wide unless compact; stacked, the preview takes at most 45% of
+  // the window's height (its frame's 18 px of padding and border included).
   it.each([
-    ["1440 x 900", 900, 52.6, 113, 56, 478.4, false, 420],
-    ["1280 x 800 coarse", 800, 68, 129, 72, 431, false, 420],
-    ["1093 x 504", 504, 52.6, 113, 56, 190.4, false, 190.4],
-    ["390 x 844", 844, 81, 129, 72, 418, false, 418],
-    ["320 x 640", 640, 81, 181, 72, 214, false, 214],
-    ["683 x 330", 330, 68, 129, 72, -31, true, 131],
-    ["844 x 390 coarse", 390, 68, 129, 72, 29, true, 161],
-    ["455 x 213", 213, 68, 129, 72, -148, true, 96],
-    ["320 x 256", 256, 81, 181, 72, -170, true, 96],
-  ] as [string, number, number, number, number, number, boolean, number][])("%s", (_, innerHeight, head, footer, firstRow, cap, compact, frameCap) => {
-    const b = frameBudget({ innerHeight, head, footer, notes: [], firstRow });
+    ["1440 x 900", 900, true, 52.6, 113, 56, 478.4, false, 387, "side"],
+    ["1280 x 800 coarse", 800, true, 68, 129, 72, 431, false, 342, "side"],
+    ["1093 x 504", 504, true, 52.6, 113, 56, 190.4, false, 190.4, "side"],
+    // Wide and short: stacked it would be compact (the options would sit under the stage), side by side the stage has 170 px.
+    ["1093 x 400", 400, true, 52.6, 113, 56, 86.4, false, 86.4, "side"],
+    ["1093 x 300", 300, true, 52.6, 113, 56, -13.6, true, 116, "stack"],
+    ["600 x 900", 900, false, 52.6, 113, 56, 478.4, false, 387, "stack"],
+    ["390 x 844", 844, false, 81, 129, 72, 418, false, 362, "stack"],
+    ["320 x 640", 640, false, 81, 181, 72, 214, false, 214, "stack"],
+    ["683 x 330", 330, false, 68, 129, 72, -31, true, 131, "stack"],
+    ["844 x 390 coarse", 390, false, 68, 129, 72, 29, true, 161, "stack"],
+    ["455 x 213", 213, false, 68, 129, 72, -148, true, 96, "stack"],
+    ["320 x 256", 256, false, 81, 181, 72, -170, true, 96, "stack"],
+  ] as [string, number, boolean, number, number, number, number, boolean, number, string][])("%s", (_, innerHeight, wide, head, footer, firstRow, cap, compact, frameCap, layout) => {
+    const b = frameBudget({ innerHeight, wide, head, footer, notes: [], firstRow });
     expect(b.cap).toBeCloseTo(cap, 9);
     expect(b.compact).toBe(compact);
     expect(b.frameCap).toBeCloseTo(frameCap, 9);
+    expect(b.layout).toBe(layout);
   });
 
   it("each note takes its height plus 8", () => {
-    const plain = frameBudget({ innerHeight: 900, head: 52.6, footer: 113, notes: [], firstRow: 56 });
-    const noted = frameBudget({ innerHeight: 900, head: 52.6, footer: 113, notes: [18, 36], firstRow: 56 });
+    const plain = frameBudget({ innerHeight: 900, wide: false, head: 52.6, footer: 113, notes: [], firstRow: 56 });
+    const noted = frameBudget({ innerHeight: 900, wide: false, head: 52.6, footer: 113, notes: [18, 36], firstRow: 56 });
     expect(plain.cap - noted.cap).toBeCloseTo(18 + 8 + 36 + 8, 9);
   });
 });
@@ -614,17 +621,23 @@ describe("the frame's content height (5.2)", () => {
     expect(frameContent([{ width: 100, height: 300 }], 600, 420)).toBe(300);
     expect(frameContent([{ width: 100, height: 3000 }], 600, 131)).toBe(131);
   });
-  it("the preview's fit: to the width, never enlarged; a look taller than the stage shrinks to its height, unless the stage is capped", () => {
+  it("the preview's fit: the whole image in the stage both ways, never enlarged; Actual size is 1:1", () => {
     // The fixture's default look at 1x is 411 x 178.5 (medium background); large and window is 475 x 238.5.
     expect(previewFit({ width: 411, height: 178.5 }, 600, 178.5)).toBe(1);
     expect(previewFit({ width: 475, height: 238.5 }, 600, 178.5)).toBeCloseTo(178.5 / 238.5, 12);
     expect(238.5 * previewFit({ width: 475, height: 238.5 }, 600, 178.5)).toBeCloseTo(178.5, 9);
     // Narrow: the width fit already brings it under the stage, so nothing more.
     expect(previewFit({ width: 475, height: 238.5 }, 300, 178.5)).toBeCloseTo(300 / 475, 12);
-    // Capped (a long selection scrolls in the stage): the width fit alone.
-    expect(previewFit({ width: 934, height: 4569.5 }, 600, null)).toBeCloseTo(600 / 934, 12);
+    // Round 3: a long selection is never scrolled in Fit; it shrinks to the stage's height too (a tall thumbnail).
+    expect(previewFit({ width: 934, height: 4569.5 }, 600, 420)).toBeCloseTo(420 / 4569.5, 12);
+    expect(4569.5 * previewFit({ width: 934, height: 4569.5 }, 600, 420)).toBeCloseTo(420, 9);
     // A shorter look keeps its width fit (centred on the stage, never enlarged).
     expect(previewFit({ width: 347, height: 114.5 }, 600, 178.5)).toBe(1);
+    // A stage with no room yet (before layout) never gives a zero or negative scale.
+    expect(previewFit({ width: 347, height: 114.5 }, 0, 0)).toBeGreaterThan(0);
+    // Actual size: 1:1 whatever the stage.
+    expect(previewFit({ width: 934, height: 4569.5 }, 600, 420, true)).toBe(1);
+    expect(previewFit({ width: 100, height: 50 }, 600, 420, true)).toBe(1);
   });
   it("the estimate before the first render: the default layout's height from the line count", () => {
     expect(frameEstimate(2, 22.5, true)).toBe(114.5);
