@@ -32,7 +32,8 @@
     "@lezer/cpp": "1.1.6",
     "@lezer/highlight": "1.2.5",
     "idb": "8.0.3",
-    "pyodide": "314.0.7"
+    "pyodide": "314.0.7",
+    "web-tree-sitter": "0.27.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
