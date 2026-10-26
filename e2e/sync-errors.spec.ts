@@ -15,7 +15,7 @@ import { GitHubError, type GitHubErrorKind } from "../src/sync/github";
 import { explainError } from "../src/sync/repo-check";
 import { validateTokenShape } from "../src/sync/token-store";
 import { branchProblem, ownerProblem, repoProblem } from "../src/ui/sync-form";
-import { expect, openApp, test } from "./helpers";
+import { expect, hostNetwork, openApp, test } from "./helpers";
 import { answer, EMPTY_REPO, fillConnect, githubNoise, openConnect, routeGitHub, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -321,6 +321,40 @@ test.describe("the network", () => {
     await expectResult(page, "This computer is offline, so GitHub can't check the token now. Connect again once you're online.", "error", connect);
     expect(gh.seen).toEqual([]);
     await context.setOffline(false);
+  });
+
+  // GitHub here is the fake, served by page.route, so this computer's own network is not the
+  // test's. Under a long full run a Wi-Fi drop made navigator.onLine false and Connect said
+  // "offline" (Windows System log, 2026-10-26 17:32 to 17:35: WLAN "limited connectivity").
+  test.describe("this computer's own network", () => {
+    test.use(syncNoise(...EMPTY_REPO));
+    test("a drop doesn't reach the test: Connect still checks the token", async ({ page, context }, info) => {
+      test.skip(info.project.name === "firefox", "Playwright's Firefox ignores the computer's network state, and its offline emulation also fails routed requests");
+      const gh = await routeGitHub(page);
+      await openApp(page);
+      await openConnect(page);
+      await fillConnect(page, {});
+      await page.waitForLoadState("networkidle");
+      // A Wi-Fi drop leaves the local server reachable; the browser's offline state doesn't, so
+      // the app's own files come through Playwright (outside the browser) until it's back.
+      await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, async (route) => route.fulfill({ response: await route.fetch() }));
+      await page.evaluate(() => {
+        const w = window as unknown as { __heard: string[] };
+        w.__heard = [];
+        for (const type of ["online", "offline"]) addEventListener(type, () => w.__heard.push(type));
+      });
+      await hostNetwork(context, "offline");
+      expect(await page.evaluate(() => navigator.onLine), "the test never went offline").toBe(true);
+      await page.locator("#connect-submit").click();
+      await expect(dialogOf(page)).toHaveCount(0);
+      expect(gh.seen.length).toBeGreaterThan(0);
+      await waitSync(page, 0, "synced");
+      await hostNetwork(context, "online");
+      // The browser queues its online event after setOffline returns: give it time to arrive.
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => (window as unknown as { __heard: string[] }).__heard), "the page heard the computer's network").toEqual([]);
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    });
   });
 
   test.describe("GitHub can't be reached", () => {

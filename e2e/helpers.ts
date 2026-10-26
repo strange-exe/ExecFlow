@@ -1,4 +1,15 @@
-import { expect, test as base, type Page, type Request, type Route } from "@playwright/test";
+import { expect, test as base, type BrowserContext, type Page, type Request, type Route } from "@playwright/test";
+
+/** BrowserContext.setOffline as Playwright has it, before the fixture below wraps it. */
+const browserSetOffline = new WeakMap<BrowserContext, BrowserContext["setOffline"]>();
+
+/**
+ * Stands in for this computer's own network going down or coming back (a Wi-Fi drop): the
+ * browser's network state changes, but no test asked for it.
+ */
+export async function hostNetwork(context: BrowserContext, state: "offline" | "online") {
+  await (browserSetOffline.get(context) ?? context.setOffline.bind(context))(state === "offline");
+}
 
 /**
  * WebKit blocks the first worker created after any reload, then logs these itself. The app retries
@@ -65,6 +76,41 @@ const FIREFOX_CANCELLED_PYODIDE = /^request failed: http:\/\/127\.0\.0\.1:\d+\/p
  */
 export const test = base.extend<{ consoleErrors: string[]; tolerate: RegExp[] }>({
   tolerate: [[], { option: true }],
+  /**
+   * The page sees only the network state the test sets. Every request a test makes is to the local
+   * server or a page.route fake, yet Chromium and WebKit report this computer's own network in
+   * navigator.onLine and the online/offline events (Playwright can only force "offline"; setOffline(false)
+   * hands the state back to the computer). A Wi-Fi drop during a long run made Connect say
+   * "offline" (Windows System log, 2026-10-26). So navigator.onLine is false only while the test
+   * has called context.setOffline(true), and the browser's own online and offline events never
+   * reach the page: setOffline sends the page its event itself, as it changes navigator.onLine
+   * (the browser's event comes later, and a quick offline-then-online raced it).
+   */
+  context: async ({ context }, use) => {
+    browserSetOffline.set(context, context.setOffline.bind(context));
+    await context.addInitScript(() => {
+      const g = globalThis as { __testOffline?: boolean };
+      Object.defineProperty(Navigator.prototype, "onLine", { configurable: true, enumerable: true, get: () => g.__testOffline !== true });
+      // Registered before any page script, so stopping here keeps the event from every listener.
+      for (const type of ["online", "offline"]) addEventListener(type, (e) => { if (e.isTrusted) e.stopImmediatePropagation(); }, true);
+    });
+    const real = browserSetOffline.get(context)!;
+    context.setOffline = async (offline: boolean) => {
+      // A later document (a reload while offline) starts in this state: the last init script
+      // registered runs last.
+      await context.addInitScript((o) => void ((globalThis as { __testOffline?: boolean }).__testOffline = o), offline);
+      await real(offline);
+      // Pages open now, once the network really is in that state.
+      const tell = (o: boolean) => {
+        const g = globalThis as { __testOffline?: boolean };
+        if ((g.__testOffline === true) === o) return;
+        g.__testOffline = o;
+        dispatchEvent(new Event(o ? "offline" : "online"));
+      };
+      await Promise.all(context.pages().map((p) => p.evaluate(tell, offline).catch(() => {})));
+    };
+    await use(context);
+  },
   consoleErrors: [
     async ({ page, tolerate }, use, testInfo) => {
       const errors: string[] = [];
