@@ -58,6 +58,19 @@ and logs nothing, and syncing never goes through it.
 - Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
   name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).
+- Flowchart (a tab beside Output and Problems; a fourth view on phones): the open C, C++ or Python
+  file drawn as a flowchart, one chart per function (the entry point first: `main`, or a Python
+  file's top level, "Program"), with the shapes of lab records: Start and End, steps, decisions
+  with Yes and No (a switch's cases by value), input and output, calls to the file's own functions,
+  and connectors for `goto`. Up to three simple statements share a box; try/catch, with, lambdas and
+  macros are one box each, "shown as one step". Click a box to select its lines in the code; move
+  the caret and its box is outlined; Tab reaches the boxes as one list (arrows, Home, End; Enter goes
+  to the code), and "Steps as text" gives the same chart as a numbered outline. Zoom, fit, drag to
+  pan, Ctrl+wheel or pinch to zoom; Full screen shows it over the whole window (Esc leaves). It
+  redraws 300 ms after typing stops. A line with a mistake is named, with a link to it, and the
+  chart shows what parses. Limits: 400 boxes and 40 levels of nesting per function, 1 MB per file.
+  Its parser (tree-sitter) downloads the first time a chart is shown for a language (about 1 MB
+  for C or Python, 3.7 MB for C++, before compression), and then works offline.
 - New from example... (in More file actions, the search, and the empty workspace): nine short
   programs, three each for Python, C and C++, added to your files under a free name and opened.
 - New file (the file list): the name field suggests `name.py, name.c or name.cpp`. A name that won't

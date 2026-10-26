@@ -33,6 +33,7 @@ import { paletteKey } from "./palette-keys";
 import { createSnippetCapture } from "./snippet-image";
 import { mountSync, type SyncHooks } from "./sync-entry";
 import { TabStrip } from "./tabs";
+import type { ChartHost, FlowchartView } from "./flowchart-view";
 import { FileTree } from "./tree";
 import { starterText, type TreeNode } from "./tree-model";
 
@@ -181,6 +182,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let editors: Editors = idle;
   let manager: EditorManager | null = null;
   let loadingEditor: Promise<EditorManager> | null = null;
+  /** The Flowchart view, a lazy chunk loaded when its tab or phone view first opens (see chartHost). */
+  let chartView: FlowchartView | null = null;
   function loadEditor(): Promise<EditorManager> {
     loadingEditor ??= import("../editor/editor-manager").then(
       ({ EditorManager }) => {
@@ -213,9 +216,13 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
               scheduleCheck(id);
               // An edit is the next step after a failed run: Run takes its filled style again.
               editedAfterRun();
+              if (id === editors.activeId) chartView?.docChanged();
             },
             // Ln/Col in the editor's own update, not a frame of its own after the key (see showPosition).
-            onSelectionChange: (_id, state) => showPosition(state),
+            onSelectionChange: (_id, state) => {
+              showPosition(state);
+              chartView?.caretMoved();
+            },
             onDiagnosticsChange: scheduleProblems,
             onRun: () => void run({ key: true }),
             onSave: () => void saveAndSync(),
@@ -746,6 +753,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     renderStatus();
     renderLastRun();
     schedulePosition();
+    chartView?.fileChanged();
   }
 
   // ---------------------------------------------------------------- creating, renaming, deleting
@@ -1526,6 +1534,49 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (output.inputToggle.getAttribute("aria-expanded") === "true") output.stdin.focus();
   });
   L.panelActions.append(output.inputToggle, restartButton, clearButton, maxButton);
+
+  // ---------------------------------------------------------------- the Flowchart view
+  // Nothing of it loads on the first visit: its chunk (view, layout, renderer) the first time the
+  // Flowchart tab or phone view opens, the worker and the grammars when it first draws.
+  const chartHost: ChartHost = {
+    file: () => {
+      const id = editors.activeId;
+      const file = fileOf(id);
+      const text = id ? editors.text(id) : null;
+      return id && file && text !== null ? { id, path: file.path, text } : null;
+    },
+    select: (id, from, to, focus) => {
+      const state = editors.state(id);
+      if (!state) return;
+      const line = (n: number) => state.doc.line(Math.min(Math.max(1, n), state.doc.lines));
+      manager?.reveal(id, line(from).from, line(to).to, focus);
+    },
+    caretLine: () => {
+      const id = editors.activeId;
+      const state = id ? editors.state(id) : null;
+      return state ? state.doc.lineAt(state.selection.main.head).number : null;
+    },
+    showCode: () => {
+      if (L.narrow()) L.showView("code");
+    },
+  };
+  let loadingChart: Promise<FlowchartView> | null = null;
+  function ensureChart(): Promise<FlowchartView> {
+    loadingChart ??= import("./flowchart-view").then(
+      ({ createFlowchartView }) => (chartView = createFlowchartView(L.flowchartPanel, chartHost)),
+      (e: unknown) => {
+        // A failed chunk can stay failed for this page (WebKit): the words say to reload.
+        L.flowchartPanel.replaceChildren(h("p", { class: "fc-load-error", role: "status" }, "Couldn't load the flowchart view. Check the connection, then reload the page."));
+        loadingChart = null;
+        throw e;
+      },
+    );
+    return loadingChart;
+  }
+  L.onChartVisibleChange((visible) => {
+    if (visible) void ensureChart().then((v) => v.setVisible(L.chartVisible()), () => {});
+    else chartView?.setVisible(false);
+  });
 
   /** The file list's width in steps, from the More file actions menu (no dragging needed). */
   const WIDTH_STEP = 64;

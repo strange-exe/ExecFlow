@@ -44,9 +44,10 @@ test("the panel is its bar until the first run, Ctrl+` opens it, and Run opens i
   await openFromTree(page, "main.py");
   const toggle = page.locator("#panel-toggle");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(toggle).toHaveAttribute("aria-controls", "panel-output panel-problems");
+  await expect(toggle).toHaveAttribute("aria-controls", "panel-output panel-problems panel-flowchart");
   await expect(page.locator("#panel-output")).toBeHidden();
   await expect(page.locator("#panel-problems")).toBeHidden();
+  await expect(page.locator("#panel-flowchart")).toBeHidden();
   // Its 40 px bar, plus the 1 px foot of the editor's sheet (desktop, since the Signal round).
   expect((await box(page, "#panel")).height, "the collapsed panel is its 40 px bar and the sheet's edge").toBe(41);
   expect((await box(page, "#panel .panel-bar")).height).toBe(40);
@@ -387,7 +388,7 @@ test.describe("phones", () => {
     }
   });
 
-  test("no tab strip: the drawer marks open files, Alt+W and the file menu's Close tab close them, and one switch moves between Code, Output and Problems", async ({ page }) => {
+  test("no tab strip: the drawer marks open files, Alt+W and the file menu's Close tab close them, and one switch moves between Code, Output, Problems and Flowchart", async ({ page }) => {
     await openApp(page);
     await importFiles(page, FILES);
     await openFromTree(page, "main.py");
@@ -432,10 +433,10 @@ test.describe("phones", () => {
 
     // The view switch: one tab list, arrows (wrapping), Home and End.
     const switcher = page.getByRole("tablist", { name: "View" });
-    await expect(switcher.getByRole("tab")).toHaveText(["Code", "Output", "Problems"]);
+    await expect(switcher.getByRole("tab")).toHaveText(["Code", "Output", "Problems", "Flowchart"]);
     const selected = switcher.locator('[role=tab][aria-selected="true"]');
     await page.locator("#view-code").focus();
-    for (const [key, id] of [["ArrowRight", "view-output"], ["ArrowRight", "view-problems"], ["ArrowRight", "view-code"], ["End", "view-problems"], ["Home", "view-code"], ["ArrowLeft", "view-problems"]] as const) {
+    for (const [key, id] of [["ArrowRight", "view-output"], ["ArrowRight", "view-problems"], ["ArrowRight", "view-flowchart"], ["ArrowRight", "view-code"], ["End", "view-flowchart"], ["Home", "view-code"], ["ArrowLeft", "view-flowchart"], ["ArrowLeft", "view-problems"]] as const) {
       await page.keyboard.press(key);
       await expect(selected, key).toHaveAttribute("id", id);
       await expect(page.locator(`#${id}`)).toBeFocused();

@@ -1111,9 +1111,9 @@ button.problem:hover { background: var(--hover); }
   .panel-tabs, .panel-toggle, .panel-max { display: none; }
   .panel-actions { flex: 1; margin-left: 0; }
   .panel-actions > #clear-output { margin-left: auto; }
-  .center[data-view="problems"] .panel-bar { display: none; }
-  /* Without its tools row the panel is one row: the list fills the view on one ground. */
-  .center[data-view="problems"] > .panel { grid-template-rows: minmax(0, 1fr); }
+  .center[data-view="problems"] .panel-bar, .center[data-view="flowchart"] .panel-bar { display: none; }
+  /* Without its tools row the panel is one row: the list (or the chart) fills the view on one ground. */
+  .center[data-view="problems"] > .panel, .center[data-view="flowchart"] > .panel { grid-template-rows: minmax(0, 1fr); }
   .label-wide { display: none; }
   .live-hint { display: none; }
   .runlog { padding: var(--s1) var(--s3); }

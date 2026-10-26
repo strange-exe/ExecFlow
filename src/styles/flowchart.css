@@ -1,0 +1,139 @@
+/* The Flowchart view (src/ui/flowchart-view.ts; a lazy chunk with its script). Signal tokens only.
+   Reading order: 1. the chart on the code ground, 2. the toolbar's picker and zoom (quiet tier),
+   3. Full screen at the toolbar's right end. The boxes' own colours are set by render.ts from the
+   same tokens; here only what the view adds: the stage, the toolbar, the banner, the states, and the
+   rings for focus (brass, solid) and for the caret's box (location, dashed: never colour alone). */
+
+.fc-view { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); color: var(--text); }
+
+/* ------------------------------------------------------------------ toolbar (quiet tier) */
+.fc-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s1) var(--s2) var(--s1) var(--s3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.fc-toolbar[hidden] { display: none; }
+.fc-group { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
+.fc-spacer { flex: 1; }
+.fc-label { color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); }
+.fc-picker {
+  min-width: 0;
+  max-width: 24ch;
+  min-height: var(--target);
+  padding: 0 var(--s2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs-2)/var(--lh-2) var(--font-name);
+}
+.fc-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-width: var(--tool);
+  min-height: var(--tool);
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+.fc-tool:hover { background: var(--hover); color: var(--text); }
+.fc-tool[aria-expanded="true"] { color: var(--text); }
+.fc-tool .icon { width: var(--icon-md); height: var(--icon-md); }
+
+/* ------------------------------------------------------------------ the syntax-mistake banner */
+.fc-banner {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  box-shadow: inset 2px 0 0 var(--warning);
+  color: var(--text);
+}
+.fc-banner[hidden] { display: none; }
+.fc-banner-icon { flex: none; width: var(--icon-md); height: var(--icon-md); color: var(--warning); }
+.fc-banner-text { flex: 1 1 20ch; }
+
+/* ------------------------------------------------------------------ the chart */
+.fc-stage { flex: 1 1 auto; min-height: 0; overflow: auto; cursor: grab; touch-action: none; background: var(--bg); }
+.fc-stage[hidden] { display: none; }
+.fc-stage:active { cursor: grabbing; }
+.fc-stage svg { display: block; margin: 0 auto; }
+.fc-node { cursor: pointer; }
+.fc-node:focus { outline: none; }
+.fc-ring { fill: none; stroke: none; pointer-events: none; }
+.fc-node[data-current="true"] .fc-ring { stroke: var(--location); stroke-width: 2; stroke-dasharray: 5 3; }
+.fc-node:focus-visible .fc-ring { stroke: var(--focus); stroke-width: 2.5; stroke-dasharray: none; }
+
+/* ------------------------------------------------------------------ steps as text */
+.fc-steps {
+  flex: 0 1 auto;
+  max-height: 40%;
+  margin: 0;
+  padding: var(--s2) var(--s3) var(--s2) calc(var(--s3) + 2ch);
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  list-style: none;
+}
+.fc-steps[hidden] { display: none; }
+.fc-steps li + li { margin-top: var(--s1); }
+
+/* ------------------------------------------------------------------ states */
+.fc-message {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s5) var(--s4);
+  text-align: center;
+}
+.fc-message[hidden] { display: none; }
+.fc-message-text { max-width: 48ch; margin: 0; color: var(--text); }
+.fc-message-text:empty { display: none; }
+/* Loading: three still boxes (no shimmer: nothing moves on its own). */
+.fc-skeleton { display: flex; flex-direction: column; align-items: center; gap: var(--s3); }
+.fc-skeleton[hidden] { display: none; }
+.fc-skeleton span { display: block; width: 120px; height: 28px; border: 1px solid var(--border-strong); border-radius: var(--r-control); background: var(--surface); }
+/* The middle box is a diamond: a square turned a quarter. */
+.fc-skeleton span:nth-child(2) { width: 28px; height: 28px; border-radius: 2px; transform: rotate(45deg); }
+
+/* ------------------------------------------------------------------ full screen */
+.fc-dialog {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+.fc-dialog[open] { display: flex; }
+.fc-dialog .fc-view { flex: 1; }
+
+@media (max-width: 899px) {
+  .fc-toolbar { gap: var(--s1); padding-left: var(--s2); }
+  .fc-picker { min-height: var(--tool); max-width: 16ch; }
+  .fc-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .fc-tool span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

@@ -18,8 +18,9 @@ export const SIDEBAR = { min: 200, max: 480, initial: 248 };
 export const PANEL = { min: 15, max: 80, initial: 35 };
 
 /** What fills the screen below 900 px. */
-export type View = "code" | "output" | "problems";
-export type PanelTab = "output" | "problems";
+export type View = "code" | "output" | "problems" | "flowchart";
+export type PanelTab = "output" | "problems" | "flowchart";
+const PANEL_TABS: readonly PanelTab[] = ["output", "problems", "flowchart"];
 
 /** The app's mark: the favicon's shape, drawn with the theme's brand tile and glyph colours. */
 export function brandMark(): SVGSVGElement {
@@ -70,16 +71,22 @@ export interface Layout {
   editorHost: HTMLElement;
   emptyHost: HTMLElement;
   panel: HTMLElement;
-  panelTabs: { output: HTMLButtonElement; problems: HTMLButtonElement; count: HTMLElement };
+  panelTabs: { output: HTMLButtonElement; problems: HTMLButtonElement; flowchart: HTMLButtonElement; count: HTMLElement };
   /** Collapses the panel to its bar and opens it again (aria-expanded; desktop only). */
   panelToggle: HTMLButtonElement;
   panelActions: HTMLElement;
   outputPanel: HTMLElement;
   problemsPanel: HTMLElement;
+  /** The Flowchart tab's body: the view (src/ui/flowchart-view.ts, a lazy chunk) fills it on first opening. */
+  flowchartPanel: HTMLElement;
+  /** Whether the flowchart is on screen (its panel tab open on desktop, its view on phones). */
+  chartVisible(): boolean;
+  /** Called whenever chartVisible() may have changed. */
+  onChartVisibleChange(listener: (visible: boolean) => void): void;
   /** The notice slot in the status bar. */
   noticeHost: HTMLElement;
   status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement };
-  viewTabs: { code: HTMLButtonElement; output: HTMLButtonElement; problems: HTMLButtonElement; count: HTMLElement };
+  viewTabs: { code: HTMLButtonElement; output: HTMLButtonElement; problems: HTMLButtonElement; flowchart: HTMLButtonElement; count: HTMLElement };
   /** The file list's width and the panel's height (desktop): buttons resize them without dragging. */
   splitters: { sidebar: Splitter; panel: Splitter };
   narrow(): boolean;
@@ -88,7 +95,7 @@ export interface Layout {
   openDrawer(): void;
   closeDrawer(focusToggle?: boolean): void;
   drawerOpen(): boolean;
-  /** Narrow screens: which of Code / Output / Problems fills the screen. */
+  /** Narrow screens: which of Code / Output / Problems / Flowchart fills the screen. */
   showView(view: View): void;
   view(): View;
   /** Selects a panel tab and opens the panel if it is collapsed. */
@@ -184,30 +191,38 @@ export function createLayout(root: HTMLElement): Layout {
   const editorPanel = h("div", { class: "editor-panel", id: "editor-panel", "data-empty": "true" }, editorHost, emptyHost);
   const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, editorPanel);
 
-  // Phones: one switch for the three views; Problems carries its count.
+  // Phones: one switch for the four views; Problems carries its count.
   const viewCount = h("span", { class: "count", "data-count": "0" });
   const viewCode = h("button", { type: "button", role: "tab", id: "view-code", "aria-controls": "editor-area", "aria-selected": "true" }, "Code");
   const viewOutput = h("button", { type: "button", role: "tab", id: "view-output", "aria-controls": "panel", "aria-selected": "false", tabindex: "-1" }, "Output");
   const viewProblems = h("button", { type: "button", role: "tab", id: "view-problems", "aria-controls": "panel", "aria-selected": "false", tabindex: "-1" }, "Problems", viewCount);
-  const viewSwitch = h("div", { class: "view-switch", role: "tablist", "aria-label": "View" }, viewCode, viewOutput, viewProblems);
+  const viewFlowchart = h("button", { type: "button", role: "tab", id: "view-flowchart", "aria-controls": "panel", "aria-selected": "false", tabindex: "-1" }, "Flowchart");
+  const viewSwitch = h("div", { class: "view-switch", role: "tablist", "aria-label": "View" }, viewCode, viewOutput, viewProblems, viewFlowchart);
 
   // ---------------------------------------------------------------- bottom panel
   const count = h("span", { class: "count", "data-count": "0" });
   const ptabOutput = h("button", { type: "button", role: "tab", id: "ptab-output", "aria-controls": "panel-output", "aria-selected": "true" }, "Output");
   const ptabProblems = h("button", { type: "button", role: "tab", id: "ptab-problems", "aria-controls": "panel-problems", "aria-selected": "false", tabindex: "-1" }, "Problems", count);
-  const panelTabsEl = h("div", { class: "panel-tabs", role: "tablist", "aria-label": "Panel" }, ptabOutput, ptabProblems);
-  const panelToggle = h("button", { type: "button", class: "icon-btn panel-toggle", id: "panel-toggle", "aria-label": "Output and problems", "aria-expanded": "false", "aria-controls": "panel-output panel-problems" });
+  const ptabFlowchart = h("button", { type: "button", role: "tab", id: "ptab-flowchart", "aria-controls": "panel-flowchart", "aria-selected": "false", tabindex: "-1" }, "Flowchart");
+  const panelTabsEl = h("div", { class: "panel-tabs", role: "tablist", "aria-label": "Panel" }, ptabOutput, ptabProblems, ptabFlowchart);
+  const panelToggle = h("button", { type: "button", class: "icon-btn panel-toggle", id: "panel-toggle", "aria-label": "Output and problems", "aria-expanded": "false", "aria-controls": "panel-output panel-problems panel-flowchart" });
   const panelActions = h("div", { class: "panel-actions" });
   const outputPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-output", "aria-labelledby": "ptab-output" });
   const problemsPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-problems", "aria-labelledby": "ptab-problems", tabindex: "0" });
   problemsPanel.hidden = true;
+  const flowchartPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-flowchart", "aria-labelledby": "ptab-flowchart" });
+  flowchartPanel.hidden = true;
   const panel = h(
     "section",
     { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output" },
     h("div", { class: "panel-bar" }, panelTabsEl, panelToggle, panelActions),
     outputPanel,
     problemsPanel,
+    flowchartPanel,
   );
+  const ptabs: Record<PanelTab, HTMLButtonElement> = { output: ptabOutput, problems: ptabProblems, flowchart: ptabFlowchart };
+  const bodies: Record<PanelTab, HTMLElement> = { output: outputPanel, problems: problemsPanel, flowchart: flowchartPanel };
+  const currentTab = (): PanelTab => (PANEL_TABS.includes(panel.dataset.tab as PanelTab) ? (panel.dataset.tab as PanelTab) : "output");
 
   const center = h("div", { class: "center", "data-view": "code" }, viewSwitch, editorArea);
   const main = h("main", { class: "main" }, sidebar);
@@ -373,12 +388,22 @@ export function createLayout(root: HTMLElement): Layout {
     panelToggle.setAttribute("aria-expanded", String(!shut));
     panelToggle.title = shut ? "Show the panel" : "Hide the panel";
     panelToggle.replaceChildren(icon(shut ? "caret-up" : "caret-down"));
-    const out = panel.dataset.tab !== "problems";
-    outputPanel.hidden = shut || !out;
-    problemsPanel.hidden = shut || out;
+    const tab = currentTab();
+    for (const t of PANEL_TABS) bodies[t].hidden = shut || t !== tab;
     // The splitter's value is the height the panel opens to; while it is a bar, it says so.
     if (shut) panelSplit.element.setAttribute("aria-valuetext", `Collapsed; opens at ${panelSplit.value} percent of the height`);
     else panelSplit.refresh();
+    tellChart();
+  }
+  // ---------------------------------------------------------------- is the flowchart on screen?
+  const chartListeners: ((visible: boolean) => void)[] = [];
+  let chartWasVisible = false;
+  const chartVisible = () => (narrowQuery.matches ? center.dataset.view === "flowchart" : !panelCollapsed() && currentTab() === "flowchart");
+  function tellChart() {
+    const visible = chartVisible();
+    if (visible === chartWasVisible) return;
+    chartWasVisible = visible;
+    for (const listener of chartListeners) listener(visible);
   }
   function expandPanel() {
     collapsed = false;
@@ -395,13 +420,14 @@ export function createLayout(root: HTMLElement): Layout {
   panelToggle.addEventListener("click", () => (panelToggle.getAttribute("aria-expanded") === "true" ? collapsePanel() : expandPanel()));
 
   // ---------------------------------------------------------------- Code / Output / Problems switch
-  const switchTabs: [HTMLButtonElement, View][] = [[viewCode, "code"], [viewOutput, "output"], [viewProblems, "problems"]];
+  const switchTabs: [HTMLButtonElement, View][] = [[viewCode, "code"], [viewOutput, "output"], [viewProblems, "problems"], [viewFlowchart, "flowchart"]];
   function markView(view: View) {
     center.dataset.view = view;
     for (const [tab, v] of switchTabs) {
       tab.setAttribute("aria-selected", String(v === view));
       tab.tabIndex = v === view ? 0 : -1;
     }
+    tellChart();
   }
   function showView(view: View) {
     markView(view);
@@ -420,11 +446,10 @@ export function createLayout(root: HTMLElement): Layout {
 
   // ---------------------------------------------------------------- panel tabs
   function selectPanelTab(tab: PanelTab) {
-    const out = tab === "output";
-    ptabOutput.setAttribute("aria-selected", String(out));
-    ptabProblems.setAttribute("aria-selected", String(!out));
-    ptabOutput.tabIndex = out ? 0 : -1;
-    ptabProblems.tabIndex = out ? -1 : 0;
+    for (const t of PANEL_TABS) {
+      ptabs[t].setAttribute("aria-selected", String(t === tab));
+      ptabs[t].tabIndex = t === tab ? 0 : -1;
+    }
     panel.dataset.tab = tab;
     // Phones: the switch shows the same panel tab the panel does.
     if (center.dataset.view !== "code") markView(tab);
@@ -433,15 +458,17 @@ export function createLayout(root: HTMLElement): Layout {
   function showPanelTab(tab: PanelTab, focus = false) {
     selectPanelTab(tab);
     expandPanel();
-    if (focus) (tab === "output" ? ptabOutput : ptabProblems).focus();
+    if (focus) ptabs[tab].focus();
   }
-  ptabOutput.addEventListener("click", () => showPanelTab("output"));
-  ptabProblems.addEventListener("click", () => showPanelTab("problems"));
+  for (const t of PANEL_TABS) ptabs[t].addEventListener("click", () => showPanelTab(t));
+  // APG tabs: arrows move round the three (wrapping), Home and End go to the ends; selection follows focus.
   panelTabsEl.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const toProblems = e.key === "End" || (e.key !== "Home" && panel.dataset.tab !== "problems");
-    showPanelTab(toProblems ? "problems" : "output", true);
+    const at = PANEL_TABS.indexOf(currentTab());
+    const n = PANEL_TABS.length;
+    const i = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    showPanelTab(PANEL_TABS[i], true);
   });
   selectPanelTab("output");
 
@@ -514,14 +541,17 @@ export function createLayout(root: HTMLElement): Layout {
     editorHost,
     emptyHost,
     panel,
-    panelTabs: { output: ptabOutput, problems: ptabProblems, count },
+    panelTabs: { output: ptabOutput, problems: ptabProblems, flowchart: ptabFlowchart, count },
     panelToggle,
     panelActions,
     outputPanel,
     problemsPanel,
+    flowchartPanel,
+    chartVisible,
+    onChartVisibleChange: (listener) => void chartListeners.push(listener),
     noticeHost,
     status,
-    viewTabs: { code: viewCode, output: viewOutput, problems: viewProblems, count: viewCount },
+    viewTabs: { code: viewCode, output: viewOutput, problems: viewProblems, flowchart: viewFlowchart, count: viewCount },
     splitters: { sidebar: sidebarSplit, panel: panelSplit },
     narrow: () => narrowQuery.matches,
     onNarrowChange: (listener) => void narrowListeners.push(listener),
@@ -529,9 +559,9 @@ export function createLayout(root: HTMLElement): Layout {
     closeDrawer,
     drawerOpen,
     showView,
-    view: () => (center.dataset.view === "output" ? "output" : center.dataset.view === "problems" ? "problems" : "code"),
+    view: () => (["output", "problems", "flowchart"].includes(center.dataset.view ?? "") ? (center.dataset.view as View) : "code"),
     showPanelTab,
-    panelTab: () => (panel.dataset.tab === "problems" ? "problems" : "output"),
+    panelTab: currentTab,
     expandPanel,
     collapsePanel,
     panelCollapsed,
