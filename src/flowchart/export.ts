@@ -91,7 +91,7 @@ export function exportSvg(input: ExportInput, doc: SvgDocument = document): SVGS
   const textX = FOOTER.margin + FOOTER.mark + FOOTER.gap;
   const credit = el(doc, "text", { x: textX, y: baseline, style: `fill:${look.colors.text};font-family:${look.uiFont};font-size:${FOOTER.fontSize}px;font-weight:600` });
   credit.textContent = FOOTER_TEXT;
-  const where = el(doc, "text", { x: textX + FOOTER_TEXT.length * FOOTER.textW + FOOTER.between, y: baseline, style: `fill:${look.colors["text-secondary"]};font-family:${look.uiFont};font-size:${FOOTER.fontSize}px` });
+  const where = el(doc, "text", { x: width - FOOTER.margin, y: baseline, "text-anchor": "end", style: `fill:${look.colors["text-secondary"]};font-family:${look.uiFont};font-size:${FOOTER.fontSize}px` });
   where.textContent = what;
   footer.appendChild(credit);
   footer.appendChild(where);
@@ -250,6 +250,7 @@ export function drawExport(ctx: CanvasRenderingContext2D, input: ExportInput, sc
   ctx.fillText(FOOTER_TEXT, textX, baseline);
   ctx.font = `${FOOTER.fontSize}px ${look.uiFont}`;
   ctx.fillStyle = c["text-secondary"];
-  ctx.fillText(what, textX + FOOTER_TEXT.length * FOOTER.textW + FOOTER.between, baseline);
+  ctx.textAlign = "right";
+  ctx.fillText(what, width - FOOTER.margin, baseline);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }

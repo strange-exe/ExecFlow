@@ -58,6 +58,11 @@ describe("flowchart SVG export", () => {
     expect(Number(mark.getAttribute("y"))).toBeGreaterThan(layout.height - 1);
     const xs = [mark, ...footer.all().filter((e) => e.tagName === "text")].map((e) => Number(e.getAttribute("x")));
     expect(xs).toEqual([...xs].sort((a, b) => a - b));
+    // The file and function end where the rule ends, so the space between the two reads as layout.
+    const where = footer.all().filter((e) => e.tagName === "text").at(-1)!;
+    const rule = footer.all().find((e) => e.tagName === "line")!;
+    expect(where.getAttribute("text-anchor")).toBe("end");
+    expect(Number(where.getAttribute("x"))).toBe(Number(rule.getAttribute("x2")));
     // The title names the chart.
     expect(svg.all().find((e) => e.tagName === "title")!.textContent).toBe("Flowchart of main in switch.c");
     expect(svg.getAttribute("xmlns")).toBe("http://www.w3.org/2000/svg");
@@ -71,7 +76,10 @@ describe("flowchart SVG export", () => {
     // A Python file's top level is named so in the footer.
     const last = svg.all().filter((e) => e.tagName === "text").at(-1)!;
     expect(last.textContent).toBe("a-rather-long-file-name-for-the-footer.py, top level");
-    expect(Number(last.getAttribute("x")) + [...last.textContent].length * 7).toBeLessThanOrEqual(width);
+    // Right-aligned inside the margin, and (at the footer's 7 px a character) clear of the credit.
+    const credit = svg.all().filter((e) => e.tagName === "text").at(-2)!;
+    expect(Number(last.getAttribute("x"))).toBeLessThanOrEqual(width - 24);
+    expect(Number(last.getAttribute("x")) - [...last.textContent].length * 7).toBeGreaterThanOrEqual(Number(credit.getAttribute("x")) + FOOTER_TEXT.length * 7 + 16);
   });
 
   test("Match the editor uses the colours it is given", async () => {
