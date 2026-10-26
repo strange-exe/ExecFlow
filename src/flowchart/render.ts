@@ -143,9 +143,13 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   for (const node of chart.nodes) {
     const b = boxes.get(node.id);
     if (!b) continue;
-    const name = kindWords(node) + (node.note ? `, ${node.note}` : "") + (unreachable.has(node.id) ? ", never reached" : "");
+    const lines = node.from === node.to ? `line ${node.from}` : `lines ${node.from} to ${node.to}`;
+    const name = [kindWords(node), node.note, unreachable.has(node.id) ? "never reached" : undefined, lines].filter(Boolean).join(", ");
+    // Out of the Tab order: the view keeps one box at tabindex 0 (one Tab stop, arrows move).
     const g = el(doc, "g", {
+      class: "fc-node",
       role: "listitem",
+      tabindex: -1,
       "aria-label": name,
       "data-node": node.id,
       "data-kind": node.kind,
@@ -155,6 +159,9 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
     const title = el(doc, "title", {});
     title.textContent = name;
     g.appendChild(title);
+    // The ring the view shows round a focused box and round the caret's box (styled by its CSS:
+    // interaction only, so an exported image never carries it).
+    g.appendChild(el(doc, "rect", { class: "fc-ring", x: b.x - 4, y: b.y - 4, width: b.w + 8, height: b.h + 8, rx: 6 }));
     for (const s of shape(doc, node, b)) g.appendChild(s);
     g.appendChild(label(doc, node, b));
     list.appendChild(g);

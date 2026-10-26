@@ -5,7 +5,10 @@ import type { Node } from "web-tree-sitter";
 
 /** 1-based first and last source lines of a node. */
 export const lineOf = (n: Node) => n.startPosition.row + 1;
-export const endLineOf = (n: Node) => n.endPosition.row + 1;
+/** A node that ends right after a line break (a Python block, a whole file) ends on the line before. */
+export const endLineOf = (n: Node) => (n.endPosition.column === 0 && n.endPosition.row > n.startPosition.row ? n.endPosition.row : n.endPosition.row + 1);
+// (Without the column check, a file's top level ended on the empty line after its last line break:
+// the Python Program's End said "line 21" of a 20-line file.)
 
 /** The node's text up to its first line break. */
 export const firstLine = (text: string) => text.split("\n", 1)[0].trimEnd();

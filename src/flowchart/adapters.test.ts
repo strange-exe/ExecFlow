@@ -305,6 +305,8 @@ describe("Python adapter", () => {
     const file = await charts("python", "elif-for-else.py");
     expect(file.charts.map((c) => c.name)).toEqual(["Program", "is_prime"]);
     const program = ok(file.charts[0]);
+    // The top level ends on its last line of code, not on the empty line after the final line break.
+    expect([program.from, program.to, program.nodes.at(-1)!.from]).toEqual([1, 20, 20]);
     expect(nodesOf(program)).toEqual([
       "0 start Start",
       '1 io n = int(input("Number: "))',

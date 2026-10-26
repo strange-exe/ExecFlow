@@ -30,7 +30,7 @@ describe("flowchart renderer", () => {
       const svg = draw(chart);
       const id = chart.nodes.find((n) => n.kind === kind)!.id;
       const g = steps(svg).find((e) => e.getAttribute("data-node") === String(id))!;
-      return g.children.filter((c): c is FakeElement => c instanceof FakeElement && c.tagName !== "title" && c.tagName !== "text");
+      return g.children.filter((c): c is FakeElement => c instanceof FakeElement && c.tagName !== "title" && c.tagName !== "text" && c.getAttribute("class") !== "fc-ring");
     };
     const tags = (els: FakeElement[]) => els.map((e) => e.tagName);
     expect(tags(shapeOf(find, "start"))).toEqual(["rect"]);
@@ -59,8 +59,26 @@ describe("flowchart renderer", () => {
       const title = g.children.find((c): c is FakeElement => c instanceof FakeElement && c.tagName === "title")!;
       expect(title.textContent).toContain(node.text);
     }
-    expect(items[2].getAttribute("aria-label")).toBe("Decision: i < n ?");
-    expect(items[4].getAttribute("aria-label")).toBe("End: return i");
+    // Kind, label and lines (the editor's line numbers).
+    expect(items[0].getAttribute("aria-label")).toBe("Start, line 1");
+    expect(items[2].getAttribute("aria-label")).toBe("Decision: i < n ?, line 2");
+    expect(items[4].getAttribute("aria-label")).toBe("End: return i, line 4");
+    // One Tab stop for the whole list (the view moves it): every box starts out of the Tab order,
+    // with a ring the view shows for focus and for the caret's box.
+    for (const g of items) {
+      expect(g.getAttribute("tabindex")).toBe("-1");
+      expect(g.children.filter((c) => c instanceof FakeElement && c.getAttribute("class") === "fc-ring").length).toBe(1);
+    }
+  });
+
+  test("a merged box names its lines as a range; a note and an unreachable box say so", async () => {
+    const main = ok((await chartFile("c", fixture("early-return.c"))).charts[0]);
+    const items = steps(draw(main));
+    expect(items[4].getAttribute("aria-label")).toBe("at = 0, never reached, line 14");
+    const seq = ok((await chartFile("c", fixture("sequence.c"))).charts[0]);
+    expect(steps(draw(seq))[1].getAttribute("aria-label")).toBe("int a = 1; int b = 2; int c = a + b, lines 3 to 5");
+    const one = ok((await chartFile("cpp", fixture("one-step.cpp"))).charts[0]);
+    expect(steps(draw(one))[2].getAttribute("aria-label")).toBe("try {, shown as one step, lines 8 to 12");
   });
 
   test("the steps sit in a list; the lines are hidden from screen readers (the list and the step list say it all)", async () => {
