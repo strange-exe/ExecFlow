@@ -84,6 +84,12 @@ export function label(code: string, { maxLines = 3, wrap = WRAP }: { maxLines?: 
   return { lines, full, cut: true };
 }
 
+/** A function's name as shown (chart picker, call boxes): one line of at most 60 code points. */
+export const nameText = (name: string) => label(name, { maxLines: 1, wrap: 60 }).lines[0] ?? "";
+
+/** An edge's label (a case value): one line of at most 20 code points. */
+export const edgeText = (text: string) => label(text, { maxLines: 1, wrap: 20 }).lines[0] ?? "";
+
 /** A decision's label: the condition's own text followed by " ?". */
 export function condition(code: string, options?: { maxLines?: number }): Label {
   return label(`${code.replace(/\s+/g, " ").trim()} ?`, options);
