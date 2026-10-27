@@ -1101,7 +1101,9 @@ button.problem:hover { background: var(--hover); }
   .workbench[data-files="none"] .center { grid-template-rows: minmax(0, 1fr); }
   .workbench[data-files="none"] .view-switch { display: none; }
   .view-switch { display: flex; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider); }
-  .view-switch [role="tab"] { flex: 1 1 0; }
+  /* Four views share 320 px: Linux fonts made the row 321 px with the desktop tabs' 12 px padding (CI,
+     2026-10-26), so on phones a tab pads 8 px and may shrink below its label's natural width. */
+  .view-switch [role="tab"] { flex: 1 1 0; min-width: 0; padding: 0 var(--s2); }
   .view-switch [role="tab"][aria-selected="true"]::after { left: var(--s4); right: var(--s4); }
   .center[data-view="code"] > .panel { display: none; }
   .center:not([data-view="code"]) > .editor-area { display: none; }
