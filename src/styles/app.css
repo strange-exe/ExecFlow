@@ -208,7 +208,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .sync-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-toggle { display: none; }
 .palette-key { display: none; }
-@media (min-width: 900px) { .palette-key { display: inline-block; } }
+/* From 1280 px: under it the keycap cut the field's words short once the breadcrumb kept its room
+   (the shortcut stays in the button's title and aria-keyshortcuts). */
+@media (min-width: 1280px) { .palette-key { display: inline-block; } }
 /* Capture (an image of the selected lines): a ghost button, no edge, before Run; quieter than Run's
    fill and than the stepped-back Run's outline (with a ring of its own and its word it outweighed
    that outline after a failed run). Its icon and word are in the hint tier, the text colour on hover. */
