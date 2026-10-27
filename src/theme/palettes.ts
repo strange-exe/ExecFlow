@@ -123,14 +123,16 @@ export const DEEP_FIELD: Record<Scheme, Palette> = {
  * roles follow expandBase()'s rules. Then the guard lifted what missed a pair on the new stacked
  * grounds, and the result is frozen here: light danger #be2323 to #a21e1e, gutter-text #6a727f to
  * #5a616c, and seven syntax colours by small steps (string, number, comment, function, type,
- * operator, punctuation); dark gutter-text #858d99 to #8b939e.
+ * operator, punctuation); dark gutter-text #858d99 to #8b939e. 0.7.0: the selection became a
+ * translucent tint that lands on the same colours over the code (#3a94ff at 20% over #fdfdff is
+ * #d6e8ff; #2d84ed at 35% over #0e1217 is #193a62), instead of those opaque values.
  */
 export const SLATE: Record<Scheme, Palette> = {
   light: {
     bg: "#fdfdff", surface: "#f6f8fa", "surface-raised": "#eff1f5", "terminal-bg": "#fdfdff", "terminal-fg": "#1a2029", "runlog-bg": "#eff1f5", divider: "#d6dbe3", border: "#d6dbe3", "border-strong": "#79818d",
     text: "#1a2029", "text-secondary": "#373e48", "text-muted": "#545b67", "gutter-text": "#5a616c",
     action: "#0062d4", "action-hover": "#0052b4", "on-action": "#fdfdff", "control-on": "#0062d4",
-    focus: "#0062d4", selection: "#d6e8ff", "list-selected": "#1a20291a", "active-line": "#1a202908", location: "#0062d4",
+    focus: "#0062d4", selection: "#3a94ff33", "list-selected": "#1a20291a", "active-line": "#1a202908", location: "#0062d4",
     danger: "#a21e1e", warning: "#915b00", success: "#0a7e3a", info: "#545b67",
     "error-band": "#be232324", "call-site": "#be2323", "input-echo": "#1a2029",
     link: "#0062d4", brand: "#1a2029", "on-brand": "#fdfdff",
@@ -141,7 +143,7 @@ export const SLATE: Record<Scheme, Palette> = {
     bg: "#0e1217", surface: "#14171d", "surface-raised": "#1b1f27", "terminal-bg": "#0b0e14", "terminal-fg": "#e9ebef", "runlog-bg": "#1b1f27", divider: "#313740", border: "#313740", "border-strong": "#676f7c",
     text: "#e9ebef", "text-secondary": "#caced6", "text-muted": "#abb1bc", "gutter-text": "#8b939e",
     action: "#60a7ff", "action-hover": "#85baff", "on-action": "#0e1217", "control-on": "#60a7ff",
-    focus: "#60a7ff", selection: "#193a62", "list-selected": "#e9ebef1a", "active-line": "#e9ebef08", location: "#60a7ff",
+    focus: "#60a7ff", selection: "#2d84ed59", "list-selected": "#e9ebef1a", "active-line": "#e9ebef08", location: "#60a7ff",
     danger: "#f97770", warning: "#f3b94c", success: "#64cf80", info: "#abb1bc",
     "error-band": "#ba293b5c", "call-site": "#f97770", "input-echo": "#e9ebef",
     link: "#60a7ff", brand: "#e9ebef", "on-brand": "#0e1217",
@@ -241,7 +243,7 @@ const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(
  *   link            accent lifted to 4.5:1 on the three panels
  *   focus           = ink (distinct from a chromatic accent, and 3:1 or more everywhere)
  *   text-secondary  ink 50% over muted, lifted to 4.5:1 on the three panels; info = muted
- *   selection       18% accent over the editor (opaque); active-line ink at 4% alpha;
+ *   selection       accent at 18% alpha (a tint, never a solid band); active-line ink at 4% alpha;
  *   list-selected   ink at 10% alpha; error-band err at 14% alpha; call-site = err
  *   input-echo, brand = ink; on-brand = sheet; divider = rule
  *   border-strong   80% muted over the editor, lifted to 3:1
@@ -274,7 +276,7 @@ export function expandBase(base: BaseColors): Palette {
     "on-action": base["on-accent"],
     "control-on": base.accent,
     focus: base.ink,
-    selection: over(bg, base.accent, 0.18),
+    selection: alpha(base.accent, 0.18),
     "list-selected": alpha(base.ink, 0.1),
     "active-line": alpha(base.ink, 0.04),
     location: base.accent,

@@ -315,6 +315,7 @@ function added(): Pair[] {
 
   // location in its other places.
   add("location", "hover@surface", UI, "current-file bar on a hovered tree row");
+  add("location", "surface-raised", UI, "the chosen tree row's edge on its lifted ground (0.7.0)");
   add("location", "list-selected@surface-raised", UI, "bar on the selected autocomplete option and lint-panel row");
   add("location", "active-line@surface-raised", UI, "bar on the selected autocomplete option while the list updates");
   add("location", "list-selected@bg", UI, "outline of the selected theme tile");
@@ -408,8 +409,8 @@ function image(): Pair[] {
 }
 
 /**
- * Every foreground/background pair the UI draws: 200 rows (100 ported from v1, 85 new in v2, 13
- * for the snippet image's highlighted lines, 2 for its window bar). Four rows repeat an earlier
+ * Every foreground/background pair the UI draws: 201 rows (100 ported from v1, 85 new in v2, 13
+ * for the snippet image's highlighted lines, 2 for its window bar, 1 for 0.7.0's chosen tree row). Four rows repeat an earlier
  * (fg, bg, min) with another `use` (danger on bg at 3:1 and text on surface-raised, both from v1;
  * text-muted on surface-raised from the suggestion list; text-secondary on hover@surface for the
  * window bar), so 196 checks are unique; the `use` text records another place the pair is drawn.

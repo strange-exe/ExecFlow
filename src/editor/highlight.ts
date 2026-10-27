@@ -83,6 +83,9 @@ export const CHROME_SPEC = {
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--focus)" },
   ".cm-cursor": { borderLeftWidth: "2px" },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground": { background: "var(--selection)" },
+  // The selection is drawn line by line (selection-layer.ts); CodeMirror's own edge-to-edge layer
+  // is not shown.
+  ".cm-scroller > .cm-selectionLayer": { display: "none" },
   ".cm-activeLine": { backgroundColor: "var(--active-line)" },
   ".cm-specialChar": { color: "var(--danger)" },
   ".cm-placeholder": { color: "var(--text-muted)" },

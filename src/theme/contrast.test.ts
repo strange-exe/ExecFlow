@@ -73,18 +73,19 @@ describe("contrast math", () => {
 });
 
 describe("the pairs the UI draws (contract v2)", () => {
-  it("has the 200 rows of the contract, 196 of them unique, every ground a known token or mix", () => {
-    expect(PAIRS.length).toBe(200);
-    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(196);
+  it("has the 201 rows of the contract, 197 of them unique, every ground a known token or mix", () => {
+    // 0.7.0 added one: location on surface-raised (the chosen tree row's edge).
+    expect(PAIRS.length).toBe(201);
+    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(197);
     const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES)];
     for (const p of PAIRS) for (const part of p.bg.split("@")) expect(known, `${p.bg}`).toContain(part);
     // Pinned rows: the first, the re-grounded panel-tab row, the last of v2 and the last.
     expect(PAIRS[0]).toMatchObject({ fg: "text", bg: "bg", min: 4.5 });
     expect(PAIRS[44]).toMatchObject({ fg: "location", bg: "surface", min: 3 });
-    expect(PAIRS[184]).toMatchObject({ fg: "text-secondary", bg: "hover@error-band@runlog-bg", min: 4.5 });
-    expect(PAIRS[197]).toMatchObject({ fg: "danger", bg: "mark@bg", min: 4.5 });
+    expect(PAIRS[185]).toMatchObject({ fg: "text-secondary", bg: "hover@error-band@runlog-bg", min: 4.5 });
+    expect(PAIRS[198]).toMatchObject({ fg: "danger", bg: "mark@bg", min: 4.5 });
     // The window bar's other ground (snippet-render.ts windowBarGround): its name and placeholders at the text minimum.
-    expect(PAIRS.slice(198)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
+    expect(PAIRS.slice(199)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
     // The snippet image's highlighted lines: every colour drawn on the band, at the text minimum.
     expect(PAIRS.filter((p) => p.bg === "mark@bg").map((p) => p.fg).sort()).toEqual(
       ["danger", "gutter-text", "syn-comment", "syn-function", "syn-keyword", "syn-macro", "syn-number", "syn-operator", "syn-punctuation", "syn-string", "syn-type", "syn-variable", "text"],
@@ -286,7 +287,8 @@ describe("palette themes", () => {
       expect(Object.keys(p).sort(), theme.id).toEqual([...COLOR_VARS].sort());
       for (const v of COLOR_VARS) {
         expect(isTokenValue(v, p[v]), `${theme.id} --${v} ${p[v]}`).toBe(true);
-        expect(p[v].length === 9, `${theme.id} --${v} translucent`).toBe(["active-line", "list-selected", "error-band"].includes(v));
+        // The selection too since 0.7.0: a tint over the code, never a solid band.
+        expect(p[v].length === 9, `${theme.id} --${v} translucent`).toBe(["active-line", "list-selected", "error-band", "selection"].includes(v));
       }
     }
   });

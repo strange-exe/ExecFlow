@@ -74,7 +74,8 @@ async function selectChars(page: Page, line: Locator, from: number, to: number) 
   await page.keyboard.down("Shift");
   await page.mouse.click(r.x + r.w - 1, y);
   await page.keyboard.up("Shift");
-  await expect(page.locator(".cm-selectionBackground").first()).toBeVisible();
+  // The bands drawn line by line (selection-layer.ts); CodeMirror's own layer is in the DOM, hidden.
+  await expect(page.locator(".ce-selection-layer .cm-selectionBackground").first()).toBeVisible();
   return r;
 }
 
