@@ -198,7 +198,10 @@ test("an unclosed quote: no error while typing, the error on leaving the field, 
   await expect(field(page)).not.toHaveAttribute("aria-invalid", /.*/);
 
   // Leaving the field shows it: under the field, before the hint, and first in the description.
-  await page.keyboard.press("Tab");
+  // Shift+Tab, back into the page: since the 0.7.0 shell (no desktop status bar) the field is the
+  // page's last stop, and Tab from it leaves the document, where Playwright's Firefox fires no blur.
+  await page.keyboard.press("Shift+Tab");
+  await expect(field(page)).not.toBeFocused();
   await expect(row(page)).toHaveAttribute("data-state", "invalid");
   await expect(field(page)).toHaveAttribute("aria-invalid", "true");
   await expect(page.locator("#args-error")).toHaveText(reasonOf('1 "two'));

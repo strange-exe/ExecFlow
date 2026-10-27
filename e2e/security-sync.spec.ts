@@ -242,7 +242,9 @@ test("Sign out and clear this computer deletes the workspace and the secrets dat
   await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "not-connected");
   expect(gh.seen.length).toBe(sent);
   const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("codeeditor:")));
-  expect(keys.filter((k) => !["codeeditor:theme-paint"].includes(k))).toEqual([]);
+  // Only what the fresh start after the reload writes again: the theme's first paint, and the version
+  // seen (so the next update can say what's new; the Privacy page lists it). Nothing of the old session.
+  expect(keys.filter((k) => !["codeeditor:theme-paint", "codeeditor:last-seen-version"].includes(k))).toEqual([]);
 });
 
 test("Sign out and clear with a second tab open still deletes both databases, and the other tab doesn't bring anything back", async ({ page, context }) => {

@@ -191,7 +191,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 @media (min-width: 900px) {
   /* The breadcrumb keeps room to be read: its 0 basis left it nothing at 1024 px once the field and
      the end's controls were placed (the file name was 0 px wide). The field gives way first. */
-  .topbar-start { min-width: 240px; }
+  .topbar-start { min-width: 180px; }
   .palette-btn {
     flex: 0 1 440px;
     justify-content: flex-start;
