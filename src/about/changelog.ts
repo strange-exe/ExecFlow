@@ -69,7 +69,7 @@ export const CHANGELOG: readonly Release[] = [
     title: "The Signal look",
     items: [
       { kind: "changed", text: "Signal is the new default theme, with the Geist typeface." },
-      { kind: "changed", text: "A polish pass on runs, output, files, sync and dialogs." },
+      { kind: "changed", text: "Runs, output, the file list, sync and dialogs restyled to match the new look." },
     ],
   },
   {
@@ -109,7 +109,7 @@ export const CHANGELOG: readonly Release[] = [
     version: "0.2.1",
     date: "2026-10-23",
     title: "Safari fixes",
-    items: [{ kind: "fixed", text: "Problems seen in Safari's engine (WebKit)." }],
+    items: [{ kind: "fixed", text: "Problems that showed up only in Safari and other WebKit browsers." }],
   },
   {
     version: "0.2.0",

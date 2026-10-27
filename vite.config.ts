@@ -351,7 +351,7 @@ export default defineConfig(({ mode }) => ({
       manifest: {
         name: "CodeEditor",
         short_name: "CodeEditor",
-        description: "A personal editor that runs Python, C and C++ in the browser.",
+        description: "Write, run and chart Python, C and C++ in your browser, with nothing to install.",
         // Signal's dark chrome and code ground (the default theme; src/theme/contrast.test.ts keeps them equal).
         theme_color: "#151a21",
         background_color: "#0e1116",

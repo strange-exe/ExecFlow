@@ -72,7 +72,7 @@ The Signal look
 ### Changed
 
 - Signal is the new default theme, with the Geist typeface.
-- A polish pass on runs, output, files, sync and dialogs.
+- Runs, output, the file list, sync and dialogs restyled to match the new look.
 
 ## [0.4.1] - 2026-10-24
 
@@ -120,7 +120,7 @@ Safari fixes
 
 ### Fixed
 
-- Problems seen in Safari's engine (WebKit).
+- Problems that showed up only in Safari and other WebKit browsers.
 
 ## [0.2.0] - 2026-10-23
 
