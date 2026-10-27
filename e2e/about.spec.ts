@@ -264,6 +264,16 @@ test("with the service worker in control, /about works offline after one visit, 
   await page.waitForLoadState("networkidle");
   await page.goto("/about");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // The scene's code is fetched at idle (page.ts scene()), which can come after networkidle: going
+  // offline first left it uncached, and the offline reload's fetch of it failed in the service
+  // worker (Firefox on CI, run 40566760719). Every end state means its code came (or isn't needed),
+  // and then it is in the About cache (vite.config.ts runtimeCaching) before the network goes.
+  await expect(page.locator(".about-scene")).toHaveAttribute("data-scene", /^(running|unavailable|still)$/, { timeout: 30_000 });
+  if ((await page.locator(".about-scene").getAttribute("data-scene")) !== "still") {
+    await expect
+      .poll(() => page.evaluate(async () => (await (await caches.open("codeeditor-about")).keys()).filter((r) => new URL(r.url).pathname.startsWith("/assets/a/")).length), { timeout: 15_000 })
+      .toBeGreaterThan(0);
+  }
   await page.waitForLoadState("networkidle");
   await context.setOffline(true);
   await page.reload();
