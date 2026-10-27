@@ -53,10 +53,18 @@ const isolation = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
-const directives = (connect: string) =>
+// Cloudflare Web Analytics, which Cloudflare injects into every page at its edge (the owner's choice,
+// 2026-10-27; listed on the Privacy page). The live script's path is beacon.min.js/<version>, and a
+// source without a trailing slash matches one exact path, so the prefix form is listed too. It
+// reports to this site's own /cdn-cgi/rum ('self'), and sends Cross-Origin-Resource-Policy:
+// cross-origin, so cross-origin isolation still lets it load.
+// https://developers.cloudflare.com/web-analytics/faq/
+const BEACON = "https://static.cloudflareinsights.com/beacon.min.js";
+
+const directives = (connect: string, scripts = "") =>
   [
     "default-src 'self'",
-    "script-src 'self' 'wasm-unsafe-eval'",
+    `script-src 'self' 'wasm-unsafe-eval'${scripts}`,
     // CodeMirror injects its stylesheet at run time.
     "style-src 'self' 'unsafe-inline'",
     // data: images, all built in (none from user content): CodeMirror's lint underlines, and two
@@ -73,10 +81,10 @@ const directives = (connect: string) =>
     "frame-ancestors 'none'",
   ].join("; ");
 
-// The page talks to GitHub for sync; nothing else leaves the site. WebAssembly may compile
-// ('wasm-unsafe-eval') but eval() and new Function() may not.
-const pageCsp = directives("'self' https://api.github.com");
-// Workers run student code, so they get a second policy without GitHub. Browsers enforce every
+// The page talks to GitHub for sync; besides the analytics beacon, nothing else leaves the site.
+// WebAssembly may compile ('wasm-unsafe-eval') but eval() and new Function() may not.
+const pageCsp = directives("'self' https://api.github.com", ` ${BEACON} ${BEACON}/`);
+// Workers run student code, so they get a second policy without GitHub or the beacon. Browsers enforce every
 // policy a response carries, so a worker can only reach its own site even if lockdown.ts missed
 // something. (Cloudflare Pages joins the two matching _headers rules with a comma: two policies.)
 const workerCsp = directives("'self'");

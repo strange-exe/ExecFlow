@@ -27,7 +27,7 @@
         <ul>
           <li>Your code runs in your browser. It is never sent to a CodeEditor server to be run.</li>
           <li>Your files stay in this browser unless you connect GitHub. Then they go to the GitHub repository you choose, and nowhere else.</li>
-          <li>CodeEditor has no accounts, no cookies, no ads and no analytics.</li>
+          <li>CodeEditor has no accounts, no cookies and no ads. The only analytics are Cloudflare's page-load measurements, described under <a href="#hosting">Hosting</a>.</li>
           <li>Settings has a button that removes everything CodeEditor keeps in this browser.</li>
         </ul>
       </section>
@@ -109,8 +109,15 @@
       <p>
         The site is served by Cloudflare. Like any web host, Cloudflare receives your IP address and the details of each
         request so it can deliver the page, under
-        <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>. CodeEditor's own code adds no
-        tracking, analytics or advertising, and sets no cookies.
+        <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.
+      </p>
+      <p>
+        CodeEditor also uses <strong>Cloudflare Web Analytics</strong>, which Cloudflare adds to each page. When a page
+        loads and when you leave it, a small Cloudflare script reports to Cloudflare, through this site's address, how long the page took to load and
+        which page it was (without anything after a "?" in the address). Cloudflare says it
+        <a href="https://developers.cloudflare.com/web-analytics/about/">doesn't collect visitors' personal data</a>.
+        It never sees your code, your files or what you type. CodeEditor's own code adds no other tracking or
+        advertising, and sets no cookies.
       </p>
 
       <h2 id="remove">Removing your data</h2>

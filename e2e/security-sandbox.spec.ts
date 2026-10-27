@@ -10,10 +10,10 @@ test.setTimeout(120_000);
 
 const OUT = process.env.PW_OUTDIR ?? "dist";
 
-/** The policy every response must carry (vite.config.ts directives with GitHub allowed). */
+/** The policy every response must carry (vite.config.ts directives with GitHub and the analytics beacon allowed). */
 const PAGE_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval'",
+  "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com/beacon.min.js https://static.cloudflareinsights.com/beacon.min.js/",
   "connect-src 'self' https://api.github.com",
   "worker-src 'self'",
   "object-src 'none'",
@@ -67,7 +67,7 @@ test.describe("with the service worker", () => {
   // The test injects an inline script on purpose; each engine reports the refusal in its own words.
   test.use(
     tolerating(
-      /^Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'wasm-unsafe-eval''/,
+      /^Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'wasm-unsafe-eval'[^']*'/,
       /^Refused to execute (inline script|a script because)/,
       /blocked an inline script/,
     ),

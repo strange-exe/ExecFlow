@@ -36,9 +36,9 @@ test("the page and every worker script it starts carry the Content-Security-Poli
     expect(csp, url).not.toContain("'unsafe-eval'");
   }
   for (const url of workers) {
-    // Worker scripts get the second, site-only policy as well.
+    // Worker scripts get the second, site-only policy as well: no GitHub and no analytics script.
     const policies = ((await page.request.get(url)).headers()["content-security-policy"] ?? "").split(",").map((p) => p.trim());
-    expect(policies.some((p) => p.includes("connect-src 'self';") && !p.includes("api.github.com")), url).toBe(true);
+    expect(policies.some((p) => p.includes("connect-src 'self';") && p.includes("script-src 'self' 'wasm-unsafe-eval';") && !p.includes("api.github.com") && !p.includes("cloudflareinsights")), url).toBe(true);
   }
 });
 
@@ -49,7 +49,7 @@ test.describe("the page's policy", () => {
   // This test injects a script on purpose; each engine reports the refusal in its own words.
   test.use(
     tolerating(
-      /^Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'wasm-unsafe-eval''/,
+      /^Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'wasm-unsafe-eval'[^']*'/,
       /^Refused to execute (inline script|a script because)/,
       /blocked an inline script/,
     ),
@@ -59,7 +59,8 @@ test.describe("the page's policy", () => {
     await expect(page.locator("#app")).toHaveAttribute("data-state", "ready");
     const csp = response!.headers()["content-security-policy"] ?? "";
     const scriptSrc = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("script-src")) ?? "";
-    expect(scriptSrc).toBe("script-src 'self' 'wasm-unsafe-eval'");
+    // Besides the site itself, only Cloudflare's analytics beacon (the exact script and its versioned paths).
+    expect(scriptSrc).toBe("script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com/beacon.min.js https://static.cloudflareinsights.com/beacon.min.js/");
     const violations = await page.evaluate(async () => {
       const seen: string[] = [];
       document.addEventListener("securitypolicyviolation", (e) => seen.push(e.violatedDirective));
@@ -71,6 +72,41 @@ test.describe("the page's policy", () => {
     });
     expect(violations.ran).toBe(false);
     expect(violations.seen.some((d) => d.startsWith("script-src"))).toBe(true);
+  });
+});
+
+// Cloudflare injects its analytics beacon at the edge as beacon.min.js/<version>; a source without a
+// trailing slash matches one exact path, so this proves the versioned path loads (a stand-in script,
+// served with the real beacon's CORP header, keeps the test off the network).
+test.describe("the analytics beacon", () => {
+  // The test asks for another script from the beacon's host on purpose; each engine reports the refusal.
+  test.use(tolerating(/static\.cloudflareinsights\.com\/other\.js/));
+  test("the page's policy lets Cloudflare's versioned analytics beacon load, and nothing else from its host", async ({ page }) => {
+    await page.route("https://static.cloudflareinsights.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/javascript", headers: { "Cross-Origin-Resource-Policy": "cross-origin", "Access-Control-Allow-Origin": "*" }, body: "window.__beacon = (window.__beacon || 0) + 1;" }),
+    );
+    await page.goto("/");
+    await expect(page.locator("#app")).toHaveAttribute("data-state", "ready");
+    const result = await page.evaluate(async () => {
+      const seen: string[] = [];
+      document.addEventListener("securitypolicyviolation", (e) => seen.push(e.blockedURI));
+      const load = (src: string) =>
+        new Promise<string>((resolve) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.onload = () => resolve("loaded");
+          s.onerror = () => resolve("blocked");
+          document.head.append(s);
+        });
+      const versioned = await load("https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092");
+      const other = await load("https://static.cloudflareinsights.com/other.js");
+      await new Promise((r) => setTimeout(r, 200));
+      return { versioned, other, ran: (window as unknown as { __beacon?: number }).__beacon ?? 0, seen };
+    });
+    expect(result.versioned).toBe("loaded");
+    expect(result.other).toBe("blocked");
+    expect(result.ran).toBe(1);
+    expect(result.seen.some((u) => u.includes("other.js"))).toBe(true);
   });
 });
 
