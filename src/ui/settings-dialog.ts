@@ -161,6 +161,8 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
     ),
     // The legal pages open in a new tab, so nothing typed here is left behind.
     h("p", { class: "field-note settings-legal" }, "What CodeEditor keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
+    // The version (the build injects it) and the About page's list of changes.
+    h("p", { class: "field-note", id: "settings-version" }, `CodeEditor ${__APP_VERSION__}. `, legalLink("/about#changelog", "What's new")),
   );
 
   return {

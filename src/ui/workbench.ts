@@ -29,6 +29,7 @@ import { dropStash, readStash, textHash, writeStash } from "./recover";
 import { callSiteMarks } from "./run-diagnostics";
 import { mainToOffer, phaseLabel } from "./run-words";
 import { buildOptions, createSettingsStore, runLimits } from "./settings";
+import { whatsNew } from "../about/whats-new";
 import { paletteKey } from "./palette-keys";
 import { createSnippetCapture } from "./snippet-image";
 import { mountSync, type SyncHooks } from "./sync-entry";
@@ -2210,4 +2211,20 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   void refreshSyncCount();
   started = true;
   root.dataset.state = "ready";
+  // Once after an update (never on a first visit): a quiet notice that stays until it is dismissed.
+  let browserStore: Storage | null = null;
+  try {
+    browserStore = localStorage;
+  } catch {
+    // storage blocked: nothing to compare with
+  }
+  // A workspace made before this page loaded means this student has been here before.
+  const updated = whatsNew(browserStore, __APP_VERSION__, record.createdAt < performance.timeOrigin);
+  if (updated) {
+    notice.show(`Updated to CodeEditor ${updated}.`, {
+      tone: "info",
+      action: { label: "What's new", run: () => void window.open("/about#changelog", "_blank", "noopener,noreferrer") },
+      pin: { key: "whats-new" },
+    });
+  }
 }

@@ -325,6 +325,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
+    // The release (src/about/changelog.ts's newest; a unit test keeps them equal): no request for it.
+    __APP_VERSION__: JSON.stringify((JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version),
     __PYODIDE_DIR__: JSON.stringify(pyodideDir),
     __PYODIDE_BYTES__: JSON.stringify(pyodideBytes()),
     __CLANG_PACK__: JSON.stringify(clangPack(mode)),
