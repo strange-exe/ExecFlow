@@ -1,6 +1,13 @@
 // Settings (native <dialog>; Escape closes and focus returns to the gear button). Changes apply at
 // once and are kept on this device. Storage shows whether the browser may clear the workspace and
 // offers "Protect local data" (persistent storage, asked from the click).
+//
+// 0.7.0: two panes from 700 px: the sections on the left (a list of in-page links as buttons, the
+// one in view marked with aria-current), the settings on the right in one scroller; below that one
+// column, the sections a row of buttons above it. Every setting is a row: its label and its note
+// on the left, its control on the right (a stepper, a switch or a select), so a note always sits
+// under its own field. The foot holds the version (#settings-version, filled by the versions unit)
+// and the legal line.
 import { createThemePicker } from "../theme/theme-picker";
 import { ligaturesOn, setLigatures } from "../theme/ligatures";
 import type { WorkspaceDb } from "../storage/db";
@@ -26,27 +33,26 @@ function legalLink(href: string, label: string): HTMLElement {
   return h("a", { href, target: "_blank", rel: "noopener noreferrer" }, label);
 }
 
-function field(label: string, control: HTMLElement, note?: string): HTMLElement {
-  const id = control.id || `set-${++seq}`;
-  control.id = id;
+/** A setting's row: the label and its note on the left, the control on the right. */
+function row(label: string, control: HTMLElement, note?: string, labelFor?: HTMLElement): HTMLElement {
+  const target = labelFor ?? control;
+  const id = target.id || `set-${++seq}`;
+  target.id = id;
   const noteId = note ? `${id}-note` : null;
-  if (noteId) control.setAttribute("aria-describedby", noteId);
-  return h("div", { class: "field" }, h("label", { for: id }, label), control, note ? h("p", { class: "field-note", id: noteId }, note) : null);
+  if (noteId) target.setAttribute("aria-describedby", noteId);
+  return h(
+    "div",
+    { class: "setting" },
+    h("div", { class: "setting-text" }, h("label", { class: "setting-label", for: id }, label), note ? h("p", { class: "field-note", id: noteId }, note) : null),
+    h("div", { class: "setting-control" }, control),
+  );
 }
 
-function check(label: string, checked: boolean, note?: string, id?: string): { row: HTMLElement; input: HTMLInputElement } {
-  const input = h("input", { type: "checkbox", id: id ?? `set-${++seq}` });
+/** An on/off setting: a checkbox drawn and announced as a switch (role=switch; Space toggles it). */
+function toggle(label: string, checked: boolean, note: string | undefined, id: string): { row: HTMLElement; input: HTMLInputElement } {
+  const input = h("input", { type: "checkbox", role: "switch", class: "switch", id });
   input.checked = checked;
-  const noteId = note ? `${input.id}-note` : null;
-  if (noteId) input.setAttribute("aria-describedby", noteId);
-  const row = h(
-    "div",
-    { class: "check" },
-    input,
-    h("label", { for: input.id }, label),
-    note ? h("p", { class: "field-note", id: noteId }, note) : null,
-  );
-  return { row, input };
+  return { row: row(label, input, note), input };
 }
 
 function select<T extends string>(id: string, options: readonly (readonly [T, string])[], value: T): HTMLSelectElement {
@@ -55,33 +61,67 @@ function select<T extends string>(id: string, options: readonly (readonly [T, st
   return el;
 }
 
+/** A number field (typable, clamped by the store on change). */
+function numberField(id: string, [min, max]: readonly [number, number], step: number): HTMLInputElement {
+  return h("input", { type: "number", id, min, max, step: String(step), inputmode: "numeric" });
+}
+
+const SECTIONS = [
+  ["appearance", "Appearance"],
+  ["editor", "Editor"],
+  ["running", "Running programs"],
+  ["storage", "Storage"],
+  ["github", "GitHub"],
+  ["danger", "Danger zone"],
+] as const;
+type SectionKey = (typeof SECTIONS)[number][0];
+
 export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLElement): void } {
   const { dialog, body } = dialogShell("settings", "Settings", { wide: true });
+  dialog.classList.add("settings-dialog");
   const s = () => deps.settings.get();
   const set = (patch: Partial<Settings>) => deps.settings.update(patch);
 
   // ---------------------------------------------------------------- appearance
   const picker = createThemePicker({ download: (name, text) => downloadText(name, text, "application/json") });
-  const codeSize = h("input", { type: "number", id: "set-code-size", min: LIMITS.codeSize[0], max: LIMITS.codeSize[1], step: "1", inputmode: "numeric" });
-  const wrap = check("Wrap long lines", s().lineWrapping, undefined, "set-wrap");
-  const suggest = check("Suggestions while typing", s().suggestOnTyping, "Ctrl+Space always shows them.", "set-suggest");
-  const ligatures = check("Joined symbols in code", ligaturesOn(), "Draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
-  codeSize.addEventListener("change", () => (codeSize.value = String(set({ codeSize: Number(codeSize.value) }).codeSize)));
+
+  // ---------------------------------------------------------------- editor
+  // The code font size: a stepper (- value +), still typable; the store clamps it to LIMITS.
+  const codeSize = numberField("set-code-size", LIMITS.codeSize, 1);
+  const smaller = h("button", { type: "button", class: "icon-btn step-btn", id: "set-code-size-down", "aria-label": "Smaller code font", title: "Smaller" }, icon("minus"));
+  const larger = h("button", { type: "button", class: "icon-btn step-btn", id: "set-code-size-up", "aria-label": "Larger code font", title: "Larger" }, icon("plus"));
+  const stepper = h("div", { class: "stepper" }, smaller, codeSize, larger);
+  const showSize = (size: number) => {
+    codeSize.value = String(size);
+    smaller.disabled = size <= LIMITS.codeSize[0];
+    larger.disabled = size >= LIMITS.codeSize[1];
+  };
+  codeSize.addEventListener("change", () => showSize(set({ codeSize: Number(codeSize.value) }).codeSize));
+  for (const [button, by] of [[smaller, -1], [larger, 1]] as const) {
+    button.addEventListener("click", () => {
+      showSize(set({ codeSize: s().codeSize + by }).codeSize);
+      // At a limit the button disables itself: focus moves to the field rather than to the page.
+      if (button.disabled) codeSize.focus();
+    });
+  }
+  const wrap = toggle("Wrap long lines", s().lineWrapping, undefined, "set-wrap");
+  const suggest = toggle("Suggestions while typing", s().suggestOnTyping, "Ctrl+Space always shows them.", "set-suggest");
+  const ligatures = toggle("Joined symbols in code", ligaturesOn(), "Draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
   wrap.input.addEventListener("change", () => set({ lineWrapping: wrap.input.checked }));
   suggest.input.addEventListener("change", () => set({ suggestOnTyping: suggest.input.checked }));
   ligatures.input.addEventListener("change", () => setLigatures(ligatures.input.checked));
 
   // ---------------------------------------------------------------- running programs
-  const timeLimit = h("input", { type: "number", id: "set-time", min: LIMITS.timeLimitS[0], max: LIMITS.timeLimitS[1], step: "1", inputmode: "numeric" });
-  const outputLimit = h("input", { type: "number", id: "set-output", min: LIMITS.outputLimitK[0], max: LIMITS.outputLimitK[1], step: "16", inputmode: "numeric" });
+  const timeLimit = numberField("set-time", LIMITS.timeLimitS, 1);
+  const outputLimit = numberField("set-output", LIMITS.outputLimitK, 16);
   timeLimit.addEventListener("change", () => (timeLimit.value = String(set({ timeLimitS: Number(timeLimit.value) }).timeLimitS)));
   outputLimit.addEventListener("change", () => (outputLimit.value = String(set({ outputLimitK: Number(outputLimit.value) }).outputLimitK)));
   const cStd = select("set-c-std", C_STANDARDS.map((v) => [v, v === "gnu11" ? "gnu11 (default)" : v] as const), s().cStd);
   const cxxStd = select("set-cxx-std", CXX_STANDARDS.map((v) => [v, v === "c++17" ? "c++17 (default)" : v === "c++2a" ? "c++2a (C++20, partly)" : v] as const), s().cxxStd);
   // -O0 lets a NULL write or a stray index pass silently where -O2 stops the program (audit t7c, B13).
   const opt = select("set-opt", [["0", "-O0 (none, quickest to build; makes memory bugs harder to see)"], ["1", "-O1"], ["2", "-O2 (default)"]] as const, s().opt);
-  const wall = check("-Wall (common warnings)", s().wall, undefined, "set-wall");
-  const wextra = check("-Wextra (more warnings)", s().wextra, undefined, "set-wextra");
+  const wall = toggle("-Wall (common warnings)", s().wall, undefined, "set-wall");
+  const wextra = toggle("-Wextra (more warnings)", s().wextra, undefined, "set-wextra");
   cStd.addEventListener("change", () => set({ cStd: cStd.value as Settings["cStd"] }));
   cxxStd.addEventListener("change", () => set({ cxxStd: cxxStd.value as Settings["cxxStd"] }));
   opt.addEventListener("change", () => set({ opt: opt.value as Settings["opt"] }));
@@ -114,7 +154,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const connect = h("button", { type: "button", class: "btn", id: "settings-connect" }, icon("github-logo"), "Connect GitHub");
   const disconnect = h("button", { type: "button", class: "btn", id: "settings-disconnect" }, icon("cloud-slash"), "Disconnect GitHub");
   const withMessage = h("button", { type: "button", class: "btn", id: "settings-sync-message" }, icon("cloud-arrow-up"), "Sync with a message...");
-  const autoSync = check("Sync automatically", s().autoSync, "A minute after your last change, while CodeEditor is open in front. Ctrl+S and the status in the top bar sync at once.", "set-autosync");
+  const autoSync = toggle("Sync automatically", s().autoSync, "A minute after your last change, while CodeEditor is open in front. Ctrl+S and the sync status sync at once.", "set-autosync");
   autoSync.input.addEventListener("change", () => set({ autoSync: autoSync.input.checked }));
   connect.addEventListener("click", () => {
     dialog.close();
@@ -131,43 +171,139 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
     deps.sync().syncWithMessage(opener);
   });
 
-  // ---------------------------------------------------------------- clear this computer
+  // ---------------------------------------------------------------- danger zone
   const clear = h("button", { type: "button", class: "btn danger", id: "sign-out-clear" }, icon("trash"), "Sign out and clear this computer");
   clear.addEventListener("click", () => void deps.signOut());
 
-  const section = (title: string, ...children: (HTMLElement | null)[]) =>
-    h("section", { class: "settings-section" }, h("h3", { class: "section-title" }, title), ...children);
-
+  // ---------------------------------------------------------------- the sections
+  // Two heading levels only: the dialog's title, then each section's. Each heading takes focus when
+  // its section is chosen from the list (tabindex -1: reached by the list, not by Tab).
+  const headings = new Map<SectionKey, HTMLElement>();
+  const sections = new Map<SectionKey, HTMLElement>();
+  const section = (key: SectionKey, title: string, ...children: (HTMLElement | null)[]) => {
+    const heading = h("h3", { class: "section-title", id: `settings-h-${key}`, tabindex: "-1" }, title);
+    const el = h("section", { class: "settings-section", id: `settings-${key}`, "aria-labelledby": heading.id }, heading, ...children);
+    headings.set(key, heading);
+    sections.set(key, el);
+    return el;
+  };
   // Reading order (audit, Settings): the chosen theme, then the editor options, then run limits.
-  // Two heading levels only: the dialog's title, then each section's, and "Colour theme" is both the
-  // first section's heading and the theme radio group's name (no "Appearance" above it).
-  const themeSection = section("Colour theme", picker.element);
-  themeSection.querySelector("h3")!.id = "theme-title";
+  // "Colour theme" names the theme radio group (theme-picker.ts: aria-labelledby="theme-title").
   body.append(
-    themeSection,
-    section("Editor", h("div", { class: "field-grid" }, field("Code font size (px)", codeSize)), wrap.row, suggest.row, ligatures.row),
+    section("appearance", "Appearance", h("p", { class: "field-label", id: "theme-title" }, "Colour theme"), picker.element),
+    section("editor", "Editor", row("Code font size (px)", stepper, undefined, codeSize), wrap.row, suggest.row, ligatures.row),
     section(
+      "running",
       "Running programs",
-      h("div", { class: "field-grid" }, field("Time limit (seconds)", timeLimit, "Time waiting for typed input doesn't count."), field("Output limit (thousands)", outputLimit, "Thousands of characters a run may print.")),
-      h("div", { class: "field-grid" }, field("C standard", cStd), field("C++ standard", cxxStd), field("Optimisation", opt)),
-      h("div", { class: "check-row" }, wall.row, wextra.row),
+      row("Time limit (seconds)", timeLimit, "Time waiting for typed input doesn't count."),
+      row("Output limit (thousands)", outputLimit, "Thousands of characters a run may print."),
+      row("C standard", cStd),
+      row("C++ standard", cxxStd),
+      row("Optimisation", opt),
+      wall.row,
+      wextra.row,
     ),
-    section("Storage on this computer", storageLine, h("div", { class: "row-actions" }, protect, exportButton)),
-    section("GitHub", githubLine, h("div", { class: "row-actions" }, connect, withMessage, disconnect), autoSync.row),
+    section("storage", "Storage", storageLine, h("div", { class: "row-actions" }, protect, exportButton)),
+    section("github", "GitHub", githubLine, h("div", { class: "row-actions" }, connect, withMessage, disconnect), autoSync.row),
     section(
-      "Clear this computer",
-      h("p", { class: "field-note" }, "For shared computers: removes every file, setting and saved GitHub token CodeEditor keeps in this browser. Files already synced to GitHub stay there."),
-      h("div", { class: "row-actions" }, clear),
+      "danger",
+      "Danger zone",
+      h("div", { class: "danger-box" },
+        h("p", { class: "danger-text" }, h("strong", null, "Clear this computer. "), "For shared computers: removes every file, setting and saved GitHub token CodeEditor keeps in this browser. Files already synced to GitHub stay there."),
+        h("div", { class: "row-actions" }, clear),
+      ),
     ),
-    // The legal pages open in a new tab, so nothing typed here is left behind.
-    h("p", { class: "field-note settings-legal" }, "What CodeEditor keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
   );
+
+  // ---------------------------------------------------------------- the sections list
+  const navButtons = new Map<SectionKey, HTMLButtonElement>();
+  const nav = h(
+    "nav",
+    { class: "settings-nav", "aria-label": "Settings sections" },
+    ...SECTIONS.map(([key, label]) => {
+      const button = h("button", { type: "button", class: "settings-nav-btn", "data-section": key, "aria-controls": `settings-${key}` }, label);
+      navButtons.set(key, button);
+      return button;
+    }),
+  );
+  let current: SectionKey = "appearance";
+  function mark(key: SectionKey) {
+    current = key;
+    for (const [k, b] of navButtons) {
+      if (k === key) b.setAttribute("aria-current", "true");
+      else b.removeAttribute("aria-current");
+    }
+    // Phones: the row of sections scrolls sideways; the marked one stays in it.
+    const button = navButtons.get(key);
+    if (button && nav.scrollWidth > nav.clientWidth) {
+      const r = button.getBoundingClientRect();
+      const n = nav.getBoundingClientRect();
+      if (r.left < n.left || r.right > n.right) nav.scrollLeft += r.left - n.left - 8;
+    }
+  }
+  /** Where a jump from the list is going: its scroll event keeps the chosen mark. */
+  let jumpTo: number | null = null;
+  function go(key: SectionKey) {
+    const el = sections.get(key)!;
+    const max = body.scrollHeight - body.clientHeight;
+    // The body is the sections' offset parent (position: relative, app.css).
+    const top = Math.max(0, Math.min(max, el.offsetTop - parseFloat(getComputedStyle(body).paddingTop)));
+    mark(key);
+    if (Math.abs(body.scrollTop - top) >= 1) {
+      jumpTo = top;
+      body.scrollTo({ top });
+    }
+    headings.get(key)!.focus({ preventScroll: true });
+  }
+  /** The section in view: the last whose top has reached the pane's top; the last one at the end. */
+  function spy() {
+    if (jumpTo !== null) {
+      const arrived = Math.abs(body.scrollTop - jumpTo) < 2;
+      jumpTo = null;
+      if (arrived) return;
+    }
+    const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 2;
+    let seen: SectionKey = "appearance";
+    for (const [key] of SECTIONS) {
+      if (sections.get(key)!.offsetTop <= body.scrollTop + 24) seen = key;
+    }
+    mark(atEnd && body.scrollTop > 0 ? "danger" : seen);
+  }
+  body.addEventListener("scroll", spy, { passive: true });
+  for (const [key, button] of navButtons) button.addEventListener("click", () => go(key));
+  // Arrows move along the list (wrapping), Home and End go to its ends; Enter or Space goes there.
+  nav.addEventListener("keydown", (e) => {
+    const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const list = [...navButtons.values()];
+    const at = list.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const n = list.length;
+    const i = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (at + (e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    list[i].focus();
+  });
+  mark(current);
+
+  // ---------------------------------------------------------------- the foot
+  // The legal pages open in a new tab, so nothing typed here is left behind. The version line
+  // comes after them: SLOT for the versions unit (branch v07-versions), which replaces this empty
+  // #settings-version with "CodeEditor 0.7.0. What's new".
+  const version = h("p", { class: "field-note settings-version", id: "settings-version", hidden: true });
+  const foot = h(
+    "div",
+    { class: "settings-foot" },
+    h("p", { class: "field-note settings-legal" }, "What CodeEditor keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
+    version,
+  );
+  body.before(nav);
+  body.after(foot);
 
   return {
     open(opener) {
       const now = s();
       picker.render();
-      codeSize.value = String(now.codeSize);
+      showSize(now.codeSize);
       wrap.input.checked = now.lineWrapping;
       suggest.input.checked = now.suggestOnTyping;
       ligatures.input.checked = ligaturesOn();
@@ -185,6 +321,8 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       disconnect.hidden = !sync.connected();
       withMessage.hidden = !sync.connected();
       void refreshStorage();
+      body.scrollTop = 0;
+      mark("appearance");
       openModal(dialog, dialog.querySelector<HTMLInputElement>("input[name=theme]:checked"), opener);
     },
   };
