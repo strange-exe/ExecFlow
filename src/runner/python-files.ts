@@ -1,6 +1,6 @@
 // The workspace a Python run sees: which files are sent, how the worker writes them to its
 // in-memory file system (Emscripten MEMFS, mounted at /workspace), and which files a program created
-// or changed, so the UI can offer "Add to workspace". The file-system helpers take a minimal FS
+// or changed, so the UI can save them to the workspace. The file-system helpers take a minimal FS
 // interface so they can be tested without Pyodide.
 
 import { encodeFileBytes } from "../core/bytes";

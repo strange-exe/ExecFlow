@@ -1382,7 +1382,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       if (program) output.offerMain({ path: program, run: () => void runOffered(program) });
       finishedRun(file.path, failed, moves);
       announcer.say(announcement(result, summary, file.path, current.timeLimitS));
-      void offerWritten(result.written);
+      void saveWritten(result.written);
     } catch (e) {
       ed.cancelBuild(ticket);
       output.fail(errorText(e));
@@ -1409,8 +1409,17 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     schedulePosition();
   }
 
-  async function offerWritten(written: WorkspaceFile[] | undefined) {
-    if (!written?.length || !canWrite()) return;
+  /**
+   * Files the program wrote land in the workspace like on a disk: new files are created and changed
+   * ones saved, with a line in Output instead of a question. The one exception is code: a program
+   * that wrote over a .py, .c, .cpp or header file is not saved over the code the user typed.
+   */
+  async function saveWritten(written: WorkspaceFile[] | undefined) {
+    if (!written?.length) return;
+    if (!canWrite()) {
+      output.note(`This tab is read-only, so ${listNames(written.map((f) => f.path))} wasn't saved to your files.`, "warning");
+      return;
+    }
     const byKey = new Map<string, WorkspaceFile>();
     for (const f of written) byKey.set(foldKey(f.path), f);
     const current = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
@@ -1424,40 +1433,28 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       }
       changes.push({ file, target: existing?.path ?? file.path, replace: Boolean(existing) });
     }
-    if (!changes.length) return;
-    const names = changes.map((c) => c.target);
-    notice.show(`The program wrote ${listNames(names)}.`, { tone: "info", action: { label: "Add to workspace", run: () => void addWritten(changes) } });
-  }
-
-  async function addWritten(changes: { file: WorkspaceFile; target: WsPath; replace: boolean }[]) {
-    if (explainReadOnly()) return;
-    const replacing = changes.filter((c) => c.replace);
-    if (replacing.length) {
-      const ok = await confirmDialog({
-        title: `Replace ${plural(replacing.length, "file")}?`,
-        body: [`${listNames(replacing.map((c) => c.target))} already ${replacing.length === 1 ? "exists" : "exist"}. Replace ${replacing.length === 1 ? "it" : "them"} with what the program wrote?`],
-        confirm: "Replace",
-        danger: true,
-      });
-      if (!ok) return;
-    }
+    const kept = changes.filter((c) => c.replace && detectLanguage(nameOf(c.target)));
+    const saving = changes.filter((c) => !kept.includes(c));
+    if (kept.length) output.note(`The program wrote over ${listNames(kept.map((c) => c.target))}. Your code was kept, not replaced.`, "warning");
+    if (!saving.length) return;
+    // Unsaved typing reaches storage first, so the program's text replaces a saved file, never typing.
     await saves.flushAll();
-    let done = 0;
-    for (const c of changes) {
+    const saved: WsPath[] = [];
+    for (const c of saving) {
       try {
         if (c.replace) await store.saveFile(ws, c.target, c.file.text);
         else await store.createFile(ws, c.target, c.file.text);
         const id = editors.idForPath(c.target);
         if (id) replaceText(id, c.file.text);
-        done++;
+        saved.push(c.target);
       } catch (e) {
-        notice.show(`${c.target} wasn't added: ${storageMessage(e)}`);
+        output.note(`${c.target} wasn't saved: ${storageMessage(e)}`, "warning");
       }
     }
     await refreshTree();
-    if (done) {
-      announcer.say(`Added ${plural(done, "file")} to the workspace.`);
-      if (done === changes.length) notice.show(`Added ${listNames(changes.map((c) => c.target))} to the workspace.`, { tone: "success" });
+    if (saved.length) {
+      output.note(`Saved ${listNames(saved)} to your files.`);
+      announcer.say(`The program saved ${plural(saved.length, "file")} to your files.`);
     }
   }
 

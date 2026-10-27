@@ -70,7 +70,7 @@ test("pandas downloads on first import and the status line names it", async ({ p
   expect(downloading.some((l) => /pandas/.test(l)), JSON.stringify(downloading)).toBe(true);
 });
 
-test("a file written in the program's own folder is offered with its folder, and a changed copy asks before replacing", async ({ page }) => {
+test("a file written in the program's own folder is saved with its folder, and a changed copy replaces it without a question", async ({ page }) => {
   await openApp(page);
   await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
   await page.locator("#new-file").click();
@@ -84,29 +84,25 @@ test("a file written in the program's own folder is offered with its folder, and
   await page.locator("#stdin").fill("first\n");
   const r1 = await run(page, { timeout: 90_000 });
   expect(r1.status, r1.output).toBe("ok");
-  const notice = page.locator(".notice");
-  await expect(notice).toContainText("proj/data.txt");
-  await notice.getByRole("button", { name: "Add to workspace" }).click();
+  const saved = page.locator('#console [data-stream="note"]').filter({ hasText: "to your files" });
+  await expect(saved).toContainText("Saved proj/data.txt to your files.");
   await expect(treeItem(page, "proj/data.txt")).toBeVisible();
 
-  // Same program, same text: nothing new to offer.
+  // Same program, same text: nothing new to save, so no line about it.
   await openFromTree(page, "proj/main.py");
   await run(page, { timeout: 60_000 });
-  await expect(notice.getByRole("button", { name: "Add to workspace" })).toHaveCount(0);
+  await expect(saved).toHaveCount(0);
 
-  // Different text: offered again, and adding asks before replacing; the open copy follows.
+  // Different text: saved over the old copy with no question, and the open copy follows.
   await openFromTree(page, "proj/data.txt");
   await openFromTree(page, "proj/main.py");
-  await page.locator("#stdin").fill("second\n");
-  await run(page, { timeout: 60_000 });
-  await notice.getByRole("button", { name: "Add to workspace" }).click();
-  const ask = page.getByRole("alertdialog");
-  await expect(ask).toBeVisible();
   // Re-reading the files after the write changes no row, so the tree keeps its rows: a redraw in
   // the middle of the next click would replace the row pressed and the click would open nothing.
   await treeItem(page, "proj/data.txt").evaluate((li) => (li.dataset.probe = "kept"));
-  await ask.getByRole("button", { name: "Replace" }).click();
-  await expect(notice).toContainText("Added proj/data.txt to the workspace.");
+  await page.locator("#stdin").fill("second\n");
+  await run(page, { timeout: 60_000 });
+  await expect(saved).toContainText("Saved proj/data.txt to your files.");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(treeItem(page, "proj/data.txt"), "the same row node after the write").toHaveAttribute("data-probe", "kept");
   await openFromTree(page, "proj/data.txt");
   await expect(page.locator(".cm-content")).toContainText("second");

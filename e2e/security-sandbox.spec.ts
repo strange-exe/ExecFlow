@@ -185,7 +185,7 @@ test("a program can't send the page messages: every way to reach postMessage fai
   expect(r.output).toContain("RuntimeError");
   for (const how of ["global", "self", "reflect"]) expect(r.output).toContain(`${how}: `);
   expect(r.output).not.toContain("never shown");
-  await expect(page.locator(".notice").getByRole("button", { name: "Add to workspace" })).toHaveCount(0);
+  await expect(page.locator('#console [data-stream="note"]').filter({ hasText: "to your files" })).toHaveCount(0);
   expect(await page.locator(".tree [role=treeitem]").evaluateAll((items) => items.map((i) => i.getAttribute("data-path")))).toEqual(["forge.py"]);
 });
 

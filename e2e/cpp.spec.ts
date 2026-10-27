@@ -35,7 +35,7 @@ test("C and C++ need a one-time download, offered where the output appears", asy
   await expect(page.locator(".notice")).toHaveAttribute("data-tone", "info");
 });
 
-test("multi-file C with a header, live scanf input, fopen of a data file, and the written file offered", async ({ page }) => {
+test("multi-file C with a header, live scanf input, fopen of a data file, and the written file saved", async ({ page }) => {
   test.setTimeout(240_000);
   await openApp(page);
   await importFiles(page, [
@@ -50,12 +50,10 @@ test("multi-file C with a header, live scanf input, fopen of a data file, and th
   const ok = await run(page, { input: ["7"], timeout: 120_000 });
   expect(ok.status, ok.output).toBe("ok");
   expect(ok.output).toContain("How many? 7\nsquare = 49\nfile says hello\n");
-  // The file it wrote is offered (and nothing is added until asked).
-  const notice = page.locator(".notice");
-  await expect(notice).toContainText("out.txt");
-  await expect(treeItem(page, "out.txt")).toHaveCount(0);
-  await notice.getByRole("button", { name: "Add to workspace" }).click();
+  // The file it wrote is saved to the workspace by itself, without a question.
   await expect(treeItem(page, "out.txt")).toBeVisible();
+  await expect(page.locator('#console [data-stream="note"]')).toContainText("Saved out.txt to your files.");
+  await expect(page.locator(".notice").getByRole("button")).toHaveCount(0);
 
   // A compile error in the header is marked in the header.
   await openFromTree(page, "util.h");

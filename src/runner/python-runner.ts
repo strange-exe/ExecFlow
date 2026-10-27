@@ -411,7 +411,7 @@ export class PythonRunner {
           };
           const skipped = Number.isSafeInteger(data.writtenSkipped) ? data.writtenSkipped : 0;
           if (oom) result.message = `Python ran out of memory (its limit is ${HEAP_MB} MB).`;
-          else if (skipped > 0) result.message = `The program also wrote ${skipped} file${skipped > 1 ? "s" : ""} that can't be added to the workspace (not text, larger than 1 MB, or more than 20 files).`;
+          else if (skipped > 0) result.message = `The program also wrote ${skipped} file${skipped > 1 ? "s" : ""} that can't be saved to your files (not text, larger than 1 MB, or more than 20 files).`;
           finish({ kind: "result", result }, data.recycle === true);
         }
       };

@@ -139,7 +139,7 @@ export interface RunResult {
   skipped?: WsPath[];
   /**
    * Text files the program created or changed (paths relative to the workspace root), so the UI can
-   * offer "Add to workspace". Never written back automatically. Capped at 20 files, 1 MiB each.
+   * save them to the workspace (never over a code file). Capped at 20 files, 1 MiB each.
    */
   written?: WorkspaceFile[];
   ms: { build?: number; run?: number };

@@ -164,14 +164,29 @@ test("Restart Python starts a clean interpreter", async ({ page }) => {
   expect((await run(page)).output).toContain("fresh");
 });
 
-test("a file the program writes is offered, and added to the workspace on request", async ({ page }) => {
+test("a file the program writes is saved to the workspace by itself, with a line in Output and no question", async ({ page }) => {
   await openApp(page);
   await importFiles(page, [{ name: "write.py", text: "with open('result.txt', 'w') as f:\n    f.write('42\\n')\nprint('done')\n" }]);
   await openFromTree(page, "write.py");
   const r = await run(page);
   expect(r.status, r.output).toBe("ok");
-  const notice = page.locator(".notice");
-  await expect(notice).toContainText("result.txt");
-  await notice.getByRole("button", { name: "Add to workspace" }).click();
   await expect(treeItem(page, "result.txt")).toBeVisible();
+  await expect(page.locator('#console [data-stream="note"]')).toContainText("Saved result.txt to your files.");
+  await expect(page.locator(".notice").getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await openFromTree(page, "result.txt");
+  await expect(page.locator(".cm-content")).toContainText("42");
+});
+
+test("a program that writes over a code file never replaces the code: Output says it was kept", async ({ page }) => {
+  await openApp(page);
+  const code = "with open('helper.py', 'w') as f:\n    f.write('oops\\n')\nprint('done')\n";
+  await importFiles(page, [{ name: "clobber.py", text: code }, { name: "helper.py", text: "def help():\n    return 1\n" }]);
+  await openFromTree(page, "clobber.py");
+  const r = await run(page);
+  expect(r.status, r.output).toBe("ok");
+  await expect(page.locator('#console [data-stream="note"]')).toContainText("The program wrote over helper.py. Your code was kept, not replaced.");
+  await openFromTree(page, "helper.py");
+  await expect(page.locator(".cm-content")).toContainText("def help():");
+  await expect(page.locator(".cm-content")).not.toContainText("oops");
 });
