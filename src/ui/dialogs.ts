@@ -116,8 +116,11 @@ export function dialogShell(id: string, title: string, options: { wide?: boolean
   });
   // A press on the backdrop never takes the focus from the dialog's control (Firefox moved it off Copy
   // when the second click of the double click that opened this dialog landed there); a click still closes.
+  // The same for a double click's later press on the dialog's own ground (the opener can sit under the
+  // dialog: Capture in the top bar): Firefox and WebKit focused the dialog itself, off its control.
   dialog.addEventListener("mousedown", (e) => {
     if (e.target === dialog && outside(e)) e.preventDefault();
+    else if (e.detail > 1 && !(e.target as Element).closest("button, input, select, textarea, a[href], [tabindex], [contenteditable]")) e.preventDefault();
   });
   dialog.addEventListener("click", (e) => {
     const backdrop = e.target === dialog && e.detail <= 1 && pressedOutside && outside(e);

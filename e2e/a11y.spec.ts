@@ -668,7 +668,9 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   const errorCell = await rect(".cm-lineNumbers .cm-gutterElement.ce-error-line");
   measure("error line's gutter bar", lead(errorCell), lead(up(errorCell)), px);
   const dot = await rect(".cm-gutter-lint .cm-lint-marker-error");
-  measure("error dot", dot, up(dot), px);
+  // 2 px clear of the dot: with 28 px rows its box starts a fraction below a pixel row (y 128.02),
+  // and the strip right above it then ended in the row holding the dot's own anti-aliased top.
+  measure("error dot", dot, { ...up(dot), y: dot.y - dot.height - 2 }, px);
 
   // The panel splitter, reached from the code with Escape then Tab: its ring, against the same rows unfocused.
   await page.locator(".cm-content").click();

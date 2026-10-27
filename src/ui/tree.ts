@@ -25,6 +25,20 @@ export interface TreeActions {
   selectionChanged?(node: TreeNode | null): void;
 }
 
+/**
+ * A file's type as a short word in a quiet badge (C, C++, Py, H, Txt), shown beside the name: text,
+ * so it never rests on colour or an icon's detail. Decoration (aria-hidden): the name already ends
+ * with the extension. Files of no known type get no badge, only their spacing.
+ */
+export function fileType(path: string): string {
+  const lang = detectLanguage(path)?.id;
+  if (lang === "python") return "Py";
+  if (lang === "c") return "C";
+  if (lang === "cpp") return "C++";
+  if (isHeader(path)) return "H";
+  return /\.(txt|md|csv|json|in|out|dat)$/i.test(path) ? "Txt" : "";
+}
+
 export function fileIcon(path: string): IconName {
   const lang = detectLanguage(path)?.id;
   if (lang === "python") return "file-py";
@@ -232,7 +246,7 @@ export class FileTree {
           "div",
           { class: "tree-row", style: `--level: ${n.level - 1}` },
           h("span", { class: "twisty" }, isDir ? icon(open ? "caret-down" : "caret-right") : null),
-          icon(isDir ? (open ? "folder-open" : "folder") : fileIcon(n.path), "tree-icon"),
+          isDir ? icon(open ? "folder-open" : "folder", "tree-icon") : h("span", { class: "tree-type", "aria-hidden": "true", "data-type": fileType(n.path) || null }, fileType(n.path)),
           treeName(n, nameId),
           errorBadge,
           openBadge,

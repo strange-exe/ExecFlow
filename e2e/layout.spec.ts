@@ -136,21 +136,32 @@ test("after a failed run the error jump comes first in the editor head, and it a
   await failedRun(page);
 
   // Reading order: in the editor head the jump is the first control after the tab list (one tab
-  // stop), then Run, then the quiet Capture snippet button; the runtime words are not a stop.
+  // stop), and its only other stop. Since the 0.7.0 shell Capture and Run are in the top bar over
+  // the editor (the command field, then Capture, then Run); the runtime words are not a stop.
   await expect(jump).toBeVisible();
   await expect(jump).toHaveAccessibleName("Error in calc.py, line 2");
-  const stops = await page.locator(".editor-head").evaluate((head) =>
-    [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
-  );
-  expect(stops.slice(1), `editor head stops ${stops.join(", ")}`).toEqual(["error-jump", "run-button", "snippet-button"]);
+  const stopsIn = (sel: string) =>
+    page.locator(sel).evaluate((head) =>
+      [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
+    );
+  const stops = await stopsIn(".editor-head");
+  expect(stops.slice(1), `editor head stops ${stops.join(", ")}`).toEqual(["error-jump"]);
   expect(stops[0]).toMatch(/^tab-/);
+  expect(await stopsIn(".topbar"), "top bar stops").toEqual(["palette-button", "snippet-button", "run-button"]);
   await page.locator('.tabs [role=tab][aria-selected="true"]').focus();
   await page.keyboard.press("Tab");
   await expect(jump).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.locator("#run-button")).toBeFocused();
+  // The top bar's order by keyboard: the command field, Capture, Run.
+  await page.locator("#palette-button").focus();
   await page.keyboard.press("Tab");
   await expect(page.locator("#snippet-button")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#run-button")).toBeFocused();
+  // Then on into the editor head: the open file's tab, then the jump.
+  await page.keyboard.press("Tab");
+  await expect(page.locator('.tabs [role=tab][aria-selected="true"]')).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(jump).toBeFocused();
 
   // The run-log header: the error band, the facts, and the exception lifted into one button.
   const header = page.locator("#runlog");
@@ -207,16 +218,18 @@ test("after a failed run the error jump comes first in the editor head, and it a
   await expect(jump).toBeHidden();
 });
 
-test("the breadcrumb shows the workspace, the folders and the file, gives way from the left, and a phone shows the name only", async ({ page }) => {
+test("the breadcrumb shows the folders and the file, gives way from the left, and a phone shows the name only", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");
   const crumb = page.locator(".topbar .crumb");
-  await expect(crumb.locator("li")).toHaveText(["Workspace", "main.py"]);
-  // The brand is in the top bar here; the drawer's copy of it is for phones only.
-  await expect(page.locator(".topbar .brand")).toBeVisible();
-  await expect(page.locator("#sidebar .drawer-brand")).toBeHidden();
+  // Since the 0.7.0 shell the workspace heads the sidebar (its switcher, with the app's mark), not
+  // the breadcrumb, which starts at the top folder.
+  // The "/" between segments is decorative (aria-hidden): compare each segment's own words.
+  await expect(crumb.locator("li > .crumb-text")).toHaveText(["main.py"]);
+  await expect(page.locator("#sidebar .ws-switcher #ws-name")).toHaveText("Workspace");
+  await expect(page.locator("#sidebar .ws-switcher svg.brand-mark")).toBeVisible();
   // A deep path, made in place (a name with folders makes them).
   const folders = ["course-materials", "semester-two", "week-eleven", "lab-practice", "exercises"];
   const file = "finding_the_largest_value_in_a_list.py";
@@ -227,16 +240,29 @@ test("the breadcrumb shows the workspace, the folders and the file, gives way fr
   await name.fill(deep);
   await name.press("Enter");
   await expectActive(page, deep);
-  await expect(crumb.locator("li")).toHaveText(["Workspace", ...folders, file]);
+  await expect(crumb.locator("li > .crumb-text")).toHaveText([...folders, file]);
+  await expect(crumb.locator(".crumb-sep")).toHaveCount(folders.length);
+  for (const sep of await crumb.locator(".crumb-sep").all()) await expect(sep).toHaveAttribute("aria-hidden", "true");
   await expect(crumb).toHaveAttribute("title", deep);
 
   await page.setViewportSize({ width: 1024, height: 768 });
   expect(await noOverflow(page), "no horizontal scroll at 1024 px").toBe(true);
   const fit = await crumb.evaluate((ol) => [...ol.querySelectorAll<HTMLElement>(".crumb-text")].filter((t) => t.getClientRects().length > 0).map((t) => ({ text: t.textContent, cut: t.scrollWidth > t.clientWidth + 1 })));
-  expect(fit.at(-1), "the file name stays whole").toEqual({ text: file, cut: false });
+  // Since the 0.7.0 shell the top bar also holds the command field (160 px at least), the runtime
+  // words, Capture and Run, so a 38-character name may lose part of its stem at 1024 px; it still
+  // reads: at least 120 px of it (about 15 characters) with its extension whole, and the folders
+  // give way first. (Before this rule the bar left the file 0 px: a lone "c" by the field.)
+  const fileBox = await box(page, ".topbar .crumb-file .crumb-name");
+  expect(fileBox.width, "the file name keeps room to be read").toBeGreaterThanOrEqual(Math.min(120, (await crumb.locator(".crumb-name").evaluate((e) => [...e.children].reduce((sum, c) => sum + c.scrollWidth, 0)))));
+  const ext = await box(page, ".topbar .crumb-file .crumb-ext");
+  expect(ext.width, "the extension is shown").toBeGreaterThan(0);
+  expect(ext.x + ext.width, "the extension is whole").toBeLessThanOrEqual(fileBox.x + fileBox.width + 1);
+  expect(fit.at(-1)?.text).toBe(file);
   expect(fit.slice(0, -1).some((f) => f.cut), `an ancestor gives way: ${JSON.stringify(fit)}`).toBe(true);
+  if (fit.at(-1)?.cut) expect(fit.slice(0, -1).every((f) => f.cut), `the file is cut only after every folder: ${JSON.stringify(fit)}`).toBe(true);
   const crumbBox = await box(page, ".topbar .crumb");
-  expect(crumbBox.x + crumbBox.width, "the breadcrumb ends before the sync status").toBeLessThanOrEqual((await box(page, "#sync-status")).x);
+  // The sync status is in the sidebar's foot now; the breadcrumb gives way to the command field.
+  expect(crumbBox.x + crumbBox.width, "the breadcrumb ends before the command field").toBeLessThanOrEqual((await box(page, "#palette-button")).x);
 
   // A phone shows the file's name only, after Files. The change of width redraws nothing in the
   // crumb when its path is the same: a rebuild between two reads left this test on a removed node
@@ -247,22 +273,24 @@ test("the breadcrumb shows the workspace, the folders and the file, gives way fr
   await page.waitForTimeout(500);
   await expect(crumb.locator(".crumb-file"), "the crumb kept its nodes").toHaveAttribute("data-probe", "kept");
   await expect(crumb.locator(".crumb-file")).toBeVisible();
-  await expect(crumb.locator(".crumb-root")).toBeHidden();
   await expect(crumb.locator(".crumb-dir")).toHaveCount(folders.length);
   for (const dir of await crumb.locator(".crumb-dir").all()) await expect(dir).toBeHidden();
   expect((await box(page, ".topbar .crumb-file")).x).toBeGreaterThan((await box(page, ".drawer-toggle")).x);
   expect(await noOverflow(page)).toBe(true);
 });
 
-test("notices speak from the status bar: kept rendered while empty, dismissed in place; sync shows once, in the top bar", async ({ page }) => {
+test("notices speak from the sidebar's foot: kept rendered while empty, dismissed in place; sync shows once, in the foot", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
-  const notice = page.locator(".statusbar .notice-host > .notice[role=status]");
+  // 0.7.0 shell: no status bar on desktop; the notice slot is in the sidebar's foot, over the sync
+  // status, Shortcuts and Settings (layout.ts place()).
+  await expect(page.locator(".statusbar")).toBeHidden();
+  const notice = page.locator(".sidebar-foot .notice-host > .notice[role=status]");
   await expect(notice).toHaveCount(1);
   await expect(notice).toHaveAttribute("data-empty", "true");
-  // Sync and save state: the top bar's sync status only.
+  // Sync and save state: the foot's sync status only.
   await expect(page.locator("#status-sync")).toHaveCount(0);
-  const sync = page.locator("#sync-status");
+  const sync = page.locator(".sidebar-foot #sync-status");
   await expect(sync).toHaveAttribute("data-unsynced", "0");
   await expect(sync).toHaveAccessibleName("Not connected. Your files are saved on this computer. Connect GitHub");
   await expect(sync).toHaveAttribute("title", "Not connected. Your files are saved on this computer. Connect GitHub");
@@ -270,12 +298,16 @@ test("notices speak from the status bar: kept rendered while empty, dismissed in
   await importFiles(page, FILES);
   await expect(notice).toHaveAttribute("data-empty", "false");
   await expect(notice).toContainText("Imported 2 files.");
-  // One line in the bar (28 px on desktop since the Signal round), between the position and Shortcuts.
-  expect((await box(page, ".statusbar")).height).toBe(28);
   await openFromTree(page, "main.py");
-  const [pos, words, shortcuts] = [await box(page, "#status-pos"), await box(page, ".notice-text"), await box(page, "#shortcuts-button")];
-  expect(pos.x + pos.width).toBeLessThan(words.x);
-  expect(words.x + words.width).toBeLessThan(shortcuts.x);
+  // On screen, inside the sidebar, over the sync status and Shortcuts; the foot keeps to the
+  // window's bottom edge (the tree gives up the room).
+  await expect(notice).toBeInViewport();
+  const [side, words, syncBox, shortcuts, foot] = [await box(page, "#sidebar"), await box(page, ".notice-text"), await box(page, "#sync-status"), await box(page, "#shortcuts-button"), await box(page, ".sidebar-foot")];
+  expect(words.x).toBeGreaterThanOrEqual(side.x);
+  expect(words.x + words.width).toBeLessThanOrEqual(side.x + side.width);
+  expect(words.y + words.height).toBeLessThanOrEqual(syncBox.y);
+  expect(words.y + words.height).toBeLessThanOrEqual(shortcuts.y);
+  expect(Math.round(foot.y + foot.height)).toBe(900);
   // From the keyboard (WebKit does not focus a button on click): the dismiss button that had the
   // focus goes with the notice, and the focus is back in the code.
   await notice.getByRole("button", { name: "Dismiss notice" }).focus();
@@ -283,7 +315,7 @@ test("notices speak from the status bar: kept rendered while empty, dismissed in
   await expect(notice).toHaveAttribute("data-empty", "true");
   await expect(notice).toHaveCount(1);
   await expect(page.locator(".cm-content")).toBeFocused();
-  expect((await box(page, ".statusbar")).height).toBe(28);
+  expect(Math.round((await box(page, ".sidebar-foot")).y + (await box(page, ".sidebar-foot")).height)).toBe(900);
 });
 
 test("the file menu is grouped by separators that are not focusable and that the arrow keys skip", async ({ page }) => {
@@ -393,19 +425,22 @@ test.describe("phones", () => {
     await importFiles(page, FILES);
     await openFromTree(page, "main.py");
     await openFromTree(page, "calc.py");
-    // No tab list of files on screen; the top bar has Files, the file's name, sync, Run, Settings.
+    // No tab list of files on screen; the top bar has Files and the file's name at its start, and
+    // Search, sync, Run and Settings at its end (0.7.0 shell: .topbar-start / .topbar-end).
     await expect(page.getByRole("tablist", { name: "Open files" })).toBeHidden();
-    await expect(page.locator(".topbar .brand")).toBeHidden();
+    await expect(page.locator(".topbar svg.brand-mark")).toHaveCount(0);
     await expect(page.locator(".topbar .crumb-file")).toHaveText("calc.py");
-    await expect(page.locator(".topbar > #run-button")).toBeVisible();
+    const ends = await page.locator(".topbar .topbar-end").evaluate((el) => [...el.children].filter((c) => c.getClientRects().length > 0).map((c) => c.id || c.className));
+    expect(ends).toEqual(["palette-button", "sync-slot", "run-button", "settings-button"]);
+    await expect(page.locator(".topbar #run-button")).toBeVisible();
     expect(Math.round((await box(page, "#editor-panel")).y), "chrome above the code").toBe(92);
 
     // The drawer marks every file open in a tab, with an icon and a description. Its head carries
-    // the brand (layout v2 idea 12: none in the phone top bar, the drawer shows it).
+    // the workspace with the app's mark (none in the phone top bar; the drawer shows it).
     await showFiles(page);
-    const brand = page.locator("#sidebar .drawer-brand");
+    const brand = page.locator("#sidebar .ws-switcher");
     await expect(brand).toBeVisible();
-    await expect(brand).toHaveText("CodeEditor");
+    await expect(brand.locator("#ws-name")).toHaveText("Workspace");
     await expect(brand.locator("svg.brand-mark")).toBeVisible();
     expect(await noOverflow(page)).toBe(true);
     for (const path of ["main.py", "calc.py"]) {
@@ -771,15 +806,21 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
     const chosen = themes.locator('input[name=theme][value="signal"]');
     await expect(chosen).toBeChecked();
     await expect(chosen).toBeFocused();
+    // 0.7.0 Settings: the sections list beside the pane is on the first screen, so the Editor options
+    // are one choice away whatever the height. The first three are on the first screen (the
+    // dialog's legal foot now takes a line: ligatures, the fourth, starts about 30 px below it).
+    const nav = dialog.getByRole("navigation", { name: "Settings sections" });
+    await expect(nav.getByRole("button", { name: "Editor" })).toBeInViewport();
     const body = await box(page, "#settings .dialog-body");
-    for (const id of ["#set-code-size", "#set-wrap", "#set-ligatures"]) {
+    for (const id of ["#set-code-size", "#set-wrap", "#set-suggest"]) {
       const control = await box(page, id);
       expect(control.y + control.height, `${id} is on the first screen`).toBeLessThanOrEqual(body.y + body.height);
     }
     expect((await box(page, ".theme-option:has(input:checked)")).y).toBeLessThan((await box(page, "#set-code-size")).y);
-    // The radio group is named by its section's own heading: no stack of titles above the tiles.
+    // 0.7.0 Settings: the first section is Appearance; "Colour theme" is the radio group's own
+    // visible label under it (settings-dialog.ts #theme-title), then the Editor section.
     await expect(themes).toHaveAccessibleName("Colour theme");
-    await expect(dialog.locator("h3").first()).toHaveText("Colour theme");
+    await expect(dialog.locator("h3").first()).toHaveText("Appearance");
     await expect(dialog.getByRole("heading", { name: "Editor" })).toBeVisible();
     // Every theme is still offered: Slate, the popular ones and the rest are one fold away.
     const more = dialog.locator(".theme-more");
@@ -789,6 +830,15 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
     for (const id of ["slate-dark", "tokyo-night", "nord"]) await expect(themes.locator(`input[name=theme][value="${id}"]`)).toBeVisible();
     expect(await themes.locator("input[name=theme]").count()).toBe(all);
     expect(all, "every built-in theme").toBeGreaterThanOrEqual(27);
+    // Editor in the list brings every editor option on screen, its heading focused.
+    await nav.getByRole("button", { name: "Editor" }).click();
+    await expect(dialog.getByRole("heading", { name: "Editor" })).toBeFocused();
+    const pane = await box(page, "#settings .dialog-body");
+    for (const id of ["#set-code-size", "#set-wrap", "#set-suggest", "#set-ligatures"]) {
+      const control = await box(page, id);
+      expect(control.y, `${id} below the pane's top`).toBeGreaterThanOrEqual(pane.y);
+      expect(control.y + control.height, `${id} in the pane`).toBeLessThanOrEqual(pane.y + pane.height);
+    }
   });
 }
 

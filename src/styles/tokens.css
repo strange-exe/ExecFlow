@@ -265,7 +265,7 @@
   --on-action: #fdfdff;
   --control-on: #0062d4;
   --focus: #0062d4;
-  --selection: #d6e8ff;
+  --selection: #3a94ff33;
   --list-selected: #1a20291a;
   --active-line: #1a202908;
   --location: #0062d4;
@@ -313,7 +313,7 @@
   --on-action: #0e1217;
   --control-on: #60a7ff;
   --focus: #60a7ff;
-  --selection: #193a62;
+  --selection: #2d84ed59;
   --list-selected: #e9ebef1a;
   --active-line: #e9ebef08;
   --location: #60a7ff;
@@ -414,7 +414,10 @@
   --s5: 24px;
   --s6: 32px;
   --r-key: 5px;          /* marks: keycaps, counts, the brand tile */
+  --r-badge: 4px;        /* the file-type word in a tree row */
+  --r-row: 6px;          /* list rows drawn as pills: the tree, the quick actions */
   --r-control: 8px;      /* every control, menus, tooltips */
+  --badge-w: 28px;       /* the file-type badge ("C++" at 12 px mono), and a folder icon's room */
   --r-dialog: 14px;      /* dialogs */
   /* The editor's sheet from 900 px (app.css): its outer corners, and the frame of --surface right of
      it and below it (off the 4 px scale on purpose: the approved preview's 10 px). */
@@ -428,6 +431,7 @@
   --h-status: 24px;
   --h-switch: 44px;
   --h-row: 28px;
+  --tab-h: 30px;         /* an editor tab or panel tab pill */
   --target: 24px;        /* WCAG 2.2 minimum, everywhere */
   --tool: 28px;          /* toolbar icon buttons */
   --primary-h: 32px;     /* Run, Create, Connect on desktop */
@@ -450,7 +454,7 @@
 /* Touch screens 900 px and wider: the editor head (and the sidebar head beside it) holds Run and the
    44 px icon buttons inside it. Phones have no editor head; the drawer's head shows only below 900 px. */
 @media (pointer: coarse) and (min-width: 900px) {
-  :root { --h-head: 48px; }
+  :root { --h-head: 48px; --tab-h: 44px; }
 }
 /* Desktop (a fine pointer, 900 px and wider): roomier bars and rows. Every target stays 24 px or
    more; touch screens and phones keep the 44 px ones above. */
@@ -459,7 +463,7 @@
     --h-topbar: 48px;
     --h-head: 44px;
     --h-panel-bar: 40px;
-    --h-row: 30px;
+    --h-row: 28px;
     --h-status: 28px;
     --tool: 30px;
     --primary-h: 32px;

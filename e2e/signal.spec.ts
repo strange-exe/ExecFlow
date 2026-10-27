@@ -206,13 +206,15 @@ for (const scheme of SCHEMES) {
     expect((await run(page)).status).toBe("error");
     await openFromTree(page, "calc.py");
 
-    // The frame: the main area and the editor column on --surface; no line under the top bar, none over the status bar.
+    // The frame: the main area and the editor column on --surface; no line under the top bar. Since
+    // the 0.7.0 shell there is no status bar on desktop (its facts are in the panel bar and the
+    // sidebar's foot), so nothing is drawn over the sheet's foot either.
     expect((await styleOf(page, ".main", ["background-color"]))["background-color"]).toBe(rgbOf(p.surface));
     expect(await styleOf(page, ".center", ["background-color", "padding-right", "padding-bottom", "padding-left", "padding-top"])).toEqual({
       "background-color": rgbOf(p.surface), "padding-right": "10px", "padding-bottom": "10px", "padding-left": "0px", "padding-top": "0px",
     });
     expect((await styleOf(page, ".topbar", ["border-bottom-width"]))["border-bottom-width"]).toBe("0px");
-    expect((await styleOf(page, ".statusbar", ["box-shadow"]))["box-shadow"]).toBe("none");
+    await expect(page.locator(".statusbar")).toBeHidden();
 
     // The sheet: top corners on the editor area, bottom corners on the panel, one 1 px edge round both.
     expect(await styleOf(page, ".editor-area", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-left", "border-right", "border-bottom-width", "background-color"])).toEqual({
@@ -237,8 +239,9 @@ for (const scheme of SCHEMES) {
     // The file list | editor splitter shows no line, but stays a keyboard-operable separator with its focus ring.
     const splitter = page.getByRole("separator", { name: "Resize the file list" });
     expect((await styleOf(page, ".main > .splitter", ["background-color"]))["background-color"]).toBe("rgba(0, 0, 0, 0)");
-    // Reached from the file list with Tab, so every engine draws its keyboard focus (:focus-visible).
-    await page.locator('.tree [role=treeitem][tabindex="0"]').focus();
+    // Reached with Tab, so every engine draws its keyboard focus (:focus-visible). Since the 0.7.0
+    // shell the sidebar's foot (sync, Shortcuts, Settings) follows the tree; Settings is its last stop.
+    await page.locator("#settings-button").focus();
     await page.keyboard.press("Tab");
     await expect(splitter).toBeFocused();
     const width = Number(await splitter.getAttribute("aria-valuenow"));
@@ -258,18 +261,23 @@ for (const scheme of SCHEMES) {
   });
 }
 
-test("desktop bars: top bar 48, editor head 44, panel bar 40, status bar 28, rows 30, icon buttons 30, Run 32; every target 24 or more", async ({ page }) => {
+test("desktop bars: top bar 48, editor head 44, Files head 36, panel bar 40, no status bar, rows 28, icon buttons 30, Run 32; every target 24 or more", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
   await importFiles(page, [{ name: "main.py", text: MAIN }, { name: "calc.py", text: CALC }]);
   await openFromTree(page, "main.py");
   const h = async (sel: string) => Math.round((await boxOf(page, sel)).height);
+  // 0.7.0 shell (.claude/tasks/v07-shell.md): the sidebar's top row is the workspace switcher, as
+  // tall as the top bar (--h-topbar); the "Files" label under the quick actions is a 36 px row
+  // (app.css .sidebar-head), no longer level with the editor head; tree rows are 28 (--h-row, spec
+  // "28 px rows"); the status bar is gone on desktop.
   expect(await h(".topbar")).toBe(48);
+  expect(await h(".ws-switcher")).toBe(48);
   expect(await h(".editor-head")).toBe(44);
-  expect(await h(".sidebar-head")).toBe(44);
+  expect(await h(".sidebar-head")).toBe(36);
   expect(await h(".panel-bar")).toBe(40);
-  expect(await h(".statusbar")).toBe(28);
-  expect(await h(".tree-row")).toBe(30);
+  await expect(page.locator(".statusbar")).toBeHidden();
+  expect(await h(".tree-row")).toBe(28);
   expect(await h("#run-button")).toBe(32);
   expect(await h("#settings-button")).toBe(30);
   // WCAG 2.2 SC 2.5.8: every visible control on the page is 24 x 24 CSS px or more.

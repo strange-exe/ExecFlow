@@ -33,7 +33,13 @@ const CASE_B = Array.from({ length: 200 }, () => "x".repeat(100)).join("\n") + "
 const TOO_BIG = `${"x".repeat(40_000)}\n${"y".repeat(40_000)}\n`;
 
 const app = (page: Page) => page.locator("#app");
-const notice = (page: Page) => page.locator(".statusbar .notice-text");
+/** The page's notice: in the sidebar's foot from 900 px, in the status bar below (layout.ts place()). */
+const notice = (page: Page) => page.locator(".notice-host .notice-text");
+/**
+ * The drawn selection: the app's own layer (src/editor/selection-layer.ts). CodeMirror's layer is
+ * still in the DOM with the same class, but hidden (highlight.ts), so a bare class counts double.
+ */
+const BANDS = ".ce-selection-layer .cm-selectionBackground";
 const copyButton = (page: Page) => dialogOf(page).getByRole("button", { name: "Copy image" });
 const downloadButton = (page: Page) => dialogOf(page).getByRole("button", { name: "Download (.png)" });
 
@@ -530,7 +536,7 @@ for (const key of ["Enter", "Space"] as const) {
     await page.keyboard.press("Escape");
     await expect(dialogOf(page)).toHaveCount(0);
     await expect(page.locator("#file-actions")).toBeFocused();
-    await expect(page.locator(".cm-selectionBackground").first()).toBeAttached();
+    await expect(page.locator(BANDS).first()).toBeVisible();
 
     // The Shortcuts dialog lists the code menu's keys.
     await page.locator("#shortcuts-button").click();
@@ -542,20 +548,30 @@ for (const key of ["Enter", "Space"] as const) {
   });
 }
 
-test("11: the head button: last in the head after Run, named, quiet, 30 px (the desktop icon button); it opens the dialog and gets focus back; none on phones", async ({ page }) => {
+// 0.7.0 (v07-shell.md): Capture is a ghost button in the top bar, right before Run (Run, the one
+// fill, ends the bar); 30 px tall like the desktop tool buttons, wider for its word.
+test("11: the head button: in the top bar right before Run, named, quiet, 30 px tall (the desktop tool height); it opens the dialog and gets focus back; none on phones", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWith(page);
   const button = page.locator("#snippet-button");
-  const stops = await page.locator(".editor-head").evaluate((head) =>
-    [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
+  const stops = await page.locator(".topbar").evaluate((bar) =>
+    [...bar.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
   );
-  expect(stops.at(-1)).toBe("snippet-button");
-  expect(stops.at(-2)).toBe("run-button");
+  expect(stops.at(-1)).toBe("run-button");
+  expect(stops.at(-2)).toBe("snippet-button");
   await expect(button).toHaveAccessibleName("Capture snippet of the selected lines");
   await expect(button).toHaveAttribute("title", "Capture snippet of the selected lines");
   await expect(button).not.toHaveAttribute("aria-haspopup");
+  // The visible word starts the name (WCAG 2.5.3).
+  await expect(button).toHaveText("Capture");
   const b = await box(button);
-  expect([b.width, b.height]).toEqual([30, 30]);
+  expect(b.height).toBe(30);
+  expect(b.width).toBeGreaterThanOrEqual(30);
+  const bar = await box(page.locator(".topbar"));
+  expect(b.y).toBeGreaterThanOrEqual(bar.y - 0.5);
+  expect(b.y + b.height).toBeLessThanOrEqual(bar.y + bar.height + 0.5);
+  const run = await box(page.locator("#run-button"));
+  expect(run.x, "Run right of Capture").toBeGreaterThanOrEqual(b.x + b.width);
   await selectFixtureLines(page);
   await button.click();
   await previewReady(page);
@@ -573,12 +589,18 @@ test.describe("12: coarse pointer at 1280 x 800 (Chromium)", () => {
     await openWith(page);
     const head = await box(page.locator(".editor-head"));
     expect(head.height).toBe(48);
+    // Capture is in the top bar from 0.7.0: 44 px tall there, at least as wide (it carries its word).
     const b = await box(page.locator("#snippet-button"));
-    expect([b.width, b.height]).toEqual([44, 44]);
-    for (const el of await page.locator(".editor-head button:visible").all()) {
-      const r = await box(el);
-      expect(r.y, await el.getAttribute("id") ?? "").toBeGreaterThanOrEqual(head.y - 0.5);
-      expect(r.y + r.height).toBeLessThanOrEqual(head.y + head.height + 0.5);
+    expect(b.height).toBe(44);
+    expect(b.width).toBeGreaterThanOrEqual(44);
+    for (const bar of [".editor-head", ".topbar"]) {
+      const r0 = await box(page.locator(bar));
+      for (const el of await page.locator(`${bar} button:visible`).all()) {
+        const r = await box(el);
+        const id = `${bar} ${(await el.getAttribute("id")) ?? (await el.getAttribute("class"))}`;
+        expect(r.y, id).toBeGreaterThanOrEqual(r0.y - 0.5);
+        expect(r.y + r.height, id).toBeLessThanOrEqual(r0.y + r0.height + 0.5);
+      }
     }
     await selectFixtureLines(page);
     await openFromFileMenu(page, ITEM);
@@ -589,7 +611,7 @@ test.describe("12: coarse pointer at 1280 x 800 (Chromium)", () => {
     await page.locator(".cm-content").click();
     await page.locator("#snippet-button").click();
     await expect(page.locator("#app")).toHaveAttribute("data-capture-reason", "empty");
-    await expect(page.locator(".statusbar .notice-text")).toHaveText("Select the lines to capture first.");
+    await expect(notice(page)).toHaveText("Select the lines to capture first.");
   });
 });
 
@@ -1077,7 +1099,10 @@ test.describe("the dialog's chunk fails to load", () => {
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: ITEM }).click();
     await expect(notice(page)).toHaveText(/^The image tool couldn't open: .+\.$/);
-    await expect(page.locator(".statusbar .notice")).toHaveAttribute("data-tone", "error");
+    // Seen where it now lives (the sidebar's foot at this width), and still the polite live region.
+    await expect(notice(page)).toBeInViewport();
+    await expect(page.locator(".notice-host .notice")).toHaveAttribute("role", "status");
+    await expect(page.locator(".notice-host .notice")).toHaveAttribute("data-tone", "error");
     await expect(dialogOf(page)).toHaveCount(0);
     await page.unroute(/\/assets\/[\w-]+\.(js|css)$/);
     // Playwright's WebKit keeps a failed dynamic import failed for the whole context (lessons, 2026-10-21).
@@ -1177,15 +1202,22 @@ test("22: a slow re-render keeps the last good preview, says so after 400 ms, th
   await expect(status).toHaveText("");
 });
 
-test("23: with Tab moving focus, Shift+Tab from the code reaches the head button", async ({ page }, info) => {
+test("23: with Tab moving focus, Shift+Tab from the code reaches the head button (past the open tab and Run)", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWith(page);
   await selectFixtureLines(page);
   const mac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform));
   await page.keyboard.press(mac ? "Shift+Alt+M" : "Control+M");
-  await page.keyboard.press("Shift+Tab");
-  const where = await page.evaluate(() => document.activeElement?.id || document.activeElement?.className);
-  info.annotations.push({ type: "23", description: `${info.project.name}: Shift+Tab from the code landed on ${where}` });
+  // 0.7.0: Capture sits in the top bar before Run, so Shift+Tab from the code goes back through the
+  // editor head (the open tab; the error jump is hidden before a run), then Run, then Capture: the
+  // DOM order is the visual order (layout.ts).
+  const path: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press("Shift+Tab");
+    path.push(await page.evaluate(() => document.activeElement?.id || document.activeElement?.className || ""));
+  }
+  info.annotations.push({ type: "23", description: `${info.project.name}: Shift+Tab from the code went ${path.join(" < ")}` });
+  expect(path).toEqual([await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"), "run-button", "snippet-button"]);
   await expect(page.locator("#snippet-button")).toBeFocused();
   await page.keyboard.press("Enter");
   await previewReady(page);
@@ -1606,7 +1638,7 @@ test("33: the dialog is described by the preview's label, and by the gaps note w
   await page.mouse.move(l5.x + 80, l5.y + l5.height / 2, { steps: 4 });
   await page.mouse.up();
   await page.keyboard.up(MOD);
-  await expect(page.locator(".cm-selectionBackground")).toHaveCount(2);
+  await expect(page.locator(BANDS)).toHaveCount(2);
   await openFromFileMenu(page, /^Capture snippet of main\.py, lines 1 to 5\.\.\./);
   await previewReady(page);
   await expect(dialogOf(page)).toHaveAccessibleDescription(/The image includes the lines between your selections\./);
