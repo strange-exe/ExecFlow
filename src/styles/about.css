@@ -349,9 +349,25 @@ body.about {
   color: var(--text-secondary);
 }
 
-/* The launch video's slot. */
+/* The launch video: the player at the column's width, then what it shows in words. */
 .about-video {
   text-align: left;
+}
+.about-player {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: var(--s4);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.about-video .about-note ol {
+  margin: var(--s2) 0 0;
+  padding-left: var(--s5);
+}
+.about-video .about-note li + li {
+  margin-top: var(--s1);
 }
 
 /* Changelog: the heading column stays beside the releases on wide screens. */

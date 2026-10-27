@@ -119,13 +119,21 @@ test.describe("the About page", () => {
     expect(focused.outline).not.toBe("none");
   });
 
-  test("the launch video's slot waits for its file: no player and no request yet", async ({ page }) => {
+  test("the launch video plays only when asked: a poster, no download before play, described in words", async ({ page, request }) => {
     const media: string[] = [];
     page.on("request", (r) => (/\.(mp4|webm)$/.test(new URL(r.url()).pathname) ? media.push(r.url()) : null));
     await page.goto("/about");
-    await expect(page.locator("#launch-video")).toHaveCount(1);
-    await page.locator("#launch-video").scrollIntoViewIfNeeded();
+    const video = page.locator("#launch-video video");
+    await video.scrollIntoViewIfNeeded();
+    await expect(video).toBeVisible();
+    // Controls, no autoplay, nothing preloaded, no sound to surprise anyone.
+    expect(await video.evaluate((v: HTMLVideoElement) => ({ controls: v.controls, autoplay: v.autoplay, preload: v.preload, muted: v.muted }))).toEqual({ controls: true, autoplay: false, preload: "none", muted: true });
+    await page.waitForTimeout(500);
     expect(media).toEqual([]);
+    // Its text equivalent names every scene; the poster and the file are served.
+    await expect(page.locator("#video-text li")).toHaveCount(5);
+    await expect(video).toHaveAttribute("aria-describedby", "video-text");
+    for (const path of ["/media/launch-0.7.0-poster.webp", "/media/launch-0.7.0.mp4"]) expect((await request.get(path)).status(), path).toBe(200);
   });
 });
 
