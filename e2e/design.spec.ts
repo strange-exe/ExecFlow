@@ -205,9 +205,13 @@ test("a first visit loads only the shell, within the 200 KB gzip budget, and the
 test("the suggestion code is a chunk of its own, apart from the first visit and the editor chunk, which stays within 200 KB gzip", async ({ page }) => {
   const MARK = "not library data";
   const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, gzip: gzipSync(b).length, suggestions: b.includes(MARK) }));
+  // As in the budget test above: the editor chunk must arrive with the first file, not a hover's prefetch
+  // (CI run on 00fbfc5 counted it in the first visit here, while the parked budget test passed).
+  await page.mouse.move(1100, 20);
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
   const first = await bodies.settled();
+  await expect(page.locator("#app")).not.toHaveAttribute("data-editor-prefetch", /./);
   expect(first.filter((c) => c.suggestions).map((c) => c.url), "suggestion code on a first visit").toEqual([]);
   await page.locator('.starter[data-language="c"]').click();
   // The library data is there: the suggestion code has loaded and run.

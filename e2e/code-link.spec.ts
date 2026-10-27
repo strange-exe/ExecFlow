@@ -254,6 +254,8 @@ test("a file too long for a link says why in the Share dialog, and offers no lin
   await expect(page.locator("dialog#share-dialog")).toHaveAttribute("data-state", "code-refused");
   await expect(page.locator("#share-pending")).toContainText("data.txt is too long for a code link");
   await expect(page.locator("#share-link")).toHaveCount(0);
+  // Ending the panel, the sentence leaves no empty band above the buttons (WebKit on CI measured 32 px).
+  expect(await page.locator("#share-pending").evaluate((p) => getComputedStyle(p).marginBottom)).toBe("0px");
   await page.locator("#share-primary").click();
   await expect(page.locator("#share-result")).toHaveAttribute("data-tone", "error");
 });

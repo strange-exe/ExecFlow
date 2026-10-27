@@ -94,6 +94,8 @@
 .share-panel .field + .field-note { margin-top: var(--s1); }
 .share-dialog #share-link { font-family: var(--font-code); }
 .share-pending { margin: 0 0 var(--s2); }
+/* Ending the panel (the code link being made, or refused), it adds no band above the footer. */
+.share-panel > .share-pending:last-child { margin-bottom: 0; }
 /* The code link's other ways to pass it on: a titled copy and a QR code (drawn at 4 px a module,
    never wider than the dialog; its light ground and quiet zone stay light in dark themes). */
 .share-more { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }

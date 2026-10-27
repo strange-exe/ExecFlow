@@ -164,7 +164,8 @@ test("C14 + C15: buttons at the primary height; a short dialog has no rule and n
   await treeItem(page, "main.py").locator(":scope > .tree-row").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Share link..." }).click();
   const share = page.locator("dialog#share-dialog");
-  await expect(share).toHaveAttribute("data-state", /./);
+  // Measured once the code link is made: the brief "Making the link..." is not the dialog's resting state.
+  await expect(share).toHaveAttribute("data-state", "code");
   expect(await footerRule(share)).toBe("none");
   expect(await bandAboveFooter(share), "Share: no empty band").toBeLessThanOrEqual(28);
   await page.keyboard.press("Escape");
