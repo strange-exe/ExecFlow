@@ -35,6 +35,9 @@ test.describe("the About page", () => {
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toBeInViewport();
         await expect(page.locator(".about-lede")).toBeInViewport();
+        // The lede keeps its own space under the headline (a broader `main p` rule once zeroed it).
+        const gap = await page.evaluate(() => document.querySelector(".about-lede")!.getBoundingClientRect().top - document.querySelector("h1")!.getBoundingClientRect().bottom);
+        expect(gap).toBeGreaterThanOrEqual(16);
         const open = page.getByRole("link", { name: "Open the editor" }).first();
         await expect(open).toBeInViewport();
         await expect(open).toHaveAttribute("href", "/");

@@ -125,7 +125,8 @@ body.about {
   font-weight: var(--w-strong);
   max-width: 14ch;
 }
-.about-lede {
+/* `.about .about-lede` (0,2,0) so it outranks `.about main p` (0,1,2) below, margin and measure both. */
+.about .about-lede {
   margin: var(--s5) 0 0;
   max-width: 36ch;
   font-size: 18px;
