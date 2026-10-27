@@ -16,6 +16,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.8.0",
+    date: "2026-10-27",
+    title: "Code links",
+    items: [
+      { kind: "added", text: "Share a file as a code link: the code is inside the link itself, so it opens in CodeEditor for anyone, with no account and nothing uploaded." },
+      { kind: "added", text: "Opening a code link shows the code first. It's added to your files only when you choose, and it never runs by itself." },
+      { kind: "added", text: "Copy a code link with a title (\"Open main.py in CodeEditor\") for documents and mail, or show it as a QR code to scan from a screen." },
+    ],
+  },
+  {
     version: "0.7.0",
     date: "2026-10-27",
     title: "A calmer workspace, a new Settings, and an About page",

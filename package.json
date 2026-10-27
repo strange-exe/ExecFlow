@@ -1,7 +1,7 @@
 {
   "name": "code-editor",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "predev": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs && node scripts/fetch-flowchart-grammars.mjs",
@@ -34,6 +34,7 @@
     "idb": "8.0.3",
     "pyodide": "314.0.7",
     "three": "0.186.1",
+    "uqr": "0.1.3",
     "web-tree-sitter": "0.27.1"
   },
   "devDependencies": {

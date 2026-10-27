@@ -978,6 +978,10 @@ button.problem:hover { background: var(--hover); }
 /* A body that scrolls is a region the keyboard can scroll (dialogs.ts gives it tabindex=0 while it
    overflows): its ring is drawn inside it, where the dialog can't clip it. */
 .dialog-body:focus-visible { outline-offset: -2px; }
+/* A code link's file before it is added (code-link-dialog.ts): read-only code on the editor's ground,
+   its own scroll box (keyboard-scrollable) so long lines and long files never widen or grow the dialog. */
+.code-link-preview { max-height: min(320px, 40dvh); margin: 0; padding: var(--s2) var(--s3); overflow: auto; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text); font: var(--code-size)/1.5 var(--font-code); white-space: pre; tab-size: 4; }
+.code-link-preview:focus-visible { outline-offset: -2px; }
 /* The footer, one rule for every dialog: the body and the footer share one 24 px gap (12 + 12), so
    no empty band sits above a short dialog's buttons; a --divider rule shows only while the body
    scrolls under it (data-overflow, dialogs.ts), as the header's rule does. Its buttons are primary

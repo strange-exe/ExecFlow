@@ -74,34 +74,58 @@ async function dismissNotice(page: Page) {
   if (await dismiss.isVisible()) await dismiss.click();
 }
 
+/**
+ * Once the dialog is open: the repository link is chosen (the code link is the default, tested in
+ * its own describe), unless `choice` keeps the default.
+ */
+async function choose(page: Page, choice: "repo" | "code") {
+  await expect(dialog(page)).toHaveAttribute("data-state", /./);
+  if (choice !== "repo" || !(await page.locator("#share-repo").count())) return;
+  // Then focus it, as the keyboard would: WebKit's click checks a radio without focusing it (and
+  // takes the focus off what had it).
+  await page.locator("#share-repo").check();
+  await page.locator("#share-repo").focus();
+}
+
 /** Right-click on the file in the tree, then Share link... */
-async function shareFromTree(page: Page, path: string) {
+async function shareFromTree(page: Page, path: string, choice: "repo" | "code" = "repo") {
   await showFiles(page);
   await treeItem(page, path).locator(":scope > .tree-row").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Share link..." }).click();
-  await expect(dialog(page)).toHaveAttribute("data-state", /./);
+  await choose(page, choice);
 }
 
-async function shareFromMore(page: Page) {
+async function shareFromMore(page: Page, choice: "repo" | "code" = "repo") {
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Share link..." }).click();
-  await expect(dialog(page)).toHaveAttribute("data-state", /./);
+  await choose(page, choice);
 }
 
 const gistPosts = (gh: GitHubRoute) => gh.seen.filter((r) => r.method === "POST" && r.url.split("?")[0] === "https://api.github.com/gists");
 
 test.describe("not connected", () => {
-  test("explains, and offers Connect GitHub, which opens the Connect dialog", async ({ page }) => {
-    await routeGitHub(page);
+  test("the code link is ready at once; the GitHub links offer Connect GitHub, which opens the Connect dialog", async ({ page }) => {
+    const gh = await routeGitHub(page);
+    await recordClipboard(page);
     await openApp(page);
     await importFiles(page, [{ name: "main.py", text: MAIN }]);
-    await shareFromTree(page, "main.py");
-    await expect(dialog(page)).toHaveAttribute("data-state", "not-connected");
+    await shareFromTree(page, "main.py", "code");
     await expect(page.locator("#share-dialog-title")).toHaveText("Share main.py");
-    await expect(page.locator("#share-lede")).toContainText("connect GitHub first");
-    await expect(page.locator("input[name=share-choice]")).toHaveCount(0);
-    await expect(primary(page)).toHaveText("Connect GitHub...");
-    await expect(primary(page)).toBeFocused();
+    await expect(page.locator("#share-code")).toBeChecked();
+    await expect(page.locator("#share-code")).toBeFocused();
+    await expect(dialog(page)).toHaveAttribute("data-state", "code");
+    const url = await link(page).inputValue();
+    expect(url.startsWith(`${new URL(page.url()).origin}/#code=1.`)).toBe(true);
+    await primary(page).click();
+    expect(await copied(page)).toEqual([url]);
+    // Nothing was sent to make it.
+    expect(gh.seen).toEqual([]);
+    for (const choice of ["repo", "gist"] as const) {
+      await page.locator(`#share-${choice}`).check();
+      await expect(dialog(page)).toHaveAttribute("data-state", "not-connected");
+      await expect(page.locator("#share-pending")).toContainText("connect GitHub first");
+      await expect(primary(page)).toHaveText("Connect GitHub...");
+    }
     await primary(page).click();
     await expect(dialog(page)).toHaveCount(0);
     await expect(page.locator("#connect-dialog")).toBeVisible();
@@ -303,6 +327,7 @@ test.describe("the repository link", () => {
     await expect(page.locator("#palette-input")).toBeFocused();
     await page.keyboard.insertText("share");
     await page.getByRole("option", { name: /Share a link to the open file/ }).click();
+    await choose(page, "repo");
     await expect(dialog(page)).toHaveAttribute("data-state", "ready");
     await expect(page.locator("#share-dialog-title")).toHaveText("Share main.py");
   });

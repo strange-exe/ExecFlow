@@ -1,5 +1,9 @@
-// Share link (.claude/design/batch5/share-link.md): one dialog, two clearly labelled links, chosen
+// Share link (.claude/design/batch5/share-link.md): one dialog, three clearly labelled links, chosen
 // with a radio, then the primary action.
+// 0. "Anyone with the link (the code is in the link)", the default: the file inside the link itself
+//    (src/core/code-link.ts), opened by CodeEditor. Needs no GitHub, sends nothing, made as the
+//    dialog opens; a file too long for a link (or not text) says why. Without a connection the
+//    other two choices offer Connect GitHub (.claude/tasks/code-links.md).
 // 1. "People with access to the repository": the file on GitHub, pinned to the commit that holds
 //    its synced content (src/sync/share.ts repoFileUrl). Nothing is sent to make it. A file with
 //    changes that aren't on GitHub yet (or never synced) gets "Sync now" first: the link always
@@ -12,7 +16,8 @@
 // for Ctrl+C. Every name and address goes in as text; the only links are github.com pages built
 // here and the gist page GitHub answered with, after gistPageUrl checked it. A lazy chunk of the
 // sync screens, built per opening and removed on close. State attributes for tests: data-state
-// ("not-connected", "ready", "pending", "syncing", "gist", "creating", "created"), data-choice,
+// ("code-making", "code", "code-refused", "not-connected", "ready", "pending", "syncing", "gist",
+// "creating", "created"), data-choice,
 // data-copy ("copied", "refused"), data-visibility ("private", "public", "unknown"; data-public
 // too while public) and data-checked (the live visibility check has answered or failed).
 // Who can open the repository link: the live answer (GET /repos) when there is one, else the
@@ -20,6 +25,7 @@
 // open it is shown only for a repository known to be private.
 // Closing the dialog (Cancel, Escape, the close button) withdraws a gist that hasn't been sent:
 // a request waiting behind a sync's writes is dropped, and nothing is said about it.
+import type { MakeRefusal } from "../core/code-link";
 import { nameOf } from "../core/paths";
 import type { GistBody } from "../sync/github";
 // Types only: the rules come in through deps.rules (the controller's import), so this chunk never
@@ -28,7 +34,7 @@ import type * as ShareRules from "../sync/share";
 import type { RepoLinkState } from "../sync/share";
 import type { AuthKind } from "../sync/repo-check";
 import { dialogShell, openModal } from "./dialogs";
-import { h } from "./dom";
+import { h, svg } from "./dom";
 import { icon } from "./icons";
 import type { Notice } from "./notice";
 
@@ -52,6 +58,8 @@ export interface ShareDeps {
   syncNow(): Promise<string | null>;
   /** The file's text as saved; "opaque" for a file kept as read-only bytes; "missing" once it is gone. */
   readText(): Promise<{ text: string } | "opaque" | "missing">;
+  /** src/core/code-link.ts makeCodeLink for this file's name, opening at this site. */
+  codeLink(text: string): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }>;
   /**
    * POST /gists with this tab's GitHub client; null when there is no token in this tab. Aborted
    * `signal` before the request goes out: nothing is sent, and it rejects with `signal.reason`.
@@ -68,10 +76,12 @@ export interface ShareDeps {
   readonly returnTo: HTMLElement | (() => HTMLElement | null) | null;
   /** navigator.clipboard.writeText, swappable in tests. */
   readonly writeText?: (text: string) => Promise<void>;
+  /** The clipboard with a titled link (HTML) and its plain text; swappable in tests. */
+  readonly writeRich?: (html: string, text: string) => Promise<void>;
   readonly mac: boolean;
 }
 
-type Choice = "repo" | "gist";
+type Choice = "code" | "repo" | "gist";
 
 let open = false;
 
@@ -82,6 +92,55 @@ function clipboardWrite(text: string): Promise<void> {
   } catch (e) {
     return Promise.reject(e);
   }
+}
+
+/**
+ * A titled link on the clipboard: HTML for documents, mail and chats that keep links (one <a>), and
+ * plain text for the rest. Clipboard.write is Baseline 2024
+ * (https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/write); without it, the plain text.
+ */
+function clipboardWriteRich(html: string, text: string): Promise<void> {
+  try {
+    if (typeof ClipboardItem === "function" && navigator.clipboard?.write) {
+      return navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) })]);
+    }
+    return clipboardWrite(text);
+  } catch (e) {
+    return Promise.reject(e);
+  }
+}
+
+/**
+ * The QR code of `url` as an SVG drawn here (uqr gives the modules only: no markup from a library),
+ * dark on light whatever the theme, as scanners expect; null when the link is too long for one.
+ * Each row's dark runs become one path segment, so a version-40 code stays a short string.
+ */
+async function qrCode(url: string, label: string): Promise<SVGSVGElement | null> {
+  const { encode } = await import("uqr");
+  let modules: boolean[][];
+  try {
+    // L: the most data per code; a quiet zone of 4 modules, as the QR standard asks.
+    modules = encode(url, { ecc: "L", border: 4 }).data;
+  } catch {
+    return null;
+  }
+  const n = modules.length;
+  let d = "";
+  modules.forEach((row, y) => {
+    for (let x = 0; x < n; x++) {
+      if (!row[x]) continue;
+      let run = 1;
+      while (x + run < n && row[x + run]) run++;
+      d += `M${x} ${y}h${run}v1h-${run}z`;
+      x += run - 1;
+    }
+  });
+  return svg(
+    "svg",
+    { class: "share-qr", id: "share-qr", viewBox: `0 0 ${n} ${n}`, width: String(n * 4), height: String(n * 4), role: "img", "aria-label": label, "shape-rendering": "crispEdges" },
+    svg("rect", { class: "share-qr-light", width: String(n), height: String(n) }),
+    svg("path", { class: "share-qr-dark", d }),
+  );
 }
 
 export async function openShareDialog(deps: ShareDeps): Promise<void> {
@@ -119,53 +178,40 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
 
   let state = await deps.state().catch((): ShareState => ({ kind: "missing" }));
 
-  // ---------------------------------------------------------------- not connected
-  if (state.kind !== "connected") {
+  // ---------------------------------------------------------------- missing
+  if (state.kind === "missing") {
     dialog.dataset.state = state.kind;
-    body.append(
-      h(
-        "p",
-        { class: "connect-lede", id: "share-lede" },
-        state.kind === "missing"
-          ? `${name} isn't in this workspace any more, so there is nothing to share.`
-          : "Share links come from the GitHub repository this workspace syncs with, so connect GitHub first. Your files stay on this computer until you do.",
-      ),
-    );
+    body.append(h("p", { class: "connect-lede", id: "share-lede" }, `${name} isn't in this workspace any more, so there is nothing to share.`));
     dialog.setAttribute("aria-describedby", "share-lede");
-    if (state.kind === "missing") {
-      primary.remove();
-      cancel.textContent = "Close";
-      openModal(dialog, cancel, deps.returnTo);
-      return;
-    }
-    setPrimary("github-logo", "Connect GitHub...");
-    primary.addEventListener("click", () => {
-      dialog.close();
-      deps.connect();
-    });
-    openModal(dialog, primary, deps.returnTo);
+    primary.remove();
+    cancel.textContent = "Close";
+    openModal(dialog, cancel, deps.returnTo);
     return;
   }
 
   // ---------------------------------------------------------------- the choice
   const radio = (value: Choice, label: string, note: Node[]) => {
     const input = h("input", { type: "radio", name: "share-choice", id: `share-${value}`, value, "aria-describedby": `share-${value}-note` });
-    input.checked = value === "repo";
+    input.checked = value === "code";
     const row = h("div", { class: "choice", "data-choice": value }, input, h("label", { for: input.id }, label), h("div", { class: "field-note share-note", id: `share-${value}-note` }, ...note));
     return { input, row };
   };
-  const repo = state.repo;
+  const codeRadio = radio("code", "Anyone with the link (the code is in the link)", [
+    h("p", null, "Opens a copy in CodeEditor, without an account. The code is inside the link itself: nothing is uploaded or stored."),
+  ]);
   const repoWho = h("p", { class: "share-who" });
   /** The note, its tone and the attributes for a visibility (stored first, then the live answer). */
   const showAudience = (isPrivate: boolean | null) => {
-    const audience = rules.repoAudience(repo, isPrivate);
+    if (state.kind !== "connected") return;
+    const audience = rules.repoAudience(state.repo, isPrivate);
     repoWho.textContent = audience.text;
     repoWho.classList.toggle("share-warn", audience.visibility !== "private");
     dialog.dataset.visibility = audience.visibility;
     if (audience.visibility === "public") dialog.dataset.public = "";
     else delete dialog.dataset.public;
   };
-  showAudience(state.private);
+  if (state.kind === "connected") showAudience(state.private);
+  else repoWho.textContent = "The file in your GitHub repository: connect GitHub first.";
   const repoRadio = radio("repo", "People with access to the repository", [repoWho]);
   const gistRadio = radio("gist", "Anyone with the link (a secret gist)", [
     h("p", { class: "share-warn" }, "Secret gists aren't private: anyone with the link can open it, without signing in."),
@@ -174,22 +220,95 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const panel = h("div", { class: "share-panel", id: "share-panel" });
   body.append(
     h("h3", { class: "steps-title", id: "share-title" }, "Who can open the link"),
-    h("fieldset", { class: "choice-list", id: "share-choices" }, h("legend", { class: "visually-hidden" }, "Who can open the link"), repoRadio.row, gistRadio.row),
+    h("fieldset", { class: "choice-list", id: "share-choices" }, h("legend", { class: "visually-hidden" }, "Who can open the link"), codeRadio.row, repoRadio.row, gistRadio.row),
     panel,
     result,
   );
-  const choice = (): Choice => (gistRadio.input.checked ? "gist" : "repo");
+  const choice = (): Choice => (codeRadio.input.checked ? "code" : gistRadio.input.checked ? "gist" : "repo");
 
   // The repository's visibility, asked once: a public repository's link opens for anyone. No answer
   // (no token here, offline, a rate limit, a server error) keeps the stored one.
-  void deps
-    .repoPrivate()
-    .catch(() => null)
-    .then((live) => {
-      if (!dialog.open) return;
-      if (live !== null) showAudience(live);
-      dialog.dataset.checked = "";
-    });
+  if (state.kind === "connected") {
+    void deps
+      .repoPrivate()
+      .catch(() => null)
+      .then((live) => {
+        if (!dialog.open) return;
+        if (live !== null) showAudience(live);
+        dialog.dataset.checked = "";
+      });
+  }
+
+  // ---------------------------------------------------------------- the code link
+  /** The code link, or why there is none; null while it is being made (once per opening). */
+  let code: { url: string } | { problem: string } | null = null;
+  /** The code link's QR code: drawn the first time it is asked for, then only shown or hidden. */
+  let qr: "hidden" | "making" | "shown" | "too-long" = "hidden";
+  let qrSvg: SVGSVGElement | null = null;
+  let qrMade = false;
+  async function toggleQr(url: string) {
+    if (qr === "making") return;
+    if (qr !== "hidden") {
+      qr = "hidden";
+      render();
+      return dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
+    }
+    if (!qrMade) {
+      qr = "making";
+      render();
+      dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
+      try {
+        qrSvg = await qrCode(url, `QR code of the link to ${name}`);
+      } catch {
+        qrSvg = null;
+        qr = "hidden";
+        if (dialog.open) say("The QR code couldn't load. Check the connection, then try again.", "error");
+        return dialog.open ? (render(), dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus()) : undefined;
+      }
+      qrMade = true;
+    }
+    qr = qrSvg ? "shown" : "too-long";
+    if (!dialog.open) return;
+    render();
+    dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
+  }
+  /** "Copy with title": the link named "Open <file> in CodeEditor" where links can carry a title. */
+  async function copyTitled(url: string) {
+    const title = `Open ${name} in CodeEditor`;
+    // Built as an element, so the file name is escaped by the serializer, never pasted into markup.
+    const html = h("a", { href: url }, title).outerHTML;
+    try {
+      await (deps.writeRich ?? clipboardWriteRich)(html, `${title}: ${url}`);
+      dialog.dataset.copy = "titled";
+      say(`Copied the link with the title "${title}". Documents, mail and Teams show the title; chat apps such as WhatsApp show the whole link.`, "done");
+    } catch {
+      dialog.dataset.copy = "refused";
+      say(`This browser didn't let CodeEditor copy. The link is selected in its field: press ${deps.mac ? "Cmd+C" : "Ctrl+C"} to copy it.`, "warning");
+      const field = panel.querySelector<HTMLInputElement>("#share-link");
+      field?.focus();
+      field?.select();
+    }
+  }
+  const refusalText = (refusal: MakeRefusal): string => {
+    const instead = state.kind === "connected" ? "Share it as a secret gist instead." : "Connect GitHub to share it as a secret gist, or export it.";
+    if (refusal.kind === "unsupported") return "This browser can't make code links. Use a current Chrome, Edge, Firefox or Safari.";
+    if (refusal.kind === "not-text") return `${name} can't go in a link: ${refusal.reason}.`;
+    const size = refusal.chars === null ? "" : ` (it would be ${refusal.chars.toLocaleString("en")} characters)`;
+    return `${name} is too long for a code link${size}: a link holds at most 8,000 characters, so chat apps keep it whole. ${instead}`;
+  };
+  async function makeCode(): Promise<{ url: string } | { problem: string }> {
+    let read: Awaited<ReturnType<ShareDeps["readText"]>>;
+    try {
+      read = await deps.readText();
+    } catch {
+      return { problem: `${name} couldn't be read on this computer, so there is no link.` };
+    }
+    if (read === "missing") return { problem: MISSING };
+    if (read === "opaque") return { problem: `${name} is kept as read-only bytes, not as text, so it can't go in a link.` };
+    const made = await deps.codeLink(read.text).catch(() => null);
+    if (!made) return { problem: "CodeEditor couldn't make the link. Try again." };
+    return made.ok ? { url: made.url } : { problem: refusalText(made.refusal) };
+  }
 
   // ---------------------------------------------------------------- the link field
   const linkField = (url: string) => {
@@ -208,6 +327,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   let syncButton: HTMLButtonElement | null = null;
 
   function currentUrl(): string | null {
+    if (choice() === "code") return code && "url" in code ? code.url : null;
     if (choice() === "gist") return gist?.url ?? null;
     return state.kind === "connected" && state.link.kind === "ready" ? state.link.url : null;
   }
@@ -216,7 +336,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const MISSING = `${name} isn't in this workspace any more, so there is nothing to share.`;
 
   function render() {
-    if (state.kind !== "connected") {
+    if (state.kind === "missing") {
       // The file went away while the dialog was open (a sync deleted it): nothing to offer.
       dialog.dataset.state = "missing";
       panel.replaceChildren();
@@ -231,7 +351,56 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     primary.classList.add("primary");
     // Once a gist exists there is nothing left to cancel.
     cancel.textContent = gist ? "Close" : "Cancel";
-    if (c === "repo") {
+    if (c === "code") {
+      if (!code) {
+        dialog.dataset.state = "code-making";
+        panel.replaceChildren(h("p", { class: "share-pending", id: "share-pending" }, "Making the link..."));
+      } else if ("url" in code) {
+        dialog.dataset.state = "code";
+        const url = code.url;
+        const titled = h("button", { type: "button", class: "btn", id: "share-titled" }, "Copy with title");
+        titled.addEventListener("click", (e) => {
+          if (e.detail > 1) return;
+          void copyTitled(url);
+        });
+        const qrToggle = h("button", { type: "button", class: "btn", id: "share-qr-toggle", "aria-expanded": String(qr !== "hidden"), "aria-controls": "share-qr-box" }, qr === "hidden" ? "Show QR code" : "Hide QR code");
+        qrToggle.addEventListener("click", (e) => {
+          if (e.detail > 1) return;
+          void toggleQr(url);
+        });
+        const qrBox = h("div", { class: "share-qr-box", id: "share-qr-box" });
+        qrBox.hidden = qr === "hidden";
+        if (qr === "making") qrBox.append(h("p", { class: "field-note" }, "Making the QR code..."));
+        else if (qr === "too-long") qrBox.append(h("p", { class: "share-pending" }, "This link is too long for a QR code. Copy the link instead."));
+        else if (qr === "shown" && qrSvg) {
+          qrBox.append(qrSvg);
+          if (url.length > 1200) qrBox.append(h("p", { class: "field-note" }, "A long link makes a dense code: if a phone can't read it, zoom the page in or hold the phone closer."));
+        }
+        dialog.dataset.qr = qr;
+        panel.replaceChildren(
+          h("div", { class: "field" }, h("label", { for: "share-link" }, "Link"), linkField(url)),
+          h("p", { class: "field-note", id: "share-link-note" }, "Anyone with the link can read the code. It's a copy of the file as it is now: later changes need a new link."),
+          h("div", { class: "share-more" }, titled, qrToggle),
+          qrBox,
+        );
+      } else {
+        dialog.dataset.state = "code-refused";
+        panel.replaceChildren(h("p", { class: "share-pending", id: "share-pending" }, code.problem));
+      }
+      setPrimary("copy", "Copy link");
+    } else if (state.kind !== "connected") {
+      dialog.dataset.state = "not-connected";
+      panel.replaceChildren(
+        h(
+          "p",
+          { class: "share-pending", id: "share-pending" },
+          c === "repo"
+            ? "This link comes from the GitHub repository this workspace syncs with, so connect GitHub first. Your files stay on this computer until you do."
+            : "The gist is made on your GitHub account, so connect GitHub first. Your files stay on this computer until you do.",
+        ),
+      );
+      setPrimary("github-logo", "Connect GitHub...");
+    } else if (c === "repo") {
       const link = state.link;
       if (link.kind === "ready") {
         dialog.dataset.state = "ready";
@@ -393,13 +562,18 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (e.detail > 1) return;
     const url = currentUrl();
     if (url) return void copy(url);
+    if (choice() === "code") return code && "problem" in code ? say(code.problem, "error") : undefined;
+    if (state.kind !== "connected") {
+      dialog.close();
+      return deps.connect();
+    }
     if (choice() === "gist") return void createGist();
     if (syncing) return;
-    if (state.kind === "connected" && state.link.kind === "invalid") return say(INVALID, "error");
+    if (state.link.kind === "invalid") return say(INVALID, "error");
     say(`There is no link to copy yet: press Sync now first, so the repository has ${name} as you see it.`, "error");
     syncButton?.focus();
   });
-  for (const input of [repoRadio.input, gistRadio.input]) {
+  for (const input of [codeRadio.input, repoRadio.input, gistRadio.input]) {
     input.addEventListener("change", () => {
       say("");
       delete dialog.dataset.copy;
@@ -408,5 +582,8 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   }
 
   render();
-  openModal(dialog, repoRadio.input, deps.returnTo);
+  openModal(dialog, codeRadio.input, deps.returnTo);
+  // The code link is made at once (nothing is sent): it is usually ready before the first look.
+  code = await makeCode();
+  if (dialog.open) render();
 }

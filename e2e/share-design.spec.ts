@@ -47,7 +47,7 @@ async function matrix(page: Page, state: string, key = false) {
           .filter(({ r, tag }) => r.height < (phone && tag === "BUTTON" ? 44 : 24) - 0.5 || r.width < 24 - 0.5)
           .map(({ id, r }) => `${id} ${Math.round(r.width)}x${Math.round(r.height)}`), size.name === "phone");
       // Inline text links and radios are exempt (WCAG 2.5.8: inline; spacing).
-      expect(small.filter((s) => !/^(share-open|share-repo|share-gist) /.test(s)), `${state} ${size.name}: small targets`).toEqual([]);
+      expect(small.filter((s) => !/^(share-open|share-code|share-repo|share-gist) /.test(s)), `${state} ${size.name}: small targets`).toEqual([]);
       const base = `${SHOTS}/share/${engine}/${state}-${size.name}-${scheme}`;
       await page.screenshot({ path: `${base}.png`, animations: "disabled" });
       if (key && size.name === "desktop") await hierarchyShots(page, base);
@@ -81,20 +81,47 @@ async function setUp(page: Page, o: { connect?: boolean; fake?: FakeGitHubOption
   return gh;
 }
 
-async function openShare(page: Page, path: string) {
+/** Opens Share link; the repository link is chosen unless `choice` keeps the default code link. */
+async function openShare(page: Page, path: string, choice: "repo" | "code" = "repo") {
   await showFiles(page);
   await treeItem(page, path).locator(":scope > .tree-row").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Share link..." }).click();
   await expect(dialog(page)).toHaveAttribute("data-state", /./);
+  if (choice !== "repo") return;
+  // Then focus it, as the keyboard would: WebKit's click checks a radio without focusing it (and
+  // takes the focus off what had it).
+  await page.locator("#share-repo").check();
+  await page.locator("#share-repo").focus();
 }
 
 const PATH = "labs/week 1/main.py";
 
-test("not connected: the explanation and Connect GitHub", async ({ page }) => {
+test("not connected: the code link at once; the GitHub links explain and offer Connect GitHub", async ({ page }) => {
   await setUp(page, { connect: false });
-  await openShare(page, "main.py");
+  await openShare(page, "main.py", "code");
+  await expect(dialog(page)).toHaveAttribute("data-state", "code");
+  await expect(page.locator("#share-code")).toBeFocused();
+  await matrix(page, "code-not-connected");
+  await page.locator("#share-repo").check();
   await expect(dialog(page)).toHaveAttribute("data-state", "not-connected");
   await matrix(page, "not-connected");
+});
+
+test("code link, connected: the default, and its keyboard path", async ({ page }) => {
+  await setUp(page);
+  await openShare(page, PATH, "code");
+  await expect(dialog(page)).toHaveAttribute("data-state", "code");
+  await expect(page.locator("#share-code")).toBeFocused();
+  for (const id of ["share-link", "share-titled", "share-qr-toggle", "share-cancel", "share-primary"]) {
+    await page.keyboard.press("Tab");
+    await expect(page.locator(`#${id}`), id).toBeFocused();
+  }
+  await page.locator("#share-code").focus();
+  await matrix(page, "code", true);
+  // With the QR code shown: the same matrix (its light ground stays light in the dark scheme).
+  await page.locator("#share-qr-toggle").click();
+  await expect(dialog(page)).toHaveAttribute("data-qr", "shown");
+  await matrix(page, "code-qr");
 });
 
 test("ready: the repository link, keyboard path and the key view's hierarchy", async ({ page }) => {

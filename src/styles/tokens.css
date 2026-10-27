@@ -433,6 +433,9 @@
   --h-row: 28px;
   --tab-h: 30px;         /* an editor tab or panel tab pill */
   --target: 24px;        /* WCAG 2.2 minimum, everywhere */
+  /* A QR code is dark on light in every theme: phone scanners expect it (share-dialog.ts). */
+  --qr-dark: #000;
+  --qr-light: #fff;
   --tool: 28px;          /* toolbar icon buttons */
   --primary-h: 32px;     /* Run, Create, Connect on desktop */
   --field-h: 32px;

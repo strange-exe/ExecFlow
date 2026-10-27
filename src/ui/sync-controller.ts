@@ -850,6 +850,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         if (entry.opaque) return "opaque";
         return { text: await host.store.readFile(host.ws, path) };
       },
+      codeLink: async (text) => (await import("../core/code-link")).makeCodeLink(location.origin, nameOf(path), text),
       readOnly: () => (host.tab.canWrite() ? null : READ_ONLY_SHARE),
       notice: host.notice,
       createGist: c

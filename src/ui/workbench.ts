@@ -2242,4 +2242,26 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       pin: { key: "whats-new" },
     });
   }
+
+  // Code links (src/core/code-link.ts): a page opened with #code= offers that file, and so does one
+  // pasted into this tab's address bar later (only the fragment changes, so the page doesn't reload).
+  let codeLinkChunk: Promise<typeof import("./code-link-dialog")> | null = null;
+  function takeCodeLink() {
+    const hash = location.hash;
+    if (!hash.startsWith("#code=")) return;
+    codeLinkChunk ??= import("./code-link-dialog");
+    codeLinkChunk.then(
+      (m) => {
+        // The code leaves the address bar: a reload doesn't offer it again, and a bookmark doesn't keep it.
+        if (location.hash === hash) history.replaceState(history.state, "", location.pathname + location.search);
+        return m.openCodeLink(hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => void addFile(p, text), notice });
+      },
+      () => {
+        codeLinkChunk = null;
+        notice.show("The code link couldn't open. Check the connection, then reload the page.");
+      },
+    );
+  }
+  takeCodeLink();
+  window.addEventListener("hashchange", takeCodeLink);
 }

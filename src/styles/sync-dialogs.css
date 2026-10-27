@@ -94,6 +94,15 @@
 .share-panel .field + .field-note { margin-top: var(--s1); }
 .share-dialog #share-link { font-family: var(--font-code); }
 .share-pending { margin: 0 0 var(--s2); }
+/* The code link's other ways to pass it on: a titled copy and a QR code (drawn at 4 px a module,
+   never wider than the dialog; its light ground and quiet zone stay light in dark themes). */
+.share-more { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
+.share-more .btn { min-height: var(--primary-h); }
+.share-qr-box { margin-top: var(--s3); }
+.share-qr-box > p { margin: var(--s2) 0 0; }
+.share-qr { display: block; max-width: min(100%, 360px); height: auto; }
+.share-qr-light { fill: var(--qr-light); }
+.share-qr-dark { fill: var(--qr-dark); }
 .share-dialog .ext-link { overflow-wrap: anywhere; }
 
 .conflict-list { margin: var(--s3) 0 0; padding: 0; list-style: none; }
