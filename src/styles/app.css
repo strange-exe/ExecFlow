@@ -114,6 +114,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   grid-template-columns: minmax(0, 1fr);
 }
 .workbench[data-state="loading"] { background: var(--bg); }
+/* public/theme-boot.js's screen when the app's code didn't load or start: alone in the grid's work area. */
+.workbench > .start-failed { grid-row: 2; padding: clamp(var(--s5), 8vh, 72px) var(--s6) var(--s6); }
+.workbench[data-state="start-failed"] > :not(.start-failed) { display: none; }
 
 /* ------------------------------------------------------------------ top bar */
 .topbar {

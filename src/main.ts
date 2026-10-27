@@ -13,7 +13,8 @@ applyTheme(chosenTheme());
 followDevice();
 
 const root = document.getElementById("app");
-if (root) await startWorkbench(root);
+// A start that throws shows public/theme-boot.js's "couldn't start" screen, not a page that loads forever.
+if (root) await startWorkbench(root).catch(() => document.dispatchEvent(new Event("codeeditor:start-failed")));
 
 // Offline support. The service worker precaches the Python runtime (several MB), so it registers
 // once Python is up (its install then reuses what the page just downloaded) or after a quiet

@@ -34,7 +34,8 @@ function fakeDocument() {
     };
   });
   const documentElement = { dataset, style: { setProperty: (k: string, v: string) => void props.set(k, v), removeProperty: (k: string) => void props.delete(k) } };
-  return { document: { documentElement, querySelectorAll: () => metas }, props, dataset, metas };
+  // addEventListener: theme-boot.js also watches for a start that fails (e2e/start-failed.spec.ts).
+  return { document: { documentElement, querySelectorAll: () => metas, addEventListener: () => {} }, props, dataset, metas };
 }
 
 afterEach(() => {
@@ -227,7 +228,7 @@ describe("public/theme-boot.js (runs before any module)", () => {
   const source = readFileSync("public/theme-boot.js", "utf8");
   const boot = (stored: Record<string, string>, dark: boolean) => {
     const doc = fakeDocument();
-    runInNewContext(source, { document: doc.document, localStorage: memoryStorage(stored), matchMedia: (q: string) => ({ matches: dark && q.includes("dark") }) });
+    runInNewContext(source, { document: doc.document, window: { addEventListener: () => {} }, localStorage: memoryStorage(stored), matchMedia: (q: string) => ({ matches: dark && q.includes("dark") }) });
     return doc;
   };
   const paintOf = (theme: Theme, scheme: "light" | "dark") => JSON.stringify({ ...paintFor(theme), scheme });
