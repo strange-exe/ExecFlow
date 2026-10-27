@@ -10,6 +10,7 @@ import { chartC } from "./c";
 import { chartCpp } from "./cpp";
 import type { FlowFile } from "./model";
 import { GRAMMARS, RUNTIME, type FlowLanguage, type PackFile } from "./pack";
+import type { Pick } from "./pick";
 import { chartPython } from "./python";
 
 /** Gets one file of the pack by name; rejects when it can't (a 404, the network). */
@@ -37,7 +38,7 @@ export interface EngineOptions {
   abi?: { min: number; max: number };
 }
 
-const ADAPTERS: Record<FlowLanguage, (root: Node, source: string) => FlowFile> = { c: chartC, cpp: chartCpp, python: chartPython };
+const ADAPTERS: Record<FlowLanguage, (root: Node, source: string, pick: Pick | null | "all") => FlowFile> = { c: chartC, cpp: chartCpp, python: chartPython };
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>);
@@ -134,8 +135,11 @@ export class FlowEngine {
     return this.parsers.get(language)?.language?.abiVersion ?? null;
   }
 
-  /** Charts every function in `source`. Call prepare(language) first. */
-  chart(language: FlowLanguage, source: string): ChartOutcome {
+  /**
+   * Charts the picked function in `source` (null: the entry point) and lists the others by name;
+   * "all" charts every function. Call prepare(language) first.
+   */
+  chart(language: FlowLanguage, source: string, pick: Pick | null | "all" = "all"): ChartOutcome {
     const parser = this.parsers.get(language);
     if (!parser) throw new Error(`the ${language} grammar is not loaded`);
     if (source.length > MAX_FILE_BYTES || UTF8.encode(source).length > MAX_FILE_BYTES) {
@@ -148,7 +152,7 @@ export class FlowEngine {
       return { type: "too-big", detail: "it took too long to read" };
     }
     try {
-      return { type: "charts", file: ADAPTERS[language](tree.rootNode, source) };
+      return { type: "charts", file: ADAPTERS[language](tree.rootNode, source, pick) };
     } finally {
       tree.delete();
     }

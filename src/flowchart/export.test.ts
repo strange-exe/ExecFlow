@@ -112,6 +112,21 @@ describe("export file names", () => {
     expect(exportFileName(`ev${rlo}il.c`, "m".repeat(200), "png")).toMatch(/^ev-U-202E-il-c-m{1,60}-flowchart\.png$/);
     expect(exportFileName("...", "", "png")).toBe("chart-flowchart.png");
   });
+
+  it("keeps letters of every script (a Hindi function name), and cuts long names by character, never inside a pair", () => {
+    const ganana = String.fromCodePoint(0x917, 0x923, 0x928, 0x93e); // "ganana", with a vowel sign
+    expect(exportFileName("grades.c", ganana, "png")).toBe(`grades-c-${ganana}-flowchart.png`);
+    // Long names: the whole name fits the 100-unit file-name cap with its extension, and a letter
+    // outside the BMP (two UTF-16 units) is never cut in half.
+    const script = String.fromCodePoint(0x1d49c).repeat(100);
+    for (const [file, fn, ext] of [["a.c", script, "svg"], ["f".repeat(90) + ".c", "g".repeat(90), "png"]] as const) {
+      const name = exportFileName(file, fn, ext);
+      expect(name.endsWith(`-flowchart.${ext}`), name).toBe(true);
+      expect(name.length).toBeLessThanOrEqual(100);
+      expect([...name].some((c) => c.length === 1 && c.charCodeAt(0) >= 0xd800 && c.charCodeAt(0) <= 0xdfff)).toBe(false);
+    }
+    expect(exportFileName("a.c", script, "svg").startsWith(`a-c-${String.fromCodePoint(0x1d49c)}`)).toBe(true);
+  });
 });
 
 describe("the PNG's scale", () => {

@@ -2,7 +2,8 @@
 // ("Program"); every function and method gets its own ("area", "Shape.area"). Definitions are not
 // steps of the code around them. Input/output is print() and input().
 import type { Node } from "web-tree-sitter";
-import { FlowBuilder, ONE_STEP, TooBig, empty, type ChartResult, type FlowFile, type Step } from "./model";
+import { FlowBuilder, ONE_STEP, TooBig, empty, type ChartResult, type ChartStub, type FlowFile, type Step } from "./model";
+import { pickIndex, type Pick } from "./pick";
 import { codeChildren, endLineOf, firstErrorLine, firstLine, forEachDescendant, lineOf, withoutSemicolon } from "./walk";
 
 const IO = new Set(["print", "input"]);
@@ -40,7 +41,7 @@ function collectFunctions(root: Node): FnDef[] {
   return out.sort((a, b) => a.node.startIndex - b.node.startIndex);
 }
 
-export function chartPython(root: Node, _source: string): FlowFile {
+export function chartPython(root: Node, _source: string, pick: Pick | null | "all" = "all"): FlowFile {
   const fns = collectFunctions(root);
   const names = new Map<string, string>();
   for (const f of fns) if (!names.has(f.simple)) names.set(f.simple, f.name);
@@ -53,10 +54,13 @@ export function chartPython(root: Node, _source: string): FlowFile {
       throw e;
     }
   };
-  const charts: ChartResult[] = [
-    chart(PROGRAM, 1, Math.max(1, endLineOf(root)), (w) => w.block(root, true)),
-    ...fns.map((f) => chart(f.name, lineOf(f.node), endLineOf(f.node), (w) => w.block(f.body, false))),
+  // The module body first, then each function; with a pick, only the picked one is charted.
+  const list = [
+    { name: PROGRAM, from: 1, to: Math.max(1, endLineOf(root)), read: (w: PyWalker) => w.block(root, true) },
+    ...fns.map((f) => ({ name: f.name, from: lineOf(f.node), to: endLineOf(f.node), read: (w: PyWalker) => w.block(f.body, false) })),
   ];
+  const only = pick === "all" ? -1 : pickIndex(list, pick);
+  const charts: (ChartResult | ChartStub)[] = list.map((c, i) => (only >= 0 && i !== only ? { ok: null, name: c.name, from: c.from, to: c.to } : chart(c.name, c.from, c.to, c.read)));
   const file: FlowFile = { charts };
   const error = firstErrorLine(root);
   if (error !== undefined) file.syntaxError = error;

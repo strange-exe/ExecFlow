@@ -99,14 +99,22 @@ export function exportSvg(input: ExportInput, doc: SvgDocument = document): SVGS
   return root;
 }
 
-/** Letters, digits, _ and - only; every other run becomes one -; no - at either end. */
-const slug = (text: string) => text.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+/**
+ * Letters (of any script, with their combining marks), digits, _ and - only; every other run becomes
+ * one -; no - at either end. A Hindi function name stays in the file name.
+ */
+const slug = (text: string) => text.replace(/[^\p{L}\p{M}\p{N}_-]+/gu, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
 
 /** `<file>-<function>-flowchart.<ext>`: "grades-c-main-flowchart.png". */
 export function exportFileName(file: string, fn: string, ext: "png" | "svg"): string {
-  const part = (text: string) => slug(shown(text)).slice(0, 60).replace(/-+$/, "");
-  const name = [part(nameOf(file) || file), part(fn)].filter(Boolean).join("-") || "chart";
-  return cleanFilename(`${name}-flowchart.${ext}`);
+  // 60 characters each, counted by code point so a character outside the BMP is never cut in half.
+  const part = (text: string) => [...slug(shown(text))].slice(0, 60).join("").replace(/-+$/, "");
+  const suffix = `-flowchart.${ext}`;
+  // cleanFilename keeps 100 UTF-16 units: the name is shortened first, by whole characters, so the
+  // cut never takes the extension or half of a pair.
+  const chars = [...([part(nameOf(file) || file), part(fn)].filter(Boolean).join("-") || "chart")];
+  while (chars.join("").length > 100 - suffix.length) chars.pop();
+  return cleanFilename(`${chars.join("").replace(/-+$/, "")}${suffix}`);
 }
 
 /** The browsers' safe canvas size (the same caps as Capture snippet's, editor/snippet-render.ts). */

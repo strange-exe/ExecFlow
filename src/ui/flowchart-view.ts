@@ -17,9 +17,10 @@ import minusPath from "@phosphor-icons/core/assets/regular/magnifying-glass-minu
 import plusPath from "@phosphor-icons/core/assets/regular/magnifying-glass-plus.svg?raw";
 import { editorLanguage, languageById } from "../core/languages";
 import { createFlowchartClient, type FlowchartClient, type FlowchartResult } from "../flowchart/client";
-import { layoutChart, type Layout } from "../flowchart/layout";
-import type { ChartResult, FlowChart, FlowFile } from "../flowchart/model";
+import type { Layout } from "../flowchart/layout";
+import type { ChartResult, ChartStub, FlowChart, FlowFile } from "../flowchart/model";
 import type { FlowLanguage } from "../flowchart/pack";
+import { pickOf, type Pick } from "../flowchart/picked";
 import { canCopyImages } from "../core/snippet";
 import { BRAND_MARK } from "../editor/brand-mark";
 import {
@@ -128,9 +129,10 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   let redrawTimer: ReturnType<typeof setTimeout> | undefined;
   let wordsTimer: ReturnType<typeof setTimeout> | undefined;
   let token = 0;
-  /** The file whose chart is shown (its id, language and results). */
-  let shown: { id: string; lang: FlowLanguage; file: FlowFile } | null = null;
-  let chosen: string | null = null;
+  /** The file whose chart is shown: its id, language, results, and the picked chart with its layout (made in the worker). */
+  let shown: { id: string; lang: FlowLanguage; file: FlowFile; picked: number; layout: Layout | null } | null = null;
+  /** The function shown, by name and occurrence (C++ overloads and Python redefinitions share a name). */
+  let chosen: Pick | null = null;
   let chart: FlowChart | null = null;
   let layout: Layout | null = null;
   let svgEl: SVGSVGElement | null = null;
@@ -181,7 +183,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     if (!f.text.trim()) return void (forget(), setState("empty", "This file is empty. Write some code to see its flowchart."));
     // A redraw of the chart on screen keeps it until the new one is ready; anything else shows loading.
     if (!(shown && shown.id === f.id && root.dataset.state === "ready")) setState("loading", `Loading the ${langName(lang)} flowchart tools...`);
-    const result = await client.chart(lang, f.text);
+    const result = await client.chart(lang, f.text, shown?.id === f.id ? chosen : null);
     if (my !== token) return; // a newer draw (another file, more typing) owns the view
     show(f, lang, result);
   }
@@ -210,38 +212,44 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
         return setState("failed", "The flowchart couldn't be drawn.", true);
       case "charts": {
         const sameFile = shown?.id === f.id;
-        shown = { id: f.id, lang, file: result.file };
+        shown = { id: f.id, lang, file: result.file, picked: result.picked, layout: result.layout };
         if (!result.file.charts.length) return setState("no-functions", "No functions in this file yet.");
-        const names = result.file.charts.map((c) => c.name);
-        if (!sameFile || chosen === null || !names.includes(chosen)) {
-          chosen = names[0];
+        // The worker falls back to the entry point when the picked function is gone.
+        const now = pickOf(result.file.charts, result.picked);
+        if (!sameFile || !chosen || chosen.name !== now.name || chosen.nth !== now.nth) {
           fitting = true;
           focusIndex = 0;
         }
+        chosen = now;
         fillPicker(result.file.charts);
         drawChosen();
       }
     }
   }
 
-  function fillPicker(charts: ChartResult[]) {
-    const options = charts.map((c, i) => h("option", { value: String(i) }, c.ok ? c.name : `${c.name} (too big)`));
+  /** Only the picked function is charted, so "(too big)" marks the functions known to be (once picked). */
+  function fillPicker(charts: (ChartResult | ChartStub)[]) {
+    const options = charts.map((c, i) => h("option", { value: String(i) }, c.ok === false ? `${c.name} (too big)` : c.name));
     const same = picker.options.length === options.length && options.every((o, i) => picker.options[i].textContent === o.textContent);
     if (!same) picker.replaceChildren(...options);
-    picker.value = String(Math.max(0, charts.findIndex((c) => c.name === chosen)));
+    picker.value = String(shown?.picked ?? 0);
   }
 
   function drawChosen() {
     const file = shown?.file;
-    const result = file?.charts.find((c) => c.name === chosen);
+    const result = file?.charts[shown!.picked];
     if (!file || !result) return;
+    // The worker charts the function it lays out: a stub here means a reply that doesn't fit.
+    if (result.ok === null) return setState("failed", "The flowchart couldn't be drawn.", true);
     if (!result.ok) {
       chart = null;
       // "it has more than 400 steps" reads "This function has more than 400 steps; open a smaller function."
       return setState("too-big", `${result.tooBig.replace(/^it /, "This function ")}; open a smaller function.`);
     }
+    // The worker sends a layout with every chart it can draw; without one there is nothing to show.
+    if (!shown!.layout) return setState("failed", "The flowchart couldn't be drawn.", true);
     chart = result;
-    layout = layoutChart(result);
+    layout = shown!.layout;
     svgEl = renderChart(result, layout);
     stage.replaceChildren(svgEl);
     steps.replaceChildren(...stepList(result).map((s) => h("li", null, s.text)));
@@ -433,12 +441,14 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   }
 
   picker.addEventListener("change", () => {
-    const c = shown?.file.charts[Number(picker.value)];
-    if (!c) return;
-    chosen = c.name;
+    const charts = shown?.file.charts;
+    const i = Number(picker.value);
+    if (!charts?.[i]) return;
+    chosen = pickOf(charts, i);
     fitting = true;
     focusIndex = 0;
-    drawChosen();
+    // The worker lays the picked chart out (it can take most of a second); the chart on screen stays until then.
+    void draw();
   });
   bannerGo.addEventListener("click", () => {
     const f = host.file();

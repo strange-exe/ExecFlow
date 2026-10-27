@@ -1,11 +1,15 @@
 /// <reference lib="webworker" />
-// Flowchart worker: parses source with tree-sitter and returns flow models (src/flowchart/). The
+// Flowchart worker: parses source with tree-sitter and returns flow models (src/flowchart/), with
+// the layout of the chart the page picked (layout can take most of a second; the page only draws). The
 // runtime and the language's grammar are fetched from /flowchart/<dir>/ the first time a chart for
 // that language is asked for, and checked (sha256, ABI) by the engine. It runs no user code: the
 // source is only parsed. A failed load is not remembered, so the next request fetches again, with
 // the HTTP cache bypassed so a cached error can't come back.
 import { FlowEngine, LoadError } from "../flowchart/engine";
-import { FLOWCHART_DIR } from "../flowchart/pack";
+import { FLOWCHART_DIR, MAX_PACK_FILE_BYTES } from "../flowchart/pack";
+import { readCapped } from "../flowchart/read-capped";
+import { LAYOUT_MS } from "../flowchart/layout";
+import { layOutPicked } from "../flowchart/picked";
 import { isRequest, type FromFlowchart } from "../flowchart/protocol";
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -15,12 +19,13 @@ let failedBefore = false;
 const engine = new FlowEngine(async (file) => {
   const res = await fetch(`/flowchart/${FLOWCHART_DIR}/${file}`, { cache: failedBefore ? "reload" : "default" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
+  // Capped before the engine checks its sha256: a server sending too much can't fill the worker's memory.
+  return readCapped(res, MAX_PACK_FILE_BYTES);
 });
 
 self.onmessage = async (e: MessageEvent<unknown>) => {
   if (!isRequest(e.data)) return;
-  const { id, language, source } = e.data;
+  const { id, language, source, pick } = e.data;
   try {
     await engine.prepare(language);
   } catch (err) {
@@ -31,8 +36,8 @@ self.onmessage = async (e: MessageEvent<unknown>) => {
   }
   post({ type: "parsing", id });
   try {
-    const outcome = engine.chart(language, source);
-    post(outcome.type === "charts" ? { type: "charts", id, file: outcome.file } : { type: "too-big", id, detail: outcome.detail });
+    const outcome = engine.chart(language, source, pick);
+    post(outcome.type === "charts" ? { type: "charts", id, ...layOutPicked(outcome.file, pick, performance.now() + LAYOUT_MS) } : { type: "too-big", id, detail: outcome.detail });
   } catch {
     post({ type: "failed", id, message: "the flowchart couldn't be drawn" });
   }

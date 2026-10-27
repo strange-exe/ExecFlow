@@ -64,7 +64,7 @@ describe("flowchart engine (real wasm, in Node)", () => {
     if (value.type !== "charts") return;
     const main = value.file.charts[0];
     expect(main.ok).toBe(false);
-    expect(!main.ok && main.tooBig).toMatch(/nested more than 40 levels/);
+    expect(main.ok === false && main.tooBig).toMatch(/nested more than 40 levels/);
     expect(ms).toBeLessThan(2000);
     // Python too.
     await e.prepare("python");
@@ -82,8 +82,34 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(value.type).toBe("charts");
     if (value.type !== "charts") return;
     expect(value.file.charts[0].ok).toBe(false);
-    expect(!value.file.charts[0].ok && value.file.charts[0].tooBig).toMatch(/more than 400 steps/);
+    const first = value.file.charts[0];
+    expect(first.ok === false && first.tooBig).toMatch(/more than 400 steps/);
     expect(ms).toBeLessThan(2000);
+  });
+
+  test("with a pick, only that function is charted: the others are listed by name and lines (10 000 functions, quickly)", async () => {
+    // Attack pass finding 3: charting every function of a 1 MB file took 2.7 s (past the page's 2 s
+    // clock) and sent 14.8 MB back to the page.
+    const e = engine();
+    await e.prepare("c");
+    const fns = Array.from({ length: 10_000 }, (_, i) => `int f${i}(int x){ while(x){ if(x>${i}){x--;continue;} x-=2;} return x;}`).join("\n");
+    const src = `${fns}\nint main(void) { return f7(3); }\n`;
+    const { value, ms } = timed(() => e.chart("c", src, { name: "f7", nth: 0 }));
+    expect(value.type).toBe("charts");
+    if (value.type !== "charts") return;
+    const charts = value.file.charts;
+    expect(charts.length).toBe(10_001);
+    expect(charts[0]).toEqual({ ok: null, name: "main", from: 10_001, to: 10_001 });
+    const f7 = charts[8];
+    expect(f7.ok && f7.name === "f7" && f7.nodes.length > 3).toBe(true);
+    expect(charts.filter((c) => c.ok !== null).length).toBe(1);
+    expect(JSON.stringify(value.file).length, "the reply stays small").toBeLessThan(1_000_000);
+    expect(ms).toBeLessThan(2000);
+    // No pick: the entry point. And without the pick argument, every chart (as before).
+    const entry = e.chart("c", "int g(void) { return 1; }\nint main(void) { return g(); }\n", null);
+    expect(entry.type === "charts" && entry.file.charts.map((c) => [c.name, c.ok])).toEqual([["main", true], ["g", null]]);
+    const all = e.chart("c", "int g(void) { return 1; }\nint main(void) { return g(); }\n");
+    expect(all.type === "charts" && all.file.charts.map((c) => c.ok)).toEqual([true, true]);
   });
 
   test("a 10 000-line file is too big, quickly", async () => {

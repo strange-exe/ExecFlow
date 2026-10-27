@@ -11,7 +11,7 @@
 // routed last, with a shortest-path search on a grid of lines just clear of every box, so they never
 // cross one (bends and running along another edge cost extra). A goto is not drawn as a line: its
 // connector and its label's connector carry the same name (ISO 5807). Same input, same output.
-import type { EdgeKind, FlowChart, FlowNode, NodeKind, Step } from "./model";
+import { TooBig, type EdgeKind, type FlowChart, type FlowNode, type NodeKind, type Step } from "./model";
 
 export interface Point {
   x: number;
@@ -748,6 +748,21 @@ const OVERLAP = 6;
 const CROSS = 12;
 const MAX_EXPANSIONS = 400_000;
 
+/** Search steps left for one whole layout (shared by every search in it), its clock (performance.now() ms), and whether the clock ran out. */
+type Budget = { left: number; deadline: number; late: boolean };
+/**
+ * Search steps (heap pops) one layout may take in all. A line's search walks the grid cell by cell,
+ * so a long ladder of breaks and continues costs (jumps x ladder length): 395 of them took 5.5 s.
+ * A 100-arm ladder (past what students write) needs 93 000. A step's cost grows with the chart, so
+ * this alone doesn't bound the time (200 000 took 2.2 s on the 395-arm ladder): the worker also
+ * gives the layout a deadline.
+ */
+export const LAYOUT_BUDGET = 200_000;
+/** The worker's deadline for one layout: with the parse, inside the page's 2 s clock on a slow laptop. */
+export const LAYOUT_MS = 1000;
+/** What a layout spent: search steps per tier (inside the loop, whole chart, greedy, squeezed). */
+export type LayoutStats = { tiers: [number, number, number, number] };
+
 class Grid {
   readonly xs: number[];
   readonly ys: number[];
@@ -919,6 +934,7 @@ class Grid {
     goal: Goal,
     heading: Dir | null,
     to: number,
+    budget: Budget,
     { weight = 1.5, plain = false, keepChannel = true }: { weight?: number; plain?: boolean; keepChannel?: boolean } = {},
   ): Point[] | null {
     const { xs, ys } = this;
@@ -969,6 +985,13 @@ class Grid {
     let expansions = 0;
     while (heap.size) {
       const [, g, s] = heap.pop();
+      // Every pop counts against the layout's budget, stale ones too: they are most of the heap's work.
+      // The clock is read every 1024 pops (a pop is microseconds).
+      if (budget.late || budget.left-- <= 0) return null;
+      if ((budget.left & 1023) === 0 && performance.now() > budget.deadline) {
+        budget.late = true;
+        return null;
+      }
       if (g > best[s]) continue;
       const cell = Math.floor(s / 5);
       const d = s % 5;
@@ -1113,7 +1136,8 @@ function simplify(pts: Point[]): Point[] {
 }
 
 /** The layout of one chart: positioned boxes and routed edges, in pixels from the top-left. */
-export function layoutChart(chart: FlowChart): Layout {
+export function layoutChart(chart: FlowChart, { stats, deadline = Infinity }: { stats?: LayoutStats; deadline?: number } = {}): Layout {
+  const budget: Budget = { left: LAYOUT_BUDGET, deadline, late: false };
   const sizes = new Map(chart.nodes.map((n) => [n.id, boxSize(n)]));
   const frame = new Builder(sizes).build(chart.body);
   const router = new Router();
@@ -1190,12 +1214,22 @@ export function layoutChart(chart: FlowChart): Layout {
       const local = leg.region ? gridFor(leg.region) : null;
       const all = () => gridFor(undefined);
       const to = r.to!;
-      const path =
-        local?.search(from, leg.goal, dir, to) ??
-        all().search(from, leg.goal, dir, to) ??
-        all().search(from, leg.goal, dir, to, { weight: 4, plain: true }) ??
-        all().search(from, leg.goal, dir, to, { weight: 4, plain: true, keepChannel: false }) ??
-        fallback(from, leg.goal);
+      const tiers = [
+        () => local?.search(from, leg.goal, dir, to, budget) ?? null,
+        () => all().search(from, leg.goal, dir, to, budget),
+        () => all().search(from, leg.goal, dir, to, budget, { weight: 4, plain: true }),
+        () => all().search(from, leg.goal, dir, to, budget, { weight: 4, plain: true, keepChannel: false }),
+      ];
+      let path: Point[] | null = null;
+      for (const [t, tier] of tiers.entries()) {
+        const before = budget.left;
+        path = tier();
+        if (stats) stats.tiers[t] += before - budget.left;
+        if (path) break;
+      }
+      // Past the budget the rest would be drawn through boxes: say the chart is too big instead.
+      if (budget.left <= 0 || budget.late) throw new TooBig("it has too many break and continue lines to draw");
+      path ??= fallback(from, leg.goal);
       found.push({ pts: path, to });
       for (const g of grids.values()) g.record(path, to);
       pts.push(...path.slice(1));

@@ -33,6 +33,8 @@ function setup() {
 }
 
 const FILE = { charts: [] };
+/** A reply's parts besides the type and id: the file, the picked chart and its layout. */
+const ANSWER = { file: FILE, picked: 0, layout: null };
 
 describe("FlowchartClient (page side of the flowchart worker)", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -46,8 +48,8 @@ describe("FlowchartClient (page side of the flowchart worker)", () => {
     const req = workers[0].last();
     expect(req).toMatchObject({ type: "chart", language: "c", source: "int main(void) {}" });
     workers[0].answer({ type: "parsing", id: req.id });
-    workers[0].answer({ type: "charts", id: req.id, file: FILE });
-    expect(await result).toEqual({ type: "charts", file: FILE });
+    workers[0].answer({ type: "charts", id: req.id, ...ANSWER });
+    expect(await result).toEqual({ type: "charts", ...ANSWER });
   });
 
   it(`a parse that takes longer than ${PARSE_TIMEOUT_MS} ms: the worker is terminated and the next chart gets a new one`, async () => {
@@ -65,8 +67,8 @@ describe("FlowchartClient (page side of the flowchart worker)", () => {
     expect(workers.length).toBe(2);
     const w = workers[1];
     w.answer({ type: "parsing", id: w.last().id });
-    w.answer({ type: "charts", id: w.last().id, file: FILE });
-    expect(await again).toEqual({ type: "charts", file: FILE });
+    w.answer({ type: "charts", id: w.last().id, ...ANSWER });
+    expect(await again).toEqual({ type: "charts", ...ANSWER });
   });
 
   it("a download that never finishes times out too, never hangs", async () => {
@@ -87,21 +89,62 @@ describe("FlowchartClient (page side of the flowchart worker)", () => {
     expect(workers.length).toBe(1);
     expect(workers[0].sent.length).toBe(2);
     workers[0].answer({ type: "parsing", id: workers[0].last().id });
-    workers[0].answer({ type: "charts", id: workers[0].last().id, file: FILE });
-    expect(await retry).toEqual({ type: "charts", file: FILE });
+    workers[0].answer({ type: "charts", id: workers[0].last().id, ...ANSWER });
+    expect(await retry).toEqual({ type: "charts", ...ANSWER });
   });
 
-  it("a newer request supersedes the one in flight", async () => {
+  it("a newer request supersedes the one in flight; only the newest waits for the worker to be free", async () => {
     const { client, workers } = setup();
     const old = client.chart("c", "a");
-    const fresh = client.chart("c", "b");
+    const middle = client.chart("c", "b");
+    const fresh = client.chart("c", "c", { name: "f", nth: 1 });
     expect(await old).toEqual({ type: "superseded" });
-    const [a, b] = workers[0].sent;
-    // The old answer arriving late is ignored.
-    workers[0].answer({ type: "charts", id: a.id, file: { charts: [{ junk: true }] } });
-    workers[0].answer({ type: "parsing", id: b.id });
-    workers[0].answer({ type: "charts", id: b.id, file: FILE });
-    expect(await fresh).toEqual({ type: "charts", file: FILE });
+    expect(await middle).toEqual({ type: "superseded" });
+    // The worker is still on "a": nothing more is sent until it answers, and "b" never is.
+    expect(workers[0].sent.map((m) => m.source)).toEqual(["a"]);
+    const a = workers[0].sent[0];
+    workers[0].answer({ type: "parsing", id: a.id });
+    // The old answer is not this request's: it is dropped, and the newest goes out.
+    workers[0].answer({ type: "charts", id: a.id, file: { charts: [{ junk: true }] }, picked: 0, layout: null });
+    expect(workers[0].sent.map((m) => m.source)).toEqual(["a", "c"]);
+    const c = workers[0].last();
+    expect(c.pick).toEqual({ name: "f", nth: 1 });
+    workers[0].answer({ type: "parsing", id: c.id });
+    workers[0].answer({ type: "charts", id: c.id, ...ANSWER });
+    expect(await fresh).toEqual({ type: "charts", ...ANSWER });
+  });
+
+  it(`a replaced request whose parse runs past ${PARSE_TIMEOUT_MS} ms: a fresh worker takes the newest, which gets its own clock`, async () => {
+    const { client, workers } = setup();
+    client.chart("c", "slow");
+    workers[0].answer({ type: "parsing", id: workers[0].last().id });
+    vi.advanceTimersByTime(1500);
+    const fresh = client.chart("c", "next");
+    expect(workers[0].sent.length).toBe(1);
+    vi.advanceTimersByTime(500);
+    // The old parse ran out: its worker is stopped, and the newest request starts on a new one.
+    expect(workers[0].terminated).toBe(true);
+    expect(workers.length).toBe(2);
+    const w = workers[1];
+    expect(w.last().source).toBe("next");
+    vi.advanceTimersByTime(PARSE_TIMEOUT_MS * 3);
+    w.answer({ type: "parsing", id: w.last().id });
+    vi.advanceTimersByTime(PARSE_TIMEOUT_MS - 1);
+    w.answer({ type: "charts", id: w.last().id, ...ANSWER });
+    expect(await fresh).toEqual({ type: "charts", ...ANSWER });
+  });
+
+  it("a reply whose picked chart or layout is malformed is not taken", async () => {
+    const { client, workers } = setup();
+    const result = client.chart("c", "a");
+    const id = workers[0].last().id;
+    const file = { charts: [{ ok: false, name: "main", from: 1, to: 2, tooBig: "x" }] };
+    workers[0].answer({ type: "charts", id, file, picked: 1, layout: null });
+    workers[0].answer({ type: "charts", id, file, picked: 0.5, layout: null });
+    workers[0].answer({ type: "charts", id, file, picked: 0, layout: "nope" });
+    workers[0].answer({ type: "charts", id, file, picked: 0, layout: { boxes: [], edges: [] } });
+    workers[0].answer({ type: "charts", id, file, picked: 0, layout: null });
+    expect(await result).toEqual({ type: "charts", file, picked: 0, layout: null });
   });
 
   it("a worker that fails to start is reported and replaced next time", async () => {
@@ -118,10 +161,10 @@ describe("FlowchartClient (page side of the flowchart worker)", () => {
     const { client, workers } = setup();
     const result = client.chart("c", "a");
     const id = workers[0].last().id;
-    workers[0].answer({ type: "charts", id: id + 100, file: FILE });
+    workers[0].answer({ type: "charts", id: id + 100, ...ANSWER });
     workers[0].answer({ type: "nonsense", id });
     workers[0].answer({ id });
-    workers[0].answer({ type: "charts", id: String(id), file: FILE });
+    workers[0].answer({ type: "charts", id: String(id), ...ANSWER });
     workers[0].answer({ type: "too-big", id, detail: "it has more than 400 steps" });
     expect(await result).toEqual({ type: "too-big", detail: "it has more than 400 steps" });
   });

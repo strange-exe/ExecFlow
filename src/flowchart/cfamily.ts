@@ -3,7 +3,8 @@
 // first. Input/output is recognised by call name (the spec's lists) and, in C++, by
 // `std::cout << ...` / `std::cin >> ...` (or plain cout/cin after `using namespace std`).
 import type { Node } from "web-tree-sitter";
-import { FlowBuilder, ONE_STEP, TooBig, empty, type ChartResult, type FlowFile, type Step, type SwitchCase } from "./model";
+import { FlowBuilder, ONE_STEP, TooBig, empty, type ChartResult, type ChartStub, type FlowFile, type Step, type SwitchCase } from "./model";
+import { pickIndex, type Pick } from "./pick";
 import { codeChildren, endLineOf, firstErrorLine, firstLine, forEachDescendant, lineOf, unparen, withoutSemicolon } from "./walk";
 
 export interface CFamily {
@@ -93,14 +94,16 @@ function usesStd(root: Node): boolean {
   return codeChildren(root).some((c) => (c.type === "using_declaration" || c.type === "alias_declaration") && /^using\s+(namespace\s+std\s*;|std\s*::\s*(cout|cin)\s*;)/.test(c.text));
 }
 
-export function chartCFamily(root: Node, options: CFamily): FlowFile {
+export function chartCFamily(root: Node, options: CFamily, pick: Pick | null | "all" = "all"): FlowFile {
   const fns = collectFunctions(root);
   const names = new Map<string, string>();
   for (const f of fns) if (!names.has(f.simple)) names.set(f.simple, f.name);
   const std = options.cpp && usesStd(root);
-  const charts: ChartResult[] = fns.map((f) => {
+  const only = pick === "all" ? -1 : pickIndex(fns, pick);
+  const charts: (ChartResult | ChartStub)[] = fns.map((f, i) => {
     const from = lineOf(f.node);
     const to = endLineOf(f.node);
+    if (only >= 0 && i !== only) return { ok: null, name: f.name, from, to };
     const b = new FlowBuilder(f.name, from, to);
     try {
       const walker = new CWalker(b, options, names, std);

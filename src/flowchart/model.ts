@@ -84,10 +84,12 @@ export interface FlowChart {
 }
 
 export type ChartResult = ({ ok: true } & FlowChart) | { ok: false; name: string; from: number; to: number; tooBig: string };
+/** A function whose chart wasn't made: only the picked one is, so a file of many functions stays quick. */
+export type ChartStub = { ok: null; name: string; from: number; to: number };
 
 export interface FlowFile {
-  /** One per function, the entry point first. */
-  charts: ChartResult[];
+  /** One per function, the entry point first: charted, too big, or (not picked) a stub. */
+  charts: (ChartResult | ChartStub)[];
   /** The first syntax mistake's line (1-based), when the code has one. */
   syntaxError?: number;
 }

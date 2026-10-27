@@ -147,6 +147,28 @@ test.describe("the Flowchart tab", () => {
     await expect(box(page, "Decision: n > 0 ?")).toHaveCount(1);
   });
 
+  test("functions that share a name (C++ overloads) can each be picked, and stay picked through an edit", async ({ page }) => {
+    const src = ["int f(int x) { return x; }", "int f(int x, int y) {", "    if (x) return y;", "    return x;", "}", "int main() { return f(1) + f(1, 2); }", ""].join("\n");
+    await chartFor(page, "over.cpp", src);
+    await ready(page);
+    const picker = page.locator("#fc-picker");
+    await expect(picker.locator("option")).toHaveText(["main", "f", "f"]);
+    // The second f: Start, its test, and two returns (the first f is Start and one return).
+    await picker.selectOption({ index: 2 });
+    await expect(boxes(page)).toHaveCount(4);
+    await expect(box(page, "Decision: x ?")).toHaveCount(1);
+    await expect(picker).toHaveValue("2");
+    if (isNarrow(page)) return;
+    // An edit elsewhere redraws the same function, not the first one with its name.
+    await page.locator(".cm-line", { hasText: "int main()" }).click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" ");
+    await page.waitForTimeout(800);
+    await ready(page);
+    await expect(boxes(page)).toHaveCount(4);
+    await expect(picker).toHaveValue("2");
+  });
+
   test("other languages and an empty file say so", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [{ name: "notes.txt", text: "hello\n" }, { name: "empty.c", text: "" }]);
@@ -382,6 +404,30 @@ test.describe("attacks", () => {
     // Each redraw after typing stops is the worker's: the page stays usable and the state holds.
     await page.waitForTimeout(800);
     await expect(view(page)).toHaveAttribute("data-state", "too-big");
+  });
+
+  test("a ladder of 395 breaks and continues: too big, and the page never stops answering while it is worked out", async ({ page }) => {
+    // The attack pass's worst case (milestone 5): laid out on the page, it held the main thread 5.5 s.
+    const ladder = Array.from({ length: 395 }, (_, i) => `        ${i ? "else " : ""}if (x == ${i}) ${i % 2 ? "continue" : "break"};`).join("\n");
+    await openApp(page);
+    await importFiles(page, [{ name: "ladder.c", text: `int main(void) {\n    int x = 99;\n    do {\n${ladder}\n    } while (x--);\n    return 0;\n}\n` }]);
+    await openFromTree(page, "ladder.c");
+    // The longest gap between 20 ms ticks on the page, from opening the chart until it settles.
+    await page.evaluate(() => {
+      const w = window as unknown as { maxGap: number };
+      w.maxGap = 0;
+      let last = performance.now();
+      setInterval(() => {
+        const now = performance.now();
+        w.maxGap = Math.max(w.maxGap, now - last);
+        last = now;
+      }, 20);
+    });
+    await openChart(page);
+    await expect(view(page)).toHaveAttribute("data-state", "too-big", { timeout: 30_000 });
+    await expect(view(page)).toContainText("This function has too many break and continue lines to draw; open a smaller function");
+    const gap = await page.evaluate(() => (window as unknown as { maxGap: number }).maxGap);
+    expect(gap, "the page's longest pause while the chart was worked out (ms)").toBeLessThan(400);
   });
 
   test("rapid file switching: the last file's chart wins", async ({ page }) => {

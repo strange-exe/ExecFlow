@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "vitest";
 import { FlowEngine, LoadError, type LoadFile } from "../engine";
-import type { ChartResult, FlowChart, FlowFile, Step } from "../model";
+import type { ChartResult, ChartStub, FlowChart, FlowFile, Step } from "../model";
 import { FLOWCHART_DIR, type FlowLanguage } from "../pack";
 
 export const PACK_DIR = join("public", "flowchart", FLOWCHART_DIR);
@@ -57,7 +57,8 @@ export async function chartFile(language: FlowLanguage, source: string): Promise
   return outcome.file;
 }
 
-export function ok(result: ChartResult): FlowChart {
+export function ok(result: ChartResult | ChartStub): FlowChart {
+  if (result.ok === null) throw new Error(`chart ${result.name} wasn't made (not picked)`);
   if (!result.ok) throw new Error(`chart ${result.name} is too big: ${result.tooBig}`);
   return result;
 }

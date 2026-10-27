@@ -4,8 +4,8 @@
 // run outside their loop, and the same model always gives the same layout.
 import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHANNEL, labelRect, layoutChart, rectMeetsBox, type Layout, type LaidBox, type Point } from "./layout";
-import { entryOf, type FlowChart, type Step } from "./model";
+import { CHANNEL, LAYOUT_BUDGET, labelRect, layoutChart, rectMeetsBox, type Layout, type LayoutStats, type LaidBox, type Point } from "./layout";
+import { TooBig, entryOf, type FlowChart, type Step } from "./model";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 import { randomProgram } from "./fixtures/random";
 import type { FlowLanguage } from "./pack";
@@ -298,6 +298,37 @@ describe("structured layout", () => {
     expect(l.edges.filter((e) => e.kind === "jump").length).toBeGreaterThan(100);
     expect(ms, `layout took ${Math.round(ms)} ms`).toBeLessThan(250);
   }, 30_000);
+
+  test("a ladder of 395 breaks and continues in a do-while is too big, quickly (the attack pass's worst case)", async () => {
+    const ladder = Array.from({ length: 395 }, (_, i) => `${i ? "else " : ""}if (x == ${i}) ${i % 2 ? "continue" : "break"};`).join("\n");
+    const chart = ok((await chartFile("c", `int main(void) {\n  int x = 99;\n  do {\n${ladder}\n  } while (x--);\n  return 0;\n}\n`)).charts[0]);
+    expect(chart.nodes.length).toBeGreaterThan(390);
+    // The step budget (deterministic): without it this took 5.5 s on the dev PC.
+    const stats: LayoutStats = { tiers: [0, 0, 0, 0] };
+    expect(() => layoutChart(chart, { stats })).toThrow(/too many break and continue lines to draw/);
+    expect(stats.tiers.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(LAYOUT_BUDGET + 4);
+    // The worker's deadline: the same answer, on time, however slow the computer. The search stops
+    // far short of the step budget (counted, so a busy test machine can't hide it); the time bound
+    // is loose because placing the boxes and grids before the search isn't on the clock.
+    const timed: LayoutStats = { tiers: [0, 0, 0, 0] };
+    const t = performance.now();
+    expect(() => layoutChart(chart, { stats: timed, deadline: t + 200 })).toThrow(/too many break and continue lines to draw/);
+    const ms = performance.now() - t;
+    expect(timed.tiers.reduce((a, b) => a + b, 0)).toBeLessThan(LAYOUT_BUDGET / 2);
+    expect(ms, `layout took ${Math.round(ms)} ms`).toBeLessThan(1500);
+  }, 30_000);
+
+  test("a menu of 80 cases and a 100-arm ladder, past what students write, still lay out", async () => {
+    const menu = Array.from({ length: 80 }, (_, i) => `case ${i}: printf("%d", ${i}); if (c > ${i}) continue; break;`).join("\n");
+    const ladder = Array.from({ length: 100 }, (_, i) => `${i ? "else " : ""}if (x == ${i}) ${i % 2 ? "continue" : "break"};`).join("\n");
+    for (const src of [
+      `#include <stdio.h>\nint main(void) {\n  int c = 1;\n  while (c) {\n    scanf("%d", &c);\n    switch (c) {\n${menu}\n    default: c = 0;\n    }\n  }\n  return 0;\n}\n`,
+      `int main(void) {\n  int x = 99;\n  do {\n${ladder}\n  } while (x--);\n  return 0;\n}\n`,
+    ]) {
+      const chart = ok((await chartFile("c", src)).charts[0]);
+      expectGoodLayout(chart, layoutChart(chart));
+    }
+  }, 30_000);
 });
 
 describe("structured layout on random programs", () => {
@@ -308,7 +339,13 @@ describe("structured layout on random programs", () => {
       const file = await chartFile("c", randomProgram(seed));
       const result = file.charts[0];
       if (!result.ok) continue;
-      const l = layoutChart(result);
+      let l: Layout;
+      try {
+        l = layoutChart(result);
+      } catch (e) {
+        if (e instanceof TooBig) continue;
+        throw e;
+      }
       expectGoodLayout(result, l, `seed ${seed}`);
       checked++;
       for (const e of l.edges) kinds.add(e.kind);

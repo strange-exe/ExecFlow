@@ -4,5 +4,6 @@
 import type { Node } from "web-tree-sitter";
 import { chartCFamily } from "./cfamily";
 import type { FlowFile } from "./model";
+import type { Pick } from "./pick";
 
-export const chartCpp = (root: Node, _source: string): FlowFile => chartCFamily(root, { cpp: true });
+export const chartCpp = (root: Node, _source: string, pick: Pick | null | "all" = "all"): FlowFile => chartCFamily(root, { cpp: true }, pick);
