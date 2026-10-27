@@ -9,7 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { writeFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { PRINT_INK } from "../src/theme/print-ink";
-import { expect, importFiles, openApp, openFromTree, test, tolerating } from "./helpers";
+import { afterFetch, expect, importFiles, openApp, openFromTree, test, tolerating } from "./helpers";
 import { pdfFillColours, pdfPages } from "./pdf-text";
 
 test.use({ serviceWorkers: "block" });
@@ -292,14 +292,17 @@ test.describe("the highlighting chunk can't load", () => {
     let refused = 0;
     let failing = true;
     // Found by its content (its name is a hash): the chunk that exports printFile.
-    await page.route(/\/assets\/[\w-]+\.js$/, async (route) => {
-      const response = await route.fetch();
-      if (failing && /as printFile\b/.test(await response.text())) {
-        refused++;
-        return route.fulfill({ status: 404, body: "" });
-      }
-      return route.fulfill({ response });
-    });
+    await page.route(
+      /\/assets\/[\w-]+\.js$/,
+      afterFetch(async (route) => {
+        const response = await route.fetch();
+        if (failing && /as printFile\b/.test(await response.text())) {
+          refused++;
+          return route.fulfill({ status: 404, body: "" });
+        }
+        return route.fulfill({ response });
+      }),
+    );
     await openWithFiles(page);
     await openFromFileMenu(page);
     await expect.poll(() => refused).toBeGreaterThan(0);

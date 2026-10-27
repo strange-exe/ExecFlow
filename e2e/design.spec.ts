@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, waitReady } from "./helpers";
+import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, waitReady } from "./helpers";
 
 // Desktop and phone, light and dark. Each test loads, emulates, reloads and
 // proves the theme is really active before checking anything. These reload right after the first
@@ -513,14 +513,17 @@ test.describe("the Shortcuts list's chunk", () => {
     await openApp(page);
     // Every request for it is refused until the route goes (a modulepreload and the import both ask).
     let refused = 0;
-    await page.route(/\/assets\/[\w-]+\.js$/, async (route) => {
-      const response = await route.fetch();
-      if ((await response.text()).includes(SHORTCUTS_ROW)) {
-        refused++;
-        return route.fulfill({ status: 404, body: "" });
-      }
-      return route.fulfill({ response });
-    });
+    await page.route(
+      /\/assets\/[\w-]+\.js$/,
+      afterFetch(async (route) => {
+        const response = await route.fetch();
+        if ((await response.text()).includes(SHORTCUTS_ROW)) {
+          refused++;
+          return route.fulfill({ status: 404, body: "" });
+        }
+        return route.fulfill({ response });
+      }),
+    );
     const notice = page.locator(".notice");
     await page.locator("#shortcuts-button").click();
     await expect(notice).toHaveAttribute("data-tone", "error");

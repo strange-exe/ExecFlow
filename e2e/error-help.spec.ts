@@ -6,7 +6,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import {
-  expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, responseBodies, run, setCode, showPanel, showView, test,
+  afterFetch, expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, responseBodies, run, setCode, showPanel, showView, test,
   tolerating, waitReady,
 } from "./helpers";
 
@@ -131,14 +131,17 @@ test.describe("the help's chunk", () => {
     await importFiles(page, [{ name: "typo.py", text: TYPO_PY }]);
     await openFromTree(page, "typo.py");
     let refused = 0;
-    await page.route(/\/assets\/[\w-]+\.js$/, async (route) => {
-      const response = await route.fetch();
-      if ((await response.text()).includes(TABLE_MARK)) {
-        refused++;
-        return route.fulfill({ status: 404, body: "" });
-      }
-      return route.fulfill({ response });
-    });
+    await page.route(
+      /\/assets\/[\w-]+\.js$/,
+      afterFetch(async (route) => {
+        const response = await route.fetch();
+        if ((await response.text()).includes(TABLE_MARK)) {
+          refused++;
+          return route.fulfill({ status: 404, body: "" });
+        }
+        return route.fulfill({ response });
+      }),
+    );
     expect((await run(page)).status).toBe("error");
     await expect(page.locator("#run-exception")).toContainText("NameError");
     await expect(page.locator("#run-exception")).not.toHaveAttribute("aria-describedby", /./);

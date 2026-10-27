@@ -5,7 +5,7 @@
 // and the failure paths with a Retry that recovers. The service worker is blocked so every request
 // reaches the routes below.
 import type { Page, Route } from "@playwright/test";
-import { expect, importFiles, isNarrow, openApp, openFromTree, setCode, test, tolerating } from "./helpers";
+import { afterFetch, expect, importFiles, isNarrow, openApp, openFromTree, setCode, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -347,17 +347,20 @@ test.describe("states", () => {
     test("the worker takes longer than 2 s: it is stopped, and Retry starts a new one", async ({ page }) => {
       // The flowchart worker's script is swapped for one that starts a parse and never ends it.
       let hang = true;
-      await page.route("**/assets/w/*.js", async (route) => {
-        const res = await route.fetch();
-        const body = await res.text();
-        if (hang && body.includes("web-tree-sitter")) {
-          return route.fulfill({
-            response: res,
-            body: "self.onmessage = (e) => { self.postMessage({ type: 'parsing', id: e.data.id }); for (;;) {} };",
-          });
-        }
-        return route.fulfill({ response: res, body });
-      });
+      await page.route(
+        "**/assets/w/*.js",
+        afterFetch(async (route) => {
+          const res = await route.fetch();
+          const body = await res.text();
+          if (hang && body.includes("web-tree-sitter")) {
+            return route.fulfill({
+              response: res,
+              body: "self.onmessage = (e) => { self.postMessage({ type: 'parsing', id: e.data.id }); for (;;) {} };",
+            });
+          }
+          return route.fulfill({ response: res, body });
+        }),
+      );
       await chartFor(page, "main.c", C_PROGRAM);
       await expect(view(page)).toHaveAttribute("data-state", "timeout", { timeout: 30_000 });
       await expect(view(page)).toContainText("The flowchart took too long to draw.");

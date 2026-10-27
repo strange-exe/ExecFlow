@@ -5,7 +5,7 @@
 // that words them.
 import type { APIResponse, Page, Route } from "@playwright/test";
 import { formatArgs, parseArgs } from "../src/runner/run-args";
-import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, test, tolerating, treeItem } from "./helpers";
+import { afterFetch, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, test, tolerating, treeItem } from "./helpers";
 import { connectGitHub, routeGitHub, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -90,11 +90,14 @@ function seedArgs(page: Page, args: Record<string, string>): Promise<number> {
 
 /** Routes the Arguments field's chunk (found by its hint: its name is a hash) to `answer`. */
 async function routeArgsChunk(page: Page, answer: (route: Route, response: APIResponse) => Promise<void>) {
-  await page.route(/\/assets\/[\w-]+\.js$/, async (route) => {
-    const response = await route.fetch();
-    if ((await response.text()).includes("Split at spaces.")) return answer(route, response);
-    return route.fulfill({ response });
-  });
+  await page.route(
+    /\/assets\/[\w-]+\.js$/,
+    afterFetch(async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes("Split at spaces.")) return answer(route, response);
+      return route.fulfill({ response });
+    }),
+  );
 }
 
 test("Python gets sys.argv = [script, *arguments]: spaces, quotes, empty quotes, other scripts and shell syntax arrive as typed", async ({ page }) => {

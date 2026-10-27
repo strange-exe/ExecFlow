@@ -1,4 +1,4 @@
-import { expect, test as base, type Page, type Request } from "@playwright/test";
+import { expect, test as base, type Page, type Request, type Route } from "@playwright/test";
 
 /**
  * WebKit blocks the first worker created after any reload, then logs these itself. The app retries
@@ -196,6 +196,22 @@ export function responseBodies<T>(page: Page, wanted: (path: string) => boolean,
       expect(all.filter((x) => x.error !== undefined).map((x) => `${x.path}: ${x.error}`), "response bodies that could not be read").toEqual([]);
       return all.map((x) => x.value as T);
     },
+  };
+}
+
+/**
+ * Wraps a page.route handler that awaits route.fetch() before answering. While it waits, the page can
+ * drop the request, and answering then throws "Route is already handled!", which fails the test though
+ * nothing is wrong (WebKit on the CI runner: design.spec's Shortcuts chunk test, run 40535415597,
+ * 2026-10-27). Only that error is ignored: the request it would have answered is gone.
+ */
+export function afterFetch(handler: (route: Route) => Promise<void>) {
+  return async (route: Route) => {
+    try {
+      await handler(route);
+    } catch (e) {
+      if (!String(e).includes("Route is already handled")) throw e;
+    }
   };
 }
 

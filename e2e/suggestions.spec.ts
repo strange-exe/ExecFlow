@@ -6,7 +6,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { audit } from "./audit";
 import {
-  expect, expectActive, importFiles, openApp, openFromTree, reloadApp, responseBodies, setCode, showView, test, tolerating, waitReady,
+  afterFetch, expect, expectActive, importFiles, openApp, openFromTree, reloadApp, responseBodies, setCode, showView, test, tolerating, waitReady,
 } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -670,14 +670,17 @@ test.describe("when the suggestion chunk can't load on a first visit", () => {
     const MARK = "not library data";
     let failing = true;
     const failed: string[] = [];
-    await page.route("**/assets/*.js", async (route) => {
-      const response = await route.fetch();
-      if (failing && (await response.text()).includes(MARK)) {
-        failed.push(new URL(route.request().url()).pathname);
-        return route.abort("internetdisconnected");
-      }
-      return route.fulfill({ response });
-    });
+    await page.route(
+      "**/assets/*.js",
+      afterFetch(async (route) => {
+        const response = await route.fetch();
+        if (failing && (await response.text()).includes(MARK)) {
+          failed.push(new URL(route.request().url()).pathname);
+          return route.abort("internetdisconnected");
+        }
+        return route.fulfill({ response });
+      }),
+    );
     // The retry window (CODE_RETRY_MS, 30 s) is passed by moving Date.now on, not by waiting.
     await page.addInitScript(() => {
       const now = Date.now.bind(Date);
