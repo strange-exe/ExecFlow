@@ -49,7 +49,9 @@ async function setUp(page: Page) {
 test("F1, Ctrl+Shift+P, Ctrl+P and Search open it as an APG combobox, and Escape gives the focus back", async ({ page }) => {
   await setUp(page);
   const search = page.locator("#palette-button");
-  await expect(search).toHaveAccessibleName("Search files and commands");
+  // 0.7.0 shell: the top bar's command field, named by the words it shows (WCAG 2.5.3).
+  await expect(search).toHaveAccessibleName("Search or run a command");
+  await expect(search).toContainText("Search or run a command");
   await expect(search).toHaveAttribute("aria-keyshortcuts", "Control+P Control+Shift+P F1");
 
   // F1 from the code: commands only, the field holds ">".

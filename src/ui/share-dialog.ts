@@ -358,8 +358,8 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (!deps.createGist) {
       return error(
         deps.auth === "app"
-          ? "Your GitHub sign-in has ended on this device, so sign in again (Sync status in the top bar) to make a gist."
-          : "This tab has no GitHub token, so enter it again (Sync status in the top bar) to make a gist.",
+          ? "Your GitHub sign-in has ended on this device, so sign in again (the sync status) to make a gist."
+          : "This tab has no GitHub token, so enter it again (the sync status) to make a gist.",
       );
     }
     const signal = wanted.signal;

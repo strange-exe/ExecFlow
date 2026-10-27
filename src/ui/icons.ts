@@ -34,8 +34,10 @@ import keyboard from "@phosphor-icons/core/assets/regular/keyboard.svg?raw";
 import linkSimple from "@phosphor-icons/core/assets/regular/link-simple.svg?raw";
 import lock from "@phosphor-icons/core/assets/regular/lock.svg?raw";
 import magnifyingGlass from "@phosphor-icons/core/assets/regular/magnifying-glass.svg?raw";
+import minus from "@phosphor-icons/core/assets/regular/minus.svg?raw";
 import paperPlaneRight from "@phosphor-icons/core/assets/regular/paper-plane-right.svg?raw";
 import pencilSimple from "@phosphor-icons/core/assets/regular/pencil-simple.svg?raw";
+import plus from "@phosphor-icons/core/assets/regular/plus.svg?raw";
 import printer from "@phosphor-icons/core/assets/regular/printer.svg?raw";
 import scissors from "@phosphor-icons/core/assets/regular/scissors.svg?raw";
 import selectionAll from "@phosphor-icons/core/assets/regular/selection-all.svg?raw";
@@ -44,6 +46,7 @@ import sidebarSimple from "@phosphor-icons/core/assets/regular/sidebar-simple.sv
 import tabs from "@phosphor-icons/core/assets/regular/tabs.svg?raw";
 import terminalWindow from "@phosphor-icons/core/assets/regular/terminal-window.svg?raw";
 import trash from "@phosphor-icons/core/assets/regular/trash.svg?raw";
+import treeStructure from "@phosphor-icons/core/assets/regular/tree-structure.svg?raw";
 import uploadSimple from "@phosphor-icons/core/assets/regular/upload-simple.svg?raw";
 import warning from "@phosphor-icons/core/assets/regular/warning.svg?raw";
 import warningCircle from "@phosphor-icons/core/assets/regular/warning-circle.svg?raw";
@@ -60,9 +63,9 @@ const SOURCES = {
   copy, "corners-in": cornersIn, "corners-out": cornersOut,
   "dots-three": dotsThree, "download-simple": downloadSimple, eraser, file, "file-c": fileC, "file-cpp": fileCpp,
   "file-plus": filePlus, "file-py": filePy, "file-text": fileText, folder, "folder-open": folderOpen,
-  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, "link-simple": linkSimple, lock, "magnifying-glass": magnifyingGlass, "paper-plane-right": paperPlaneRight,
-  "pencil-simple": pencilSimple, printer, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple, tabs,
-  "terminal-window": terminalWindow, trash, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,
+  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, "link-simple": linkSimple, lock, "magnifying-glass": magnifyingGlass, minus, "paper-plane-right": paperPlaneRight,
+  "pencil-simple": pencilSimple, plus, printer, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple, tabs,
+  "terminal-window": terminalWindow, trash, "tree-structure": treeStructure, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,
   x, "x-circle": xCircle, "play-fill": playFill, "stop-fill": stopFill,
 } as const;
 

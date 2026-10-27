@@ -104,42 +104,48 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--control-on); w
 input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
 
 /* ------------------------------------------------------------------ the grid */
-/* Top bar, the work area, and one status bar (it grows to two lines for a long notice on phones).
-   Every bar height is a token (tokens.css: 40 / 24 here, 48 below 900 px or on touch). */
+/* The work area (the sidebar beside the editor column) and, below 900 px, one status bar (it grows
+   to two lines for a long notice on phones). Every bar height is a token (tokens.css). */
 .workbench {
   height: 100vh;
   height: 100dvh;
   display: grid;
-  grid-template-rows: var(--h-topbar) minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
 }
 .workbench[data-state="loading"] { background: var(--bg); }
 /* public/theme-boot.js's screen when the app's code didn't load or start: alone in the grid's work area. */
-.workbench > .start-failed { grid-row: 2; padding: clamp(var(--s5), 8vh, 72px) var(--s6) var(--s6); }
+.workbench > .start-failed { grid-row: 1; padding: clamp(var(--s5), 8vh, 72px) var(--s6) var(--s6); }
 .workbench[data-state="start-failed"] > :not(.start-failed) { display: none; }
+/* The editor column: the top bar over the editor and its panel. */
+.work { display: grid; grid-template-rows: var(--h-topbar) minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; }
 
 /* ------------------------------------------------------------------ top bar */
+/* Over the editor column only: the breadcrumb at the start, "Search or run a command" in the
+   middle, the runtime state, Capture and Run at the end. The two ends share what the field leaves,
+   so the field sits in the middle while both fit (the end never shrinks under its controls). */
 .topbar {
   display: flex;
   align-items: center;
-  gap: var(--s2);
+  gap: var(--s3);
   min-width: 0;
-  padding: 0 var(--s2) 0 var(--s3);
+  padding: 0 var(--sheet-gap) 0 var(--s2);
   background: var(--surface);
-  border-bottom: 1px solid var(--divider);
 }
-.brand { display: flex; align-items: center; gap: var(--s2); font-weight: var(--w-strong); white-space: nowrap; }
+.topbar-start, .topbar-end { display: flex; flex: 1 1 0; align-items: center; gap: var(--s2); min-width: 0; }
+.topbar-end { justify-content: flex-end; min-width: max-content; }
 .brand-mark { width: var(--icon-xl); height: var(--icon-xl); flex: none; }
 .mark-tile { fill: var(--brand); }
 .mark-glyph { fill: none; stroke: var(--on-brand); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
-/* The breadcrumb: ancestors in the secondary tier, the file in --text and the name font. A long
-   path gives way from the left: the ancestors shrink (ellipsis) long before the file name does. */
+/* The breadcrumb: the folders in the secondary tier, the file in --text and the name font, slashes
+   between them in the muted tier. A long path gives way from the left: the folders shrink
+   (ellipsis) long before the file name does. */
 .crumb {
   display: flex;
   align-items: center;
   min-width: 0;
-  margin: 0 0 0 var(--s4);
-  padding: 0;
+  margin: 0;
+  padding: 0 0 0 var(--s1);
   list-style: none;
   color: var(--text-secondary);
   font-size: var(--fs-2);
@@ -148,8 +154,8 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .crumb > li { display: flex; align-items: center; min-width: 0; flex: 0 1000 auto; }
 .crumb-text { min-width: 2ch; overflow: hidden; text-overflow: ellipsis; }
-.crumb-sep { width: var(--icon-xs); height: var(--icon-xs); margin: 0 var(--s1); color: var(--text-muted); }
-.crumb > .crumb-file { flex: 0 1 auto; color: var(--text); font-family: var(--font-name); }
+.crumb-sep { flex: none; margin: 0 var(--s2); color: var(--text-muted); }
+.crumb > .crumb-file { flex: 0 1 auto; color: var(--text); font-family: var(--font-name); font-weight: var(--w-label); }
 /* The file's name cut short keeps its extension: the stem takes the ellipsis ("finding_t....py"),
    since the extension says what the file is and how it runs (layout.ts nameParts). */
 .crumb-name { display: flex; min-width: 0; }
@@ -157,10 +163,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .crumb-ext { flex: none; }
 /* Unsaved typing: the tab shows it here; phones, with no tab strip, show it on the file name
    (below). ", unsaved" is in the name at every width (layout.ts setCrumb). */
-.repo-name { font-family: var(--font-name); }
-.topbar-spacer { flex: 1; }
-/* Search files and commands (the command palette): a ghost button in the sync status's tier, the
-   icon and the word in --text-secondary; icon only below 900 px (44 px there). */
+/* Search or run a command (the command palette): from 900 px a field-like button in the middle of
+   the top bar, the magnifier, its words in --text-secondary and its key; the magnifier alone below
+   900 px (44 px there). */
 .palette-btn {
   display: inline-flex;
   align-items: center;
@@ -169,7 +174,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   flex: none;
   min-width: var(--tool);
   height: var(--tool);
-  padding: 0 var(--s3) 0 var(--s2);
+  padding: 0 var(--s2);
   border: 0;
   border-radius: var(--r-control);
   background: none;
@@ -177,13 +182,39 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   font-size: var(--fs-2);
   line-height: var(--lh-2);
   white-space: nowrap;
-  transition: background-color var(--dur), color var(--dur);
+  transition: background-color var(--dur), color var(--dur), box-shadow var(--dur);
 }
 .palette-btn:hover { background: var(--hover); color: var(--text); }
 .palette-btn .icon { width: var(--icon-md); height: var(--icon-md); }
-.sync-slot { display: flex; min-width: 0; margin-right: var(--s1); }
+/* The words and the key never block a click: the button itself is the target. */
+.palette-btn > * { pointer-events: none; }
+@media (min-width: 900px) {
+  /* The breadcrumb keeps room to be read: its 0 basis left it nothing at 1024 px once the field and
+     the end's controls were placed (the file name was 0 px wide). The field gives way first. */
+  .topbar-start { min-width: 240px; }
+  .palette-btn {
+    flex: 0 1 440px;
+    justify-content: flex-start;
+    min-width: 160px;
+    padding: 0 var(--s1) 0 var(--s3);
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+  .palette-btn:hover { background: var(--bg); box-shadow: inset 0 0 0 1px var(--text-secondary); }
+  .palette-btn-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .palette-key { flex: none; }
+}
+.sync-slot { display: flex; min-width: 0; }
 .sync-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-toggle { display: none; }
+.palette-key { display: none; }
+@media (min-width: 900px) { .palette-key { display: inline-block; } }
+/* Capture (an image of the selected lines): a ghost button, no edge, before Run; quieter than Run's
+   fill and than the stepped-back Run's outline (with a ring of its own and its word it outweighed
+   that outline after a failed run). Its icon and word are in the hint tier, the text colour on hover. */
+.capture-btn { min-height: var(--tool); padding: 0 var(--s3) 0 var(--s2); border-color: transparent; color: var(--text-muted); font-size: var(--fs-2); }
+.capture-btn:hover:not(:disabled) { color: var(--text); }
+.capture-btn > * { pointer-events: none; }
 
 /* ------------------------------------------------------------------ Run, Stop */
 .run { height: var(--primary-h); min-height: var(--primary-h); padding: 0 var(--s4) 0 var(--s3); gap: var(--s2); font-size: var(--fs-1); }
@@ -202,6 +233,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   color: var(--text);
   font-weight: var(--w-label);
 }
+/* The stepped-back Run is still the next press after a fix: its outline is the secondary text colour,
+   a step above the plain controls' edge. */
+.workbench[data-last-run="failed"] .btn.run:not([data-running="true"]) { border-color: var(--text-secondary); }
 .btn.run[data-running="true"]:hover:not(:disabled),
 .workbench[data-runnable="false"] .btn.run:not([data-running="true"]):hover:not(:disabled),
 .workbench[data-last-run="failed"] .btn.run:not([data-running="true"]):hover:not(:disabled) { background: var(--hover); border-color: var(--border-strong); }
@@ -216,12 +250,51 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 /* ------------------------------------------------------------------ main: sidebar | splitter | center */
 .main { display: grid; grid-template-columns: var(--sidebar-w, 248px) 1px minmax(0, 1fr); min-height: 0; }
 .sidebar { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
-/* The sidebar head and the editor head are both --h-head: one shared edge. */
-.sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); height: var(--h-head); padding: 0 var(--s1) 0 var(--s3); flex: none; }
-.region-title { margin: 0; font-size: var(--fs-2); font-weight: var(--w-label); line-height: var(--lh-2); color: var(--text-secondary); }
-/* The brand's place below 900 px (the top bar has none there): the drawer's own head. */
-.drawer-brand { display: none; }
-.sidebar-actions { display: flex; gap: var(--s1); }
+/* The workspace: the app's mark as its tile, the name at 600, where it lives in the secondary
+   tier; as tall as the top bar beside it (one shared edge). */
+.ws-switcher { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; height: var(--h-topbar); padding: 0 var(--s3) 0 var(--s4); }
+.ws-text { display: flex; flex-direction: column; min-width: 0; margin: 0; }
+.ws-title { display: flex; min-width: 0; font-size: var(--fs-1); font-weight: var(--w-strong); line-height: 18px; }
+.ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-name { font-family: var(--font-name); font-weight: var(--w-label); }
+.ws-owner { overflow: hidden; color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); text-overflow: ellipsis; white-space: nowrap; }
+/* Quick actions: ghost rows in the secondary tier, their key at the row's end. */
+.quick-actions { display: flex; flex-direction: column; gap: 2px; flex: none; padding: var(--s1) var(--s2) var(--s2); }
+.quick-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--h-row);
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: var(--r-row);
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  text-align: left;
+  transition: background-color var(--dur), color var(--dur);
+}
+.quick-btn:hover { background: var(--hover); color: var(--text); }
+.quick-btn > * { pointer-events: none; }
+.quick-btn .icon { width: var(--icon-md); height: var(--icon-md); }
+.quick-label { flex: 1; min-width: 0; }
+.quick-btn:focus-visible { outline-offset: -2px; }
+/* The Files heading and its actions, under a rule that ends the quick actions. */
+.sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); height: 36px; margin: 0 var(--s2); padding: var(--s1) 0 0 var(--s2); flex: none; border-top: 1px solid var(--divider); }
+.region-title { margin: 0; font-size: var(--fs-hint); font-weight: var(--w-label); line-height: var(--lh-hint); color: var(--text-secondary); }
+.sidebar-actions { display: flex; gap: 2px; }
+/* The foot (900 px and wider): a notice, if any, over the sync status, Shortcuts and Settings. */
+.sidebar-foot { display: flex; flex-direction: column; flex: none; margin: 0 var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--divider); }
+.sidebar-foot-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.sidebar-foot-row:empty { display: none; }
+.sidebar-foot .sync-slot { flex: 1; }
+.sidebar-foot .sync-status { max-width: 100%; }
+/* Shortcuts here is its icon (named by its tooltip, "Keyboard shortcuts (Ctrl+/)"), an icon button. */
+.sidebar-foot .status-btn { justify-content: center; width: var(--tool); height: var(--tool); margin: 0; padding: 0; border-radius: var(--r-control); color: var(--text-muted); }
+.sidebar-foot .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
+.sidebar-foot .status-btn-label { display: none; }
+.sidebar-foot .notice-host { display: block; }
 /* contain: paint: the file list paints on its own (it already clips, as a scroller), so a frame
    that repaints the page around the editor doesn't walk every row again: with 200 files the list
    was about 42% of the page's paint work per key at 4x CPU slowdown (speed profile, 2026-10-19). */
@@ -246,13 +319,16 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .tree [role="treeitem"] { outline: none; }
 /* Rows are not positioned: each positioned row was a stacked layer of its own, which every frame
    walked (speed profile, 2026-10-19). The open file's bar is a background for that reason. */
+/* Rows are pills inset from the sidebar's edges (--r-row corners), 28 px on desktop, 44 on touch. */
 .tree-row {
   --row-h: var(--h-row);
   display: flex;
   align-items: center;
   gap: var(--s2);
   min-height: var(--row-h);
+  margin: 0 var(--s2);
   padding: 0 var(--s2) 0 calc(var(--s1) + var(--level, 0) * var(--s4));
+  border-radius: var(--r-row);
   color: var(--text);
   cursor: pointer;
   user-select: none;
@@ -262,7 +338,17 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
    name in its accessibility tree (23 of 100 tree items without a name, 2026-10-20), because each
    item is named by the text inside its row (aria-labelledby). */
 .tree-row:hover { background: var(--hover); }
-[role="treeitem"][aria-selected="true"] > .tree-row { background: var(--list-selected); }
+/* The chosen row is lifted: the raised ground, a hairline inset ring and a soft shadow in light
+   themes (none in dark: --shadow-pop), plus the 2 px location edge (3:1 on the raised ground), so
+   the state never rests on the fill's small step. The open file has the same edge (below). */
+[role="treeitem"][aria-selected="true"] > .tree-row {
+  background-color: var(--surface-raised);
+  background-image: linear-gradient(var(--location), var(--location));
+  background-repeat: no-repeat;
+  background-position: left 0 top var(--s1);
+  background-size: 2px calc(100% - 2 * var(--s1));
+  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-pop);
+}
 [role="treeitem"]:focus-visible > .tree-row { outline: var(--ring); outline-offset: -2px; }
 /* The open file: the location bar (2 px at the left edge, --s1 short of the top and the bottom),
    and the name at the label weight (a weight step that comes with a mark, not on its own). The bar
@@ -278,7 +364,23 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .twisty { display: inline-grid; place-items: center; width: var(--s4); flex: none; color: var(--text-muted); }
 .twisty .icon { width: var(--icon-xs); height: var(--icon-xs); }
+/* A folder's icon takes the badge's width, so folder and file names start on one line. */
 .tree-icon { color: var(--text-secondary); width: var(--icon-md); height: var(--icon-md); }
+.tree-row > .tree-icon { margin-inline-end: calc(var(--badge-w) - var(--icon-md)); }
+/* A file's type as a word (tree.ts fileType): mono, in the secondary tier, in a hairline box. */
+.tree-type {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--badge-w);
+  height: 16px;
+  border-radius: var(--r-badge);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text-secondary);
+  font: var(--w-strong) var(--fs-hint)/16px var(--font-code);
+  letter-spacing: -0.04em;
+}
+.tree-type:empty { box-shadow: none; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--fs-2)/var(--lh-2) var(--font-name); }
 [data-opaque="true"] > .tree-row .tree-name { color: var(--text-muted); }
 .tree-badge { display: inline-grid; color: var(--text-muted); }
@@ -308,6 +410,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .center {
   display: grid;
   grid-template-rows: auto minmax(0, var(--editor-rows, 65fr)) 1px minmax(0, var(--panel-rows, 35fr));
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   background: var(--bg);
@@ -328,19 +431,20 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .editor-area { grid-row: 2; display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
 .center > .splitter { grid-row: 3; }
 .center > .panel { grid-row: 4; }
+/* One column: the sheet's shadow layer (desktop) shares it with the parts it lies under. */
+.center > * { grid-column: 1; }
 .editor-area > .banner { grid-row: 1; }
 .editor-area > .editor-head { grid-row: 2; }
 .editor-area > .editor-panel { grid-row: 3; }
 
-/* The editor head: the open files on the left; the error jump, the runtime state and Run on the
-   right, beside the code they act on. */
-.editor-head { display: flex; align-items: center; gap: var(--s3); height: var(--h-head); min-width: 0; padding-right: var(--s3); background: var(--surface); }
+/* The editor head: the open files on the left, the error jump on the right. */
+.editor-head { display: flex; align-items: center; gap: var(--s3); height: var(--h-head); min-width: 0; padding: 0 var(--s3) 0 var(--s2); background: var(--surface); }
 .workbench[data-open="false"] .editor-head { display: none; }
 .tab-host { flex: 1 1 auto; align-self: stretch; min-width: 0; }
 .head-tools { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; }
-.head-tools .runtime { font-size: var(--fs-2); }
-/* Capture snippet's head button: the 16 px of Run's play icon beside it, so after a failed run it
-   stays quieter than Run's outline in the blurred check too (look gate, 2026-10-21). */
+.topbar .runtime { font-size: var(--fs-2); }
+/* Capture's icon: the 16 px of Run's play icon beside it, so after a failed run it stays quieter
+   than Run's outline in the blurred check too (look gate, 2026-10-21). */
 #snippet-button .icon { width: var(--icon-md); height: var(--icon-md); }
 /* "Error in calc.py, line 2": the error band's fill, a 2 px danger bar, the words at 600. */
 .error-jump {
@@ -380,26 +484,28 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   overflow-y: hidden;
   scrollbar-width: thin;
 }
-.tabs { display: flex; height: 100%; }
-.tab { position: relative; display: flex; align-items: center; flex: none; box-shadow: inset -1px 0 0 var(--border); }
-/* The active tab sits on the code's own ground, with the 2 px location bar along its foot. */
-.tab[data-active="true"] { background: var(--bg); box-shadow: none; }
-.tab[data-active="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--location); }
+/* Ghost pills: the open files as quiet words; the active one lifted onto the chrome's ground with
+   a 1 px inset ring in the control edge (3:1, so the choice never rests on the fill alone) and its
+   name in --text at the label weight. */
+.tabs { display: flex; align-items: center; gap: 2px; height: 100%; }
+.tab { position: relative; display: flex; align-items: center; flex: none; height: var(--tab-h); border-radius: var(--r-control); }
+.tab[data-active="true"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
 .tab-button {
   display: flex;
   align-items: center;
   gap: var(--s2);
   height: 100%;
   /* The inset focus ring (-2 px) clears the last letter of the name. */
-  padding: 0 var(--s2) 0 var(--s3);
+  padding: 0 var(--s1) 0 var(--s3);
   border: 0;
+  border-radius: var(--r-control);
   background: none;
   color: var(--text-secondary);
   font: var(--fs-2)/var(--lh-2) var(--font-name);
   white-space: nowrap;
 }
 .tab-button:focus-visible { outline-offset: -2px; border-radius: var(--r-control); }
-.tab[data-active="true"] .tab-button { color: var(--text); }
+.tab[data-active="true"] .tab-button { color: var(--text); font-weight: var(--w-label); }
 .tab:not([data-active="true"]):hover { background: var(--hover); }
 .tab:not([data-active="true"]):hover .tab-button { color: var(--text); }
 .tab-folder { font-size: var(--fs-hint); color: var(--text-muted); }
@@ -480,7 +586,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   padding: 0 var(--s2) 0 var(--s1);
   background: var(--surface);
 }
-.panel-tabs { display: flex; align-self: stretch; flex: none; }
+.panel-tabs { display: flex; align-items: center; gap: 2px; align-self: stretch; flex: none; }
 .panel-tabs [role="tab"], .view-switch [role="tab"] {
   position: relative;
   display: inline-flex;
@@ -497,9 +603,19 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .panel-tabs [role="tab"]:hover, .view-switch [role="tab"]:hover { color: var(--text); }
 .panel-tabs [role="tab"][aria-selected="true"], .view-switch [role="tab"][aria-selected="true"] { color: var(--text); }
-.panel-tabs [role="tab"][aria-selected="true"]::after,
+/* The panel's tabs are pills like the editor's: the chosen one lifted with its 1 px inset ring. */
+.panel-tabs [role="tab"] { height: var(--tab-h); border-radius: var(--r-control); }
+.panel-tabs [role="tab"]:hover:not([aria-selected="true"]) { background: var(--hover); }
+.panel-tabs [role="tab"][aria-selected="true"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
+/* The phone view switch keeps the 2 px location bar under the chosen view. */
 .view-switch [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; left: var(--s2); right: var(--s2); bottom: 0; height: 2px; background: var(--location); }
 .panel-tabs [role="tab"]:focus-visible, .view-switch [role="tab"]:focus-visible { outline-offset: -2px; }
+/* The ring replaces the lifted tab's edge: drawn over the 1 px --border-strong edge it met that grey
+   (1.29:1 in Signal light), not the bar's ground. */
+.panel-tabs [role="tab"][aria-selected="true"]:focus-visible { box-shadow: none; }
+/* Language and Ln/Col at the panel bar's end (900 px and wider), in the hint tier. */
+.panel-facts { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; padding: 0 var(--s1) 0 var(--s2); color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+.panel-facts:empty { display: none; }
 .count { min-width: 20px; padding: 0 var(--s1); border: 1px solid var(--border-strong); border-radius: var(--r-key); font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui); text-align: center; }
 .count:empty { display: none; }
 .count[data-errors]:not([data-errors="0"]) { color: var(--danger); border-color: var(--danger); }
@@ -773,6 +889,14 @@ button.problem:hover { background: var(--hover); }
   .notice > .icon-btn { grid-area: 1 / 3; }
   .notice-action { grid-area: 2 / 2; justify-self: start; }
 }
+/* In the sidebar's foot (900 px and wider) a notice is a small raised card over the sync status:
+   the words wrap in the column's width, the action on the line below them. */
+.sidebar-foot .notice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; column-gap: var(--s2); row-gap: var(--s1); font-size: var(--fs-2); line-height: var(--lh-2); }
+.sidebar-foot .notice:not([data-empty="true"]) { margin-bottom: var(--s2); padding: var(--s2) var(--s1) var(--s2) var(--s2); border-radius: var(--r-control); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border); }
+.sidebar-foot .notice-icon { grid-area: 1 / 1; padding-top: 1px; }
+.sidebar-foot .notice-text { grid-area: 1 / 2; overflow-wrap: anywhere; }
+.sidebar-foot .notice > .icon-btn { grid-area: 1 / 3; margin: -3px 0; }
+.sidebar-foot .notice-action { grid-area: 2 / 2; justify-self: start; }
 
 /* ------------------------------------------------------------------ menus */
 /* A menu taller or wider than the window scrolls inside itself (focus() scrolls the focused item into view). */
@@ -904,19 +1028,111 @@ button.problem:hover { background: var(--hover); }
 .result-line[data-tone="warning"] .icon { color: var(--warning); }
 .dialog-body .result-line:not(:empty) { margin-top: var(--s3); }
 .dialog-body > .section-title:first-child, .settings-section:first-child > .section-title { margin-top: 0; }
-.settings-section + .settings-section { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); }
-.field { display: flex; flex-direction: column; gap: var(--s1); }
-.field > label, .field-label { font-weight: var(--w-label); }
-.field-label { margin: 0; }
-/* Number fields are as wide as their numbers (and the browser's stepper), not the column. */
-.field > input[type="number"] { align-self: flex-start; width: calc(8ch + var(--s6)); }
-.field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: var(--s3); margin: var(--s3) 0; }
+.settings-section + .settings-section { margin-top: var(--s5); padding-top: var(--s5); border-top: 1px solid var(--border); }
+.field-label { margin: 0; font-weight: var(--w-label); }
 .field-note { margin: 2px 0 0; color: var(--text-muted); font-size: var(--fs-hint); }
 .field-note[data-tone="error"] { color: var(--danger); }
-.check { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s2); align-items: center; margin: var(--s2) 0; }
-.check .field-note { grid-column: 2; }
-.check-row { display: flex; flex-wrap: wrap; column-gap: var(--s5); }
 .row-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
+
+/* ------------------------------------------------------------------ Settings (two panes) */
+/* From 700 px: the sections list on the left, the settings in one scroller on the right, the foot
+   (version, legal line) across both; one column below that, the sections a row of buttons. */
+.settings-dialog.dialog { width: min(920px, calc(100vw - 32px)); height: min(720px, calc(100dvh - 32px)); max-height: none; }
+.settings-dialog[open] { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+.settings-dialog > .dialog-head { grid-column: 1 / -1; }
+.settings-dialog > .dialog-body { position: relative; grid-row: 2; grid-column: 2; padding: var(--s1) var(--s5) var(--s5); }
+.settings-dialog > .settings-nav { grid-row: 2; grid-column: 1; display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; padding: var(--s1) var(--s2) var(--s3) var(--s3); }
+.settings-dialog > .settings-foot { grid-column: 1 / -1; }
+.settings-nav-btn {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: var(--h-row);
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: var(--r-row);
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-1);
+  text-align: left;
+  white-space: nowrap;
+}
+.settings-nav-btn:hover { background: var(--hover); color: var(--text); }
+.settings-nav-btn:focus-visible { outline-offset: -2px; }
+/* The section in view: lifted with the inset ring, like a chosen tree row, its name in --text at 500. */
+.settings-nav-btn[aria-current="true"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text); font-weight: var(--w-label); }
+.settings-section > .section-title { margin: 0 0 var(--s3); }
+.settings-section > .section-title:focus { outline: none; }
+.settings-section > .section-title:focus-visible { outline: var(--ring); outline-offset: 2px; border-radius: var(--r-key); }
+/* A setting: its label and note on the left, its control on the right, rows apart by hairlines. */
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--s5); min-height: 48px; padding: var(--s2) 0; }
+.setting + .setting { border-top: 1px solid var(--border); }
+.setting-text { min-width: 0; }
+.setting-label { display: block; font-weight: var(--w-label); }
+.setting-control { display: flex; justify-content: flex-end; min-width: 0; }
+.setting-control select { max-width: min(320px, 100%); }
+/* Number fields are as wide as their numbers, not the column. */
+.setting-control input[type="number"] { width: calc(8ch + var(--s6)); }
+.settings-section > .field-note + .row-actions { margin-top: var(--s3); }
+.settings-section > .row-actions + .setting { margin-top: var(--s3); border-top: 1px solid var(--border); }
+/* The code font size: - value +, one control; the field typable, its own spin buttons hidden. */
+.stepper { display: inline-flex; align-items: center; gap: 0; border-radius: var(--r-control); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.stepper input[type="number"] { width: 6ch; min-height: var(--field-h); padding: 0; border: 0; border-radius: 0; background: transparent; text-align: center; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; }
+.stepper input[type="number"]::-webkit-inner-spin-button, .stepper input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper input[type="number"]:focus-visible { outline-offset: -2px; border-radius: var(--r-key); }
+.step-btn { width: var(--field-h); height: var(--field-h); color: var(--text-secondary); }
+.step-btn:disabled { color: var(--text-muted); background: none; opacity: 0.6; cursor: not-allowed; }
+.step-btn .icon { width: var(--icon-md); height: var(--icon-md); }
+/* A switch: a checkbox drawn as a track and a knob. On: the track in --control-on and the knob at
+   the end, so the state is told by place as well as colour; off: an outlined track. input.switch
+   outranks the checkbox's own 18 px size above. */
+input.switch {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  transition: background-color var(--dur), border-color var(--dur);
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform var(--dur);
+}
+.switch:checked { border-color: var(--control-on); background: var(--control-on); }
+.switch:checked::before { background: var(--on-action); transform: translateX(16px); }
+.switch:focus-visible { outline: var(--ring); outline-offset: 2px; }
+/* A 24 px target around the 20 px track: the row's label is a target too. */
+.setting-control input.switch { margin: 2px 2px 2px 0; }
+.danger-box { padding: var(--s3) var(--s4); border-radius: var(--r-control); box-shadow: inset 0 0 0 1px var(--danger); }
+.danger-text { margin: 0; color: var(--text); }
+/* The foot: the version (when the versions unit fills it) and the legal line, under a rule. */
+.settings-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: var(--s4); row-gap: var(--s1); padding: var(--s3) var(--s5); box-shadow: inset 0 1px 0 var(--divider); }
+.settings-foot > p { margin: 0; }
+.settings-version { color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+@media (max-width: 699px) {
+  .settings-dialog[open] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .settings-dialog > .settings-nav { grid-row: 2; grid-column: 1; flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 0 var(--s4) var(--s2); scrollbar-width: none; box-shadow: inset 0 -1px 0 var(--divider); }
+  .settings-dialog > .dialog-body { grid-row: 3; grid-column: 1; padding: var(--s4); }
+  .settings-nav-btn { padding: 0 var(--s3); }
+  .setting { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s3); }
+  /* A select keeps its own line under its label on a phone: its options are long. */
+  .setting:has(select) { grid-template-columns: minmax(0, 1fr); row-gap: var(--s2); }
+  .setting:has(select) .setting-control { justify-content: flex-start; }
+  .settings-foot { padding: var(--s3) var(--s4); }
+}
 
 /* Themes as tiles: the radio, the name and a preview in that theme's own colours (custom
    properties set on each tile by theme-picker.ts; only var(--tile-*) is painted here). The list is
@@ -1009,10 +1225,20 @@ button.problem:hover { background: var(--hover); }
    children's grounds inside the corners without making a scroll container. Phones (below 900 px)
    keep their full-bleed layout. */
 @media (min-width: 900px) {
-  .topbar { border-bottom: 0; }
-  .statusbar { box-shadow: none; }
-  .main, .center { background: var(--surface); }
-  .center { padding: 0 var(--sheet-gap) var(--sheet-gap) 0; }
+  /* The status bar's facts live in the panel bar and the sidebar's foot here (layout.ts place()). */
+  .statusbar { display: none; }
+  .main, .work, .center { background: var(--surface); }
+  .center { position: relative; padding: 0 var(--sheet-gap) var(--sheet-gap) 0; }
+  /* One soft shadow under the whole sheet (light themes; --shadow-pop is none in dark ones), drawn
+     once behind it, never on the editor itself: static, so typing never repaints it. */
+  .center::before {
+    content: "";
+    grid-row: 2 / -1;
+    grid-column: 1;
+    border-radius: var(--r-sheet);
+    box-shadow: var(--shadow-pop);
+    pointer-events: none;
+  }
   .editor-area {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -1030,6 +1256,8 @@ button.problem:hover { background: var(--hover); }
   .workbench[data-files="none"] .editor-area { border-bottom: 1px solid var(--border); border-radius: var(--r-sheet); }
   /* The editor head is part of the sheet: the code's ground, a --border rule under it. */
   .editor-head { background: var(--bg); border-bottom: 1px solid var(--border); }
+  /* The panel's bar too: the code's ground (the splitter above it is the rule). */
+  .panel-bar { background: var(--bg); padding: 0 var(--s2); }
 }
 
 /* ------------------------------------------------------------------ touch */
@@ -1049,6 +1277,11 @@ button.problem:hover { background: var(--hover); }
 .drawer-scrim { display: none; }
 @media (max-width: 899px) {
   .topbar { gap: var(--s1); padding: 0 var(--s1); }
+  .topbar-start { flex: 1 1 auto; gap: var(--s1); }
+  .topbar-end { flex: none; gap: var(--s1); min-width: 0; }
+  /* The drawer has no foot here: its notices, sync status and Settings are in the top bar and the
+     status bar. */
+  .sidebar-foot { display: none; }
   /* Edge-docked controls draw their focus ring inside, so no side is cut off by the window edge. */
   .topbar :focus-visible, .view-switch :focus-visible { outline-offset: -2px; }
   /* Run's fill would touch its inset ring (brass on the spruce fill: 1.6:1 light, 1.16:1 dark): a
@@ -1056,31 +1289,22 @@ button.problem:hover { background: var(--hover); }
      so the ring meets the bar's ground on both sides (focus on surface, a checked pair in every
      theme). Stop and the stepped-back Run have no fill: the band is the ground they already show. */
   .topbar .btn.primary:focus-visible { box-shadow: inset 0 0 0 3px var(--surface); }
+  /* Capture lives in the editor head here, moved by layout.ts at the next frame: hidden in the top bar
+     at once, so a dialog closing as the window narrows never gives focus back to it there. */
+  .topbar-end > .capture-btn { display: none; }
   .drawer-toggle { display: inline-grid; }
   .palette-btn { padding: 0; }
   .palette-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
   .palette-btn-label { display: none; }
-  .brand { display: none; }
-  .crumb { margin: 0 0 0 var(--s1); flex: 0 1 auto; }
-  .crumb > .crumb-root, .crumb > .crumb-dir, .crumb-file > .crumb-sep { display: none; }
-  .crumb > .crumb-file { min-width: 52px; font-weight: var(--w-label); }
+  .crumb { padding: 0 0 0 var(--s1); flex: 0 1 auto; }
+  .crumb > .crumb-dir, .crumb-file > .crumb-sep { display: none; }
+  .crumb > .crumb-file { min-width: 52px; }
   /* No tab strip here: the file name shows unsaved typing as a tab does, a dot and italics. The dot
      sits in the gap after the name (the bar's gaps and the next control's padding leave 12 px or
      more), so the top bar never reflows while typing toggles it. */
   .crumb > .crumb-file { position: relative; }
   .crumb-file[data-dirty="true"] .crumb-text { font-style: italic; }
   .crumb-file[data-dirty="true"] .dirty-dot { display: block; position: absolute; left: calc(100% + var(--s1)); top: calc(50% - var(--s1)); pointer-events: none; }
-  .drawer-brand {
-    display: flex;
-    align-items: center;
-    gap: var(--s2);
-    flex: none;
-    height: var(--h-head);
-    padding: 0 var(--s3);
-    border-bottom: 1px solid var(--divider);
-    font-weight: var(--w-strong);
-    white-space: nowrap;
-  }
   .main { grid-template-columns: minmax(0, 1fr); }
   .main > .splitter, .center > .splitter { display: none; }
   .sidebar {
@@ -1133,7 +1357,7 @@ button.problem:hover { background: var(--hover); }
   .exc-what { grid-column: 2; grid-row: 1; }
   .exc-where { grid-column: 2; grid-row: 2; }
   .exc-go { grid-column: 3; grid-row: 1 / 3; }
-  .status-btn span, #status-pos { display: none; }
+  .status-btn-label, #status-pos { display: none; }
   .editor-empty { padding: var(--s5) var(--s4); }
   .statusbar { flex-wrap: wrap; gap: var(--s1) var(--s3); }
 }
@@ -1169,8 +1393,12 @@ button.problem:hover { background: var(--hover); }
 @media (max-height: 420px) {
   body { overflow: auto; }
   body:has(.workbench[data-drawer="open"]) { overflow: hidden; }
-  .workbench { height: auto; min-height: 100dvh; grid-template-rows: var(--h-topbar) auto auto; }
-  .main { height: max(calc(100dvh - var(--h-topbar)), 360px); }
+  .workbench { height: auto; min-height: 100dvh; grid-template-rows: auto auto; }
+  .main { height: max(100dvh, calc(var(--h-topbar) + 360px)); }
+  /* The drawer's switcher and quick actions alone filled a 200 px window (400% zoom of 1280 x 800),
+     cutting off the Files head and the tree: here the drawer scrolls as one column instead. */
+  .sidebar { overflow-y: auto; overscroll-behavior: contain; }
+  .sidebar > .tree-host { flex: none; min-height: auto; overflow: visible; contain: none; }
 }
 
 /* ------------------------------------------------------------------ forced colours */
@@ -1183,9 +1411,10 @@ button.problem:hover { background: var(--hover); }
    The tokens named are only what the browser replaces. Every mark keeps its shape, so none is told
    by colour alone. */
 @media (forced-colors: active) {
-  .tab[data-active="true"]::after,
-  .panel-tabs [role="tab"][aria-selected="true"]::after,
   .view-switch [role="tab"][aria-selected="true"]::after { border-bottom: 2px solid var(--location); }
+  /* The chosen editor and panel tab pills: their inset ring becomes an outline. */
+  .tab[data-active="true"], .panel-tabs [role="tab"][aria-selected="true"] { outline: 2px solid var(--location); outline-offset: -2px; }
+  .palette-btn, .capture-btn { border: 1px solid var(--border-strong); }
   .tree-row { position: relative; }
   [role="treeitem"][aria-current="true"] > .tree-row::before {
     content: ""; position: absolute; left: 0; top: var(--s1); bottom: var(--s1); width: 2px; border-left: 2px solid var(--location);

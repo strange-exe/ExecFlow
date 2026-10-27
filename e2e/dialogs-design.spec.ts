@@ -312,8 +312,10 @@ for (const scheme of ["light", "dark"] as const) {
     for (const p of await confirm.locator(".dialog-body p").all()) expect(await color(p)).toBe(text);
     await page.keyboard.press("Escape");
 
-    // Chrome text on its own line heights (tier 2: 13 / 18 px since the Signal round).
-    expect(await page.locator(".region-title").first().evaluate((e) => getComputedStyle(e).lineHeight)).toBe("18px");
+    // Chrome text on its own line heights. The command field is tier 2 (--fs-2 / --lh-2: 13 / 18 px);
+    // the sidebar's "Files" label is tier 3 since the 0.7.0 shell (--fs-hint / --lh-hint: 12 / 16 px,
+    // app.css .region-title), under the workspace and the quick actions.
+    expect(await page.locator(".region-title").first().evaluate((e) => `${getComputedStyle(e).fontSize} / ${getComputedStyle(e).lineHeight}`)).toBe("12px / 16px");
     expect(await page.locator("#palette-button").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("18px");
   });
 }

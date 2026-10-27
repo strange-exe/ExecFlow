@@ -2039,6 +2039,18 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     );
   }
   L.paletteButton.addEventListener("click", () => openPalette("all", L.paletteButton));
+  // The sidebar's quick actions: the same palette, the Flowchart tab (its view on phones, where the
+  // drawer closes to show it), and a new file's name field in the tree.
+  L.quick.search.addEventListener("click", () => openPalette("all", L.quick.search));
+  L.quick.flowchart.addEventListener("click", () => {
+    if (L.narrow()) {
+      L.closeDrawer(false);
+      L.showView("flowchart");
+      L.viewTabs.flowchart.focus();
+    } else L.showPanelTab("flowchart", true);
+  });
+  L.quick.newFile.addEventListener("click", () => startCreate("file"));
+  for (const type of ["pointerover", "focusin"]) L.quick.search.addEventListener(type, () => prefetchPalette(), { once: true });
   // Fetched on the first sign of intent, so the chunk is usually there by the time it opens. Not while
   // offline: a prefetch is only a hint, and without the service worker's copy it can only fail (a
   // Ctrl+S offline once started a download that failed); opening the palette still loads it.
@@ -2196,13 +2208,14 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       void refreshSyncCount();
     },
   });
-  // The breadcrumb starts with the workspace, or with the repository once one is connected (one
-  // name for one thing).
+  // The sidebar starts with the workspace, or with the repository once one is connected (one name
+  // for one thing), and where it lives.
   function renderWorkspaceName() {
     L.wsName.textContent = record.name;
     L.wsName.hidden = Boolean(record.remote);
     L.repoName.hidden = !record.remote;
     L.repoName.textContent = record.remote ? `${record.remote.owner}/${record.remote.repo}` : "";
+    L.wsOwner.textContent = record.remote ? "On GitHub" : "On this computer";
   }
   renderWorkspaceName();
   void refreshSyncCount();

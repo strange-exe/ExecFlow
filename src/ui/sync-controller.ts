@@ -382,7 +382,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       phase = "needs-choice";
       error = null;
       if (e instanceof FirstConnectCancelled) {
-        host.notice.show(`Nothing was synced. Choose Sync in the top bar when you're ready to combine the files.${lost}`, { tone: "info" });
+        host.notice.show(`Nothing was synced. Choose the sync status when you're ready to combine the files.${lost}`, { tone: "info" });
       } else {
         host.notice.show(`Some files differ between this computer and ${repo}. Choose how to combine them to start syncing.`, {
           tone: "warning",
@@ -797,14 +797,14 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     if (!host.tab.canWrite()) return READ_ONLY_SHARE;
     if (!client) {
       return authKind() === "app"
-        ? "Your GitHub sign-in has ended on this device, so sign in again (Sync status in the top bar), then share."
-        : "This tab has no GitHub token, so enter it again (Sync status in the top bar), then share.";
+        ? "Your GitHub sign-in has ended on this device, so sign in again (the sync status), then share."
+        : "This tab has no GitHub token, so enter it again (the sync status), then share.";
     }
     if (!navigator.onLine) return "This device is offline, so it can't sync now. Try again once you're online.";
     await host.flushSaves().catch(() => {});
     await scheduler.request("button");
     if (phase === "offline") return "This device is offline, so it can't sync now. Try again once you're online.";
-    if (phase === "needs-choice") return "Some files differ between this computer and the repository: choose how to combine them (Sync status in the top bar), then share.";
+    if (phase === "needs-choice") return "Some files differ between this computer and the repository: choose how to combine them (the sync status), then share.";
     if (phase === "failed" || phase === "needs-token") return `The sync failed: ${error ?? "try again."}`;
     return null;
   }

@@ -649,6 +649,11 @@ test("run results are read out, and the run state is beside Run", async ({ page 
   await expect(page.locator("[data-announcer]")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("[data-announcer]")).toHaveText(/Finished/);
   await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready");
-  // In the editor head, right before Run (desktop).
-  await expect(page.locator(".editor-head .head-tools > #status-runtime + #run-button")).toBeVisible();
+  // At the top bar's end with Run (desktop, the 0.7.0 shell): the runtime words, Capture, then Run.
+  const runtime = page.locator(".topbar .topbar-end > #status-runtime");
+  await expect(runtime).toBeVisible();
+  await expect(page.locator(".topbar .topbar-end > #status-runtime ~ #run-button")).toBeVisible();
+  const [state, runBox] = [(await runtime.boundingBox())!, (await page.locator("#run-button").boundingBox())!];
+  expect(state.x + state.width, "the run state is left of Run").toBeLessThanOrEqual(runBox.x);
+  expect(Math.abs(state.y + state.height / 2 - (runBox.y + runBox.height / 2)), "on Run's line").toBeLessThan(4);
 });

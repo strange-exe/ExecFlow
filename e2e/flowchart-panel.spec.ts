@@ -108,7 +108,9 @@ test("a size the student sets afterwards is theirs, until it is below the thresh
   expect(await remembered(page)).toBe(dragged);
 });
 
-for (const height of [400, 560]) {
+// 530, not 560, since the 0.7.0 shell: the desktop status bar's 28 px went to the rows, so a 560 px
+// window now has room for the full 55 percent and no longer reaches the 220 px floor.
+for (const height of [400, 530]) {
   test(`a ${height} px window grows the panel only as far as leaves the editor its 220 px`, async ({ page }) => {
     await page.setViewportSize({ width: 1200, height });
     await start(page);
@@ -117,7 +119,7 @@ for (const height of [400, 560]) {
     const rows = await page.evaluate(() => document.getElementById("editor-area")!.getBoundingClientRect().height + document.getElementById("panel")!.getBoundingClientRect().height);
     const editorBefore = (await page.locator("#editor-area").boundingBox())!.height;
     // 400 px is a short window (the page scrolls, the main area keeps 360 px; app.css): about 350 px
-    // of rows, so the panel grows only to 36 percent. 560 px grows it further, still under 55.
+    // of rows, so the panel grows only to 36 percent. 530 px grows it further, still under 55.
     const want = Math.floor(((rows - 220) / rows) * 100);
     const expected = want > 35 ? Math.min(55, want) : 35;
     expect(expected, `rows ${rows}`).toBeGreaterThan(35);

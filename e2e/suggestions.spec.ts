@@ -592,7 +592,8 @@ test("Suggestions while typing: off, typing opens no list but Ctrl+Space does, a
 
   await page.locator("#settings-button").click();
   const settings = page.getByRole("dialog", { name: "Settings" });
-  const box = settings.getByRole("checkbox", { name: "Suggestions while typing" });
+  // A switch since the 0.7.0 Settings (role=switch on the same checkbox input).
+  const box = settings.getByRole("switch", { name: "Suggestions while typing" });
   await expect(box).toBeChecked();
   await expect(box).toHaveAccessibleDescription("Ctrl+Space always shows them.");
   await box.uncheck();

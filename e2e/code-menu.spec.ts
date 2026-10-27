@@ -56,6 +56,11 @@ const counter = async (page: Page, name: "codeMenus" | "codeMenuResults") => Num
 const isMacPage = (page: Page) => page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform));
 const codeMenu = (page: Page) => page.locator("#code-menu");
 const line = (page: Page, n: number) => page.locator(".cm-line").nth(n - 1);
+/**
+ * The drawn selection: the app's own layer (src/editor/selection-layer.ts). CodeMirror's layer is
+ * still in the DOM with the same class, but hidden (highlight.ts), so a bare class counts double.
+ */
+const BANDS = ".ce-selection-layer .cm-selectionBackground";
 
 /** A point inside line n's text, `col` characters in (the code font's 0 is 9 px at 15 px). */
 async function pointIn(page: Page, n: number, col = 4) {
@@ -104,7 +109,7 @@ async function selectionIntact(page: Page, text = LINES_2_3, pos = "Ln 4, Col 1"
   await expect(page.locator("#status-pos")).toHaveText(pos);
   for (const n of lines) {
     const l = await box(line(page, n));
-    const covered = await page.locator(".cm-selectionBackground").evaluateAll(
+    const covered = await page.locator(BANDS).evaluateAll(
       (els, y) => els.some((e) => {
         const r = e.getBoundingClientRect();
         return r.width > 0 && r.top <= y && r.bottom >= y;
@@ -146,10 +151,10 @@ test("C1: a right-click inside the selection opens the code menu: its items, key
 test("C2: with the editor unfocused, a right-click on the drawn selection keeps it and opens the menu", async ({ page }) => {
   await fixture(page);
   // Focus elsewhere, and the page's selection out of the code too (as after a click elsewhere): only
-  // CodeMirror's own state still holds lines 2 to 3, drawn by its selection layer.
+  // CodeMirror's own state still holds lines 2 to 3, drawn by the app's selection layer.
   await page.locator("#run-button").focus();
   await page.evaluate(() => getSelection()?.removeAllRanges());
-  await expect(page.locator(".cm-selectionBackground").first()).toBeAttached();
+  await expect(page.locator(BANDS).first()).toBeVisible();
   // The press guard cancels the right button's mousedown on the selection; this window listener runs
   // after every other one (CodeMirror cancels no right-button press). With only its focus() kept, the
   // rest of this test still passed in every engine.
@@ -228,7 +233,7 @@ test("C4: several ranges: any selected range opens the menu, Capture spans them,
   await page.mouse.click(caret.x, caret.y);
   await page.keyboard.press(`${MOD}+D`);
   await page.keyboard.press(`${MOD}+D`);
-  await expect(page.locator(".cm-selectionBackground")).toHaveCount(2);
+  await expect(page.locator(BANDS)).toHaveCount(2);
   await expect(page.locator("#status-pos"), "the main range is still the one on line 2").toHaveText(/^Ln 2,/);
   const at = await pointIn(page, 5, 7);
   await clearRecords(page);
@@ -245,9 +250,9 @@ test("C4: several ranges: any selected range opens the menu, Capture spans them,
   // Both ranges are still drawn, on lines 2 and 5.
   for (const n of [2, 5]) {
     const l = await box(line(page, n));
-    expect(await page.locator(".cm-selectionBackground").evaluateAll((els, y) => els.some((e) => {
+    expect(await page.locator(BANDS).evaluateAll((els, y) => els.some((e) => {
       const r = e.getBoundingClientRect();
-      return r.top <= y && r.bottom >= y;
+      return r.width > 0 && r.top <= y && r.bottom >= y;
     }), l.y + l.height / 2), `range on line ${n}`).toBe(true);
   }
 
@@ -407,10 +412,12 @@ test("C12: focus and selection: Escape, Tab, a click elsewhere, Select all; hove
 
   await page.keyboard.press("Shift+F10");
   await expect(codeMenu(page)).toBeVisible();
-  const status = await box(page.locator(".statusbar"));
-  await page.mouse.click(status.x + 4, status.y + status.height / 2);
+  // Elsewhere: the panel bar's facts (the language and Ln/Col, the status bar's place before 0.7.0),
+  // plain text that takes no focus.
+  const facts = await box(page.locator(".panel-facts"));
+  await page.mouse.click(facts.x + 4, facts.y + facts.height / 2);
   await expect(codeMenu(page)).toHaveCount(0);
-  await expect(page.locator(".cm-selectionBackground").first()).toBeAttached();
+  await expect(page.locator(BANDS).first()).toBeVisible();
   await expect(page.locator("#status-pos")).toHaveText("Ln 4, Col 1");
 
   // Hover: the row under the pointer takes focus; Enter acts on it. (Focus left the code with the

@@ -92,7 +92,7 @@ test("C++ with several files in its own folder, and a sibling with its own main(
   test.setTimeout(240_000);
   await openApp(page);
   const create = async (path: string, text: string) => {
-    await page.locator(".tree-host").click({ position: { x: 20, y: 500 } });
+    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
     await page.locator("#new-file").click();
     const field = page.getByRole("textbox", { name: /Name of the new file/ });
     await field.fill(path);

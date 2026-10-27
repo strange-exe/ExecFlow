@@ -119,6 +119,20 @@ describe("built-in themes", () => {
     expect(paint.colors?.bg).toBe("#1a1b26");
   });
 
+  // The owner's "heavy solid blue band" (0.7.0): every theme's selection is translucent, so it reads
+  // as a tint over the code ground, never as a solid fill; its strength stays a tint too (the
+  // selected text keeps its contrast through the contrast contract, contrast.ts).
+  it.each(BUILT_IN.flatMap((t) => (t.system ? (["light", "dark"] as const).map((s) => [t.id, s] as const) : [[t.id, t.scheme] as const])))(
+    "%s (%s): the selection is a translucent tint",
+    (id, scheme) => {
+      const { selection } = themePalette(byId(id), scheme).palette;
+      expect(selection, "#rrggbbaa").toMatch(/^#[0-9a-f]{8}$/);
+      const a = parseInt(selection.slice(7), 16) / 255;
+      expect(a).toBeGreaterThan(0.08);
+      expect(a).toBeLessThanOrEqual(0.36);
+    },
+  );
+
   it("a device that saved Slate's 'match device' (an old default) stays on Slate; nothing saved gets Signal", () => {
     vi.stubGlobal("localStorage", memoryStorage({ [CHOSEN_KEY]: "system" }));
     expect(chosenTheme()).toMatchObject({ id: "system", own: "slate", system: true });

@@ -110,7 +110,8 @@ describe("type, shape and desktop heights (redesign 2, option a)", () => {
 
   it("roomier bars on desktop only (a fine pointer, 900 px and wider); touch and phones keep their 44 px targets", () => {
     expect(block("@media (min-width: 900px) and (pointer: fine) {\n  :root {")).toEqual({
-      "--h-topbar": "48px", "--h-head": "44px", "--h-panel-bar": "40px", "--h-row": "30px", "--h-status": "28px", "--tool": "30px", "--primary-h": "32px",
+      // 0.7.0 (direction B, Calm): rows 28 px, the tree's and the quick actions'.
+      "--h-topbar": "48px", "--h-head": "44px", "--h-panel-bar": "40px", "--h-row": "28px", "--h-status": "28px", "--tool": "30px", "--primary-h": "32px",
     });
     expect(block("@media (pointer: coarse), (max-width: 899px) {\n  :root {")).toMatchObject({ "--h-row": "44px", "--tool": "44px", "--primary-h": "44px" });
   });

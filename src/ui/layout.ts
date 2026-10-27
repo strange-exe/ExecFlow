@@ -1,9 +1,12 @@
-// The workbench skeleton (layout v2): the top bar with the breadcrumb, the file sidebar, the editor
-// column (an editor head holding the tabs, the error jump, the runtime state, Run and Capture snippet; the editor;
-// the bottom panel with Output and Problems) and one status bar that also hosts notices, on one
-// grid with shared edges and the height tokens of tokens.css. Below 900 px the sidebar becomes a
-// drawer, one Code / Output / Problems switch replaces the panel's tabs, the tab strip is hidden
-// (files switch in the drawer), Run moves to the top bar and the runtime state to the status bar.
+// The workbench skeleton (0.7.0, direction B "Calm"): a full-height file sidebar (the workspace,
+// quick actions, the tree, and a foot with notices, the sync status, Shortcuts and Settings), and
+// the editor column: a top bar over it only (the breadcrumb, "Search or run a command", the runtime
+// state, Capture and Run), then the editor (an editor head with the tabs and the error jump) and
+// the bottom panel (Output, Problems, Flowchart; the language and Ln/Col at its bar's end) on one
+// sheet, with the height tokens of tokens.css. Below 900 px the sidebar becomes a drawer, one Code
+// / Output / Problems / Flowchart switch replaces the panel's tabs, the tab strip is hidden (files
+// switch in the drawer), and the top bar holds Files, the file's name, Search, the sync status, Run
+// and Settings over a status bar with the facts and the notices.
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
@@ -49,11 +52,15 @@ export interface Layout {
   drawerToggle: HTMLButtonElement;
   wsName: HTMLElement;
   repoName: HTMLElement;
+  /** Under the workspace's name: where it lives ("On this computer", "On GitHub"). */
+  wsOwner: HTMLElement;
+  /** The sidebar's quick actions (Search, Flowchart, New file): workbench.ts gives them their work. */
+  quick: { search: HTMLButtonElement; flowchart: HTMLButtonElement; newFile: HTMLButtonElement };
   syncSlot: HTMLElement;
   runButton: HTMLButtonElement;
   runLabel: HTMLElement;
   settingsButton: HTMLButtonElement;
-  /** "Search files and commands": opens the command palette (workbench.ts). */
+  /** "Search or run a command": opens the command palette (workbench.ts). */
   paletteButton: HTMLButtonElement;
   sidebar: HTMLElement;
   sidebarActions: HTMLElement;
@@ -66,7 +73,7 @@ export interface Layout {
   /** "Error in calc.py, line 2" in the editor head: hidden until a run fails in another file. */
   errorJump: HTMLButtonElement;
   errorJumpWords: HTMLElement;
-  /** Capture snippet of the selected lines: the editor head's last control, after Run (desktop only: phones have no head). */
+  /** Capture snippet of the selected lines: in the top bar before Run (desktop only: phones reach it from the code menu). */
   snippetButton: HTMLButtonElement;
   editorPanel: HTMLElement;
   editorHost: HTMLElement;
@@ -84,7 +91,7 @@ export interface Layout {
   chartVisible(): boolean;
   /** Called whenever chartVisible() may have changed. */
   onChartVisibleChange(listener: (visible: boolean) => void): void;
-  /** The notice slot in the status bar. */
+  /** The notice slot: in the sidebar's foot from 900 px, in the status bar below. */
   noticeHost: HTMLElement;
   status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement };
   viewTabs: { code: HTMLButtonElement; output: HTMLButtonElement; problems: HTMLButtonElement; flowchart: HTMLButtonElement; count: HTMLElement };
@@ -117,56 +124,74 @@ export function createLayout(root: HTMLElement): Layout {
   const narrowQuery = matchMedia(NARROW);
   const shortQuery = matchMedia(SHORT);
 
+  const mod = isMac() ? "Cmd" : "Ctrl";
   // ---------------------------------------------------------------- top bar
   const drawerToggle = h("button", { type: "button", class: "icon-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "false", "aria-controls": "sidebar", title: "Files" }, icon("sidebar-simple"));
-  const wsName = h("span", { class: "crumb-text ws-name", id: "ws-name" }, "Workspace");
-  const repoName = h("span", { class: "crumb-text repo-name", id: "repo-name" });
-  repoName.hidden = true;
-  // The breadcrumb: the workspace (or the repository, once connected), then the open file's folders
-  // and its name. Text, not links; the carets between the segments are decorative. Phones show the
-  // file name only.
-  const crumbRoot = h("li", { class: "crumb-root" }, wsName, repoName);
-  const crumb = h("ol", { class: "crumb", "aria-label": "Open file" }, crumbRoot);
+  // The breadcrumb: the open file's folders (the secondary tier) and its name (the name font, in
+  // --text). Text, not links; the carets between the segments are decorative. The workspace's name
+  // heads the sidebar instead. Phones show the file name only.
+  const crumb = h("ol", { class: "crumb", "aria-label": "Open file" });
   const syncSlot = h("div", { class: "sync-slot", id: "sync-slot" });
   const runLabel = h("span", { class: "run-label" }, "Run");
   // The shortcut is in the tooltip and aria-keyshortcuts (workbench.ts setRunning), not in the fill.
   const runButton = h("button", { type: "button", class: "btn primary run", id: "run-button", "data-running": "false", "aria-keyshortcuts": "Control+Enter", title: "Run (Ctrl+Enter)" }, h("span", { class: "run-icon" }, icon("play-fill")), runLabel);
   const settingsButton = h("button", { type: "button", class: "icon-btn", id: "settings-button", "aria-label": "Settings", title: "Settings" }, icon("gear"));
-  // The command palette's visible way in (Ctrl+P, F1 and Ctrl+Shift+P are its keys): quiet, in the
-  // sync status's tier; the word "Search" gives way to the icon below 900 px. Its name keeps the
-  // visible word first (WCAG 2.5.3).
+  // The command palette's visible way in (Ctrl+P, F1 and Ctrl+Shift+P are its keys): a field-like
+  // button in the middle of the top bar, its words and its key on it; below 900 px it is the
+  // magnifier alone (44 px). Named by its words (WCAG 2.5.3); the keycap is shown, not read
+  // (aria-keyshortcuts says it).
   const paletteButton = h(
     "button",
     {
-      type: "button", class: "palette-btn", id: "palette-button", "aria-label": "Search files and commands", "aria-haspopup": "dialog",
-      "aria-keyshortcuts": "Control+P Control+Shift+P F1", title: "Search files and commands (Ctrl+P)",
+      type: "button", class: "palette-btn", id: "palette-button", "aria-label": "Search or run a command", "aria-haspopup": "dialog",
+      "aria-keyshortcuts": "Control+P Control+Shift+P F1", title: `Search or run a command (${mod}+P)`,
     },
     icon("magnifying-glass"),
-    h("span", { class: "palette-btn-label" }, "Search"),
+    h("span", { class: "palette-btn-label" }, "Search or run a command"),
+    h("kbd", { class: "keycap palette-key", "aria-hidden": "true" }, `${mod} P`),
   );
-  const topbar = h(
-    "header",
-    { class: "topbar" },
-    drawerToggle,
-    h("div", { class: "brand" }, brandMark(), h("span", { class: "brand-name" }, "CodeEditor")),
-    crumb,
-    h("div", { class: "topbar-spacer" }),
-    paletteButton,
-    syncSlot,
-    settingsButton,
-  );
+  // Two ends with the field between them; place() moves what each end holds at 900 px.
+  const topStart = h("div", { class: "topbar-start" }, drawerToggle, crumb);
+  const topEnd = h("div", { class: "topbar-end" });
+  const topbar = h("header", { class: "topbar" }, topStart, paletteButton, topEnd);
 
   // ---------------------------------------------------------------- sidebar
+  // The workspace at the top: the app's mark as its tile, its name (or the repository's, once
+  // connected) and where it lives. A heading, not a menu: there is one workspace.
+  const wsName = h("span", { class: "ws-name", id: "ws-name" }, "Workspace");
+  const repoName = h("span", { class: "ws-name repo-name", id: "repo-name" });
+  repoName.hidden = true;
+  const wsOwner = h("span", { class: "ws-owner" }, "On this computer");
+  const switcher = h("div", { class: "ws-switcher" }, brandMark(), h("p", { class: "ws-text" }, h("strong", { class: "ws-title" }, wsName, repoName), wsOwner));
+  // Quick actions, each with its real key where it has one (none is made up for the others).
+  const quickButton = (id: string, iconName: Parameters<typeof icon>[0], label: string, keys?: string) =>
+    h(
+      "button",
+      { type: "button", class: "quick-btn", id, ...(keys ? { "aria-keyshortcuts": "Control+P" } : {}) },
+      icon(iconName),
+      h("span", { class: "quick-label" }, label),
+      keys ? h("kbd", { class: "keycap", "aria-hidden": "true" }, keys) : null,
+    );
+  const quick = {
+    search: quickButton("quick-search", "magnifying-glass", "Search", `${mod} P`),
+    flowchart: quickButton("quick-flowchart", "tree-structure", "Flowchart"),
+    newFile: quickButton("quick-new-file", "plus", "New file"),
+  };
+  const quickActions = h("div", { class: "quick-actions" }, quick.search, quick.flowchart, quick.newFile);
   const sidebarActions = h("div", { class: "sidebar-actions" });
   const treeHost = h("div", { class: "tree-host" });
+  // The foot (900 px and wider): notices over the sync status, Shortcuts and Settings; below that
+  // they live in the top bar and the status bar, and the foot is empty (place()).
+  const footRow = h("div", { class: "sidebar-foot-row" });
+  const sidebarFoot = h("div", { class: "sidebar-foot" }, footRow);
   const sidebar = h(
     "nav",
     { class: "sidebar", id: "sidebar", "aria-labelledby": "files-title" },
-    // Below 900 px the top bar has no mark (it looked like a second button): the drawer shows it.
-    // The page title already names the app, so this copy is hidden from assistive technology.
-    h("div", { class: "drawer-brand", "aria-hidden": "true" }, brandMark(), h("span", { class: "brand-name" }, "CodeEditor")),
+    switcher,
+    quickActions,
     h("div", { class: "sidebar-head" }, h("h2", { class: "region-title", id: "files-title" }, "Files"), sidebarActions),
     treeHost,
+    sidebarFoot,
   );
 
   // ---------------------------------------------------------------- editor
@@ -178,12 +203,18 @@ export function createLayout(root: HTMLElement): Layout {
   const errorJumpWords = h("span", { class: "jump-words" });
   const errorJump = h("button", { type: "button", class: "error-jump", id: "error-jump" }, icon("x-circle"), errorJumpWords);
   errorJump.hidden = true;
-  // Capture snippet (an image of the selected lines): quiet, after Run, in the quiet tier with the
-  // sidebar's icon buttons. Its name is static: the selection changes on every keystroke.
-  const snippetButton = h("button", { type: "button", class: "icon-btn", id: "snippet-button", "aria-label": "Capture snippet of the selected lines", title: "Capture snippet of the selected lines" }, icon("image"));
-  // The editor head: the tabs on the left; the error jump, the runtime state, Run and Capture
-  // snippet on the right (desktop: place() moves the runtime state and Run in before it).
-  const headTools = h("div", { class: "head-tools" }, errorJump, snippetButton);
+  // Capture snippet (an image of the selected lines): a ghost button with an inset ring, before Run
+  // in the top bar. Its name is static (the selection changes on every keystroke) and starts with
+  // the word it shows (WCAG 2.5.3).
+  const snippetButton = h(
+    "button",
+    { type: "button", class: "btn ghost capture-btn", id: "snippet-button", "aria-label": "Capture snippet of the selected lines", title: "Capture snippet of the selected lines" },
+    icon("image"),
+    h("span", { class: "capture-label" }, "Capture"),
+  );
+  // The editor head: the tabs on the left, the error jump on the right (phones have no head, and
+  // keep Capture there out of sight: they reach it from the code menu).
+  const headTools = h("div", { class: "head-tools" }, errorJump);
   const editorHead = h("div", { class: "editor-head" }, tabHost, headTools);
   const editorHost = h("div", { class: "editor-host", id: "editor-host" });
   const emptyHost = h("div", { class: "editor-empty", id: "editor-empty" });
@@ -208,6 +239,9 @@ export function createLayout(root: HTMLElement): Layout {
   const panelTabsEl = h("div", { class: "panel-tabs", role: "tablist", "aria-label": "Panel" }, ptabOutput, ptabProblems, ptabFlowchart);
   const panelToggle = h("button", { type: "button", class: "icon-btn panel-toggle", id: "panel-toggle", "aria-label": "Output and problems", "aria-expanded": "false", "aria-controls": "panel-output panel-problems panel-flowchart" });
   const panelActions = h("div", { class: "panel-actions" });
+  // The open file's language and the cursor's line and column, at the panel bar's end (900 px and
+  // wider; the status bar holds them below that).
+  const panelFacts = h("div", { class: "panel-facts" });
   const outputPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-output", "aria-labelledby": "ptab-output" });
   const problemsPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-problems", "aria-labelledby": "ptab-problems", tabindex: "0" });
   problemsPanel.hidden = true;
@@ -216,7 +250,7 @@ export function createLayout(root: HTMLElement): Layout {
   const panel = h(
     "section",
     { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output" },
-    h("div", { class: "panel-bar" }, panelTabsEl, panelToggle, panelActions),
+    h("div", { class: "panel-bar" }, panelTabsEl, panelToggle, panelActions, panelFacts),
     outputPanel,
     problemsPanel,
     flowchartPanel,
@@ -226,19 +260,22 @@ export function createLayout(root: HTMLElement): Layout {
   const currentTab = (): PanelTab => (PANEL_TABS.includes(panel.dataset.tab as PanelTab) ? (panel.dataset.tab as PanelTab) : "output");
 
   const center = h("div", { class: "center", "data-view": "code" }, viewSwitch, editorArea);
+  // The editor column: the top bar over the editor's sheet.
+  const work = h("div", { class: "work" }, topbar, center);
   const main = h("main", { class: "main" }, sidebar);
 
-  // ---------------------------------------------------------------- status bar
+  // ---------------------------------------------------------------- status bar (below 900 px)
   // Language, position, the notice slot (a live region: kept rendered while empty) and Shortcuts.
-  // Sync and save state live only in the top bar's sync status.
+  // Sync and save state live only in the sync status. From 900 px these move to the panel bar and
+  // the sidebar's foot, and the bar is empty (place()).
   const status = {
     lang: h("span", { class: "status-item", id: "status-lang" }),
     pos: h("span", { class: "status-item", id: "status-pos" }),
     runtime: h("span", { class: "status-item runtime", id: "status-runtime", "data-state": "idle" }),
-    shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: `Keyboard shortcuts (${isMac() ? "Cmd" : "Ctrl"}+/)` }, icon("keyboard"), h("span", null, "Shortcuts")),
+    shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: `Keyboard shortcuts (${mod}+/)` }, icon("keyboard"), h("span", { class: "status-btn-label" }, "Shortcuts")),
   };
   const noticeHost = h("div", { class: "notice-host" });
-  const statusbar = h("footer", { class: "statusbar" }, status.lang, status.pos, noticeHost, status.shortcuts);
+  const statusbar = h("footer", { class: "statusbar" });
   const scrim = h("div", { class: "drawer-scrim", "aria-hidden": "true" });
 
   // ---------------------------------------------------------------- splitters
@@ -275,8 +312,8 @@ export function createLayout(root: HTMLElement): Layout {
     },
   });
   center.append(panelSplit.element, panel);
-  main.append(sidebarSplit.element, center);
-  root.replaceChildren(topbar, main, statusbar, scrim);
+  main.append(sidebarSplit.element, work);
+  root.replaceChildren(main, statusbar, scrim);
   root.classList.add("workbench");
   // Nothing is open until the workbench says so (renderEmpty): no editor head or Run yet. Until it
   // also knows whether there are files and which one it reopens (data-files), the centre column is
@@ -301,18 +338,26 @@ export function createLayout(root: HTMLElement): Layout {
     true,
   );
 
-  // ---------------------------------------------------------------- Run and the runtime state
-  // Desktop: in the editor head, beside the tabs of the file they run. Below 900 px (no editor
-  // head): Run in the top bar, the runtime state in the status bar.
+  // ---------------------------------------------------------------- what moves at 900 px
+  // Desktop: the top bar's end holds the runtime state, Capture and Run; the panel bar's end the
+  // language and Ln/Col; the sidebar's foot the notices, the sync status, Shortcuts and Settings.
+  // Below 900 px (no editor head, the sidebar a drawer): the top bar holds Search, the sync status,
+  // Run and Settings, and the status bar the facts, the runtime state, the notices and Shortcuts.
   function place(narrow: boolean) {
-    const hadFocus = document.activeElement === runButton;
+    const focused = document.activeElement;
     if (narrow) {
-      topbar.insertBefore(runButton, settingsButton);
-      statusbar.insertBefore(status.runtime, noticeHost);
+      topEnd.append(paletteButton, syncSlot, runButton, settingsButton);
+      statusbar.append(status.lang, status.pos, status.runtime, noticeHost, status.shortcuts);
+      headTools.append(snippetButton);
     } else {
-      headTools.append(status.runtime, runButton, snippetButton);
+      topbar.insertBefore(paletteButton, topEnd);
+      topEnd.append(status.runtime, snippetButton, runButton);
+      panelFacts.append(status.lang, status.pos);
+      sidebarFoot.insertBefore(noticeHost, footRow);
+      footRow.append(syncSlot, status.shortcuts, settingsButton);
     }
-    if (hadFocus && document.activeElement !== runButton) runButton.focus({ preventScroll: true });
+    // A moved element loses focus in some engines: it goes back to the control that had it.
+    if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
   }
 
   // ---------------------------------------------------------------- drawer (narrow screens)
@@ -509,17 +554,18 @@ export function createLayout(root: HTMLElement): Layout {
     const parts = path ? path.split("/") : [];
     crumb.title = path ?? "";
     const last = parts.length - 1;
+    // The first segment has no caret before it (the breadcrumb starts at the top folder).
+    const sep = (i: number) => (i > 0 ? h("span", { class: "crumb-sep", "aria-hidden": "true" }, "/") : null);
     crumb.replaceChildren(
-      crumbRoot,
       ...parts.map((part, i) =>
         i < last
-          ? h("li", { class: "crumb-dir" }, icon("caret-right", "crumb-sep"), h("span", { class: "crumb-text" }, part))
+          ? h("li", { class: "crumb-dir" }, sep(i), h("span", { class: "crumb-text" }, part))
           : // The file: unsaved typing shows as on a tab (a dot and italics on phones, which have no tab
             // strip; ", unsaved" in the name everywhere), never by colour alone.
             h(
               "li",
               { class: "crumb-file", "data-dirty": String(dirty) },
-              icon("caret-right", "crumb-sep"),
+              sep(i),
               h("span", { class: "crumb-text crumb-name" }, ...nameParts(part)),
               h("span", { class: "dirty-dot", "aria-hidden": "true" }),
               dirty ? srOnly(", unsaved") : null,
@@ -533,6 +579,8 @@ export function createLayout(root: HTMLElement): Layout {
     drawerToggle,
     wsName,
     repoName,
+    wsOwner,
+    quick,
     syncSlot,
     runButton,
     runLabel,

@@ -26,6 +26,7 @@ import { editorTheme, foldMarker, highlightStyle } from "./highlight";
 import { languageForPath, languageSupport } from "./language-support";
 import { forgetWaiting } from "./late-data";
 import { runMarks } from "./run-marks";
+import { selectionLayer } from "./selection-layer";
 
 /** Stable id of an open file (not its path, so a rename keeps history and diagnostics). */
 export type FileId = string;
@@ -285,6 +286,8 @@ export const BASE: Extension = [
   highlightSpecialChars({ addSpecialChars: EXTRA_SPECIALS }),
   history(),
   drawSelection(),
+  // The selection's bands, line by line (selection-layer.ts; drawSelection's own layer is hidden).
+  selectionLayer,
   dropCursor(),
   EditorState.allowMultipleSelections.of(true),
   indentOnInput(),
