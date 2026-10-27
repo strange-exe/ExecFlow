@@ -1272,8 +1272,9 @@ for (const scheme of ["light", "dark"] as const) {
 
 // ---------------------------------------------------------------- 25 to 34: failures, close, keys, focus
 
-test("25: failure paths: no PNG from toBlob, a blocked readback, no canvas context, and a readback blocked off the click", async ({ page, browserName }) => {
-  // (a) toBlob calls back null: Copy (with and without an early write rejection) and Download say "this device".
+// 25 is four failure paths, one test each: together they ran past one 120 s budget on Linux WebKit
+// (CI 58d661f, attempts 1 and 3), and a split names the slow part if one ever is.
+test("25 (a): toBlob gives no PNG: Copy (with and without an early write rejection) and Download say \"this device\"", async ({ page }) => {
   for (const writeReject of [undefined, "now"] as const) {
     const p = await page.context().newPage();
     await instrument(p, { realWrite: false, toBlobNull: true, writeReject });
@@ -1289,31 +1290,29 @@ test("25: failure paths: no PNG from toBlob, a blocked readback, no canvas conte
     }
     await p.close();
   }
-  // (b) getImageData gives white on Deep Field light: privacy, and no write at all.
-  {
-    const p = await page.context().newPage();
-    await instrument(p, { realWrite: false, whiteReadback: "always" });
-    await openIn(p, "/", "light");
-    await openDialog(p);
-    await clearCalls(p);
-    await ((await canCopy(p)) ? copyButton(p) : downloadButton(p)).click();
-    await expect(p.locator("#app")).toHaveAttribute("data-capture-reason", "privacy");
-    await expect(dialogOf(p).locator("#snippet-status")).toHaveText("This browser's privacy settings blocked the image. If the address bar offers to allow it, allow it and try again.");
-    expect((await calls(p)).map((c) => c.name)).toEqual(["getImageData"]);
-    await p.close();
-  }
-  // (c) getContext gives null: the frame says why, data-preview failed.
-  {
-    const p = await page.context().newPage();
-    await instrument(p, { realWrite: false, getContextNull: true });
-    await openWith(p);
-    await selectFixtureLines(p);
-    await openFromFileMenu(p, ITEM);
-    await expect(dialogOf(p)).toHaveAttribute("data-preview", "failed", { timeout: 30_000 });
-    await expect(dialogOf(p).locator(".snippet-frame-text")).toHaveText("Couldn't make an image this big on this device. Close this and select fewer lines.");
-    await p.close();
-  }
-  // (d) Not ready: a slowed render, and a readback that is white only off the click; then a ready Copy works.
+});
+
+test("25 (b): getImageData gives white on Deep Field light: privacy, and no write at all", async ({ page }) => {
+  await instrument(page, { realWrite: false, whiteReadback: "always" });
+  await openIn(page, "/", "light");
+  await openDialog(page);
+  await clearCalls(page);
+  await ((await canCopy(page)) ? copyButton(page) : downloadButton(page)).click();
+  await expect(page.locator("#app")).toHaveAttribute("data-capture-reason", "privacy");
+  await expect(dialogOf(page).locator("#snippet-status")).toHaveText("This browser's privacy settings blocked the image. If the address bar offers to allow it, allow it and try again.");
+  expect((await calls(page)).map((c) => c.name)).toEqual(["getImageData"]);
+});
+
+test("25 (c): getContext gives null: the frame says why, data-preview failed", async ({ page }) => {
+  await instrument(page, { realWrite: false, getContextNull: true });
+  await openWith(page);
+  await selectFixtureLines(page);
+  await openFromFileMenu(page, ITEM);
+  await expect(dialogOf(page)).toHaveAttribute("data-preview", "failed", { timeout: 30_000 });
+  await expect(dialogOf(page).locator(".snippet-frame-text")).toHaveText("Couldn't make an image this big on this device. Close this and select fewer lines.");
+});
+
+test("25 (d): not ready: a slowed render, and a readback that is white only off the click; then a ready Copy works", async ({ page, browserName }) => {
   {
     // 4 ms per drawn run: the slowed render outlasts input lag on a loaded machine (at 1 ms a full
     // Firefox run once saw the click land after it). The preview's state at the click is recorded

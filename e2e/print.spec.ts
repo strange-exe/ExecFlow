@@ -9,7 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { writeFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { PRINT_INK } from "../src/theme/print-ink";
-import { expect, importFiles, openApp, openFromTree, openIn, test, tolerating } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, test, tolerating } from "./helpers";
 import { pdfFillColours, pdfPages } from "./pdf-text";
 
 test.use({ serviceWorkers: "block" });
@@ -187,8 +187,12 @@ test("4: nothing chosen: the dialog says so beside the files and moves focus the
 
 test("5: the options are remembered on this device, cleaned when read; numbers off and the editor's colours reach the layout", async ({ page, browserName }) => {
   await recordPrints(page);
-  await openIn(page, "/", "dark");
+  // An explicit dark theme, not "match device": Firefox matches prefers-color-scheme as light under
+  // print media (whatever scheme is emulated), so a device-following theme turned light mid-test on CI.
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("codeeditor:theme", "signal-dark"));
   await openWithFiles(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await openFromFileMenu(page);
   await dialog(page).getByRole("radio", { name: "The editor's colours" }).check();
   await dialog(page).getByRole("checkbox", { name: "Line numbers" }).uncheck();
