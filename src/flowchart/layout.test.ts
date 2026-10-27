@@ -4,8 +4,9 @@
 // run outside their loop, and the same model always gives the same layout.
 import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHANNEL, LAYOUT_BUDGET, labelRect, layoutChart, rectMeetsBox, type Layout, type LayoutStats, type LaidBox, type Point } from "./layout";
+import { ARROW_ROOM, CHANNEL, LAYOUT_BUDGET, labelRect, layoutChart, rectMeetsBox, type Layout, type LayoutStats, type LaidBox, type Point } from "./layout";
 import { TooBig, entryOf, type FlowChart, type Step } from "./model";
+import { arrowLength } from "./render";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 import { randomProgram } from "./fixtures/random";
 import type { FlowLanguage } from "./pack";
@@ -129,6 +130,16 @@ function problems(chart: FlowChart, layout: Layout, name: string): string[] {
         if ((a.x === p.x && p.x === q.x) || (a.y === p.y && p.y === q.y)) out.push(`${tag} doubles back at ${p.x},${p.y}`);
       }
       for (const b of layout.boxes) if (hits(p, q, b)) out.push(`${tag} runs through box ${b.id}`);
+    }
+    // An edge that bends ends in a straight leg long enough for its arrowhead (9 px) and the rounded
+    // corner before it (up to 8 px): shorter, and the line meets the head's side, not its base. A
+    // line the search found may turn into its box sooner: the renderer fits it a smaller head, which
+    // must still fit the leg (render.ts arrowLength).
+    if (pts.length >= 3) {
+      const [p, q] = [pts.at(-2)!, pts.at(-1)!];
+      const leg = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
+      if (!e.searched && leg < ARROW_ROOM) out.push(`${tag} ends in a ${leg} px leg, too short for its arrowhead: ${pts.map((p) => `${p.x},${p.y}`).join(" ")} (${e.kind})`);
+      if (arrowLength(e) > leg) out.push(`${tag}'s ${arrowLength(e)} px arrowhead overruns its ${leg} px last leg`);
     }
     if (pts.length && !onBorder(pts[0], box.get(e.from)!)) out.push(`${tag} doesn't start on its box`);
     if (pts.length && !onBorder(pts.at(-1)!, box.get(e.to)!)) out.push(`${tag} doesn't end on its target`);

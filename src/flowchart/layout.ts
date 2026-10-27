@@ -37,6 +37,11 @@ export interface LaidEdge {
   points: Point[];
   /** Where an edge label's text starts (anchor start) or ends (anchor end), at its baseline. */
   labelAt?: { x: number; y: number; anchor: "start" | "end" };
+  /**
+   * Part of the line was found by the search (a break, a continue, a blocked return): it may turn
+   * into its box sooner than ARROW_ROOM, and the renderer fits it a smaller arrowhead.
+   */
+  searched?: true;
 }
 
 export interface Layout {
@@ -57,8 +62,11 @@ export const METRICS = {
   gapX: 32,
   lane: 16,
   margin: 24,
-  /** Room above a switch column for its case label. */
-  caseDrop: 28,
+  /**
+   * Room above a switch column for its case label, and for a fall-through from the previous case to
+   * join the drop line ARROW_ROOM (19) above the box while staying a CHANNEL (12) below the bus.
+   */
+  caseDrop: 32,
   /** Parallelogram slant and the predefined process's side bars. */
   skew: 12,
   bar: 10,
@@ -68,6 +76,17 @@ const M = METRICS;
 
 /** Two different edges running side by side are this far apart at least, or share the line exactly. */
 export const CHANNEL = 12;
+
+/**
+ * The straight run an edge needs after its last bend: the arrowhead (9 px, render.ts arrowCorners),
+ * the rounded corner before it (up to 8 px, render.ts roundedPath) and 2 px between. Shorter, and the
+ * line meets the head's side instead of its base (a loop's back edge once turned 7 px above its box).
+ */
+export const ARROW_ROOM = 9 + 8 + 2;
+
+/** A loop's head: the back edge joins the line into the loop a quarter gap down, ARROW_ROOM above the box. */
+const LOOP_JOIN = M.gapY / 4;
+export const LOOP_HEAD = LOOP_JOIN + ARROW_ROOM;
 
 /** Edge labels: the renderer's 12 px interface font, about 7 px a character. */
 const LABEL = { charW: 7, ascent: 10, descent: 3, clear: 2 };
@@ -250,7 +269,7 @@ class Builder {
       // Guard: Yes leaves (return, break...) on the right; No carries straight on.
       const pure = yes.H === 0;
       const xYes = pure ? hw : hw + M.gapX / 2 + yes.L;
-      const yYes = pure ? d.h / 2 : d.h / 2 + M.gapY / 2;
+      const yYes = pure ? d.h / 2 : d.h / 2 + Math.max(M.gapY / 2, ARROW_ROOM);
       const H = Math.max(d.h, pure ? 0 : yYes + yes.H + M.gapY / 2);
       // A bare jump is routed later from the tip, past its "Yes" label: keep room for that run, so
       // an enclosing loop's exit lane passes outside it instead of crossing it.
@@ -286,7 +305,7 @@ class Builder {
   }
 
   private loop(step: Extract<Step, { t: "loop" }>): Frame {
-    const J = M.gapY / 2;
+    const J = LOOP_HEAD;
     const body = this.build(step.body);
     const upd = step.update ? this.build(step.update) : null;
     const s = upd ? this.seq([body, upd]) : body;
@@ -606,8 +625,8 @@ class Router {
   }
 
   private routeLoop(f: Extract<Frame, { t: "loop" }>, x: number, y: number, inc: Route[]): Route[] {
-    const J = M.gapY / 2;
-    const junction = y + J / 2;
+    const J = LOOP_HEAD;
+    const junction = y + LOOP_JOIN;
     const back = (r: Route, fromY: number) => extend(r, { x, y: fromY }, { x: x + f.xBack, y: fromY }, { x: x + f.xBack, y: junction }, { x, y: junction }, { x, y: y + J });
     const updateBox = f.update !== null ? this.boxes.get(f.update)! : null;
     const updateGoal = (): { goal: Goal; tail: Point[]; target: number } | null =>
@@ -729,7 +748,9 @@ class Router {
         // Into the next case: down below the columns, right through the gap, up and in from the top.
         const gx = cx + c.colR + M.gapX / 2;
         const next = x + f.cols[i + 1].x;
-        falling = colOut.map((o) => extend(o, { x: cx, y: y + f.ftY }, { x: gx, y: y + f.ftY }, { x: gx, y: colTop - 6 }, { x: next, y: colTop - 6 }, { x: next, y: colTop }));
+        // It joins the next column's drop ARROW_ROOM above the box, so its arrowhead keeps a straight run.
+        const joinY = colTop - ARROW_ROOM;
+        falling = colOut.map((o) => extend(o, { x: cx, y: y + f.ftY }, { x: gx, y: y + f.ftY }, { x: gx, y: joinY }, { x: next, y: joinY }, { x: next, y: colTop }));
       } else {
         falling = [];
         out.push(...colOut.map((o) => (cx === x ? extend(o, { x, y: y + f.H }) : extend(o, { x: cx, y: Math.max(bottom, y + f.collectY) }, { x, y: y + f.collectY }, { x, y: y + f.H }))));
@@ -1201,6 +1222,7 @@ export function layoutChart(chart: FlowChart, { stats, deadline = Infinity }: { 
   }
   const edges: LaidEdge[] = router.done.map((r) => {
     const pts: Point[] = [];
+    const searched = r.legs.some((leg) => !("pts" in leg));
     for (const leg of r.legs) {
       if ("pts" in leg) {
         // After a search, the next fixed leg starts where the search arrived (on the same line).
@@ -1239,6 +1261,7 @@ export function layoutChart(chart: FlowChart, { stats, deadline = Infinity }: { 
     const edge: LaidEdge = { from: r.from, to: r.to!, kind, points: simplify(pts) };
     if (r.label !== undefined) edge.label = r.label;
     if (r.labelAt) edge.labelAt = r.labelAt;
+    if (searched) edge.searched = true;
     return edge;
   });
   placeLabels(edges, boxes, new Map(router.done.flatMap((r, i) => (r.labelOnDrop ? [[i, r.labelOnDrop] as const] : []))));

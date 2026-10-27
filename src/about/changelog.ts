@@ -24,6 +24,7 @@ export const CHANGELOG: readonly Release[] = [
       { kind: "changed", text: "Settings is now a two-pane dialog with sections, switches and a font-size stepper." },
       { kind: "changed", text: "Files your program writes are saved to your files by themselves, with a line in Output instead of a question. A program never writes over your code." },
       { kind: "changed", text: "Flowcharts in colour: start and end, decisions, input and output, and calls each have their own, and Yes and No branches are green and red, on connectors with rounded corners." },
+      { kind: "fixed", text: "Flowchart arrows meet their boxes cleanly: a loop's line back, an if's Yes branch and a switch case's fall-through join the line above the arrowhead, not its side." },
       { kind: "added", text: "The version number in Settings, and a one-time What's new note after an update." },
       { kind: "added", text: "An About page: what CodeEditor does, and this list of changes." },
     ],

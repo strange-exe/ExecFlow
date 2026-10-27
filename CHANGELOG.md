@@ -22,6 +22,10 @@ A calmer workspace, a new Settings, and an About page
 - Files your program writes are saved to your files by themselves, with a line in Output instead of a question. A program never writes over your code.
 - Flowcharts in colour: start and end, decisions, input and output, and calls each have their own, and Yes and No branches are green and red, on connectors with rounded corners.
 
+### Fixed
+
+- Flowchart arrows meet their boxes cleanly: a loop's line back, an if's Yes branch and a switch case's fall-through join the line above the arrowhead, not its side.
+
 ## [0.6.2] - 2026-10-27
 
 Phone tabs fit small screens

@@ -4,9 +4,9 @@
 // outline of the steps in reading order.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { layoutChart } from "./layout";
+import { layoutChart, type LaidEdge } from "./layout";
 import type { FlowChart } from "./model";
-import { renderChart, stepList } from "./render";
+import { arrowCorners, arrowLength, renderChart, roundedPath, stepList } from "./render";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 
@@ -185,5 +185,49 @@ describe("flowchart renderer", () => {
       "5. at = 0 (never reached). Next: step 6.",
       "6. End (never reached).",
     ]);
+  });
+
+  // The line always meets the arrowhead's base: a 9 px head when the last leg has room for it and a
+  // corner, a smaller one (5 px at least) when a searched jump turns into a box's side just before it.
+  it("arrowheads fit their last leg, and the last corner's curve ends before the head", () => {
+    const edge = (points: { x: number; y: number }[]): LaidEdge => ({ from: 1, to: 2, kind: "jump", points });
+    const roomy = edge([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 40 }]);
+    expect(arrowLength(roomy)).toBe(9);
+    expect(arrowCorners(roomy)).toEqual([{ x: 100, y: 40 }, { x: 104.5, y: 31 }, { x: 95.5, y: 31 }]);
+    const tight = edge([{ x: 0, y: 0 }, { x: 0, y: 30 }, { x: -4, y: 30 }]);
+    expect(arrowLength(tight)).toBe(4);
+    expect(arrowCorners(tight)[0]).toEqual({ x: -4, y: 30 });
+    expect(arrowLength(edge([{ x: 0, y: 0 }, { x: 0, y: 30 }, { x: 8, y: 30 }]))).toBe(6);
+    // A straight edge keeps the full head.
+    expect(arrowLength(edge([{ x: 0, y: 0 }, { x: 0, y: 5 }]))).toBe(9);
+    // roundedPath: every corner up to r, the last up to lastR (0 draws a sharp corner).
+    const pts3 = [{ x: 0, y: 0 }, { x: 0, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 60 }];
+    expect(roundedPath(pts3, 8, 0)).toBe("M0,0 L0,32 Q0,40 8,40 L40,40 L40,60");
+    expect(roundedPath(pts3, 8, 3)).toBe("M0,0 L0,32 Q0,40 8,40 L37,40 Q40,40 40,43 L40,60");
+    // A roomy last leg still keeps every corner within r.
+    expect(roundedPath([{ x: 0, y: 0 }, { x: 0, y: 40 }, { x: 60, y: 40 }], 8, 50)).toBe("M0,0 L0,32 Q0,40 8,40 L60,40");
+  });
+
+  test("on every fixture chart, each edge's last curve ends before its arrowhead's base", async () => {
+    for (const name of ["break-continue.c", "nested-loops.c", "switch.c", "do-forever.c", "early-return.c", "else-if.c"]) {
+      for (const c of (await chartFile("c", fixture(name))).charts) {
+        if (!c.ok) continue;
+        const layout = layoutChart(ok(c));
+        const svg = renderChart(ok(c), layout, fakeDocument as unknown as Document) as unknown as FakeElement;
+        const groups = svg.all().filter((e) => e.tagName === "g" && e.getAttribute("data-from") !== null);
+        expect(groups).toHaveLength(layout.edges.length);
+        layout.edges.forEach((e, i) => {
+          const d = groups[i].children.find((x): x is FakeElement => x instanceof FakeElement && x.tagName === "path")!.getAttribute("d")!;
+          const [end, before] = [e.points.at(-1)!, e.points.at(-2)!];
+          const run = Math.hypot(end.x - before.x, end.y - before.y);
+          // The last Q (the last corner) ends where the final straight run starts: at least a head away from the end.
+          const lastQ = [...d.matchAll(/Q[-\d.]+,[-\d.]+ ([-\d.]+),([-\d.]+)/g)].at(-1);
+          if (!lastQ || e.points.length < 3) return;
+          const qEnd = { x: Number(lastQ[1]), y: Number(lastQ[2]) };
+          const fromEnd = Math.hypot(end.x - qEnd.x, end.y - qEnd.y);
+          expect(fromEnd, `${name} ${c.name} edge ${e.from}>${e.to}: run ${run}`).toBeGreaterThanOrEqual(arrowLength(e) - 0.001);
+        });
+      }
+    }
   });
 });

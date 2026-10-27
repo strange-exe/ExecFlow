@@ -94,15 +94,18 @@ function styles(look: ChartLook): Styles {
   };
 }
 
-/** An orthogonal polyline as a path whose corners are arcs of up to `r` (half the shorter leg at most). */
-export function roundedPath(points: Point[], r = 8): string {
+/**
+ * An orthogonal polyline as a path whose corners are arcs of up to `r` (half the shorter leg at most);
+ * the last corner up to `lastR`, so its curve ends before the arrowhead's base.
+ */
+export function roundedPath(points: Point[], r = 8, lastR = r): string {
   if (points.length < 3) return `M${pts(points).replaceAll(" ", " L")}`;
   let d = `M${points[0].x},${points[0].y}`;
   for (let i = 1; i < points.length - 1; i++) {
     const [a, b, c] = [points[i - 1], points[i], points[i + 1]];
     const inLen = Math.hypot(b.x - a.x, b.y - a.y);
     const outLen = Math.hypot(c.x - b.x, c.y - b.y);
-    const k = Math.min(r, inLen / 2, outLen / 2);
+    const k = Math.min(r, i === points.length - 2 ? lastR : r, inLen / 2, outLen / 2);
     if (k < 0.5) {
       d += ` L${b.x},${b.y}`;
       continue;
@@ -190,14 +193,31 @@ function label(doc: SvgDocument, node: FlowNode, b: LaidBox, STYLE: Styles): SVG
   return text;
 }
 
+/** The last leg's length in px. */
+function lastLeg(edge: LaidEdge): number {
+  const [end, before] = [edge.points[edge.points.length - 1], edge.points[edge.points.length - 2]];
+  return Math.hypot(end.x - before.x, end.y - before.y);
+}
+
+/**
+ * The arrowhead's length: 9 px, or on an edge whose last leg is too short for it and a corner (a
+ * searched line into a box's side can arrive 4 px after its bend) as long as the leg allows, 4 px
+ * at least, so the line still meets the head's base instead of its side.
+ */
+export function arrowLength(edge: LaidEdge): number {
+  if (edge.points.length < 3) return 9;
+  const leg = lastLeg(edge);
+  return Math.min(9, Math.max(Math.min(4, leg), leg - 2));
+}
+
 /** A filled triangle at the end of the edge, pointing the way its last segment goes. */
 export function arrowCorners(edge: LaidEdge): Point[] {
   const end = edge.points[edge.points.length - 1];
   const before = edge.points[edge.points.length - 2];
   const dx = Math.sign(end.x - before.x);
   const dy = Math.sign(end.y - before.y);
-  const len = 9;
-  const half = 4.5;
+  const len = arrowLength(edge);
+  const half = len / 2;
   const back = { x: end.x - dx * len, y: end.y - dy * len };
   return [end, { x: back.x + dy * half, y: back.y + dx * half }, { x: back.x - dy * half, y: back.y - dx * half }];
 }
@@ -226,12 +246,15 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   const edges = el(doc, "g", live ? { "data-part": "edges", "aria-hidden": "true" } : {});
   for (const e of layout.edges) {
     const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind } : {});
-    // The line stops where the arrowhead starts, so the head's point stays sharp at the box.
+    // The line stops inside the arrowhead (3 px short of its base, under the fill), so the head's
+    // point stays sharp at the box; the last corner's curve ends before the head's base.
     const line = [...e.points];
     const [end, before] = [line[line.length - 1], line[line.length - 2]];
-    const run = Math.hypot(end.x - before.x, end.y - before.y);
-    if (run > 9) line[line.length - 1] = { x: end.x - ((end.x - before.x) / run) * 6, y: end.y - ((end.y - before.y) / run) * 6 };
-    g.appendChild(el(doc, "path", { d: roundedPath(line), style: STYLE.edge(edgeHue(e.label)) }));
+    const run = lastLeg(e);
+    const head = arrowLength(e);
+    const cut = head - 3;
+    if (run > head) line[line.length - 1] = { x: end.x - ((end.x - before.x) / run) * cut, y: end.y - ((end.y - before.y) / run) * cut };
+    g.appendChild(el(doc, "path", { d: roundedPath(line, 8, Math.max(0, run - head)), style: STYLE.edge(edgeHue(e.label)) }));
     g.appendChild(arrow(doc, e, STYLE, live));
     if (e.label !== undefined && e.labelAt) {
       const t = el(doc, "text", { x: e.labelAt.x, y: e.labelAt.y, "text-anchor": e.labelAt.anchor, style: STYLE.edgeLabel });
