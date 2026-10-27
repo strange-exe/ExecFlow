@@ -168,6 +168,18 @@ test("no horizontal scroll at 320 px, and the primary controls are 44 px on a ph
   }
 });
 
+/**
+ * Hovering the file list or the starters is a sign a file opens next, and fetches the editor
+ * (workbench.ts prefetchEditor): a feature, but not the shell. On the CI runner Chromium reported a
+ * pointerover on the sidebar during the first visit even with the pointer parked on the top bar (run
+ * on 7b08455: data-editor-prefetch "pointerover sidebar"), likely as the page was laid out under it.
+ * So the shell tests keep pointerover from reaching the app; focus still prefetches, and the
+ * data-editor-prefetch check names anything else that asks for the editor.
+ */
+async function withoutHover(page: Page) {
+  await page.addInitScript(() => window.addEventListener("pointerover", (e) => e.stopImmediatePropagation(), { capture: true }));
+}
+
 // Budget: initial-route JS about 200 KB gzip. The shell is measured on a first visit (empty
 // workspace); CodeMirror (about 196 KB gzip on its own) must not be part of it, and must arrive
 // with the first file.
@@ -175,11 +187,7 @@ test("a first visit loads only the shell, within the 200 KB gzip budget, and the
   // App chunks; workers live under /assets/w/. Chunks that arrive after the last check are not read
   // to the end of the test (responseBodies).
   const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, gzip: gzipSync(b).length }));
-  // The pointer rests on an empty part of the top bar: hovering or focusing the file list or the
-  // starters is a sign a file opens next, and fetches the editor (workbench.ts prefetchEditor). CI
-  // run 40546811002 counted the editor chunk on a first visit (cause not seen: no trace there), so
-  // the check below names what asked for it if that happens again.
-  await page.mouse.move(1100, 20);
+  await withoutHover(page);
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
   const first = await bodies.settled();
@@ -205,9 +213,7 @@ test("a first visit loads only the shell, within the 200 KB gzip budget, and the
 test("the suggestion code is a chunk of its own, apart from the first visit and the editor chunk, which stays within 200 KB gzip", async ({ page }) => {
   const MARK = "not library data";
   const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, gzip: gzipSync(b).length, suggestions: b.includes(MARK) }));
-  // As in the budget test above: the editor chunk must arrive with the first file, not a hover's prefetch
-  // (CI run on 00fbfc5 counted it in the first visit here, while the parked budget test passed).
-  await page.mouse.move(1100, 20);
+  await withoutHover(page);
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
   const first = await bodies.settled();
