@@ -136,6 +136,7 @@ const cacheRules: [string, Record<string, string>][] = [
   [`/pyodide/${pyodideDir}/*`, { "Cache-Control": IMMUTABLE }],
   ["/clang/*", { "Cache-Control": IMMUTABLE }], // the folder name is the pack's version
   [`/flowchart/${FLOWCHART_DIR}/*`, { "Cache-Control": IMMUTABLE }], // the folder name carries every file's version
+  ["/media/*", { "Cache-Control": IMMUTABLE }], // each name carries its content hash (src/about/media.test.ts)
 ];
 
 /** Cloudflare-style path match: "*" matches anything, including "/". */
@@ -418,7 +419,8 @@ export default defineConfig(({ mode }) => ({
               cacheableResponse: { statuses: [200] },
             },
           },
-          // The About page's code (hashed names: never stale) and its images, once /about was opened.
+          // The About page's code and its images, once /about was opened. Both have content-hashed names
+          // (media/: src/about/media.test.ts), so a cached copy is never stale.
           {
             urlPattern: /\/(assets\/a\/[^/]+\.js|media\/[^/]+\.webp)$/,
             handler: "CacheFirst",

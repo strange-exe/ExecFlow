@@ -157,9 +157,10 @@ test.describe("the About page", () => {
     }
     // Its text equivalent names every scene and offers the file; the poster and the file are served.
     await expect(page.locator("#video-text li")).toHaveCount(5);
-    await expect(page.locator("#video-text a[download]")).toHaveAttribute("href", "/media/launch-0.7.0.mp4");
+    const file = await video.getAttribute("data-src");
+    await expect(page.locator("#video-text a[download]")).toHaveAttribute("href", file!);
     await expect(video).toHaveAttribute("aria-describedby", "video-text");
-    for (const path of ["/media/launch-0.7.0-poster.webp", "/media/launch-0.7.0.mp4"]) expect((await request.get(path)).status(), path).toBe(200);
+    for (const path of [await video.getAttribute("poster"), file]) expect((await request.get(path!)).status(), path!).toBe(200);
   });
 
   test("with reduced motion the launch video never starts by itself: the poster, and a Play button", async ({ page }) => {
