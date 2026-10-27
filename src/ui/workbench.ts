@@ -249,7 +249,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (e.ws === ws && e.paths.length && e.reason !== "sha" && e.reason !== "ui") manager?.indexChanged(e.paths);
   });
   // Heading for the files or the starters is a good sign a file opens next: fetch the editor then.
-  const prefetchEditor = () => void loadEditor().catch(() => {});
+  // The first reason is kept on #app (data-editor-prefetch) for tests: the first-visit budget is the
+  // shell alone, so a test can tell a hover or focus from a load that shouldn't have happened.
+  const prefetchEditor = (e?: Event) => {
+    root.dataset.editorPrefetch ??= e ? `${e.type} ${(e.target as Element | null)?.id || (e.currentTarget as Element | null)?.id || "?"}` : "restore";
+    void loadEditor().catch(() => {});
+  };
   for (const region of [L.sidebar, L.emptyHost]) {
     region.addEventListener("pointerover", prefetchEditor, { once: true });
     region.addEventListener("focusin", prefetchEditor, { once: true });

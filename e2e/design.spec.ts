@@ -175,10 +175,17 @@ test("a first visit loads only the shell, within the 200 KB gzip budget, and the
   // App chunks; workers live under /assets/w/. Chunks that arrive after the last check are not read
   // to the end of the test (responseBodies).
   const bodies = responseBodies(page, (path) => /^\/assets\/[^/]+\.js$/.test(path), (path, b) => ({ url: path, gzip: gzipSync(b).length }));
+  // The pointer rests on an empty part of the top bar: hovering or focusing the file list or the
+  // starters is a sign a file opens next, and fetches the editor (workbench.ts prefetchEditor). CI
+  // run 40546811002 counted the editor chunk on a first visit (cause not seen: no trace there), so
+  // the check below names what asked for it if that happens again.
+  await page.mouse.move(1100, 20);
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
   const first = await bodies.settled();
   const total = first.reduce((n, s) => n + s.gzip, 0);
+  // Nothing asked for the editor (data-editor-prefetch names what did, should a run count it).
+  await expect(page.locator("#app")).not.toHaveAttribute("data-editor-prefetch", /./);
   expect(first.length, "scripts loaded").toBeGreaterThan(0);
   expect(total, `first-visit JS gzip: ${first.map((s) => `${s.url} ${s.gzip}`).join(", ")}`).toBeLessThan(200 * 1024);
   test.info().annotations.push({ type: "first-visit JS gzip", description: `${total} bytes in ${first.length} chunks` });

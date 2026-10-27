@@ -60,23 +60,30 @@ jobs:
         run: npm run build
 
   e2e:
-    name: End-to-end (${{ matrix.browser }})
-    # A commit that doesn't build never takes three runners, and the check job has filled the cache.
+    name: End-to-end (${{ matrix.label || matrix.browser }})
+    # A commit that doesn't build never takes the runners, and the check job has filled the cache.
     needs: check
     runs-on: ubuntu-latest
-    # Locally (one worker) Chromium's tests take about 16 minutes and the typing-speed test about 5
-    # more (2026-10-21); a GitHub runner is slower, by how much is not measured yet.
+    # On the runners (one worker) Chromium and Firefox take about 27 minutes; WebKit took 46 on
+    # 2026-10-27 and then passed the 60-minute limit (run 40546811002), so it runs as two shards,
+    # split by file (https://playwright.dev/docs/test-sharding).
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
-        # The typing-speed test is its own project (playwright.config.ts) that depends on all three
-        # engines; here only Chromium is installed, so it runs with Chromium's tests and --no-deps.
-        # CI uses one worker, so it never runs next to another test.
         include:
+          # The typing-speed test is its own project (playwright.config.ts) that depends on all three
+          # engines; here only Chromium is installed, so it runs with Chromium's tests and --no-deps.
+          # CI uses one worker, so it never runs next to another test.
           - browser: chromium
             extra: --project=speed --no-deps
+          - browser: firefox
+          - browser: webkit
+            label: webkit 1/2
+            extra: --shard=1/2
+          - browser: webkit
+            label: webkit 2/2
+            extra: --shard=2/2
     steps:
       - uses: actions/checkout@v7
 
@@ -105,6 +112,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-${{ matrix.browser }}
+          name: test-results-${{ matrix.browser }}-${{ strategy.job-index }}
           path: test-results/
           retention-days: 7
