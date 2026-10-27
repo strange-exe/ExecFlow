@@ -122,21 +122,59 @@ test.describe("the About page", () => {
     expect(focused.outline).not.toBe("none");
   });
 
-  test("the launch video plays only when asked: a poster, no download before play, described in words", async ({ page, request }) => {
+  test("the launch video plays like a hero video once in view: muted, looping, nothing fetched before, and its button pauses it for good", async ({ page, request }) => {
     const media: string[] = [];
     page.on("request", (r) => (/\.(mp4|webm)$/.test(new URL(r.url()).pathname) ? media.push(r.url()) : null));
     await page.goto("/about");
-    const video = page.locator("#launch-video video");
-    await video.scrollIntoViewIfNeeded();
-    await expect(video).toBeVisible();
-    // Controls, no autoplay, nothing preloaded, no sound to surprise anyone.
-    expect(await video.evaluate((v: HTMLVideoElement) => ({ controls: v.controls, autoplay: v.autoplay, preload: v.preload, muted: v.muted }))).toEqual({ controls: true, autoplay: false, preload: "none", muted: true });
+    const stage = page.locator("#launch-video .about-stage");
+    const video = stage.locator("video");
+    const button = stage.getByRole("button");
+    // Below the fold: no file yet (Linux WebKit fetches a source even with preload="none").
+    await expect(stage).toHaveAttribute("data-video", "idle");
     await page.waitForTimeout(500);
     expect(media).toEqual([]);
-    // Its text equivalent names every scene; the poster and the file are served.
+    expect(await video.evaluate((v: HTMLVideoElement) => ({ controls: v.controls, autoplay: v.autoplay, muted: v.muted, loop: v.loop, src: v.getAttribute("src") }))).toEqual({ controls: false, autoplay: false, muted: true, loop: true, src: null });
+    await stage.scrollIntoViewIfNeeded();
+    const h264 = await video.evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.640028"') !== "");
+    if (!h264) {
+      // Only an engine that can't decode H.264 may stop short of playing (some Playwright builds).
+      await expect(stage).toHaveAttribute("data-video", /^(still|unplayable)$/, { timeout: 10_000 });
+    } else {
+      await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
+      await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 5_000 }).toBeGreaterThan(0.3);
+      await expect(button).toHaveText("Pause video");
+      await button.click();
+      await expect(stage).toHaveAttribute("data-video", "paused");
+      await expect(button).toHaveText("Play video");
+      // A pause by the button holds: out of view and back, it stays paused.
+      await page.evaluate(() => scrollTo(0, 0));
+      await page.waitForTimeout(300);
+      await stage.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(800);
+      expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+      await button.click();
+      await expect(stage).toHaveAttribute("data-video", "playing");
+    }
+    // Its text equivalent names every scene and offers the file; the poster and the file are served.
     await expect(page.locator("#video-text li")).toHaveCount(5);
+    await expect(page.locator("#video-text a[download]")).toHaveAttribute("href", "/media/launch-0.7.0.mp4");
     await expect(video).toHaveAttribute("aria-describedby", "video-text");
     for (const path of ["/media/launch-0.7.0-poster.webp", "/media/launch-0.7.0.mp4"]) expect((await request.get(path)).status(), path).toBe(200);
+  });
+
+  test("with reduced motion the launch video never starts by itself: the poster, and a Play button", async ({ page }) => {
+    const media: string[] = [];
+    page.on("request", (r) => (/\.(mp4|webm)$/.test(new URL(r.url()).pathname) ? media.push(r.url()) : null));
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/about");
+    expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), "reduced motion applied").toBe(true);
+    const stage = page.locator("#launch-video .about-stage");
+    await stage.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1000);
+    await expect(stage).toHaveAttribute("data-video", "still");
+    await expect(stage.getByRole("button")).toHaveText("Play video");
+    expect(await stage.locator("video").evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+    expect(media).toEqual([]);
   });
 });
 

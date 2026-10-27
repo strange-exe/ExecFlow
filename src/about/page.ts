@@ -130,8 +130,71 @@ function scene(): void {
   else setTimeout(start, 300);
 }
 
+/**
+ * The launch video plays like a hero video: muted and looping, while at least a third of it is on
+ * screen. Its file is attached only when it first comes into view (some engines fetch a source even
+ * with preload="none"). Nothing starts by itself with reduced motion. The button pauses it (WCAG
+ * 2.2.2), and a pause by the button holds until the button plays it again. data-video on the stage
+ * says the state: idle, playing, paused, still (reduced motion, or a browser that refused to play
+ * it) or unplayable (the file can't be decoded here).
+ */
+function video(): void {
+  const stage = document.querySelector<HTMLElement>(".about-stage");
+  const player = stage?.querySelector("video");
+  const button = stage?.querySelector<HTMLButtonElement>(".about-play");
+  if (!stage || !player || !button) return;
+  const state = (s: string) => {
+    stage.dataset.video = s;
+    button.textContent = s === "playing" ? "Pause video" : "Play video";
+    button.hidden = s === "unplayable";
+  };
+  let held = false;
+  const attach = () => {
+    if (player.src) return;
+    player.preload = "auto";
+    player.src = player.dataset.src ?? "";
+  };
+  const play = () => {
+    attach();
+    player.play().catch(() => {
+      if (stage.dataset.video !== "unplayable") state("still");
+    });
+  };
+  player.addEventListener("playing", () => state("playing"));
+  player.addEventListener("pause", () => {
+    if (stage.dataset.video !== "unplayable") state("paused");
+  });
+  player.addEventListener("error", () => state("unplayable"));
+  button.addEventListener("click", () => {
+    if (player.paused) {
+      held = false;
+      play();
+    } else {
+      held = true;
+      player.pause();
+    }
+  });
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  state(reduced ? "still" : "idle");
+  if (reduced) return;
+  if (!("IntersectionObserver" in window)) {
+    play();
+    return;
+  }
+  new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting && !held) play();
+        else if (!e.isIntersecting && !player.paused) player.pause();
+      }
+    },
+    { threshold: 0.35 },
+  ).observe(player);
+}
+
 renderChangelog();
 renderThemes();
 reveals();
+video();
 if (document.readyState === "complete") scene();
 else addEventListener("load", scene, { once: true });

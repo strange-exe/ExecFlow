@@ -104,10 +104,13 @@ for i in range(3):
 
       <section class="about-video" aria-labelledby="video-title" id="launch-video">
         <h2 id="video-title">CodeEditor in 20 seconds</h2>
-        <!-- Nothing downloads until play (preload none); no sound, every word is on screen. -->
-        <video class="about-player" controls playsinline muted preload="none" width="1280" height="720" poster="/media/launch-0.7.0-poster.webp" aria-describedby="video-text">
-          <source src="/media/launch-0.7.0.mp4" type="video/mp4" />
-        </video>
+        <!-- A muted loop that plays while it is on screen (page.ts video()): the file is attached only
+             when it first comes into view, nothing starts with reduced motion, and the button pauses it.
+             No sound; every word is on screen. -->
+        <div class="about-stage" data-video="idle">
+          <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" poster="/media/launch-0.7.0-poster.webp" data-src="/media/launch-0.7.0.mp4" aria-describedby="video-text"></video>
+          <button type="button" class="about-play" hidden>Play video</button>
+        </div>
         <div class="about-note" id="video-text">
           <p>The video has no sound. What it shows, in the real app:</p>
           <ol>
@@ -117,6 +120,7 @@ for i in range(3):
             <li>"Every box is a line of your code.": a decision box is clicked and its line lights up.</li>
             <li>The CodeEditor mark, and Open the editor at code-editor.abhinesh.codes.</li>
           </ol>
+          <p><a href="/media/launch-0.7.0.mp4" download>Download the video</a> (MP4, 0.8 MB).</p>
         </div>
       </section>
 

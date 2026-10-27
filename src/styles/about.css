@@ -354,14 +354,50 @@ body.about {
 .about-video {
   text-align: left;
 }
+.about-stage {
+  position: relative;
+  margin-top: var(--s4);
+}
 .about-player {
   display: block;
   width: 100%;
   height: auto;
-  margin-top: var(--s4);
   border-radius: var(--r-control);
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--border);
+}
+/* Pause and play, on a solid ground in the video's corner (never text straight over the picture). */
+.about-play {
+  position: absolute;
+  left: var(--s3);
+  bottom: var(--s3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  font: inherit;
+  font-size: var(--fs-2);
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+.about-play:hover {
+  background: var(--hover);
+}
+.about-play::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.about-stage[data-video="playing"] .about-play::before {
+  clip-path: polygon(0 0, 35% 0, 35% 100%, 0 100%, 0 0, 65% 0, 100% 0, 100% 100%, 65% 100%, 65% 0);
 }
 .about-video .about-note ol {
   margin: var(--s2) 0 0;
