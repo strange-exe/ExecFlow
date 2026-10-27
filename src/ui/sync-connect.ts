@@ -490,7 +490,13 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
     "div",
     { class: "signin-start" },
     signInButton,
-    h("p", { class: "field-note", id: "connect-signin-note" }, "You go to GitHub to allow CodeEditor, then come back here. Your files are saved first."),
+    h(
+      "p",
+      { class: "field-note", id: "connect-signin-note" },
+      "You go to GitHub to allow CodeEditor, then come back here. Your files are saved first. What is sent to GitHub: ",
+      h("a", { href: "/privacy#github", target: "_blank", rel: "noopener noreferrer" }, "Privacy"),
+      ".",
+    ),
     h(
       "div",
       { class: "check" },

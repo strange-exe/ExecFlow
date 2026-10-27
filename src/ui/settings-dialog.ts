@@ -21,6 +21,11 @@ export interface SettingsDeps {
 
 let seq = 0;
 
+/** A link to a legal page, in a new tab. */
+function legalLink(href: string, label: string): HTMLElement {
+  return h("a", { href, target: "_blank", rel: "noopener noreferrer" }, label);
+}
+
 function field(label: string, control: HTMLElement, note?: string): HTMLElement {
   const id = control.id || `set-${++seq}`;
   control.id = id;
@@ -154,6 +159,8 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       h("p", { class: "field-note" }, "For shared computers: removes every file, setting and saved GitHub token CodeEditor keeps in this browser. Files already synced to GitHub stay there."),
       h("div", { class: "row-actions" }, clear),
     ),
+    // The legal pages open in a new tab, so nothing typed here is left behind.
+    h("p", { class: "field-note settings-legal" }, "What CodeEditor keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
   );
 
   return {

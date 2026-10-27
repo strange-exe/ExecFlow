@@ -1,0 +1,145 @@
+/* The Privacy and Terms pages (privacy.html, terms.html): long-form reading in the app's own tokens.
+   Reading order: 1. the title and its date, 2. the short version, 3. the sections. The header and
+   footer are quiet (tier 2). No script of their own: theme-boot.js paints the saved theme. */
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* The reading column is 720 px (about 75 characters of 16 px Geist); the header, the text and the
+   footer share its edges: a side padding of half the room around it, at least --s4. */
+body.legal {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+.legal a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.legal a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.legal-head,
+.legal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) max(var(--s4), calc((100% - 720px) / 2));
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--text-secondary);
+  background: var(--surface);
+}
+.legal-head {
+  border-bottom: 1px solid var(--divider);
+}
+.legal-foot {
+  border-top: 1px solid var(--divider);
+  margin-top: auto;
+}
+.legal-head a,
+.legal-foot a {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+}
+.legal .legal-home {
+  gap: var(--s2);
+  color: var(--text);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+.legal-home img {
+  display: block;
+}
+.legal-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s5);
+}
+
+.legal-main {
+  width: 100%;
+  padding: var(--s6) max(var(--s4), calc((100% - 720px) / 2));
+}
+
+.legal h1 {
+  margin: 0;
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--w-strong);
+}
+.legal-date {
+  margin: var(--s1) 0 var(--s5);
+  color: var(--text-muted);
+  font-size: var(--fs-1);
+}
+.legal h2 {
+  margin: var(--s6) 0 var(--s2);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--w-strong);
+}
+.legal h3 {
+  margin: var(--s5) 0 var(--s2);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--w-strong);
+}
+.legal p {
+  margin: 0 0 var(--s3);
+}
+.legal ul {
+  margin: 0 0 var(--s3);
+  padding-left: var(--s5);
+}
+.legal li + li {
+  margin-top: var(--s2);
+}
+.legal strong {
+  font-weight: var(--w-strong);
+}
+
+/* The short version: set apart by a rule in the action colour, not a card. */
+.legal-short {
+  padding-left: var(--s4);
+  border-left: 3px solid var(--action);
+}
+.legal-short h2 {
+  margin-top: 0;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  letter-spacing: 0;
+}
+.legal-short ul {
+  margin-bottom: 0;
+}
+
+@media (max-width: 480px) {
+  .legal-main {
+    padding-top: var(--s5);
+  }
+  .legal h1 {
+    font-size: 26px;
+    line-height: 32px;
+  }
+}

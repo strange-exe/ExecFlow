@@ -60,8 +60,14 @@ test("A, signed out: Sign in with GitHub leads; the token form waits behind its 
   await setUp(page);
   await openConnect(page);
   await expect(page.locator("#connect-signin")).toBeFocused();
-  // Keyboard path: Sign in, Remember, Use a token instead, then Cancel (Connect is hidden until the form opens).
+  // Keyboard path: Sign in, the note's Privacy link (what is sent to GitHub), Remember, Use a token
+  // instead, then Cancel (Connect is hidden until the form opens). Safari leaves links out of the Tab
+  // order unless "Press Tab to highlight each item" is on, and Playwright's WebKit differs by platform
+  // (share-design.spec.ts): whether the link is a stop is read from the browser.
   await page.keyboard.press("Tab");
+  const linksAreStops = await page.locator("#connect-signin-note a").evaluate((a) => a === document.activeElement);
+  if (!linksAreStops) expect(test.info().project.name, "only WebKit may skip the link").toBe("webkit");
+  if (linksAreStops) await page.keyboard.press("Tab");
   await expect(page.locator("#connect-signin-remember")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.locator("#connect-use-token")).toBeFocused();

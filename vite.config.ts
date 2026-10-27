@@ -96,7 +96,19 @@ const workerNames = { entryFileNames: "assets/w/[hash].js", chunkFileNames: "ass
  * end-to-end tests see exactly what the deployed site sends.
  */
 const securityRules: [string, Record<string, string>][] = [
-  ["/*", { ...isolation, "Content-Security-Policy": pageCsp, "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" }],
+  [
+    "/*",
+    {
+      ...isolation,
+      "Content-Security-Policy": pageCsp,
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+      // Nothing in the app uses these; a page the app didn't write can't ask for them either.
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+      // HTTPS only from the first visit on (one year; not its sibling subdomains, which aren't this app's).
+      "Strict-Transport-Security": "max-age=31536000",
+    },
+  ],
   ["/assets/w/*", { "Content-Security-Policy": workerCsp }],
 ];
 
@@ -158,6 +170,103 @@ function pagesHeaders(): Plugin {
   };
 }
 
+/** npm packages in the page's and the workers' bundles (workers are built first, inside the page's build). */
+const bundledPackages = new Set<string>();
+
+/** The package a module id belongs to ("@codemirror/view", "idb"), or null for the project's own files. */
+function packageOf(id: string): string | null {
+  const path = id.split("?")[0].replace(/\\/g, "/");
+  const at = path.lastIndexOf("/node_modules/");
+  if (at < 0) return null;
+  const [first, second] = path.slice(at + "/node_modules/".length).split("/");
+  return first.startsWith("@") ? `${first}/${second}` : first;
+}
+
+function collectPackages(): Plugin {
+  return {
+    name: "code-editor:collect-packages",
+    apply: "build",
+    buildEnd() {
+      for (const id of this.getModuleIds()) {
+        const pkg = packageOf(id);
+        if (pkg) bundledPackages.add(pkg);
+      }
+    },
+  };
+}
+
+/**
+ * Third-party parts the site serves that aren't npm modules in a bundle: runtimes copied to public/,
+ * vendored code, fonts (CSS url() assets) and the grammars. Each with the licence file it ships under.
+ */
+const LICENSE_EXTRAS: { name: string; file: string }[] = [
+  { name: "Pyodide 314.0.7 (served from /pyodide/)", file: "licenses/pyodide-314.0.7-LICENSE.txt" },
+  { name: "CPython 3.14, inside Pyodide", file: "licenses/cpython-3.14-LICENSE.txt" },
+  { name: "wasm-clang (Ben Smith), vendored in src/vendor/wasm-clang", file: "src/vendor/wasm-clang/LICENSE" },
+  { name: "libc++ 8, in the C/C++ pack", file: "licenses/libcxx-8-LICENSE.TXT" },
+  { name: "libc++abi 8, in the C/C++ pack", file: "licenses/libcxxabi-8-LICENSE.TXT" },
+  { name: "tree-sitter-c 0.24.1 (its .wasm, served from /flowchart/)", file: "licenses/tree-sitter-c-0.24.1-LICENSE.txt" },
+  { name: "tree-sitter-cpp 0.23.4 (its .wasm, served from /flowchart/)", file: "licenses/tree-sitter-cpp-0.23.4-LICENSE.txt" },
+  { name: "tree-sitter-python 0.25.0 (its .wasm, served from /flowchart/)", file: "licenses/tree-sitter-python-0.25.0-LICENSE.txt" },
+  { name: "web-tree-sitter 0.27.1 (its .wasm, served from /flowchart/)", file: "node_modules/web-tree-sitter/LICENSE" },
+  { name: "Geist (@fontsource-variable/geist)", file: "node_modules/@fontsource-variable/geist/LICENSE" },
+  { name: "JetBrains Mono (@fontsource/jetbrains-mono)", file: "node_modules/@fontsource/jetbrains-mono/LICENSE" },
+  // sw.js and workbox-<hash>.js are built by vite-plugin-pwa from these Workbox packages (one licence).
+  { name: "Workbox: workbox-core, -precaching, -routing, -strategies, -expiration, -cacheable-response (the service worker)", file: "node_modules/workbox-core/LICENSE" },
+];
+
+const LICENSE_NOTES = [
+  "LLVM (clang 8 and lld), in the C/C++ pack: Apache-2.0 WITH LLVM-exception and the University of Illinois/NCSA licence; the pack's own copy is served beside it as /clang/<version>/LICENSE.llvm.txt.",
+  "numpy, pandas, python-dateutil, pytz and six are served as their original wheel files, each with its licence inside (its .dist-info folder).",
+  "wasi-libc, in the C/C++ pack's sysroot: the 2019 build carries no licence file; upstream wasi-libc is Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT, with musl's parts MIT and cloudlibc's BSD-2-Clause.",
+  "The colour themes in Settings use the published palettes of other themes; each is listed with its source and licence in the README: https://github.com/strange-exe/code-editor#third-party-software",
+];
+
+function licenseFileOf(pkg: string): string | null {
+  const dir = `node_modules/${pkg}`;
+  const name = existsSync(dir) ? readdirSync(dir).find((f) => /^(licen[cs]e|copying)(\.(md|txt))?$/i.test(f)) : undefined;
+  return name ? `${dir}/${name}` : null;
+}
+
+/**
+ * Writes /licenses.txt: CodeEditor's own licence, then every third-party licence text the site's
+ * files ship under. A bundled package without a licence file stops the build.
+ */
+function thirdPartyLicenses(): Plugin {
+  return {
+    name: "code-editor:third-party-licenses",
+    apply: "build",
+    generateBundle() {
+      const missing: string[] = [];
+      const parts: { name: string; file: string }[] = [];
+      for (const pkg of [...bundledPackages].sort()) {
+        const file = licenseFileOf(pkg);
+        if (!file) missing.push(pkg);
+        else parts.push({ name: `${pkg} ${JSON.parse(readFileSync(`node_modules/${pkg}/package.json`, "utf8")).version}`, file });
+      }
+      if (missing.length) throw new Error(`No licence file for bundled package(s): ${missing.join(", ")}. Add one to LICENSE_EXTRAS in vite.config.ts.`);
+      parts.push(...LICENSE_EXTRAS);
+      const rule = "=".repeat(78);
+      const text = [
+        "CodeEditor: licences",
+        "",
+        "CodeEditor's own code is under the MIT licence (the first text below). The rest are the licences of",
+        "the third-party software this site serves, each under its own licence.",
+        "",
+        ...LICENSE_NOTES.map((n) => `- ${n}`),
+        "",
+        rule,
+        "CodeEditor",
+        rule,
+        readFileSync("LICENSE", "utf8").trim(),
+        ...parts.flatMap(({ name, file }) => ["", rule, name, rule, readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim()]),
+        "",
+      ].join("\n");
+      this.emitFile({ type: "asset", fileName: "licenses.txt", source: text });
+    },
+  };
+}
+
 /** `vite preview` sends the same security headers as Cloudflare, per path (cache rules left out). */
 function previewHeaders(): Plugin {
   return {
@@ -195,11 +304,19 @@ export default defineConfig(({ mode }) => ({
   // The dev server keeps only the isolation headers.
   server: { headers: isolation },
   // Workers have their own plugin list: the flowchart worker is where web-tree-sitter lives.
-  worker: { format: "es", plugins: () => [flowchartRuntimeUrl()], rolldownOptions: { output: workerNames } },
+  // Workers drop console.* and debugger like the page (their libraries log: web-tree-sitter, memfs).
+  worker: {
+    format: "es",
+    plugins: () => [flowchartRuntimeUrl(), collectPackages()],
+    rolldownOptions: { output: { ...workerNames, minify: { compress: { dropConsole: true, dropDebugger: true } } } },
+  },
   build: {
     // No source maps in production: DevTools can't rebuild the src/ tree. Nothing secret lives in the client.
     sourcemap: false,
     rolldownOptions: {
+      // The editor, and the Privacy and Terms pages (served at /privacy and /terms: Cloudflare Pages
+      // drops the .html; the service worker's precache matches the same clean URLs).
+      input: { index: "index.html", privacy: "privacy.html", terms: "terms.html" },
       output: {
         ...hashedNames,
         // Oxc minifier: drop leftover console.* calls (and debugger statements, its default).
@@ -217,6 +334,8 @@ export default defineConfig(({ mode }) => ({
     flowchartPack(),
     flowchartRuntimeUrl(),
     pagesHeaders(),
+    collectPackages(),
+    thirdPartyLicenses(),
     previewHeaders(),
     VitePWA({
       // An editor can hold unsaved text, so updates wait for the user instead of reloading tabs.

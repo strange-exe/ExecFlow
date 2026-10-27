@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Privacy - CodeEditor</title>
+    <meta name="description" content="What CodeEditor keeps, where it goes, and how to remove it." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/legal.css" />
+  </head>
+  <body class="legal">
+    <header class="legal-head">
+      <a class="legal-home" href="/"><img src="icons/mark-v2.svg" width="20" height="20" alt="" />CodeEditor</a>
+      <a class="legal-back" href="/">Open the editor</a>
+    </header>
+    <main class="legal-main">
+      <h1>Privacy</h1>
+      <p class="legal-date">Last updated 26 October 2026</p>
+
+      <section class="legal-short" aria-labelledby="short">
+        <h2 id="short">The short version</h2>
+        <ul>
+          <li>Your code runs in your browser. It is never sent to a CodeEditor server to be run.</li>
+          <li>Your files stay in this browser unless you connect GitHub. Then they go to the GitHub repository you choose, and nowhere else.</li>
+          <li>CodeEditor has no accounts, no cookies, no ads and no analytics.</li>
+          <li>Settings has a button that removes everything CodeEditor keeps in this browser.</li>
+        </ul>
+      </section>
+
+      <h2 id="who">Who runs CodeEditor</h2>
+      <p>
+        CodeEditor is made and run by Abhinesh. Questions about this page go to the project's
+        <a href="https://github.com/strange-exe/code-editor/issues">GitHub issues</a>. Issues are public, so don't put
+        code, tokens or anything personal in one.
+      </p>
+
+      <h2 id="device">What stays in your browser</h2>
+      <p>CodeEditor keeps these in your browser's own storage for this site. They don't leave your computer unless a later section says so.</p>
+      <ul>
+        <li><strong>Your files and folders</strong>, the files you have open, and the arguments you set for a program.</li>
+        <li><strong>Your settings</strong>: theme, code font size, print and image options, and the size of the panels.</li>
+        <li><strong>A recovery copy</strong> of unsaved typing, kept if the page closes before it is saved, and removed once you come back.</li>
+        <li><strong>The Input box</strong> text, for as long as the tab is open.</li>
+        <li>
+          <strong>The tools CodeEditor downloads</strong> to run and chart code (Python, the C and C++ compiler, the
+          flowchart parser), so they don't download again. They hold none of your files.
+        </li>
+      </ul>
+      <p>
+        Your browser may clear this storage to free space. Settings has "Protect local data" to ask it not to.
+      </p>
+
+      <h2 id="running">Running and charting code</h2>
+      <p>
+        Python, C and C++ programs run inside your browser. Flowcharts are drawn there too. Exported images, printouts
+        and PDFs are made on your computer.
+      </p>
+
+      <h2 id="github">If you connect GitHub</h2>
+      <p>GitHub is optional. If you connect it:</p>
+      <ul>
+        <li>
+          Your browser talks to GitHub directly. CodeEditor sends your files, their folder paths and a commit message to
+          the repository you picked. Each commit message names the files that changed and ends with the browser and
+          system you used, for example "From: Chrome on Windows (CodeEditor)".
+        </li>
+        <li>
+          "Sign in with GitHub" asks GitHub for access to the repositories you choose when you install the CodeEditor app
+          (their files and basic details), and, only if you turn on sharing by secret gist, to your gists.
+          A personal access token gets exactly what you gave it on GitHub.
+        </li>
+        <li>
+          Your GitHub token is kept in memory and forgotten when the tab closes. If you tick "Remember on this device"
+          (off unless you choose it), it is stored in this browser, encrypted.
+        </li>
+        <li>
+          CodeEditor reads your GitHub user name to show who is signed in, and the list of repositories you gave it.
+        </li>
+      </ul>
+      <p>
+        What happens to data on GitHub is covered by GitHub's
+        <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">privacy statement</a>.
+      </p>
+
+      <h3 id="relay">The sign-in step on CodeEditor's server</h3>
+      <p>
+        Signing in with GitHub needs one secret that can't be in a web page, so a small server function on CodeEditor's
+        site finishes that step. It receives the one-time code from GitHub, and later your token when it is renewed or
+        when you disconnect, passes them to GitHub, and returns GitHub's answer. It doesn't store or log them. Signing in
+        with a personal access token doesn't use it.
+      </p>
+
+      <h3 id="sharing">Share links</h3>
+      <ul>
+        <li>A <strong>link to the file in your repository</strong> uploads nothing new. Only people who can see the repository can open it.</li>
+        <li>
+          A <strong>secret gist</strong> puts a copy of one file on your GitHub account. Anyone who has the link can read it,
+          without signing in. CodeEditor never deletes gists: delete it on GitHub when you no longer want it shared.
+        </li>
+      </ul>
+
+      <h2 id="hosting">Hosting</h2>
+      <p>
+        The site is served by Cloudflare. Like any web host, Cloudflare receives your IP address and the details of each
+        request so it can deliver the page, under
+        <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>. CodeEditor's own code adds no
+        tracking, analytics or advertising, and sets no cookies.
+      </p>
+
+      <h2 id="remove">Removing your data</h2>
+      <ul>
+        <li>
+          <strong>Settings, "Sign out and clear this computer"</strong> removes every file, setting and saved token
+          CodeEditor keeps in this browser, then reloads the page. Files that aren't synced to GitHub are lost, so export
+          them first if you need them.
+        </li>
+        <li>
+          <strong>Settings, "Disconnect GitHub"</strong> stops syncing and forgets your token. If you signed in with GitHub,
+          it also asks GitHub to cancel the sign-in. A personal access token stays valid on GitHub until it expires or you
+          delete it there.
+        </li>
+        <li>
+          To be sure no access is left, remove CodeEditor on GitHub under
+          <a href="https://github.com/settings/apps/authorizations">Settings, Applications, Authorized GitHub Apps</a>
+          (<a href="https://docs.github.com/en/apps/using-github-apps/reviewing-and-revoking-authorization-of-github-apps">how</a>),
+          and delete any personal access token you made for it.
+        </li>
+        <li>Files in your repository, their commits and any secret gists are yours on GitHub: delete them there.</li>
+        <li>The downloaded tools stay in the browser's cache until you clear this site's data in your browser's settings.</li>
+      </ul>
+
+      <h2 id="changes">Changes to this page</h2>
+      <p>
+        If CodeEditor starts keeping or sending anything new, this page changes first, with a new date at the top.
+      </p>
+    </main>
+    <footer class="legal-foot">
+      <nav aria-label="Legal">
+        <a href="/privacy" aria-current="page">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/code-editor">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>

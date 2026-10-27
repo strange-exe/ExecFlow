@@ -30,7 +30,8 @@ and logs nothing, and syncing never goes through it.
   path, `/workspace/main.py`); in C and C++ `argv[0]` is the file's name without its extension
   (`main` for main.c) and the arguments follow. At most 100 arguments and 4,096 characters; an
   unclosed quote is shown at the field, and Run explains it instead of running.
-- Works offline after the first visit (a service worker keeps the app and the Python runtime).
+- Works offline once it has been set up: a service worker keeps the app and the Python runtime. It
+  starts when Python has loaded, or a minute into the first visit, or when the C/C++ pack downloads.
 - Suggestions as you type: keywords and snippets, the standard library's names, and your own names
   (see [Suggestions](#suggestions)).
 - Capture snippet: right-click selected code (or press Shift+F10) to make an image of those lines,
@@ -369,6 +370,13 @@ own `postMessage` removed before any program starts (a program can't send the pa
 - GitHub sync: an empty repository can only be started on its default branch; changes under
   `.github/workflows/` need a token with the Workflows permission, so they stay here; repository
   paths that can't be file names here (reserved or unsafe names) are left out and reported.
+
+## Privacy, terms and licences
+
+The site's [Privacy](https://code-editor.abhinesh.codes/privacy) page says what CodeEditor keeps and
+sends; [Terms](https://code-editor.abhinesh.codes/terms) are the rules for using it. Both are linked
+from Settings. The build writes `/licenses.txt` with every licence text the site's files ship under
+(`vite.config.ts`, `thirdPartyLicenses`); a bundled npm package without a licence file stops the build.
 
 ## Third-party software
 
