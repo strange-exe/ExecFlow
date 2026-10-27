@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>About CodeEditor</title>
+    <meta name="description" content="A code editor for students that runs Python, C and C++ in the browser and draws a flowchart of how the code runs." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/about.css" />
+    <link rel="preload" as="image" href="/media/about-scene.webp" type="image/webp" />
+  </head>
+  <body class="about">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+
+    <main id="content">
+      <section class="about-hero" aria-labelledby="hero-title">
+        <div class="about-hero-text">
+          <h1 id="hero-title">Write code. Run it. See how it flows.</h1>
+          <p class="about-lede">Python, C and C++ run right in your browser, with nothing to install. The flowchart shows how your code runs.</p>
+          <div class="about-ctas">
+            <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+            <a class="about-btn about-btn-ghost" href="#changelog">What's new</a>
+          </div>
+        </div>
+        <div class="about-scene" data-scene="poster" data-frames="0">
+          <img class="about-poster" src="/media/about-scene.webp" width="720" height="720" alt="" fetchpriority="high" />
+          <p class="about-scene-text">
+            A flowchart in 3D: a start, a step, a decision with a loop back, an output and an end, the shapes the
+            Flowchart tab draws for your code.
+          </p>
+        </div>
+      </section>
+
+      <section class="about-flow" aria-labelledby="flow-title">
+        <div class="about-flow-text">
+          <h2 id="flow-title">See how your code runs</h2>
+          <p>
+            Open the Flowchart tab and every decision, loop and early return becomes a box, in the standard flowchart
+            shapes. Click a box to jump to its lines, or read the same steps as a list.
+          </p>
+          <p>Works for code you wrote and for code you were given. Export it as a PNG or SVG for your report.</p>
+        </div>
+        <figure class="about-shot">
+          <picture>
+            <source srcset="/media/about-flowchart-dark.webp" media="(prefers-color-scheme: dark)" />
+            <img src="/media/about-flowchart-light.webp" width="1200" height="900" alt="The CodeEditor window: a C program on the left, and its flowchart below it, with a loop and a decision." loading="lazy" decoding="async" />
+          </picture>
+        </figure>
+      </section>
+
+      <section class="about-run" aria-labelledby="run-title">
+        <h2 id="run-title">Nothing to install</h2>
+        <dl class="about-langs">
+          <div class="about-lang about-lang-wide">
+            <dt>Python</dt>
+            <dd>
+              <pre class="about-code"><code>name = input("Your name: ")
+for i in range(3):
+    print(f"Hello, {name}! Line {i + 1}")</code></pre>
+              Runs as soon as you open a file. Programs that ask for input wait for you to type it. numpy and pandas download the first time you import them.</dd>
+          </div>
+          <div class="about-lang">
+            <dt>C</dt>
+            <dd>Compiled in the browser after a one-time download, with errors marked on their lines.</dd>
+          </div>
+          <div class="about-lang">
+            <dt>C++</dt>
+            <dd>The same compiler and download, with the C++ standard library.</dd>
+          </div>
+        </dl>
+        <p class="about-note">Common errors come with an explanation in plain words, next to the line they point to.</p>
+      </section>
+
+      <section class="about-sync" aria-labelledby="sync-title">
+        <h2 id="sync-title">Your files, your repository</h2>
+        <ul class="about-points">
+          <li><strong>On this computer first.</strong> Files are kept in your browser. Nothing leaves it unless you connect GitHub.</li>
+          <li><strong>In your private GitHub repository.</strong> Sign in with GitHub and your changes sync to it, each commit named after its files.</li>
+          <li><strong>Shared with one link.</strong> A link to the file in your repository, or a secret gist anyone with the link can open.</li>
+        </ul>
+        <p><a href="/privacy">What CodeEditor keeps and sends</a></p>
+      </section>
+
+      <section class="about-themes" aria-labelledby="themes-title">
+        <h2 id="themes-title">Your colours</h2>
+        <p>CodeEditor Signal is the default. <span data-theme-count></span> themes are one click away in Settings, each checked for readable contrast.</p>
+        <ul class="about-swatches" aria-label="Colour themes" tabindex="0"></ul>
+      </section>
+
+      <section class="about-video" aria-labelledby="video-title" id="launch-video">
+        <h2 id="video-title">A minute with CodeEditor</h2>
+        <p class="about-note">The launch video is being made. It will play here, muted with captions, only when you press play.</p>
+      </section>
+
+      <section class="about-changelog" aria-labelledby="changelog-title" id="changelog">
+        <h2 id="changelog-title">What's new</h2>
+        <p>You are on CodeEditor <span data-app-version></span>. Every change that reached the site, newest first.</p>
+        <ol class="about-releases"></ol>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/licenses.txt">Licences</a>
+        <a href="https://github.com/strange-exe/code-editor">Source code</a>
+      </nav>
+    </footer>
+    <script type="module" src="/src/about/page.ts"></script>
+  </body>
+</html>

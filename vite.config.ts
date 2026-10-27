@@ -82,9 +82,15 @@ const pageCsp = directives("'self' https://api.github.com");
 const workerCsp = directives("'self'");
 
 /** Hash-only file names: long-term caching still works and source names don't leak. */
+/**
+ * The About page's own code (its entry, its scene and three.js) lives under assets/a/: the service
+ * worker leaves it out of the precache every visitor downloads, and caches it when /about is opened.
+ */
+const aboutOnly = (chunk: { name: string; moduleIds: readonly string[] }) =>
+  chunk.name === "about" || chunk.moduleIds.some((id) => /[\\/]node_modules[\\/]three[\\/]|[\\/]src[\\/]about[\\/]scene\.ts$/.test(id));
 const hashedNames = {
-  entryFileNames: "assets/[hash].js",
-  chunkFileNames: "assets/[hash].js",
+  entryFileNames: (chunk: { name: string; moduleIds: readonly string[] }) => (aboutOnly(chunk) ? "assets/a/[hash].js" : "assets/[hash].js"),
+  chunkFileNames: (chunk: { name: string; moduleIds: readonly string[] }) => (aboutOnly(chunk) ? "assets/a/[hash].js" : "assets/[hash].js"),
   assetFileNames: "assets/[hash][extname]",
 };
 /** Worker bundles live under assets/w/ so the worker-only policy can target them. */
@@ -316,7 +322,7 @@ export default defineConfig(({ mode }) => ({
     rolldownOptions: {
       // The editor, and the Privacy and Terms pages (served at /privacy and /terms: Cloudflare Pages
       // drops the .html; the service worker's precache matches the same clean URLs).
-      input: { index: "index.html", privacy: "privacy.html", terms: "terms.html" },
+      input: { index: "index.html", privacy: "privacy.html", terms: "terms.html", about: "about.html" },
       output: {
         ...hashedNames,
         // Oxc minifier: drop leftover console.* calls (and debugger statements, its default).
@@ -367,7 +373,8 @@ export default defineConfig(({ mode }) => ({
         // _routes.json is Cloudflare's (which paths run the sign-in function), not the app's.
         // The flowchart's parser files (~4.5 MB) are not precached either: they download the first time
         // a flowchart is asked for, and are runtime-cached below.
-        globIgnores: ["clang/**", "flowchart/**", "_routes.json"],
+        // The About page's code and images (assets/a/, media/) are cached when /about is opened, below.
+        globIgnores: ["clang/**", "flowchart/**", "_routes.json", "assets/a/**", "media/**"],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Versioned or hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the
         // service worker can reuse what the page already downloaded (no second 6 MB download).
@@ -397,6 +404,16 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "codeeditor-flowchart",
               expiration: { maxEntries: 8 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          // The About page's code (hashed names: never stale) and its images, once /about was opened.
+          {
+            urlPattern: /\/(assets\/a\/[^/]+\.js|media\/[^/]+\.webp)$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "codeeditor-about",
+              expiration: { maxEntries: 24 },
               cacheableResponse: { statuses: [200] },
             },
           },

@@ -33,6 +33,7 @@
     "@lezer/highlight": "1.2.5",
     "idb": "8.0.3",
     "pyodide": "314.0.7",
+    "three": "0.186.1",
     "web-tree-sitter": "0.27.1"
   },
   "devDependencies": {

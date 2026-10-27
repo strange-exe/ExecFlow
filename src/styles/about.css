@@ -1,0 +1,458 @@
+/* The About page (about.html): the one more expressive surface of 0.7.0, in the app's own tokens and the
+   calm direction (owner's pick B). Reading order: 1. the headline and "Open the editor", 2. the hero
+   scene, 3. the sections, 4. the changelog. One accent (--action), one radius family (--r-control for
+   controls, --r-dialog for frames), one light and one dark theme from theme-boot.js. Motion settles
+   content in (never from opacity 0) and stops under reduced motion. */
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body.about {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+.about a {
+  color: var(--link);
+  text-underline-offset: 3px;
+}
+.about :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: var(--r-key);
+}
+
+/* Skip link: off screen until focused. */
+.about-skip {
+  position: absolute;
+  left: var(--s4);
+  top: -100px;
+  padding: var(--s2) var(--s3);
+  background: var(--surface-raised);
+  color: var(--text);
+  border-radius: var(--r-control);
+  z-index: 2;
+}
+.about-skip:focus {
+  top: var(--s3);
+}
+
+/* The page column: 1120 px, with a gutter of at least --s4. */
+.about-head,
+.about main > section,
+.about-foot {
+  width: 100%;
+  max-width: 1152px;
+  margin: 0 auto;
+  padding-left: var(--s4);
+  padding-right: var(--s4);
+}
+
+.about-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  min-height: 64px;
+}
+.about .about-home {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--text);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+.about-home img {
+  display: block;
+}
+
+/* Buttons: one primary fill (the accent), one ghost with an inset ring. */
+.about .about-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--s5);
+  border-radius: var(--r-control);
+  font-weight: var(--w-strong);
+  font-size: var(--fs-1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.about .about-btn-primary {
+  background: var(--action);
+  color: var(--on-action);
+}
+.about .about-btn-primary:hover {
+  background: var(--action-hover);
+}
+.about .about-btn-ghost {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.about .about-btn-ghost:hover {
+  background: var(--hover);
+}
+.about-head .about-btn {
+  min-height: 36px;
+  padding: 0 var(--s4);
+}
+
+/* ---------------------------------------------------------------- hero */
+.about-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s5);
+  padding-top: var(--s5);
+  padding-bottom: var(--s6);
+  align-items: center;
+}
+.about h1 {
+  margin: 0;
+  font-size: clamp(34px, 5.2vw, 58px);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  font-weight: var(--w-strong);
+  max-width: 14ch;
+}
+.about-lede {
+  margin: var(--s5) 0 0;
+  max-width: 36ch;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.about-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s5);
+}
+
+.about-scene {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 1 / 1;
+  justify-self: center;
+}
+.about-poster,
+.about-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.about-canvas {
+  opacity: 0;
+}
+.about-scene[data-scene="running"] .about-canvas {
+  opacity: 1;
+  transition: opacity 0.4s ease-out;
+}
+.about-scene[data-scene="running"] .about-poster {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+/* The scene's text equivalent: read by screen readers, not shown. */
+.about-scene-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: 0;
+}
+
+/* Two columns from 900 px: tall enough for the scene, never so tall the headline floats mid-screen. */
+@media (min-width: 900px) {
+  .about-hero {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    min-height: min(calc(100dvh - 64px), 600px);
+    padding-top: var(--s5);
+  }
+}
+
+/* ---------------------------------------------------------------- sections */
+.about main > section:not(.about-hero) {
+  padding-top: var(--s6);
+  padding-bottom: var(--s6);
+}
+.about h2 {
+  margin: 0 0 var(--s3);
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.15;
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--w-strong);
+}
+.about main p {
+  margin: 0 0 var(--s3);
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+.about-note {
+  font-size: var(--fs-1);
+}
+
+/* The flowchart: text, then a real screenshot in a raised frame. */
+.about-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: center;
+}
+.about-shot {
+  margin: 0;
+  border-radius: var(--r-dialog);
+  overflow: hidden;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px color-mix(in srgb, var(--text) 8%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--text) 22%, transparent);
+}
+.about-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (min-width: 900px) {
+  .about-flow {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: var(--s6);
+  }
+}
+
+/* Languages: Python's cell is the wide one; C and C++ share the other column. */
+.about-langs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+  margin: var(--s4) 0;
+}
+.about-lang {
+  padding: var(--s5);
+  border-radius: var(--r-dialog);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition: transform 0.2s ease-out;
+}
+.about-lang-wide {
+  background: color-mix(in srgb, var(--action) 10%, var(--surface));
+}
+/* A real program, as text (not a picture of an editor). */
+.about-code {
+  margin: var(--s2) 0 var(--s4);
+  padding: var(--s4);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-family: var(--font-code);
+  font-size: var(--fs-2);
+  line-height: 1.7;
+  color: var(--text);
+  /* Long lines wrap on a phone: a sample that scrolls sideways would need a keyboard stop. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.about-lang dt {
+  font-family: var(--font-code);
+  font-size: 22px;
+  font-weight: var(--w-strong);
+  margin-bottom: var(--s2);
+}
+.about-lang dd {
+  margin: 0;
+  color: var(--text-secondary);
+}
+@media (min-width: 760px) {
+  .about-langs {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+  .about-lang-wide {
+    grid-row: span 2;
+  }
+}
+
+/* Sync: one vertical list, lead words in the text colour. */
+.about-points {
+  margin: var(--s4) 0;
+  padding: 0;
+  list-style: none;
+  max-width: 62ch;
+}
+.about-points li {
+  padding: var(--s3) 0;
+  color: var(--text-secondary);
+}
+.about-points li + li {
+  border-top: 1px solid var(--divider);
+}
+.about-points strong {
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+
+/* Themes: a scroll-snap strip of samples, each a line of code in the theme's colours. */
+.about-swatches {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 168px;
+  gap: var(--s3);
+  margin: var(--s4) 0 0;
+  padding: 0 0 var(--s3);
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+.swatch {
+  scroll-snap-align: start;
+}
+.swatch-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 84px;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition: transform 0.2s ease-out;
+}
+.swatch-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+}
+.swatch-bar:nth-child(1) {
+  width: 60%;
+}
+.swatch-bar:nth-child(2) {
+  width: 85%;
+}
+.swatch-bar:nth-child(3) {
+  width: 45%;
+}
+.swatch-name {
+  display: block;
+  margin-top: var(--s2);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--text-secondary);
+}
+
+/* The launch video's slot. */
+.about-video {
+  text-align: left;
+}
+
+/* Changelog: the heading column stays beside the releases on wide screens. */
+.about-changelog {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+}
+.about-releases {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.release {
+  padding: var(--s4) 0;
+}
+.release + .release {
+  border-top: 1px solid var(--divider);
+}
+.release h3 {
+  margin: 0;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--w-strong);
+}
+.release-version {
+  font-family: var(--font-code);
+  margin-right: var(--s2);
+}
+.release-date {
+  display: block;
+  font-size: var(--fs-2);
+  color: var(--text-muted);
+}
+.release-items {
+  margin: var(--s2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.release-items li {
+  margin-top: var(--s1);
+  color: var(--text-secondary);
+}
+.release-kind {
+  display: inline-block;
+  min-width: 70px;
+  font-size: var(--fs-hint);
+  font-weight: var(--w-strong);
+  color: var(--text);
+}
+@media (min-width: 900px) {
+  .about-changelog {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: var(--s6);
+    align-items: start;
+  }
+  .about-changelog > h2,
+  .about-changelog > p {
+    grid-column: 1;
+  }
+  .about-releases {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+}
+
+/* ---------------------------------------------------------------- footer */
+.about-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding-top: var(--s5);
+  padding-bottom: var(--s6);
+  border-top: 1px solid var(--divider);
+}
+.about-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s5);
+}
+.about-foot nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: var(--fs-2);
+}
+
+/* ---------------------------------------------------------------- motion (none under reduced motion) */
+@media (prefers-reduced-motion: no-preference) {
+  /* Movement only: a faded section would put its text under the contrast minimum until it arrives. */
+  .will-reveal {
+    transform: translateY(16px);
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .will-reveal.is-in {
+    transform: none;
+  }
+  .about-lang:hover,
+  .swatch:hover .swatch-sample {
+    transform: translateY(-2px);
+  }
+}
