@@ -56,6 +56,14 @@ describe("flowchart labels", () => {
     expect(l.full).toContain("[U+200B]");
   });
 
+  it("tags a lone surrogate (it can't be drawn or exported as UTF-8), and keeps a real pair", () => {
+    const pair = cp(0x1f600);
+    const l = label(`x = "${String.fromCharCode(0xd800)}${pair}"`);
+    expect(l.full).toContain("[U+D800]");
+    expect(l.full).toContain(pair);
+    expect([...l.full].some((c) => c.length === 1 && c.charCodeAt(0) >= 0xd800 && c.charCodeAt(0) <= 0xdfff)).toBe(false);
+  });
+
   it("never splits a [U+XXXX] tag across two lines", () => {
     const text = `${"y".repeat(24)}${cp(0x202e)}${"z".repeat(10)}`;
     const l = label(text, { maxLines: 4 });

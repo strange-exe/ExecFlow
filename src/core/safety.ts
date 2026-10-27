@@ -60,9 +60,10 @@ export const HIDDEN = /[\u00ad\u115f\u1160\u180e\u200b\u200e\u200f\u2060\u3164\u
 // What a name drawn in a sentence must never carry unseen: the three sets above, and every other
 // control, format character, line or paragraph separator and default-ignorable code point (the
 // attack review, 2026-10-24, found C1 controls, U+061C, invisible operators, variation selectors
-// and interlinear marks drawn invisibly in names).
+// and interlinear marks drawn invisibly in names). Lone surrogates too (\p{Cs}: a paired one is a
+// single code point): they draw as a replacement box and become U+FFFD in a UTF-8 export.
 const UNSHOWN = new RegExp(
-  `${BIDI_CONTROL.source}|${HIDDEN.source}|${CONTROL.source}|[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}]`,
+  `${BIDI_CONTROL.source}|${HIDDEN.source}|${CONTROL.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}]`,
   "gu",
 );
 // Never tagged: zero-width non-joiner and joiner shape Hindi and other scripts, and tab, line feed,
