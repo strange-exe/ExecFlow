@@ -226,6 +226,20 @@ test.describe("the hero scene", () => {
   });
 });
 
+// After a release, an older service worker keeps serving its own precached about.html until the user
+// takes the update (it waits: an editor tab can hold unsaved text). That page must still find its
+// code: every script and stylesheet it names is in the same precache (only the optional 3D scene,
+// imported later from assets/a/, may be missing, and then the poster stays). The page's entry once
+// lived in assets/a/, and the live About page lost its changelog after the next deploy.
+test("every script and stylesheet the About page names is precached with it", async ({ request }) => {
+  const html = await (await request.get("/about")).text();
+  const refs = [...html.matchAll(/<(?:script[^>]*\ssrc|link[^>]*\shref)="([^"]+\.(?:js|css))"/g)].map((m) => m[1].replace(/^\//, ""));
+  expect(refs.length).toBeGreaterThan(1);
+  const sw = await (await request.get("/sw.js")).text();
+  for (const ref of refs) expect(sw, `${ref} is not in the service worker's precache`).toContain(`"${ref}"`);
+  expect(refs.filter((r) => r.startsWith("assets/a/"))).toEqual([]);
+});
+
 test("the editor's first visit loads nothing of the About page", async ({ page, request }) => {
   const html = await (await request.get("/")).text();
   expect(html).not.toContain("/assets/a/");

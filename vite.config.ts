@@ -91,13 +91,16 @@ const workerCsp = directives("'self'");
 
 /** Hash-only file names: long-term caching still works and source names don't leak. */
 /**
- * The About page's own code (its entry, its scene and three.js) lives under assets/a/: the service
- * worker leaves it out of the precache every visitor downloads, and caches it when /about is opened.
+ * The About page's 3D scene and three.js (136 KB gzip) live under assets/a/: the service worker
+ * leaves them out of the precache every visitor downloads, and caches them when /about is opened.
+ * The page's own entry (a few KB: the changelog, the video) stays in assets/ and is precached with
+ * its HTML, so a page served by an older service worker after a release still has its code; only
+ * the optional scene can be missing there, and then the poster stays (the scene's failure path).
  */
 const aboutOnly = (chunk: { name: string; moduleIds: readonly string[] }) =>
-  chunk.name === "about" || chunk.moduleIds.some((id) => /[\\/]node_modules[\\/]three[\\/]|[\\/]src[\\/]about[\\/]scene\.ts$/.test(id));
+  chunk.moduleIds.some((id) => /[\\/]node_modules[\\/]three[\\/]|[\\/]src[\\/]about[\\/]scene\.ts$/.test(id));
 const hashedNames = {
-  entryFileNames: (chunk: { name: string; moduleIds: readonly string[] }) => (aboutOnly(chunk) ? "assets/a/[hash].js" : "assets/[hash].js"),
+  entryFileNames: "assets/[hash].js",
   chunkFileNames: (chunk: { name: string; moduleIds: readonly string[] }) => (aboutOnly(chunk) ? "assets/a/[hash].js" : "assets/[hash].js"),
   assetFileNames: "assets/[hash][extname]",
 };
