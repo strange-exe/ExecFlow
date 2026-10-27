@@ -20,30 +20,48 @@ function longDate(iso: string): string {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
+/** Releases shown open; the older ones fold under "Earlier releases" (still in the page and found by search). */
+const OPEN_RELEASES = 4;
+
+function renderRelease(r: (typeof CHANGELOG)[number]): HTMLLIElement {
+  const item = el("li", "release");
+  const head = el("h3", "release-head");
+  head.append(el("span", "release-version", r.version), " ", el("span", "release-title", r.title));
+  const time = el("time", "release-date", longDate(r.date));
+  time.dateTime = r.date;
+  item.append(head, time);
+  // One tag per kind over its own list: the word names it (the dot's colour only repeats it).
+  for (const kind of KINDS) {
+    const items = r.items.filter((i) => i.kind === kind);
+    if (!items.length) continue;
+    const id = `release-${r.version.replaceAll(".", "-")}-${kind}`;
+    const group = el("div", "release-group");
+    group.dataset.kind = kind;
+    const tag = el("h4", "release-kind", KIND_WORD[kind]);
+    tag.id = id;
+    const list = el("ul", "release-items");
+    list.setAttribute("aria-labelledby", id);
+    for (const i of items) list.append(el("li", undefined, i.text));
+    group.append(tag, list);
+    item.append(group);
+  }
+  return item;
+}
+
 function renderChangelog(): void {
   const list = document.querySelector(".about-releases");
   if (!list) return;
-  for (const r of CHANGELOG) {
-    const item = el("li", "release");
-    const head = el("h3");
-    head.append(el("span", "release-version", r.version), " ", el("span", "release-title", r.title));
-    const time = el("time", "release-date", longDate(r.date));
-    time.dateTime = r.date;
-    item.append(head, time);
-    for (const kind of KINDS) {
-      const items = r.items.filter((i) => i.kind === kind);
-      if (!items.length) continue;
-      const group = el("ul", "release-items");
-      group.dataset.kind = kind;
-      group.setAttribute("aria-label", KIND_WORD[kind]);
-      for (const i of items) {
-        const li = el("li");
-        li.append(el("span", "release-kind", KIND_WORD[kind]), " ", document.createTextNode(i.text));
-        group.append(li);
-      }
-      item.append(group);
-    }
-    list.append(item);
+  for (const r of CHANGELOG.slice(0, OPEN_RELEASES)) list.append(renderRelease(r));
+  const older = CHANGELOG.slice(OPEN_RELEASES);
+  if (older.length) {
+    const fold = el("details", "release-older");
+    const summary = el("summary", undefined, `Earlier releases (${older.length}), back to ${older[older.length - 1].version}`);
+    const rest = el("ol", "about-releases about-releases-older");
+    for (const r of older) rest.append(renderRelease(r));
+    fold.append(summary, rest);
+    const holder = el("li", "release-older-item");
+    holder.append(fold);
+    list.append(holder);
   }
   for (const v of document.querySelectorAll<HTMLElement>("[data-app-version]")) v.textContent = __APP_VERSION__;
 }

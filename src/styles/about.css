@@ -365,42 +365,117 @@ body.about {
   padding: 0;
   list-style: none;
 }
+/* A release: the version chip and title, the date, then one group per kind of change, each a tag
+   (its word, and a dot in the kind's colour) over a bulleted list whose lines wrap under their
+   own text. */
 .release {
-  padding: var(--s4) 0;
+  padding: var(--s5) 0;
 }
-.release + .release {
+.release + .release,
+.release-older-item {
   border-top: 1px solid var(--divider);
 }
-.release h3 {
+.release-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
   margin: 0;
   font-size: var(--fs-section);
   line-height: var(--lh-section);
   font-weight: var(--w-strong);
 }
 .release-version {
+  padding: 0 var(--s2);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
   font-family: var(--font-code);
-  margin-right: var(--s2);
+  font-size: var(--fs-2);
+  font-weight: var(--w-label);
+}
+.release:first-child .release-version {
+  box-shadow: inset 0 0 0 1px var(--action);
+  color: var(--text);
 }
 .release-date {
   display: block;
+  margin-top: var(--s1);
   font-size: var(--fs-2);
   color: var(--text-muted);
 }
+.release-group {
+  margin-top: var(--s4);
+}
+.release-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  font-weight: var(--w-strong);
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.release-kind::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.release-group[data-kind="added"] .release-kind::before { background: var(--success); }
+.release-group[data-kind="changed"] .release-kind::before { background: var(--info); }
+.release-group[data-kind="fixed"] .release-kind::before { background: var(--warning); }
 .release-items {
   margin: var(--s2) 0 0;
-  padding: 0;
-  list-style: none;
+  padding: 0 0 0 var(--s5);
+  list-style: disc;
+  color: var(--text-secondary);
 }
 .release-items li {
   margin-top: var(--s1);
-  color: var(--text-secondary);
+  padding-left: var(--s1);
 }
-.release-kind {
-  display: inline-block;
-  min-width: 70px;
-  font-size: var(--fs-hint);
-  font-weight: var(--w-strong);
+.release-items li::marker {
+  color: var(--text-muted);
+}
+/* The older releases fold away; open, they read like the ones above. */
+.release-older-item {
+  padding-top: var(--s4);
+}
+.release-older > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
   color: var(--text);
+  font-weight: var(--w-label);
+}
+.release-older > summary::-webkit-details-marker { display: none; }
+/* The disclosure's chevron (the native marker goes with display: inline-flex): right, then down. */
+.release-older > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin: 0 2px 0 var(--s1);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+.release-older[open] > summary::before { transform: rotate(45deg); }
+.release-older > summary:focus-visible {
+  outline: var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+.about-releases-older {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 @media (min-width: 900px) {
   .about-changelog {

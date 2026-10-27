@@ -71,6 +71,27 @@ test.describe("the About page", () => {
     await expect(page.locator("[data-app-version]")).toHaveText(pkg.version);
   });
 
+  test("each kind of change is one named list; the older releases fold away and open by keyboard", async ({ page }) => {
+    await page.goto("/about#changelog");
+    const latest = page.locator("#changelog .release").first();
+    // One tag per kind, naming its own list (not a label repeated on every line).
+    for (const kind of new Set(CHANGELOG[0].items.map((i) => i.kind))) {
+      const word = kind[0].toUpperCase() + kind.slice(1);
+      const list = latest.getByRole("list", { name: word });
+      await expect(list).toHaveCount(1);
+      await expect(list.getByRole("listitem")).toHaveCount(CHANGELOG[0].items.filter((i) => i.kind === kind).length);
+    }
+    // The first four are open; the rest wait under one disclosure that names how many and how far back.
+    const fold = page.locator("#changelog details.release-older");
+    const summary = fold.locator("summary");
+    await expect(summary).toHaveText(`Earlier releases (${CHANGELOG.length - 4}), back to 0.1.0`);
+    await expect(fold.locator(".release").first()).toBeHidden();
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    await expect(fold).toHaveJSProperty("open", true);
+    await expect(fold.locator(".release").last()).toBeVisible();
+  });
+
   test("keyboard: the first Tab stop is a skip link, then Open the editor; focus is visible", async ({ page }) => {
     await page.goto("/about");
     await page.keyboard.press("Tab");
