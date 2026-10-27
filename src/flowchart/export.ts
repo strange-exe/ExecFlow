@@ -27,7 +27,26 @@ export interface ExportLook {
 /** "Print-safe light": the default theme's light ink on white (Save as PDF's print palette). */
 export function printColors(): ExportColors {
   const light = OWN[DEFAULT_OWN].light;
-  return { "surface-raised": PAPER, "border-strong": light["border-strong"], text: light.text, "text-secondary": light["text-secondary"], border: light.border, bg: PAPER };
+  return {
+    "surface-raised": PAPER,
+    "border-strong": light["border-strong"],
+    text: light.text,
+    "text-secondary": light["text-secondary"],
+    success: light.success,
+    warning: light.warning,
+    info: light.info,
+    action: light.action,
+    danger: light.danger,
+    border: light.border,
+    bg: PAPER,
+  };
+}
+
+/** `top` at `pct` percent over `base` (both #rrggbb): the export's resolved form of the view's color-mix. */
+export function mixHex(top: string, base: string, pct: number): string {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+  const out = [0, 1, 2].map((i) => Math.round(ch(top, i) * (pct / 100) + ch(base, i) * (1 - pct / 100)));
+  return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
 export const FOOTER_TEXT = "Made with CodeEditor";
@@ -74,7 +93,13 @@ export function exportSvg(input: ExportInput, doc: SvgDocument = document): SVGS
   titleEl.textContent = title;
   root.appendChild(titleEl);
   root.appendChild(el(doc, "rect", { x: 0, y: 0, width, height, fill: look.colors.bg }));
-  const drawing = renderChart(chart, layout, doc, { color: (t) => look.colors[t], codeFont: look.codeFont, uiFont: look.uiFont, interactive: false });
+  const drawing = renderChart(chart, layout, doc, {
+    color: (t) => look.colors[t],
+    tint: (t, pct) => mixHex(look.colors[t], look.colors["surface-raised"], pct),
+    codeFont: look.codeFont,
+    uiFont: look.uiFont,
+    interactive: false,
+  });
   drawing.setAttribute("x", String(Math.round((width - layout.width) / 2)));
   drawing.setAttribute("y", "0");
   root.appendChild(drawing);

@@ -16,8 +16,33 @@ const NS = "http://www.w3.org/2000/svg";
 export type SvgDocument = Pick<Document, "createElementNS" | "createTextNode">;
 
 /** The colour tokens a chart is drawn with. */
-export const CHART_TOKENS = ["surface-raised", "border-strong", "text", "text-secondary"] as const;
+export const CHART_TOKENS = ["surface-raised", "border-strong", "text", "text-secondary", "success", "warning", "info", "action", "danger"] as const;
 export type ChartToken = (typeof CHART_TOKENS)[number];
+
+/**
+ * Shapes take the colour of what they mean, as an outline and a light tint (CHART_TINT percent over
+ * surface-raised): terminators the success hue, decisions warning, input and output info, calls the
+ * action hue. Plain steps and connectors stay neutral, so colour marks the shapes worth a look; the
+ * shape itself always says the kind too. src/theme/contrast.ts checks text on every tint and every
+ * outline against the chart's ground, in every theme.
+ */
+export const CHART_TINT = 14;
+export type KindHue = "success" | "warning" | "info" | "action";
+export function kindHue(kind: FlowNode["kind"]): KindHue | null {
+  switch (kind) {
+    case "start":
+    case "end":
+      return "success";
+    case "decision":
+      return "warning";
+    case "io":
+      return "info";
+    case "call":
+      return "action";
+    default:
+      return null;
+  }
+}
 
 /**
  * How a chart is painted. The view's look names the theme's custom properties and is interactive
@@ -25,26 +50,69 @@ export type ChartToken = (typeof CHART_TOKENS)[number];
  */
 export interface ChartLook {
   color(token: ChartToken): string;
+  /** `token` at `pct` percent over surface-raised. */
+  tint(token: KindHue, pct: number): string;
   codeFont: string;
   uiFont: string;
   interactive: boolean;
 }
 
-export const VIEW_LOOK: ChartLook = { color: (t) => `var(--${t})`, codeFont: "var(--font-code)", uiFont: "var(--font-ui)", interactive: true };
+export const VIEW_LOOK: ChartLook = {
+  color: (t) => `var(--${t})`,
+  tint: (t, pct) => `color-mix(in srgb, var(--${t}) ${pct}%, var(--surface-raised))`,
+  codeFont: "var(--font-code)",
+  uiFont: "var(--font-ui)",
+  interactive: true,
+};
 
-type Styles = Record<"shape" | "bar" | "text" | "note" | "edge" | "arrow" | "edgeLabel", string>;
+type Styles = Record<"shape" | "bar" | "text" | "note" | "edgeLabel", string> & {
+  kindShape(hue: KindHue | null): string;
+  kindBar(hue: KindHue | null): string;
+  edge(hue: EdgeHue): string;
+  arrow(hue: EdgeHue): string;
+};
+
+/** A connector's colour: Yes in the success hue, No in danger, the rest the secondary text colour. */
+type EdgeHue = "text-secondary" | "success" | "danger";
+function edgeHue(label: string | undefined): EdgeHue {
+  return label === "Yes" ? "success" : label === "No" ? "danger" : "text-secondary";
+}
 
 function styles(look: ChartLook): Styles {
   const c = look.color;
+  const shape = `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1.5`;
   return {
-    shape: `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1.5`,
+    shape,
     bar: `fill:none;stroke:${c("border-strong")};stroke-width:1.5`,
     text: `fill:${c("text")};font-family:${look.codeFont};font-size:13px`,
     note: `fill:${c("text-secondary")};font-family:${look.uiFont};font-size:11px;font-style:italic`,
-    edge: `fill:none;stroke:${c("border-strong")};stroke-width:1.5;stroke-linejoin:round`,
-    arrow: `fill:${c("border-strong")};stroke:none`,
-    edgeLabel: `fill:${c("text-secondary")};font-family:${look.uiFont};font-size:12px`,
+    edgeLabel: `fill:${c("text")};font-family:${look.uiFont};font-size:12px;font-weight:600`,
+    kindShape: (hue) => (hue ? `fill:${look.tint(hue, CHART_TINT)};stroke:${c(hue)};stroke-width:1.75` : shape),
+    kindBar: (hue) => `fill:none;stroke:${c(hue ?? "border-strong")};stroke-width:1.5`,
+    edge: (hue) => `fill:none;stroke:${c(hue)};stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round`,
+    arrow: (hue) => `fill:${c(hue)};stroke:none`,
   };
+}
+
+/** An orthogonal polyline as a path whose corners are arcs of up to `r` (half the shorter leg at most). */
+export function roundedPath(points: Point[], r = 8): string {
+  if (points.length < 3) return `M${pts(points).replaceAll(" ", " L")}`;
+  let d = `M${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const [a, b, c] = [points[i - 1], points[i], points[i + 1]];
+    const inLen = Math.hypot(b.x - a.x, b.y - a.y);
+    const outLen = Math.hypot(c.x - b.x, c.y - b.y);
+    const k = Math.min(r, inLen / 2, outLen / 2);
+    if (k < 0.5) {
+      d += ` L${b.x},${b.y}`;
+      continue;
+    }
+    const p1 = { x: b.x - ((b.x - a.x) / inLen) * k, y: b.y - ((b.y - a.y) / inLen) * k };
+    const p2 = { x: b.x + ((c.x - b.x) / outLen) * k, y: b.y + ((c.y - b.y) / outLen) * k };
+    d += ` L${p1.x},${p1.y} Q${b.x},${b.y} ${p2.x},${p2.y}`;
+  }
+  const last = points[points.length - 1];
+  return `${d} L${last.x},${last.y}`;
 }
 
 /** Words a screen reader says before a box's text. */
@@ -79,28 +147,30 @@ function shape(doc: SvgDocument, node: FlowNode, b: LaidBox, STYLE: Styles): SVG
   const { x, y, w, h } = b;
   const cx = x + w / 2;
   const cy = y + h / 2;
+  const hue = kindHue(node.kind);
+  const style = STYLE.kindShape(hue);
   switch (node.kind) {
     case "start":
     case "end":
-      return [el(doc, "rect", { x, y, width: w, height: h, rx: h / 2, style: STYLE.shape })];
+      return [el(doc, "rect", { x, y, width: w, height: h, rx: h / 2, style })];
     case "decision":
-      return [el(doc, "polygon", { points: pts([{ x: cx, y }, { x: x + w, y: cy }, { x: cx, y: y + h }, { x, y: cy }]), style: STYLE.shape })];
+      return [el(doc, "polygon", { points: pts([{ x: cx, y }, { x: x + w, y: cy }, { x: cx, y: y + h }, { x, y: cy }]), style })];
     case "io": {
       const s = METRICS.skew;
-      return [el(doc, "polygon", { points: pts([{ x: x + s, y }, { x: x + w, y }, { x: x + w - s, y: y + h }, { x, y: y + h }]), style: STYLE.shape })];
+      return [el(doc, "polygon", { points: pts([{ x: x + s, y }, { x: x + w, y }, { x: x + w - s, y: y + h }, { x, y: y + h }]), style })];
     }
     case "call": {
       const bar = METRICS.bar;
       return [
-        el(doc, "rect", { x, y, width: w, height: h, rx: 2, style: STYLE.shape }),
-        el(doc, "line", { x1: x + bar, y1: y, x2: x + bar, y2: y + h, style: STYLE.bar }),
-        el(doc, "line", { x1: x + w - bar, y1: y, x2: x + w - bar, y2: y + h, style: STYLE.bar }),
+        el(doc, "rect", { x, y, width: w, height: h, rx: 2, style }),
+        el(doc, "line", { x1: x + bar, y1: y, x2: x + bar, y2: y + h, style: STYLE.kindBar(hue) }),
+        el(doc, "line", { x1: x + w - bar, y1: y, x2: x + w - bar, y2: y + h, style: STYLE.kindBar(hue) }),
       ];
     }
     case "connector":
-      return [el(doc, "circle", { cx, cy, r: w / 2, style: STYLE.shape })];
+      return [el(doc, "circle", { cx, cy, r: w / 2, style })];
     default:
-      return [el(doc, "rect", { x, y, width: w, height: h, rx: 2, style: STYLE.shape })];
+      return [el(doc, "rect", { x, y, width: w, height: h, rx: 2, style })];
   }
 }
 
@@ -126,14 +196,15 @@ export function arrowCorners(edge: LaidEdge): Point[] {
   const before = edge.points[edge.points.length - 2];
   const dx = Math.sign(end.x - before.x);
   const dy = Math.sign(end.y - before.y);
-  const len = 8;
-  const half = 4;
+  const len = 9;
+  const half = 4.5;
   const back = { x: end.x - dx * len, y: end.y - dy * len };
   return [end, { x: back.x + dy * half, y: back.y + dx * half }, { x: back.x - dy * half, y: back.y - dx * half }];
 }
 
 function arrow(doc: SvgDocument, edge: LaidEdge, STYLE: Styles, interactive: boolean): SVGPolygonElement {
-  return el(doc, "polygon", interactive ? { points: pts(arrowCorners(edge)), style: STYLE.arrow, "data-part": "arrow" } : { points: pts(arrowCorners(edge)), style: STYLE.arrow });
+  const style = STYLE.arrow(edgeHue(edge.label));
+  return el(doc, "polygon", interactive ? { points: pts(arrowCorners(edge)), style, "data-part": "arrow" } : { points: pts(arrowCorners(edge)), style });
 }
 
 /**
@@ -155,7 +226,12 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   const edges = el(doc, "g", live ? { "data-part": "edges", "aria-hidden": "true" } : {});
   for (const e of layout.edges) {
     const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind } : {});
-    g.appendChild(el(doc, "polyline", { points: pts(e.points), style: STYLE.edge }));
+    // The line stops where the arrowhead starts, so the head's point stays sharp at the box.
+    const line = [...e.points];
+    const [end, before] = [line[line.length - 1], line[line.length - 2]];
+    const run = Math.hypot(end.x - before.x, end.y - before.y);
+    if (run > 9) line[line.length - 1] = { x: end.x - ((end.x - before.x) / run) * 6, y: end.y - ((end.y - before.y) / run) * 6 };
+    g.appendChild(el(doc, "path", { d: roundedPath(line), style: STYLE.edge(edgeHue(e.label)) }));
     g.appendChild(arrow(doc, e, STYLE, live));
     if (e.label !== undefined && e.labelAt) {
       const t = el(doc, "text", { x: e.labelAt.x, y: e.labelAt.y, "text-anchor": e.labelAt.anchor, style: STYLE.edgeLabel });

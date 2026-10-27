@@ -4,7 +4,7 @@
 // footer (mark, "Made with CodeEditor", the file and the function); the file-name rule; the scale cap.
 import { describe, expect, it } from "vitest";
 import { BRAND_MARK } from "../editor/brand-mark";
-import { CHART_TOKENS, chooseExportScale, exportFileName, exportSvg, FOOTER_TEXT, printColors, type ExportLook } from "./export";
+import { CHART_TOKENS, chooseExportScale, exportFileName, exportSvg, FOOTER_TEXT, mixHex, printColors, type ExportLook } from "./export";
 import { layoutChart } from "./layout";
 import type { FlowChart } from "./model";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
@@ -86,7 +86,12 @@ describe("flowchart SVG export", () => {
     const main = ok((await chartFile("c", fixture("sequence.c"))).charts[0]);
     const colors = Object.fromEntries(CHART_TOKENS.map((t, i) => [t, `#${(0x101010 * (i + 1)).toString(16).padStart(6, "0")}`])) as ExportLook["colors"];
     const xml = serialize(svgOf(main, "sequence.c", { colors, codeFont: "monospace", uiFont: "sans-serif" }));
-    for (const t of CHART_TOKENS) expect(xml, t).toContain(colors[t]);
+    // The tokens this chart draws with (a sequence: terminators, steps, an output; no branch, no call).
+    for (const t of ["surface-raised", "border-strong", "text", "text-secondary", "success", "info"] as const) expect(xml, t).toContain(colors[t]);
+    // A kind's tint is resolved: its hue at CHART_TINT percent over surface-raised, never a color-mix.
+    expect(xml).toContain(mixHex(colors.success, colors["surface-raised"], 14));
+    expect(xml).not.toContain("color-mix");
+    expect(mixHex("#ffffff", "#000000", 50)).toBe("#808080");
   });
 
   test("names and labels with markup and direction characters stay text", async () => {

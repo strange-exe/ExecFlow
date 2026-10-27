@@ -89,12 +89,15 @@ describe("flowchart renderer", () => {
     expect(edges.getAttribute("aria-hidden")).toBe("true");
   });
 
-  test("every edge is a polyline with an arrowhead, and its label is drawn", async () => {
+  test("every edge is a line with rounded corners and an arrowhead, and its label is drawn", async () => {
     const chart = ok((await chartFile("c", fixture("switch.c"))).charts[0]);
     const layout = layoutChart(chart);
     const svg = renderChart(chart, layout, fakeDocument as unknown as Document) as unknown as FakeElement;
     const edges = svg.all().find((e) => e.getAttribute("data-part") === "edges")!;
-    expect(edges.all().filter((e) => e.tagName === "polyline").length).toBe(layout.edges.length);
+    const lines = edges.all().filter((e) => e.tagName === "path");
+    expect(lines.length).toBe(layout.edges.length);
+    // A bend is a curve (Q), not a sharp corner, on every edge that turns.
+    for (const [i, e] of layout.edges.entries()) if (e.points.length > 2) expect(lines[i].getAttribute("d"), `edge ${i}`).toContain("Q");
     expect(edges.all().filter((e) => e.getAttribute("data-part") === "arrow").length).toBe(layout.edges.length);
     const labels = edges.all().filter((e) => e.tagName === "text").map((e) => e.textContent);
     expect(labels.sort()).toEqual(["1, 7", "2", "3", "default"]);
@@ -138,7 +141,12 @@ describe("flowchart renderer", () => {
     const styles = svg.all().map((e) => e.getAttribute("style") ?? "");
     const colours = styles.flatMap((s) => [...s.matchAll(/(?:fill|stroke|color):\s*([^;]+)/g)].map((m) => m[1].trim()));
     expect(colours.length).toBeGreaterThan(10);
-    for (const c of colours) expect(c, c).toMatch(/^(var\(--[a-z-]+\)|none)$/);
+    // A token, or a kind's tint: a token mixed over surface-raised (CHART_TINT).
+    for (const c of colours) expect(c, c).toMatch(/^(var\(--[a-z-]+\)|none|color-mix\(in srgb, var\(--[a-z-]+\) \d+%, var\(--surface-raised\)\))$/);
+    // Colour follows meaning: a decision is drawn in the warning hue, a plain step stays neutral.
+    const shapeStyle = (kind: string) => svg.all().find((e) => e.getAttribute("data-kind") === kind)?.children.find((c) => c instanceof FakeElement && c.tagName !== "title" && c.getAttribute("class") !== "fc-ring") as FakeElement | undefined;
+    expect(shapeStyle("decision")?.getAttribute("style")).toContain("stroke:var(--warning)");
+    expect(shapeStyle("process")?.getAttribute("style")).toContain("stroke:var(--border-strong)");
     for (const e of svg.all()) {
       for (const attr of ["fill", "stroke", "color"]) expect(e.getAttribute(attr), `${e.tagName} ${attr}`).toBeNull();
     }

@@ -168,9 +168,21 @@ export const IMAGE_MIXES = {
 } as const satisfies Record<string, { top: ColorVar; pct: number }>;
 export type ImageMix = keyof typeof IMAGE_MIXES;
 
-const MIXES: Readonly<Record<string, { top: ColorVar; pct: number }>> = { ...UI_MIXES, ...IMAGE_MIXES };
+/**
+ * The flowchart's shape fills (src/flowchart/render.ts kindHue and CHART_TINT: the view writes them
+ * as color-mix over surface-raised, the export resolves the same mix): each hue at 14 percent.
+ */
+export const CHART_MIXES = {
+  "chart-success": { top: "success", pct: 14 },
+  "chart-warning": { top: "warning", pct: 14 },
+  "chart-info": { top: "info", pct: 14 },
+  "chart-action": { top: "action", pct: 14 },
+} as const satisfies Record<string, { top: ColorVar; pct: number }>;
+export type ChartMix = keyof typeof CHART_MIXES;
 
-type Part = ColorVar | UiMix | ImageMix;
+const MIXES: Readonly<Record<string, { top: ColorVar; pct: number }>> = { ...UI_MIXES, ...IMAGE_MIXES, ...CHART_MIXES };
+
+type Part = ColorVar | UiMix | ImageMix | ChartMix;
 /**
  * A ground: a colour variable, or a stack painted right to left: "hover@surface" is the hover mix
  * over the surface, "error-band@selection@bg" the error band over the selection over the code.
@@ -415,7 +427,25 @@ function image(): Pair[] {
  * text-muted on surface-raised from the suggestion list; text-secondary on hover@surface for the
  * window bar), so 196 checks are unique; the `use` text records another place the pair is drawn.
  */
-export const PAIRS: readonly Pair[] = [...ported(), ...added(), ...image()];
+export const PAIRS: readonly Pair[] = [...ported(), ...added(), ...image(), ...chart()];
+
+/**
+ * The flowchart (0.7.0 colours, src/flowchart/render.ts; its ground is --bg): box text on each
+ * kind's tint, each kind's outline, and the connectors (plain, Yes and No) against the ground.
+ * 11 rows, 6 of them new pairs (the outlines of warning, info and action, and No, are checked above).
+ */
+function chart(): Pair[] {
+  const list: Pair[] = [];
+  const add = (fg: ColorVar, bg: Ref, min: number, use: string) => list.push({ fg, bg, min, use });
+  for (const hue of ["success", "warning", "info", "action"] as const) {
+    add("text", `chart-${hue}@surface-raised`, TEXT, `flowchart box text on the ${hue} tint`);
+    add(hue, "bg", UI, `flowchart ${hue} shape outline`);
+  }
+  add("text-secondary", "bg", UI, "flowchart connector");
+  add("success", "bg", UI, "flowchart Yes connector");
+  add("danger", "bg", UI, "flowchart No connector");
+  return list;
+}
 
 export interface PairResult extends Pair {
   fgHex: string;

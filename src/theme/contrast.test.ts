@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  ALPHA_OK, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
+  ALPHA_OK, CHART_MIXES, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
 } from "./contrast";
 import { DEEP_FIELD, expandBase, POCKET_THEMES, SIGNAL, SLATE } from "./palettes";
 import { BUILT_IN, themePalette } from "./themes";
@@ -73,11 +73,13 @@ describe("contrast math", () => {
 });
 
 describe("the pairs the UI draws (contract v2)", () => {
-  it("has the 201 rows of the contract, 197 of them unique, every ground a known token or mix", () => {
-    // 0.7.0 added one: location on surface-raised (the chosen tree row's edge).
-    expect(PAIRS.length).toBe(201);
-    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(197);
-    const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES)];
+  it("has the 212 rows of the contract, 203 of them unique, every ground a known token or mix", () => {
+    // 0.7.0 added one: location on surface-raised (the chosen tree row's edge). Then the flowchart's
+    // eleven (text on each kind's tint, each kind's outline and the connectors on the chart's ground),
+    // six of them new pairs.
+    expect(PAIRS.length).toBe(212);
+    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(203);
+    const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES), ...Object.keys(CHART_MIXES)];
     for (const p of PAIRS) for (const part of p.bg.split("@")) expect(known, `${p.bg}`).toContain(part);
     // Pinned rows: the first, the re-grounded panel-tab row, the last of v2 and the last.
     expect(PAIRS[0]).toMatchObject({ fg: "text", bg: "bg", min: 4.5 });
@@ -85,7 +87,10 @@ describe("the pairs the UI draws (contract v2)", () => {
     expect(PAIRS[185]).toMatchObject({ fg: "text-secondary", bg: "hover@error-band@runlog-bg", min: 4.5 });
     expect(PAIRS[198]).toMatchObject({ fg: "danger", bg: "mark@bg", min: 4.5 });
     // The window bar's other ground (snippet-render.ts windowBarGround): its name and placeholders at the text minimum.
-    expect(PAIRS.slice(199)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
+    expect(PAIRS.slice(199, 201)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
+    // The flowchart's rows close the table: text on every kind's tint, at the text minimum.
+    expect(PAIRS.slice(201).filter((p) => p.fg === "text").map((p) => p.bg)).toEqual(Object.keys(CHART_MIXES).map((m) => `${m}@surface-raised`));
+    expect(PAIRS.at(-1)).toMatchObject({ fg: "danger", bg: "bg", min: 3 });
     // The snippet image's highlighted lines: every colour drawn on the band, at the text minimum.
     expect(PAIRS.filter((p) => p.bg === "mark@bg").map((p) => p.fg).sort()).toEqual(
       ["danger", "gutter-text", "syn-comment", "syn-function", "syn-keyword", "syn-macro", "syn-number", "syn-operator", "syn-punctuation", "syn-string", "syn-type", "syn-variable", "text"],
