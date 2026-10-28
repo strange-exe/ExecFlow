@@ -404,8 +404,17 @@ test("8: the options are remembered on this device, cleaned when read, and work 
   await blocked.close();
 });
 
-for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
-  test(`9: nothing moves: options at 1440, and Copy's and Download's results at ${vp.width} x ${vp.height}`, async ({ page }) => {
+// At 1440 each file walks 23 option sets, and every one redraws the preview (b.py's is 200 lines):
+// about 20 s per file in WebKit alone, so each file is its own test, with its own time budget (both
+// together passed 120 s under a full three-engine run, 2026-10-28).
+const NOTHING_MOVES = [
+  { vp: { width: 1440, height: 900 }, files: ["main.py"] },
+  { vp: { width: 1440, height: 900 }, files: ["b.py"] },
+  { vp: { width: 390, height: 844 }, files: ["main.py"] },
+  { vp: { width: 320, height: 640 }, files: ["main.py"] },
+];
+for (const { vp, files } of NOTHING_MOVES) {
+  test(`9: nothing moves: options at 1440, and Copy's and Download's results at ${vp.width} x ${vp.height}${vp.width === 1440 ? ` (${files[0]})` : ""}`, async ({ page }) => {
     await instrument(page, { realWrite: false });
     await page.setViewportSize(vp);
     await openWith(page, [{ name: "main.py", text: FIXTURE }, { name: "b.py", text: CASE_B }]);
@@ -421,7 +430,7 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { w
       a.forEach((r, i) => {
         for (const k of ["x", "y", "width", "height"] as const) expect(Math.abs(r[k] - b[i][k]), `${what}: ${parts[i]} ${k}`).toBeLessThanOrEqual(0.5);
       });
-    for (const file of vp.width === 1440 ? ["main.py", "b.py"] : ["main.py"]) {
+    for (const file of files) {
       await openFromTree(page, file);
       if (file === "main.py") await selectFixtureLines(page);
       else await selectAll(page);
