@@ -8,7 +8,7 @@ import type { Page, TestInfo } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANGELOG } from "../src/about/changelog";
-import { expect, hierarchyShots, openIn, test } from "./helpers";
+import { expect, hierarchyShots, openIn, test, tolerating } from "./helpers";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const scene = (page: Page) => page.locator("[data-scene]");
@@ -122,6 +122,12 @@ test.describe("the About page", () => {
     expect(focused.outline).not.toBe("none");
   });
 
+  test.describe("the launch video", () => {
+  // Linux WebKit's media player (GStreamer) sometimes drops its first request for the file and
+  // fetches it again while the video keeps playing (CI run 40590457063, 2026-10-27: cancelled 158 ms
+  // after it started, no navigation near it). That cancel is the player's own, so it is excused for
+  // this file only; every other failure still counts, and playing is asserted below.
+  test.use(tolerating(/^request failed: http:\/\/127\.0\.0\.1:\d+\/media\/launch-[^ /]+\.mp4 Load request cancelled$/));
   test("the launch video plays like a hero video once in view: muted, looping, nothing fetched before, and its button pauses it for good", async ({ page, request }) => {
     const media: string[] = [];
     page.on("request", (r) => (/\.(mp4|webm)$/.test(new URL(r.url()).pathname) ? media.push(r.url()) : null));
@@ -153,7 +159,9 @@ test.describe("the About page", () => {
       await page.waitForTimeout(800);
       expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
       await button.click();
-      await expect(stage).toHaveAttribute("data-video", "playing");
+      // As long as the first start: a software decoder (Linux WebKit in CI) may need to fill its
+      // buffer again after the pause (run 40590457063 was still "paused" at 5 s).
+      await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
     }
     // Its text equivalent names every scene and offers the file; the poster and the file are served.
     await expect(page.locator("#video-text li")).toHaveCount(5);
@@ -161,6 +169,7 @@ test.describe("the About page", () => {
     await expect(page.locator("#video-text a[download]")).toHaveAttribute("href", file!);
     await expect(video).toHaveAttribute("aria-describedby", "video-text");
     for (const path of [await video.getAttribute("poster"), file]) expect((await request.get(path!)).status(), path!).toBe(200);
+  });
   });
 
   test("with reduced motion the launch video never starts by itself: the poster, and a Play button", async ({ page }) => {
