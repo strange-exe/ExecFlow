@@ -8,7 +8,7 @@ import type { Page, TestInfo } from "@playwright/test";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANGELOG } from "../src/about/changelog";
-import { olderLabel, olderRange } from "../src/about/timeline";
+import { OPEN_RELEASES, olderLabel, olderRange } from "../src/about/timeline";
 import { expect, hierarchyShots, openIn, test, tolerating } from "./helpers";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -119,6 +119,8 @@ test.describe("the About page", () => {
   test("a release's changes: a tag column (glyph and word, one neutral style) in Added, Changed, Fixed order, folded after 6", async ({ page }) => {
     await page.goto("/about#changelog");
     const r = CHANGELOG.find((x) => x.items.length > 6)!;
+    // A release past the first OPEN_RELEASES waits in the older fold: open it first.
+    if (CHANGELOG.indexOf(r) >= OPEN_RELEASES) await page.locator("#changelog .release-older-toggle").click();
     const release = page.locator(`#changelog .release[data-version="${r.version}"]`);
     const ordered = ["added", "changed", "fixed"].flatMap((k) => r.items.filter((i) => i.kind === k));
     const rows = release.locator(".release-item");

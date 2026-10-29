@@ -71,9 +71,12 @@ export function decodePng(png: Buffer): Pixels {
   };
 }
 
-/** "#rrggbb" or "#rrggbbaa" as channels and alpha (0 to 1). */
+/** "#rgb", "#rgba", "#rrggbb" or "#rrggbbaa" as channels and alpha (0 to 1). */
 export function parseHex(hex: string): { rgb: RGB; alpha: number } {
-  const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(hex.trim());
+  let h = hex.trim();
+  // The short forms double each digit (CSS Color 4).
+  if (/^#[0-9a-f]{3,4}$/i.test(h)) h = `#${[...h.slice(1)].map((c) => c + c).join("")}`;
+  const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(h);
   if (!m) throw new Error(`not a hex colour: ${hex}`);
   const n = parseInt(m[1], 16);
   return { rgb: [(n >> 16) & 255, (n >> 8) & 255, n & 255], alpha: m[2] ? parseInt(m[2], 16) / 255 : 1 };
