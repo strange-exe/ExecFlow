@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CALLBACK_PATH } from "../sync/auth-callback";
 import { CHANGELOG } from "./changelog";
-import { HTML_INPUT, ORIGIN, PAGES, SOCIAL_CARD, headTags, lastUpdated, pageDates, pagesFile, parseRewrites, sitemapXml, withHeadTags } from "./site";
+import { HTML_INPUT, ORIGIN, PAGES, SOCIAL_CARD, headTags, lastUpdated, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./site";
 
 const read = (file: string) => readFileSync(file, "utf8");
 const titleOf = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "";
@@ -94,6 +94,24 @@ describe("pagesFile (what Cloudflare Pages serves; vite preview copies it)", () 
   });
 });
 
+describe("servedPath (vite preview looks up only decoded paths inside the build)", () => {
+  it.each([
+    ["/", "/"],
+    ["/about", "/about"],
+    ["/media/a%20b.png", "/media/a b.png"],
+    ["/docs/", "/docs/"],
+  ])("%s is %s", (path, decoded) => {
+    expect(servedPath(path)).toBe(decoded);
+  });
+
+  it.each(["/../package.json", "/media/../../x", "/%2e%2e/x", "/a/%2E%2E/b", "/./about", "/a/.", "/a%5c..%5cx", "/a%00b", "/%E0%A4%A", "about", "//x"])(
+    "%s never reaches the file system: 404",
+    (path) => {
+      expect(servedPath(path)).toBeNull();
+    },
+  );
+});
+
 describe("the build (vite.config.ts) uses these", () => {
   const config = read("vite.config.ts");
 
@@ -102,6 +120,7 @@ describe("the build (vite.config.ts) uses these", () => {
     expect(config).toContain("withHeadTags(");
     expect(config).toContain('fileName: "sitemap.xml"');
     expect(config).toContain("pagesFile(");
+    expect(config).toContain("servedPath(");
     expect(config).toContain("parseRewrites(");
   });
 

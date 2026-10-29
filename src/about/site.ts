@@ -89,6 +89,25 @@ export function pagesFile(path: string, isFile: (file: string) => boolean): stri
   return isFile(`${path}.html`) ? `${path}.html` : null;
 }
 
+/**
+ * A request's path, decoded, when `vite preview` may look it up in the build: null (a 404) for a
+ * path that does not decode, or that holds a NUL, a backslash, an empty segment, "." or "..", so a
+ * lookup never leaves the build folder (security review m3, 2026-10-29). Browsers resolve dot
+ * segments before they send a request; only a hand-made one has them.
+ */
+export function servedPath(path: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith("/") || /[\0\\]/.test(decoded)) return null;
+  const segments = decoded.slice(1).split("/");
+  const inner = decoded.endsWith("/") ? segments.slice(0, -1) : segments;
+  return inner.every((s) => s !== "" && s !== "." && s !== "..") ? decoded : null;
+}
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** A legal page's "Last updated 28 October 2026" line as 2026-10-28. A page without one stops the build. */

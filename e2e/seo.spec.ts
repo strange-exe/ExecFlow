@@ -75,6 +75,30 @@ test.describe("search and sharing", () => {
     await expect(page.getByText("nothing to install")).toHaveCount(0);
   });
 
+  // A crawler that renders the page (Googlebot does) never reads <noscript>: the editor itself links
+  // to About with a real <a href>, on screen at both widths, in the sidebar's foot or the status bar.
+  for (const vp of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]) {
+    test(`${vp.name}: the rendered editor has a link to About that a crawler can follow`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await openApp(page);
+      const about = page.locator('a[href="/about"]');
+      await expect(about).toHaveCount(1);
+      await expect(about).toBeVisible();
+      await expect(about).toBeInViewport();
+      await expect(about).toHaveAccessibleName("About CodeEditor");
+      await expect(page.locator(vp.width < 900 ? ".statusbar" : ".sidebar-foot").locator('a[href="/about"]')).toHaveCount(1);
+      // A 24 px target at least, and a visible focus ring from the keyboard.
+      const r = (await about.boundingBox())!;
+      expect(Math.min(r.width, r.height)).toBeGreaterThanOrEqual(24);
+      await about.focus();
+      expect(await about.evaluate((el) => el.matches(":focus-visible") && getComputedStyle(el).outlineStyle !== "none")).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    });
+  }
+
   test("robots.txt names the sitemap, and sitemap.xml lists the four pages", async ({ request }) => {
     const robots = await (await request.get("/robots.txt")).text();
     expect(robots).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
@@ -127,8 +151,8 @@ test.describe("with the service worker", () => {
     tolerating(
       /^HTTP 404: http:\/\/127\.0\.0\.1:\d+\/no\/such\/page$/,
       /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/,
-      // Chromium's words, then WebKit's (Firefox logs nothing here).
-      /^request failed: http:\/\/127\.0\.0\.1:\d+\/api\/auth\/config (net::ERR_INTERNET_DISCONNECTED|WebKit encountered an internal error)$/,
+      // Chromium's words, WebKit's, then Firefox's (seen in 1 run in 3: fix/repro-sw.log, 2026-10-29).
+      /^request failed: http:\/\/127\.0\.0\.1:\d+\/api\/auth\/config (net::ERR_INTERNET_DISCONNECTED|WebKit encountered an internal error|NS_ERROR_OFFLINE)$/,
       /^Failed to load resource: (net::ERR_INTERNET_DISCONNECTED|WebKit encountered an internal error)$/,
     ),
   );
@@ -142,8 +166,14 @@ test.describe("with the service worker", () => {
     await expect
       .poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.active?.state ?? "none"), { timeout: 120_000 })
       .toBe("activated");
+    // Each load reopens main.py, which starts Python again: the test leaves a page only once Python is
+    // up, since leaving while the service worker still answers a Pyodide download makes Firefox log
+    // "A ServiceWorker intercepted the request and encountered an unexpected error" (tests review,
+    // 2026-10-29: 1 run in 3), and networkidle can come in a pause between two of its files.
+    const pythonUp = () => expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
     await page.reload();
     await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+    await pythonUp();
     await page.waitForLoadState("networkidle");
     const res = await page.goto("/no/such/page");
     expect(res?.status()).toBe(404);
@@ -151,11 +181,13 @@ test.describe("with the service worker", () => {
     await expect(page.locator("#app")).toHaveCount(0);
     await openApp(page, "/auth-callback?error=access_denied");
     expect(new URL(page.url()).pathname).toBe("/");
+    await pythonUp();
     await page.waitForLoadState("networkidle");
     // Offline, the navigation fallback still answers the editor's own addresses from the precache.
     // (An unknown address offline fails like any page the precache doesn't hold.)
     await context.setOffline(true);
     await openApp(page, "/auth-callback?error=access_denied");
     expect(new URL(page.url()).pathname).toBe("/");
+    await pythonUp();
   });
 });

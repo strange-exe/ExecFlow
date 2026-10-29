@@ -4,7 +4,7 @@
 // policy violation may even be attempted (CSP would block an injected handler, so "no alert" alone
 // proves nothing: the DOM and the violation log are checked too).
 import type { Page } from "@playwright/test";
-import { expect, installCpp, openApp, openFromTree, run, setCode, showFiles, test, treeItem } from "./helpers";
+import { expect, installCpp, OWN_JSON_LD, openApp, openFromTree, run, setCode, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -29,21 +29,25 @@ async function watch(page: Page) {
 
 /** Elements or attributes that only exist if some text was parsed as HTML. */
 async function injected(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate((ownJsonLd) => {
     const found: string[] = [];
+    let ownSeen = false;
     for (const el of document.querySelectorAll("*")) {
       const tag = el.tagName.toLowerCase();
       for (const a of Array.from(el.attributes)) if (/^on/i.test(a.name)) found.push(`${tag}[${a.name}]`);
       // CodeMirror's own cursor helpers are <img class="cm-widgetBuffer">.
       if (tag === "img" && !el.classList.contains("cm-widgetBuffer")) found.push("img");
       if (["b", "iframe", "object", "embed", "svg:script", "foreignobject"].includes(tag)) found.push(tag);
-      // The page's own structured data (index.html: a JSON-LD data block in <head>, never run) is not one.
-      const ownData = el.parentElement === document.head && (el as HTMLScriptElement).type === "application/ld+json";
-      if (tag === "script" && !(el as HTMLScriptElement).src && !ownData) found.push("inline script");
+      // The page's own structured data (index.html: a JSON-LD data block in <head>, never run) is not
+      // one: once, in <head>, with index.html's exact text. Any other is.
+      const script = el as HTMLScriptElement;
+      const ownData = !ownSeen && el.parentElement === document.head && script.type === "application/ld+json" && script.text === ownJsonLd;
+      if (ownData) ownSeen = true;
+      if (tag === "script" && !script.src && !ownData) found.push("inline script");
       if (/^\s*javascript:/i.test(el.getAttribute("href") ?? "")) found.push("javascript: link");
     }
     return { found, csp: (window as unknown as { __csp: string[] }).__csp };
-  });
+  }, OWN_JSON_LD);
 }
 
 async function expectInert(page: Page, dialogs: string[]) {
@@ -77,6 +81,18 @@ function zipWithEntry(entry: string): Buffer {
   local.writeUInt16LE(name.length, 26);
   return Buffer.concat([local, name, Buffer.from("x = 1\n")]);
 }
+
+test("the inline-script check lets through only the page's own JSON-LD block: a second copy or an altered one is caught", async ({ page }) => {
+  const dialogs = await watch(page);
+  await openApp(page);
+  await expectInert(page, dialogs);
+  const own = page.locator('head > script[type="application/ld+json"]');
+  await own.evaluate((el) => document.head.append(el.cloneNode(true)));
+  expect((await injected(page)).found).toEqual(["inline script"]);
+  await page.locator('head > script[type="application/ld+json"]').last().evaluate((el) => el.remove());
+  await own.evaluate((el) => (el.textContent += " "));
+  expect((await injected(page)).found).toEqual(["inline script"]);
+});
 
 test("typed file and folder names stay text: quotes and entities are kept literally, markup and direction characters are refused", async ({ page }) => {
   const dialogs = await watch(page);

@@ -34,6 +34,9 @@ test.describe("the About page", () => {
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toBeInViewport();
+        // The headline names the languages too, in its subtitle line (SEO review minor 2, 2026-10-29).
+        await expect(h1).toHaveAccessibleName("Write code. Run it. See how it flows. Python, C and C++ in your browser");
+        await expect(h1.locator(".about-h1-sub")).toBeInViewport();
         await expect(page.locator(".about-lede")).toBeInViewport();
         // The lede keeps its own space under the headline (a broader `main p` rule once zeroed it).
         const gap = await page.evaluate(() => document.querySelector(".about-lede")!.getBoundingClientRect().top - document.querySelector("h1")!.getBoundingClientRect().bottom);

@@ -125,6 +125,17 @@ body.about {
   font-weight: var(--w-strong);
   max-width: 14ch;
 }
+/* The headline's second line names the languages (what students search for), a step down. */
+.about h1 .about-h1-sub {
+  display: block;
+  max-width: none;
+  margin-top: var(--s3);
+  font-size: clamp(20px, 2.2vw, 26px);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: var(--w-label);
+  color: var(--text-secondary);
+}
 /* `.about .about-lede` (0,2,0) so it outranks `.about main p` (0,1,2) below, margin and measure both. */
 .about .about-lede {
   margin: var(--s5) 0 0;

@@ -6,7 +6,7 @@ import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
 import { APP_ROUTE, FILE_URL } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
-import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, sitemapXml, withHeadTags } from "./src/about/site.ts";
+import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -324,7 +324,9 @@ function site(): Plugin {
           req.url = query === undefined ? to : `${to}?${query}`;
           return next();
         }
-        if (path.startsWith("/api/") || pagesFile(path, isFile)) return next();
+        if (path.startsWith("/api/")) return next();
+        const decoded = servedPath(path);
+        if (decoded && pagesFile(decoded, isFile)) return next();
         res.statusCode = 404;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(readFileSync(`${outDir}/404.html`));

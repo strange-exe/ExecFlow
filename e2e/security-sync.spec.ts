@@ -2,7 +2,7 @@
 // the GitHub token can be found after Connect, and whether "Sign out and clear this computer" really
 // deletes both databases.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, test, treeItem, waitReady } from "./helpers";
+import { expect, importFiles, OWN_JSON_LD, openApp, test, treeItem, waitReady } from "./helpers";
 import { answer, connectGitHub, fillConnect, githubNoise, openConnect, routeGitHub, saveKey, secrets, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -14,18 +14,22 @@ const IMG = "<img src=x onerror=alert(1)>";
 
 /** Elements or attributes that only exist if some text was parsed as HTML. */
 async function injected(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate((ownJsonLd) => {
     const found: string[] = [];
+    let ownSeen = false;
     for (const el of document.querySelectorAll("*")) {
       const tag = el.tagName.toLowerCase();
       for (const a of Array.from(el.attributes)) if (/^on/i.test(a.name)) found.push(`${tag}[${a.name}]`);
       if (tag === "img" && !el.classList.contains("cm-widgetBuffer")) found.push("img");
-      // The page's own structured data (index.html: a JSON-LD data block in <head>, never run) is not one.
-      const ownData = el.parentElement === document.head && (el as HTMLScriptElement).type === "application/ld+json";
-      if (tag === "script" && !(el as HTMLScriptElement).src && !ownData) found.push("inline script");
+      // The page's own structured data (index.html: a JSON-LD data block in <head>, never run) is not
+      // one: once, in <head>, with index.html's exact text. Any other is.
+      const script = el as HTMLScriptElement;
+      const ownData = !ownSeen && el.parentElement === document.head && script.type === "application/ld+json" && script.text === ownJsonLd;
+      if (ownData) ownSeen = true;
+      if (tag === "script" && !script.src && !ownData) found.push("inline script");
     }
     return found;
-  });
+  }, OWN_JSON_LD);
 }
 
 test("a hostile repository's names never reach the page: markup, direction and unsafe paths are left out, odd but valid names are text", async ({ page }) => {
