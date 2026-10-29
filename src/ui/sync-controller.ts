@@ -24,7 +24,6 @@ import {
   createAppTokenSource,
   exchange,
   fetchConfig,
-  revokeToken,
   SignInError,
   startSignIn,
   takePending,
@@ -525,7 +524,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     // A sign-in this one replaces: end it, and drop its sealed tokens.
     const old = appSource;
     appSource = null;
-    if (old) void revokeToken(old.tokens().access);
+    if (old) void old.close();
     void forgetAppTokens().catch(() => {});
     await connected(c, input.remember, warning);
     return null;
@@ -569,10 +568,13 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     return new Promise(() => {});
   }
 
+  /** Set by signOut: a sign-in that finishes after it is revoked, never kept. */
+  let signedOut = false;
+
   function abandonSignIn() {
     const s = signedIn;
     signedIn = null;
-    if (s) void revokeToken(s.tokens().access);
+    if (s) void s.close();
   }
 
   async function signInDeps(callback: (() => Promise<ReachResult>) | null, message?: string): Promise<SignInDeps | undefined> {
@@ -618,7 +620,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         const old = appSource;
         signedIn = null;
         appSource = source;
-        if (old && old !== source) void revokeToken(old.tokens().access);
+        if (old && old !== source) void old.close();
         await connected(pending, source.remembered, warning);
         return null;
       },
@@ -680,19 +682,29 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         } catch (e) {
           return signInFailure(e);
         }
+        // This tab signed out (cleared) while GitHub answered: the pair is nobody's, so end it.
+        if (signedOut) {
+          void source.close();
+          return { ok: false, message: "The sign-in has ended, so sign in again." };
+        }
         signedIn = source;
         return reachFor(source);
       },
     });
   }
 
-  /** Ends this device's sign-in on GitHub (this one token only), at most REVOKE_WAIT_MS. */
+  /**
+   * Ends this tab's sign-ins on GitHub (the connected one and one still choosing a repository),
+   * waiting at most REVOKE_WAIT_MS. Each source is closed first, so a refresh still on its way
+   * can't take or seal a new pair afterwards.
+   */
   async function revokeCurrent(): Promise<boolean | null> {
-    const source = appSource ?? signedIn;
+    const sources = [...new Set([appSource, signedIn])].filter((s): s is AppTokenSource => s !== null);
     appSource = null;
     signedIn = null;
-    if (!source) return null;
-    return withTimeout(revokeToken(source.tokens().access), REVOKE_WAIT_MS, false);
+    if (sources.length === 0) return null;
+    const results = await Promise.all(sources.map((s) => withTimeout(s.close(), REVOKE_WAIT_MS, false)));
+    return results.every(Boolean);
   }
 
   async function disconnect() {
@@ -1074,6 +1086,8 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       return `Connected to ${repoName()}, branch ${remote.branch}. ${token}`;
     },
     async signOut() {
+      // For good: signOut only runs as this computer is cleared, and the tab then reloads or ends.
+      signedOut = true;
       scheduler.stop();
       // A sync in flight can take a while to give up; clearing this computer doesn't wait for long.
       await Promise.race([scheduler.idle(), new Promise((resolve) => setTimeout(resolve, 5000))]);

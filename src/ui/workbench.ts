@@ -20,7 +20,7 @@ import { icon } from "./icons";
 import { exportZip, pickFiles } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
 import { createLayout, NARROW } from "./layout";
-import { menuButton, openMenu, type MenuItem } from "./menu";
+import { closeMenus, menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
 import type { PaletteApi } from "./palette-model";
 import { FAILED, OutputView, statusWord, type LiftedError } from "./output";
@@ -129,13 +129,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
           notice.show("CodeEditor's data on this computer changed in another tab. Reload to continue.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
           return;
         }
+        // Being deleted: another tab is clearing this computer (a tab that missed its message).
+        if (blockedVersion === null) {
+          close();
+          void clearedElsewhere();
+          return;
+        }
         void saves.flushAll().finally(() => {
           close();
           editors.setReadOnly(true);
-          notice.show(
-            blockedVersion === null ? "CodeEditor's data on this computer is being cleared in another tab." : "A newer version of CodeEditor was opened in another tab.",
-            { tone: "warning", action: { label: "Reload", run: () => location.reload() } },
-          );
+          notice.show("A newer version of CodeEditor was opened in another tab.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
         });
       },
       onTerminated() {
@@ -525,6 +528,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
 
   // ---------------------------------------------------------------- tree data and UI state
   let entries: EntryMeta[] = [];
+  /** Set once another tab clears this computer (clearedElsewhere): nothing opens or loads after it. */
+  let wiped: Promise<void> | null = null;
   let uiQueued = false;
   /** The workspace's text files, one array per tree read (the editor caches by it). */
   let textFileList: { from: EntryMeta[]; paths: WsPath[] } | null = null;
@@ -2052,8 +2057,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   };
   /** Opens the palette on `mode`; focus goes back to what had it (or to the top bar's Search). */
   function openPalette(mode: "all" | "commands", opener: HTMLElement | null = focused() ?? L.paletteButton) {
+    if (wiped) return;
     loadPalette().then(
-      (m) => m.openPalette(paletteApi, mode, opener),
+      // Checked again once the chunk is here: the tab may have been cleared while it loaded.
+      (m) => void (wiped || m.openPalette(paletteApi, mode, opener)),
       (e: unknown) => notice.show(`Search couldn't open: ${errorText(e)}`),
     );
   }
@@ -2100,6 +2107,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     });
     if (!ok) return;
     root.dataset.state = "clearing";
+    // Every other tab drops its files and ends its own sign-in now (clearedElsewhere), so none of
+    // them keeps the database open, or a token in memory, once this tab has gone.
+    tab?.notifyCleared();
     await sync.signOut().catch(() => {});
     await tab?.close().catch(() => {});
     try {
@@ -2119,6 +2129,61 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     location.reload();
   }
 
+  /**
+   * Another tab is clearing this computer (its "cleared" message, or the database being deleted):
+   * on a shared computer this tab must keep nothing usable. Unsaved edits are dropped (the clearing
+   * tab's confirm said anything not synced is lost), this tab's own GitHub sign-in ends (revoked,
+   * and never refreshed or sealed again), and the page is left with only a Reload button. Reloading
+   * then opens the cleared workspace: IndexedDB queues an open behind a pending delete.
+   */
+  function clearedElsewhere(): Promise<void> {
+    wiped ??= (async () => {
+      root.dataset.state = "clearing";
+      // Dialogs and menus live on document.body, outside root: Settings, Share, the repository
+      // picker or the palette would otherwise stay open on the last student's work (a confirm
+      // left open settles as "no"). Nothing opens again: the keys, the palette and code links
+      // check `wiped`, and `entries` no longer lists a file.
+      closeMenus();
+      for (const dialog of document.querySelectorAll("dialog")) {
+        if (dialog.open) dialog.close();
+        dialog.remove();
+      }
+      entries = [];
+      saves.drop();
+      editors.setReadOnly(true);
+      // Closed at once, so the clearing tab's delete never waits for this one.
+      db.close();
+      await sync.signOut().catch(() => {});
+      // signOut waited for any seal this tab was writing; that seal may have opened (so made) the
+      // secrets database again after the clearing tab deleted it. Deleting it here too means
+      // whichever tab finishes last leaves nothing behind.
+      await import("../sync/token-store").then((m) => m.deleteSecretsDb()).catch(() => {});
+      await tab?.close().catch(() => {});
+      manager?.destroy();
+      manager = null;
+      editors = idle;
+      open.length = 0;
+      try {
+        sessionStorage.clear();
+      } catch {
+        // storage blocked: nothing kept there
+      }
+      const reload = h("button", { type: "button", class: "btn primary" }, "Reload");
+      reload.addEventListener("click", () => location.reload());
+      root.replaceChildren(
+        h(
+          "div",
+          { class: "start-failed empty-state", role: "alert", "data-empty": "cleared" },
+          h("h1", { class: "empty-title" }, "CodeEditor was cleared in another tab"),
+          h("p", { class: "empty-lede" }, "The files, settings and GitHub sign-in it kept in this browser are gone from this tab too. Reload to start again."),
+          reload,
+        ),
+      );
+      root.dataset.state = "cleared";
+    })();
+    return wiped;
+  }
+
   // A new version was downloaded in the background: reload only when the user says so.
   document.addEventListener("codeeditor:update-ready", (e) => {
     const apply = (e as CustomEvent<() => void>).detail;
@@ -2132,7 +2197,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   L.runButton.addEventListener("click", (e) => void run({ repeat: e.detail > 1 }));
 
   addEventListener("keydown", (e) => {
-    if (e.defaultPrevented) return;
+    // Cleared in another tab: none of the app's keys run (the palette would list old files).
+    if (e.defaultPrevented || wiped) return;
     const mod = isMac() ? e.metaKey : e.ctrlKey;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const palette = paletteKey(e);
@@ -2181,6 +2247,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // ---------------------------------------------------------------- start
   tab.onRole(applyRole);
   tab.onStale(() => void reloadFromStorage("tab"));
+  tab.onCleared(() => void clearedElsewhere());
   await tab.start();
   applyRole();
   // What was open last time is read before the tree is drawn: the first layout is then the final
@@ -2206,6 +2273,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   void refreshSyncCount();
   const rev = (await store.getWorkspace(ws))?.rev;
   if (rev !== undefined) tab.seen(rev);
+  // Cleared in another tab while this one was starting: never load a sign-in.
+  if (wiped) return;
 
   sync = mountSync({
     db,
@@ -2263,10 +2332,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let codeLinkChunk: Promise<typeof import("./code-link-dialog")> | null = null;
   function takeCodeLink() {
     const hash = location.hash;
-    if (!hash.startsWith("#code=")) return;
+    if (!hash.startsWith("#code=") || wiped) return;
     codeLinkChunk ??= import("./code-link-dialog");
     codeLinkChunk.then(
       (m) => {
+        if (wiped) return;
         // The code leaves the address bar: a reload doesn't offer it again, and a bookmark doesn't keep it.
         // A read-only tab can't add it, so there it stays, to copy into the editing tab.
         if (location.hash === hash && canWrite()) history.replaceState(history.state, "", location.pathname + location.search);

@@ -4,7 +4,7 @@
 // data-sync-state, never on wording; the relay's recorded calls and the fake's files are the proof.
 import { createHash } from "node:crypto";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, reloadApp, test, tolerating, treeItem } from "./helpers";
+import { expect, importFiles, openApp, reloadApp, test, tolerating, treeItem, waitReady } from "./helpers";
 import {
   APP,
   appSecrets,
@@ -22,6 +22,7 @@ import {
   signInAndPick,
   syncCount,
   syncStatus,
+  tokenPair,
   waitSync,
   type GitHubRoute,
   type SignInRoute,
@@ -342,6 +343,106 @@ test.describe("signing out", () => {
     await expect(syncStatus(page)).toHaveAttribute("data-sync-state", "not-connected");
     expect(si.calls.filter((c) => c.route === "revoke").map((c) => c.body)).toEqual([{ access_token: GHU1 }]);
     expect((await appSecrets(page, ALL_TOKENS)).hasTokens).toBe(false);
+  });
+
+  test("Clear this computer in another tab: this tab ends its own sign-in and keeps no files and no token", async ({ page, context }) => {
+    // Two workbenches, a sign-in round trip and a reload (as multitab-edge and security-sync do).
+    test.setTimeout(120_000);
+    const { gh, si } = await setUp(page);
+    // Remember off: the pair lives only in this tab's memory, where the clearing tab can't reach it.
+    await signedIn(page, gh, si, { remember: false });
+    await expect(page.locator("#app")).toHaveAttribute("data-role", "writer");
+
+    const other = await context.newPage();
+    // The clearing tab has no sign-in of its own: it never needs GitHub or the relay.
+    const otherSent: string[] = [];
+    for (const url of [/^https:\/\/api\.github\.com\//, "**/api/auth/**"]) {
+      await other.route(url, (route) => {
+        otherSent.push(route.request().url());
+        return route.abort();
+      });
+    }
+    await openApp(other);
+    await expect(other.locator("#app")).toHaveAttribute("data-role", "reader");
+    await expect(treeItem(other, "main.py")).toBeVisible();
+    // This tab deletes the secrets database too, once its own sign-in has ended (a seal it was
+    // writing could otherwise make the database again after the clearing tab's delete).
+    await page.evaluate(() => {
+      const w = window as unknown as { deleted: string[] };
+      w.deleted = [];
+      // On the prototype: in WebKit a wrapper set on the indexedDB object itself saw no call.
+      const del = IDBFactory.prototype.deleteDatabase;
+      IDBFactory.prototype.deleteDatabase = function (this: IDBFactory, name: string) {
+        w.deleted.push(name);
+        return del.call(this, name);
+      };
+    });
+    // A dialog left open in the first tab (it lives on document.body, outside #app) must go too.
+    await page.locator("#settings-button").click();
+    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await other.locator("#settings-button").click();
+    await other.locator("#sign-out-clear").click();
+    const reloaded = other.waitForEvent("framenavigated", { timeout: 30_000 });
+    await other.getByRole("alertdialog").getByRole("button", { name: "Clear this computer" }).click();
+    await reloaded;
+    await waitReady(other);
+
+    // The first tab: its sign-in revoked (it was the only one holding that pair), and nothing left.
+    await expect(page.locator("#app")).toHaveAttribute("data-state", "cleared", { timeout: 30_000 });
+    expect(si.calls.filter((c) => c.route === "revoke").map((c) => c.body)).toEqual([{ access_token: GHU1 }]);
+    await expect(page.locator(".tree [role=treeitem]")).toHaveCount(0);
+    await expect(page.locator(".cm-editor")).toHaveCount(0);
+    await expectNoAppToken(page);
+    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+    // The page keeps no way back in but Reload, which opens the cleared (empty) workspace.
+    await expect(page.locator("#app button")).toHaveCount(1);
+    expect(await page.evaluate(() => (window as unknown as { deleted: string[] }).deleted)).toEqual(["codeeditor-secrets"]);
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    // Nor do the app's own keys: the palette (Ctrl+P, F1) would list the last student's files.
+    // (F1 and Ctrl+Shift+P take the same path as Ctrl+P.) Typed into the palette if it opened.
+    await page.locator("body").press("ControlOrMeta+p");
+    await page.waitForTimeout(2000);
+    await page.keyboard.type("main");
+    await page.waitForTimeout(500);
+    await expect(page.getByText("main.py")).toHaveCount(0);
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+
+    // The clearing tab started again from nothing, and never sent anything.
+    await expect(other.locator(".tree [role=treeitem]")).toHaveCount(0);
+    expect((await appSecrets(other, ALL_TOKENS)).hasTokens).toBe(false);
+    expect(otherSent).toEqual([]);
+    await other.close();
+  });
+
+  test("Clear this computer in another tab while this tab's sign-in is still being exchanged: the late pair is revoked, never used", async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // GitHub's answer to the code is held until the other tab has cleared this computer.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const { si } = await setUp(page, { answer: { token: async () => (await held, { status: 200, body: tokenPair(GHU1, GHR1) }) } });
+    const { state } = await goToGitHub(page, si);
+    await page.goto(`/auth-callback?code=fakecode0123456789&state=${state}`);
+    await expect.poll(() => si.calls.filter((c) => c.route === "token").length, { timeout: 30_000 }).toBe(1);
+
+    const other = await context.newPage();
+    await openApp(other);
+    await other.locator("#settings-button").click();
+    await other.locator("#sign-out-clear").click();
+    const reloaded = other.waitForEvent("framenavigated", { timeout: 30_000 });
+    await other.getByRole("alertdialog").getByRole("button", { name: "Clear this computer" }).click();
+    await reloaded;
+    await waitReady(other);
+    await expect(page.locator("#app")).toHaveAttribute("data-state", "cleared", { timeout: 30_000 });
+
+    const userCalls = si.userCalls.length;
+    release();
+    // The pair that arrives after the sign-out is ended on GitHub, and never sent there to list anything.
+    await expect.poll(() => si.calls.filter((c) => c.route === "revoke").map((c) => c.body), { timeout: 15_000 }).toEqual([{ access_token: GHU1 }]);
+    await page.waitForTimeout(1000);
+    expect(si.userCalls.slice(userCalls)).toEqual([]);
+    expect(await page.locator("dialog[open]").count()).toBe(0);
+    await expectNoAppToken(page);
+    await other.close();
   });
 
   test.describe("offline", () => {

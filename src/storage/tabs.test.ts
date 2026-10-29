@@ -367,6 +367,28 @@ describe("staying in step", () => {
     expect(hints).toEqual([{ kind: "unknown" }]);
   });
 
+  it("clearing this computer tells every other tab, whatever its workspace, and only that", async () => {
+    const hub = new FakeHub();
+    const locks = new FakeLocks();
+    const a = tab("A", { locks, hub });
+    const b = tab("B", { locks, hub });
+    const elsewhere = createTabCoordinator("ws-2", { readRev: async () => 0, openChannel: hub.open, doc: null, win: null, tabId: "C", locks });
+    open.push(elsewhere);
+    const heard: string[] = [];
+    a.onCleared(() => heard.push("A"));
+    b.onCleared(() => heard.push("B"));
+    elsewhere.onCleared(() => heard.push("C"));
+    const hints: StaleHint[] = [];
+    b.onStale((h) => hints.push(h));
+    a.notifyCleared();
+    await tick();
+    expect(heard.sort()).toEqual(["B", "C"]);
+    expect(hints).toEqual([]);
+    expect(hub.log).toEqual([{ v: 1, type: "cleared", from: "A" }]);
+    expect(parseTabMessage({ v: 1, type: "cleared", from: "" }, WS)).toBeNull();
+    expect(parseTabMessage({ v: 1, type: "cleared", from: "X", extra: "token" }, WS)).toEqual({ v: 1, type: "cleared", from: "X" });
+  });
+
   it("checks the stored rev when the tab becomes visible again", async () => {
     let stored = 1;
     const doc = new FakeDocument();
