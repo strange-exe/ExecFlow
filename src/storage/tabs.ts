@@ -7,8 +7,9 @@
 //                  answers); with no answer within 2 s (the tab is frozen or discarded), steal the
 //                  lock. The old holder sees its lock request settle and turns read-only.
 //
-// BroadcastChannel("codeeditor") only ever says "re-read IndexedDB" (or asks for a handover):
-// messages carry a workspace id, a revision number and paths, never file text or tokens. Tabs
+// BroadcastChannel("codeeditor") only ever says "re-read IndexedDB" (or asks for a handover, or
+// says this computer is being cleared, for every workspace): messages carry a workspace id, a
+// revision number and paths, never file text or tokens. Tabs
 // can miss messages (frozen, bfcached), so a tab compares the workspace's rev with the last one it
 // saw whenever it becomes visible again.
 //
@@ -34,7 +35,9 @@ export type TabMessage =
   | { v: 1; type: "tree"; ws: string; rev: number }
   | { v: 1; type: "sync"; ws: string; state: SyncState; rev: number }
   | { v: 1; type: "handover-request"; ws: string; from: string }
-  | { v: 1; type: "handover-done"; ws: string; from: string; to: string };
+  | { v: 1; type: "handover-done"; ws: string; from: string; to: string }
+  /** "Sign out and clear this computer" in tab `from`: every other tab drops what it holds. */
+  | { v: 1; type: "cleared"; from: string };
 
 export type TabRole = "starting" | "writer" | "reader";
 
@@ -107,10 +110,14 @@ export interface TabCoordinator {
   notifyChanged(rev: number, paths: WsPath[]): void;
   notifyTree(rev: number): void;
   notifySync(state: SyncState, rev: number): void;
+  /** This tab is clearing this computer: tells every other tab, of any workspace. */
+  notifyCleared(): void;
   /** Compares the stored rev with the last one seen; fires onStale and returns true if it moved. */
   checkRev(): Promise<boolean>;
   onRole(listener: (role: TabRole, reason: ReadOnlyReason | null) => void): () => void;
   onStale(listener: (hint: StaleHint) => void): () => void;
+  /** Another tab is clearing this computer. */
+  onCleared(listener: () => void): () => void;
   /** Releases the lock (if held) and stops listening. */
   close(): Promise<void>;
 }
@@ -141,6 +148,8 @@ const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0 
 export function parseTabMessage(data: unknown, ws: string): TabMessage | "unknown" | null {
   if (typeof data !== "object" || data === null) return null;
   const m = data as Record<string, unknown>;
+  // Clearing removes every workspace, so it names none.
+  if (m.v === 1 && m.type === "cleared") return isId(m.from) ? { v: 1, type: "cleared", from: m.from } : null;
   if (m.ws !== ws) return null;
   if (m.v !== 1) return "unknown";
   switch (m.type) {
@@ -192,6 +201,7 @@ export function createTabCoordinator(ws: string, deps: TabDeps): TabCoordinator 
   let paused: Promise<void> = Promise.resolve();
   const roleListeners = new Set<(role: TabRole, reason: ReadOnlyReason | null) => void>();
   const staleListeners = new Set<(hint: StaleHint) => void>();
+  const clearedListeners = new Set<() => void>();
 
   function report(error: unknown) {
     (globalThis as { reportError?: (e: unknown) => void }).reportError?.(error);
@@ -395,6 +405,15 @@ export function createTabCoordinator(ws: string, deps: TabDeps): TabCoordinator 
         lastRev = m.rev;
         emitStale({ kind: "sync", state: m.state, rev: m.rev });
         return;
+      case "cleared":
+        for (const listener of [...clearedListeners]) {
+          try {
+            listener();
+          } catch (error) {
+            report(error);
+          }
+        }
+        return;
     }
   };
   const onVisibility = () => {
@@ -450,6 +469,9 @@ export function createTabCoordinator(ws: string, deps: TabDeps): TabCoordinator 
       lastRev = rev;
       post({ v: 1, type: "sync", ws, state, rev });
     },
+    notifyCleared() {
+      post({ v: 1, type: "cleared", from: tabId });
+    },
     checkRev,
     onRole(listener) {
       roleListeners.add(listener);
@@ -458,6 +480,10 @@ export function createTabCoordinator(ws: string, deps: TabDeps): TabCoordinator 
     onStale(listener) {
       staleListeners.add(listener);
       return () => void staleListeners.delete(listener);
+    },
+    onCleared(listener) {
+      clearedListeners.add(listener);
+      return () => void clearedListeners.delete(listener);
     },
     async close() {
       if (closed) return;
