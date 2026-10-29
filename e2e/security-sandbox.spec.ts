@@ -33,7 +33,12 @@ function servedPaths(): string[] {
     "/manifest.webmanifest",
     "/icons/mark-v2.svg",
     "/some/deep/route",
-    ...list("assets").filter((f) => f !== "w").map((f) => `/assets/${f}`),
+    "/auth-callback",
+    "/sitemap.xml",
+    "/robots.txt",
+    // Files only: a folder's address (/assets/a) is no file, so it is the 404 page.
+    ...list("assets").filter((f) => f !== "w" && f !== "a").map((f) => `/assets/${f}`),
+    ...list("assets/a").map((f) => `/assets/a/${f}`),
     ...list("assets/w").map((f) => `/assets/w/${f}`),
     `/pyodide/${pyDir}/pyodide.mjs`,
     `/pyodide/${pyDir}/pyodide-lock.json`,
@@ -46,7 +51,9 @@ test("every file the site serves carries the page policy, nosniff and isolation;
   for (const path of servedPaths()) {
     const res = await request.get(path);
     const h = res.headers();
-    if (res.status() !== 200) problems.push(`${path}: HTTP ${res.status()}`);
+    // An address that is no page or file is the site's 404 page (404.html), with the same headers.
+    const status = path === "/some/deep/route" ? 404 : 200;
+    if (res.status() !== status) problems.push(`${path}: HTTP ${res.status()}, expected ${status}`);
     const policies = (h["content-security-policy"] ?? "").split(",").map((p) => p.trim()).filter(Boolean);
     const page = policies[0] ?? "";
     for (const d of PAGE_DIRECTIVES) if (!page.split(";").map((x) => x.trim()).includes(d)) problems.push(`${path}: page policy lacks ${d}`);

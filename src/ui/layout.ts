@@ -275,6 +275,14 @@ export function createLayout(root: HTMLElement): Layout {
     runtime: h("span", { class: "status-item runtime", id: "status-runtime", "data-state": "idle" }),
     shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: `Keyboard shortcuts (${mod}+/)` }, icon("keyboard"), h("span", { class: "status-btn-label" }, "Shortcuts")),
   };
+  // A real link to About, always on screen next to Shortcuts: a crawler that renders the page
+  // (Googlebot) never reads index.html's <noscript>, so this is how it finds About (SEO review, 2026-10-29).
+  const aboutLink = h(
+    "a",
+    { class: "status-btn", id: "about-link", href: "/about", target: "_blank", rel: "noopener noreferrer", "aria-label": "About CodeEditor", title: "About CodeEditor (opens in a new tab)" },
+    icon("info"),
+    h("span", { class: "status-btn-label" }, "About"),
+  );
   const noticeHost = h("div", { class: "notice-host" });
   const statusbar = h("footer", { class: "statusbar" });
   const scrim = h("div", { class: "drawer-scrim", "aria-hidden": "true" });
@@ -341,21 +349,21 @@ export function createLayout(root: HTMLElement): Layout {
 
   // ---------------------------------------------------------------- what moves at 900 px
   // Desktop: the top bar's end holds the runtime state, Capture and Run; the panel bar's end the
-  // language and Ln/Col; the sidebar's foot the notices, the sync status, Shortcuts and Settings.
+  // language and Ln/Col; the sidebar's foot the notices, the sync status, Shortcuts, About and Settings.
   // Below 900 px (no editor head, the sidebar a drawer): the top bar holds Search, the sync status,
-  // Run and Settings, and the status bar the facts, the runtime state, the notices and Shortcuts.
+  // Run and Settings, and the status bar the facts, the runtime state, the notices, Shortcuts and About.
   function place(narrow: boolean) {
     const focused = document.activeElement;
     if (narrow) {
       topEnd.append(paletteButton, syncSlot, runButton, settingsButton);
-      statusbar.append(status.lang, status.pos, status.runtime, noticeHost, status.shortcuts);
+      statusbar.append(status.lang, status.pos, status.runtime, noticeHost, status.shortcuts, aboutLink);
       headTools.append(snippetButton);
     } else {
       topbar.insertBefore(paletteButton, topEnd);
       topEnd.append(status.runtime, snippetButton, runButton);
       panelFacts.append(status.lang, status.pos);
       sidebarFoot.insertBefore(noticeHost, footRow);
-      footRow.append(syncSlot, status.shortcuts, settingsButton);
+      footRow.append(syncSlot, status.shortcuts, aboutLink, settingsButton);
     }
     // A moved element loses focus in some engines: it goes back to the control that had it.
     if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });

@@ -1,4 +1,11 @@
+import { readFileSync } from "node:fs";
 import { expect, test as base, type BrowserContext, type Page, type Request, type Route } from "@playwright/test";
+
+/**
+ * The text of the home page's own JSON-LD block (index.html): the one inline script the security
+ * specs let the page hold, once, in <head>, with exactly this text (security review m2, 2026-10-29).
+ */
+export const OWN_JSON_LD = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(readFileSync("index.html", "utf8"))![1];
 
 /** BrowserContext.setOffline as Playwright has it, before the fixture below wraps it. */
 const browserSetOffline = new WeakMap<BrowserContext, BrowserContext["setOffline"]>();

@@ -402,6 +402,16 @@ What changed in each release: [CHANGELOG.md](CHANGELOG.md), or the
 `src/about/changelog.ts`, which writes CHANGELOG.md (`node scripts/write-changelog.mjs`) and the
 About page's list; a release also bumps `version` in package.json.
 
+## Search and sharing
+
+`src/about/site.ts` holds what search engines and link previews read, and `vite.config.ts` applies it
+at build time: each page's canonical link and Open Graph and Twitter card tags (from the page's own
+title and description), `sitemap.xml`, and the home page's JSON-LD (in `index.html`; no ratings or
+reviews). `public/robots.txt` names the sitemap. The social card is
+`public/media/social-card.<hash>.png`, drawn by `node scripts/make-social-card.mjs`. Unknown
+addresses get `404.html` with a real 404; `public/_redirects` serves the editor at `/auth-callback`,
+where GitHub returns after sign-in, and `vite preview` copies both so the end-to-end tests see them.
+
 ## Third-party software
 
 CodeEditor bundles or downloads the following. Their licences apply to their parts.

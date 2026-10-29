@@ -862,6 +862,9 @@ button.problem:hover { background: var(--hover); }
 .runtime[data-state="absent"] .icon { color: var(--info); }
 .status-btn { display: inline-flex; align-items: center; gap: var(--s1); height: var(--target); margin-left: auto; padding: 0 var(--s2); border: 0; border-radius: var(--r-key); background: none; color: inherit; font: inherit; white-space: nowrap; }
 .status-btn:hover { background: var(--hover); color: var(--text); }
+/* About (a link) sits right after Shortcuts and looks like it. */
+a.status-btn { text-decoration: none; }
+.status-btn + .status-btn { margin-left: 0; }
 /* The notice slot: one line with an icon, words, at most one action and a dismiss button. */
 .notice-host { display: flex; flex: 1 1 auto; min-width: 0; }
 .notice {

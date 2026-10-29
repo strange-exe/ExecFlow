@@ -1,9 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
-import { FILE_URL } from "./src/about/fallback-deny.ts";
+import { APP_ROUTE, FILE_URL } from "./src/about/fallback-deny.ts";
+import { CHANGELOG } from "./src/about/changelog.ts";
+import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -287,6 +290,51 @@ function thirdPartyLicenses(): Plugin {
   };
 }
 
+/**
+ * What search engines and link previews read (src/about/site.ts): each page's canonical link and
+ * social tags, and sitemap.xml. `vite preview` also answers like Cloudflare Pages does with 404.html
+ * in the build: the _redirects rewrites (GitHub's sign-in return path), the pages and files, and
+ * 404.html with a 404 for any other address, so the end-to-end tests meet the deployed site's 404s.
+ */
+function site(): Plugin {
+  let outDir = "dist";
+  return {
+    name: "code-editor:site",
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    transformIndexHtml: {
+      order: "pre",
+      handler(html, ctx) {
+        const page = PAGES.find((p) => ctx.filename.replace(/\\/g, "/").endsWith(`/${p.file}`));
+        return page ? withHeadTags(html, page.path) : html;
+      },
+    },
+    generateBundle() {
+      const dates = pageDates((file) => readFileSync(file, "utf8"), CHANGELOG[0].date);
+      this.emitFile({ type: "asset", fileName: "sitemap.xml", source: sitemapXml(dates) });
+    },
+    configurePreviewServer(server) {
+      const rewrites = parseRewrites(readFileSync("public/_redirects", "utf8"));
+      const isFile = (file: string) => existsSync(`${outDir}${file}`) && statSync(`${outDir}${file}`).isFile();
+      server.middlewares.use((req, res, next) => {
+        const [path, query] = (req.url ?? "/").split(/\?(.*)/s);
+        const to = rewrites.get(path);
+        if (to) {
+          req.url = query === undefined ? to : `${to}?${query}`;
+          return next();
+        }
+        if (path.startsWith("/api/")) return next();
+        const decoded = servedPath(path);
+        if (decoded && pagesFile(decoded, isFile)) return next();
+        res.statusCode = 404;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(readFileSync(`${outDir}/404.html`));
+      });
+    },
+  };
+}
+
 /** `vite preview` sends the same security headers as Cloudflare, per path (cache rules left out). */
 function previewHeaders(): Plugin {
   return {
@@ -334,9 +382,9 @@ export default defineConfig(({ mode }) => ({
     // No source maps in production: DevTools can't rebuild the src/ tree. Nothing secret lives in the client.
     sourcemap: false,
     rolldownOptions: {
-      // The editor, and the Privacy and Terms pages (served at /privacy and /terms: Cloudflare Pages
-      // drops the .html; the service worker's precache matches the same clean URLs).
-      input: { index: "index.html", privacy: "privacy.html", terms: "terms.html", about: "about.html" },
+      // The editor, About, Privacy and Terms (served at /about, /privacy and /terms: Cloudflare Pages
+      // drops the .html; the service worker's precache matches the same clean URLs), and 404.html.
+      input: HTML_INPUT,
       output: {
         ...hashedNames,
         // Oxc minifier: drop leftover console.* calls (and debugger statements, its default).
@@ -359,6 +407,7 @@ export default defineConfig(({ mode }) => ({
     collectPackages(),
     thirdPartyLicenses(),
     previewHeaders(),
+    site(),
     VitePWA({
       // An editor can hold unsaved text, so updates wait for the user instead of reloading tabs.
       registerType: "prompt",
@@ -396,10 +445,14 @@ export default defineConfig(({ mode }) => ({
         // service worker can reuse what the page already downloaded (no second 6 MB download).
         dontCacheBustURLsMatching: /^(assets|pyodide\/\d+\.\d+\.\d+-heap\d+)\//,
         navigateFallback: "/index.html",
-        // The sign-in relay (functions/api/auth/*) always answers from the network, never from the
-        // precache. /auth-callback keeps the fallback: it is an app route. A file URL (a name with an
-        // extension other than .html, such as media/*.mp4) is a file, never the editor: it goes to the network
-        // (FILE_URL ignores the query string, which Workbox tests along with the path).
+        // Only the editor's own addresses (/ and GitHub's sign-in return path /auth-callback) get the
+        // editor; any other address the precache doesn't hold goes to the network, which answers
+        // 404.html with a 404 (APP_ROUTE, src/about/fallback-deny.ts). Offline, such an address fails
+        // like any uncached page. The sign-in relay (functions/api/auth/*) always answers from the
+        // network, never from the precache. A file URL (a name with an extension other than .html, such
+        // as media/*.mp4) is a file, never the editor: it goes to the network (FILE_URL ignores the
+        // query string, which Workbox tests along with the path). Workbox applies both lists.
+        navigateFallbackAllowlist: [APP_ROUTE],
         navigateFallbackDenylist: [/^\/api\//, FILE_URL],
         // numpy, pandas and their helpers (~7.5 MB, scripts/fetch-pyodide-packages.mjs) are not precached:
         // they download the first time a program imports them, then keep working offline. The folder is

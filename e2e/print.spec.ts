@@ -160,7 +160,7 @@ test("3: printing: the layout replaces the app on paper, in the editor's highlig
   await expect(app(page)).toHaveAttribute("data-print", "done");
   await expect(page.locator("#print-root")).toHaveCount(0);
   await expect(page.locator("#print-pages")).toHaveCount(0);
-  expect(await page.evaluate(() => [document.documentElement.dataset.printing ?? null, document.title])).toEqual([null, "CodeEditor"]);
+  expect(await page.evaluate(() => [document.documentElement.dataset.printing ?? null, document.title])).toEqual([null, "CodeEditor: free online Python, C and C++ compiler"]);
   await expect(page.locator("#file-actions")).toBeFocused();
 });
 
