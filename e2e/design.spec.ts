@@ -345,9 +345,14 @@ test("the code font's italic face loads at idle once the editor is shown, before
 // A reload cancels a download still running (lessons.md: a lazy download right before a reload).
 // The face's response is held, so the reload is sure to come while it downloads; the fixture then
 // fails the test on any console error or failed request the cancel caused that no navigation explains.
-test("a reload while the italic face is still downloading logs no error and no failed request", async ({ page }) => {
-  await openApp(page);
-  const url = await page.evaluate(() => {
+// The face's address comes from a throwaway tab, so the hold is in place before the real tab's first
+// load: under a loaded machine the editor (and with it the face) can arrive at an idle moment before
+// the starter is clicked, and a hold set up after the first load then never saw the request (CI run
+// 40902900659, chromium: waitForRequest timed out).
+test("a reload while the italic face is still downloading logs no error and no failed request", async ({ page, context }) => {
+  const probe = await context.newPage();
+  await openApp(probe);
+  const url = await probe.evaluate(() => {
     for (const sheet of document.styleSheets) {
       for (const rule of sheet.cssRules) {
         if (!(rule instanceof CSSFontFaceRule)) continue;
@@ -361,20 +366,30 @@ test("a reload while the italic face is still downloading logs no error and no f
     return null;
   });
   expect(url, "the italic face's file").not.toBeNull();
-  const HOLD_MS = 2000;
+  // Closed, so the real tab is the one that holds the writer lock.
+  await probe.close();
+  // Every response for the face is held until the reload has started (a 20 s cap in case it never
+  // does), so the reload comes during the download however early the face was asked for.
   let heldAt = 0;
+  let answered = 0;
+  let markRequested!: () => void;
+  const requested = new Promise<void>((done) => (markRequested = done));
+  let release!: () => void;
+  const released = new Promise<void>((done) => (release = done));
   await page.route(url!, async (route) => {
     heldAt ||= Date.now();
-    await new Promise((done) => setTimeout(done, HOLD_MS));
+    markRequested();
+    await Promise.race([released, new Promise((done) => setTimeout(done, 20_000))]);
+    answered ||= Date.now();
     await route.continue().catch(() => undefined); // the reload may have dropped it
   });
+  await openApp(page);
   // How engines report the cancel, for the record: Firefox NS_BINDING_ABORTED, WebKit "Load request
   // cancelled"; Chromium reports nothing for a held request (measured 2026-10-20).
   const cancelled: string[] = [];
   page.on("requestfailed", (r) => {
     if (r.url() === url) cancelled.push(r.failure()?.errorText ?? "");
   });
-  const requested = page.waitForRequest(url!);
   await page.locator('.starter[data-language="python"]').click();
   await requested;
   // The face can be asked for before the new file is open: the pointer over the starters fetches
@@ -382,10 +397,12 @@ test("a reload while the italic face is still downloading logs no error and no f
   // first (a full run, 2026-10-21: the reload then found no open tab, so no editor and no face).
   await expectActive(page, "main.py");
   const reloadAt = Date.now();
+  // Released once the new document has committed: the old one, and its download, are gone by then.
+  page.once("framenavigated", () => release());
   await reloadApp(page);
   // The reload came while the face's response was still held (else this test proves nothing).
   expect(heldAt, "the face's request was held").toBeGreaterThan(0);
-  expect(reloadAt - heldAt, "the reload started while the download was held").toBeLessThan(HOLD_MS);
+  expect(answered === 0 || answered >= reloadAt, "the reload started while the download was held").toBe(true);
   test.info().annotations.push({ type: "cancel", description: cancelled.join("; ") || "no requestfailed event" });
   await page.unrouteAll({ behavior: "ignoreErrors" });
   // The restored tab shows the editor again, and the face loads this time.
