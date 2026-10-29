@@ -104,26 +104,28 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--control-on); w
 input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
 
 /* ------------------------------------------------------------------ the grid */
-/* The work area (the sidebar beside the editor column) and, below 900 px, one status bar (it grows
-   to two lines for a long notice on phones). Every bar height is a token (tokens.css). */
+/* The work area (the rail, the sidebar and the work column) and, below 900 px, one status bar (it
+   grows to two lines for a long notice on phones) over the view bar. Every bar height is a token
+   (tokens.css). */
 .workbench {
   height: 100vh;
   height: 100dvh;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   grid-template-columns: minmax(0, 1fr);
 }
 .workbench[data-state="loading"] { background: var(--bg); }
 /* public/theme-boot.js's screen when the app's code didn't load or start: alone in the grid's work area. */
 .workbench > .start-failed { grid-row: 1; padding: clamp(var(--s5), 8vh, 72px) var(--s6) var(--s6); }
 .workbench[data-state="start-failed"] > :not(.start-failed) { display: none; }
-/* The editor column: the top bar over the editor and its panel. */
+/* The work column: the top bar over the code card and the console card. */
 .work { display: grid; grid-template-rows: var(--h-topbar) minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; }
 
 /* ------------------------------------------------------------------ top bar */
-/* Over the editor column only: the breadcrumb at the start, "Search or run a command" in the
-   middle, the runtime state, Capture and Run at the end. The two ends share what the field leaves,
-   so the field sits in the middle while both fit (the end never shrinks under its controls). */
+/* Over the work column only: the breadcrumb ("Workspace / main.py") at the start, "Search or run a
+   command" in the middle, the runtime state, Capture and Run at the end. The two ends share what
+   the field leaves, so the field sits in the middle while both fit (the end never shrinks under its
+   controls). With no file open, Capture and the runtime state go and Run is shown disabled. */
 .topbar {
   display: flex;
   align-items: center;
@@ -153,6 +155,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   white-space: nowrap;
 }
 .crumb > li { display: flex; align-items: center; min-width: 0; flex: 0 1000 auto; }
+/* The workspace's name: the muted tier, the first to give way after the folders. */
+.crumb > .crumb-root { color: var(--text-muted); flex: 0 2000 auto; }
+.crumb-root:only-child > .crumb-sep { display: none; }
 .crumb-text { min-width: 2ch; overflow: hidden; text-overflow: ellipsis; }
 .crumb-sep { flex: none; margin: 0 var(--s2); color: var(--text-muted); }
 .crumb > .crumb-file { flex: 0 1 auto; color: var(--text); font-family: var(--font-name); font-weight: var(--w-label); }
@@ -206,7 +211,6 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .sync-slot { display: flex; min-width: 0; }
 .sync-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drawer-toggle { display: none; }
 .palette-key { display: none; }
 /* From 1280 px: under it the keycap cut the field's words short once the breadcrumb kept its room
    (the shortcut stays in the button's title and aria-keyshortcuts). */
@@ -221,6 +225,17 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 /* ------------------------------------------------------------------ Run, Stop */
 .run { height: var(--primary-h); min-height: var(--primary-h); padding: 0 var(--s4) 0 var(--s3); gap: var(--s2); font-size: var(--fs-1); }
 .run-icon { display: inline-grid; }
+/* The words and the key never block a click (they are redrawn as Run becomes Stop). */
+.run > * { pointer-events: none; }
+/* Its key on the fill, after a hairline in the label's colour: from 1280 px (the field's words need
+   the room under it); the shortcut stays in the tooltip and aria-keyshortcuts. */
+.run-key { display: none; margin-left: 2px; padding-left: var(--s2); border-left: 1px solid currentColor; font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-code); }
+@media (min-width: 1280px) { .run-key { display: inline; } }
+/* Only on the fill: Stop, the stepped-back Run (after a failed run, or nothing runnable) and the
+   disabled one drop it, so their outline stays compact and reads before Capture in the gray check. */
+.btn.run[data-running="true"] .run-key,
+.workbench:is([data-last-run="failed"], [data-runnable="false"]) .btn.run .run-key,
+.btn.run[aria-disabled="true"] .run-key { display: none; }
 /* Stop (while running), Run with nothing runnable and Run after a failed run (it steps back until
    the next edit or run: the next step is a fix) are secondary (outline) buttons: same id, label,
    shortcut, still enabled. Their selectors out-rank .btn.primary:hover, so a hovered Stop never
@@ -243,56 +258,88 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .workbench[data-last-run="failed"] .btn.run:not([data-running="true"]):hover:not(:disabled) { background: var(--hover); border-color: var(--border-strong); }
 .btn.run[data-running="true"] .run-icon { color: var(--danger); }
 .workbench[data-last-run="failed"] .btn.run:not([data-running="true"]) .run-icon { color: var(--text-secondary); }
-/* Nothing open and nothing running: no Run (the empty workspace's starters lead). data-open stays
-   "true" while a program runs, so its Stop never goes (workbench.ts renderShell). While start-up
-   reopens a file, Run keeps its place unseen until that file can run. */
-.workbench[data-open="false"] .btn.run { display: none; }
+/* Nothing open and nothing running: Run is shown disabled (aria-disabled, so it stays a Tab stop
+   whose description says why: workbench.ts renderShell), a quiet sunken pill with no edge to press,
+   and Capture and the runtime state go. data-open stays "true" while a program runs, so its Stop
+   never goes. While start-up reopens a file, Run keeps its place unseen until that file can run. */
+.workbench .btn.run[aria-disabled="true"]:not([data-running="true"]),
+.workbench .btn.run[aria-disabled="true"]:not([data-running="true"]):hover:not(:disabled) { background: var(--hover); border-color: transparent; color: var(--text-muted); font-weight: var(--w-label); cursor: not-allowed; }
+.workbench .btn.run[aria-disabled="true"] .run-icon { color: var(--text-muted); }
+.workbench[data-open="false"] :is(.capture-btn, .topbar .runtime) { display: none; }
 .workbench[data-restoring] .btn.run { visibility: hidden; }
 
-/* ------------------------------------------------------------------ main: sidebar | splitter | center */
-.main { display: grid; grid-template-columns: var(--sidebar-w, 248px) 1px minmax(0, 1fr); min-height: 0; }
+/* ------------------------------------------------------------------ main: rail | sidebar | splitter | work */
+/* Columns by name, so the sidebar and its splitter can leave (Files) without the work column moving
+   into their place. Below 900 px the rail is not shown and the sidebar is a drawer. */
+.main { display: grid; grid-template-columns: var(--rail-w) var(--sidebar-w, 248px) 1px minmax(0, 1fr); min-height: 0; }
+@media (min-width: 900px) {
+  .main > .rail { grid-column: 1; }
+  .main > .sidebar { grid-column: 2; }
+  .main > .splitter { grid-column: 3; }
+  .main > .work { grid-column: 4; }
+  .workbench[data-sidebar="hidden"] .main { grid-template-columns: var(--rail-w) 0 0 minmax(0, 1fr); }
+  .workbench[data-sidebar="hidden"] :is(.main > .sidebar, .main > .splitter) { display: none; }
+}
+
+/* The activity rail: the mark, then Files, Search, Flowchart and New file, each its icon over its
+   word; Shortcuts and Settings at its foot. The chosen one (Files while the list shows) is lifted on
+   the raised ground with a hairline ring, as a chosen tab is, never by colour alone. */
+.rail { display: flex; flex-direction: column; align-items: center; gap: var(--s1); min-height: 0; padding: var(--s3) 0; background: var(--surface); overflow-y: auto; scrollbar-width: none; }
+/* The mark at the rail's top: its 20 px box on a 32 px tile in the brand colour (one tile, read as
+   the mark at the rail's size). */
+.rail-mark { display: grid; place-items: center; flex: none; width: var(--s6); height: var(--s6); margin-bottom: var(--s2); border-radius: var(--r-control); background: var(--brand); color: var(--on-brand); }
+.rail-foot { display: flex; flex-direction: column; align-items: center; gap: var(--s1); margin-top: auto; }
+.rail .rail-btn,
+.rail .status-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: calc(var(--rail-w) - var(--s1));
+  height: auto;
+  min-height: 48px;
+  margin: 0;
+  padding: var(--s1) 0;
+  letter-spacing: var(--tracking-title);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--text-muted);
+  font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui);
+  text-align: center;
+  transition: background-color var(--dur), color var(--dur);
+}
+.rail .rail-btn > *, .rail .status-btn > * { pointer-events: none; }
+.rail .rail-btn .icon, .rail .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
+.rail .rail-btn:hover, .rail .status-btn:hover { background: var(--hover); color: var(--text); }
+.rail .rail-btn[aria-expanded="true"] { background: var(--surface-raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--border), var(--shadow-pop); }
+.rail .status-btn-label, .rail .rail-label { display: block; }
+/* The rail's words fit 56 px: "Flowchart" and "Shortcuts" are the longest. */
+.rail-label, .rail .status-btn-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Settings outside the rail (the phone's top bar) is its icon. */
+.rail-label { display: none; }
+
 .sidebar { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
-/* The workspace: the app's mark as its tile, the name at 600, where it lives in the secondary
-   tier; as tall as the top bar beside it (one shared edge). */
-.ws-switcher { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; height: var(--h-topbar); padding: 0 var(--s3) 0 var(--s4); }
+/* The workspace: the name at 600, where it lives in the secondary tier; as tall as the top bar
+   beside it (one shared edge). */
+.ws-switcher { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; height: var(--h-topbar); padding: 0 var(--s3) 0 var(--s3); }
 .ws-text { display: flex; flex-direction: column; min-width: 0; margin: 0; }
 .ws-title { display: flex; min-width: 0; font-size: var(--fs-1); font-weight: var(--w-strong); line-height: 18px; }
 .ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo-name { font-family: var(--font-name); font-weight: var(--w-label); }
 .ws-owner { overflow: hidden; color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); text-overflow: ellipsis; white-space: nowrap; }
-/* Quick actions: ghost rows in the secondary tier, their key at the row's end. */
-.quick-actions { display: flex; flex-direction: column; gap: 2px; flex: none; padding: var(--s1) var(--s2) var(--s2); }
-.quick-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: var(--h-row);
-  padding: 0 var(--s2);
-  border: 0;
-  border-radius: var(--r-row);
-  background: none;
-  color: var(--text-secondary);
-  font-size: var(--fs-2);
-  line-height: var(--lh-2);
-  text-align: left;
-  transition: background-color var(--dur), color var(--dur);
-}
-.quick-btn:hover { background: var(--hover); color: var(--text); }
-.quick-btn > * { pointer-events: none; }
-.quick-btn .icon { width: var(--icon-md); height: var(--icon-md); }
-.quick-label { flex: 1; min-width: 0; }
-.quick-btn:focus-visible { outline-offset: -2px; }
-/* The Files heading and its actions, under a rule that ends the quick actions. */
-.sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); height: 36px; margin: 0 var(--s2); padding: var(--s1) 0 0 var(--s2); flex: none; border-top: 1px solid var(--divider); }
-.region-title { margin: 0; font-size: var(--fs-hint); font-weight: var(--w-label); line-height: var(--lh-hint); color: var(--text-secondary); }
+/* The Files heading and its actions. */
+.sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); height: 36px; margin: var(--s2) var(--s2) 0; padding: 0 0 0 var(--s2); flex: none; }
+.region-title { margin: 0; font-size: var(--fs-2); font-weight: var(--w-strong); line-height: var(--lh-2); color: var(--text-secondary); }
 .sidebar-actions { display: flex; gap: 2px; }
-/* The foot (900 px and wider): a notice, if any, over the sync status, Shortcuts and Settings. */
-.sidebar-foot { display: flex; flex-direction: column; flex: none; margin: 0 var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--divider); }
-.sidebar-foot-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
+/* The foot (900 px and wider): a notice, if any, over the sync status and About. */
+.sidebar-foot { display: flex; flex-direction: column; flex: none; margin: 0 var(--s2); padding: var(--s2) 0; }
+.sidebar-foot-row { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
 .sidebar-foot-row:empty { display: none; }
 .sidebar-foot .sync-slot { flex: 1; }
 .sidebar-foot .sync-status { max-width: 100%; }
-/* Shortcuts here is its icon (named by its tooltip, "Keyboard shortcuts (Ctrl+/)"), an icon button. */
+/* About here is its icon (named "About CodeEditor"), an icon button beside the sync status. */
 .sidebar-foot .status-btn { justify-content: center; width: var(--tool); height: var(--tool); margin: 0; padding: 0; border-radius: var(--r-control); color: var(--text-muted); }
 .sidebar-foot .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
 .sidebar-foot .status-btn-label { display: none; }
@@ -308,10 +355,22 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .splitter.vertical::after { inset: 0 -5px; }
 .splitter.horizontal { cursor: row-resize; }
 .splitter.horizontal::after { inset: -5px 0; }
-/* The file list | editor splitter draws no line at rest: from 900 px the editor's sheet has its own
-   edge (below 900 px this splitter is not shown). Hover, dragging and keyboard focus still paint it
-   (the next rules come later, so they win). */
+/* The file list | work splitter draws no line at rest: the cards have their own edges (below 900 px
+   this splitter is not shown). Hover, dragging and keyboard focus still paint it (the next rules
+   come later, so they win). */
 .main > .splitter { background: transparent; }
+/* Between the two cards the splitter is the gutter itself, 8 px, with a short grip at its middle in
+   the control edge; hover and dragging paint the grip, keyboard focus the focus colour. */
+.center > .splitter { background: transparent; }
+.center > .splitter.horizontal { height: var(--s2); }
+.center > .splitter.vertical { width: var(--s2); }
+.center > .splitter::before { content: ""; position: absolute; inset: 0; margin: auto; border-radius: 1px; background: var(--border); }
+.center > .splitter.horizontal::before { width: var(--s6); height: 2px; }
+.center > .splitter.vertical::before { width: 2px; height: var(--s6); }
+.center > .splitter:is(:hover, [data-dragging]) { background: transparent; }
+.center > .splitter:is(:hover, [data-dragging])::before { background: var(--border-strong); }
+.center > .splitter:focus-visible { background: transparent; box-shadow: none; outline: var(--ring); outline-offset: -2px; border-radius: var(--r-key); }
+.center > .splitter:focus-visible::before { background: var(--focus); }
 /* Hover and dragging use the control edge; only keyboard focus (next rule) uses the focus colour. */
 .splitter:hover, .splitter[data-dragging] { background: var(--border-strong); }
 .splitter:focus-visible { outline: none; background: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
@@ -408,36 +467,49 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   .tree-name.split .name-stem { max-width: calc(round(down, calc(100% - var(--tail, 0ch) - 0.5px), 1ch) + 0.5px); }
 }
 
-/* ------------------------------------------------------------------ center: editor over panel */
+/* ------------------------------------------------------------------ center: the code card and the console card */
+/* Stacked (below 1100 px): the code over the console, the y-axis splitter between them. Beside
+   (1100 px and wider, the console open): code | x-axis splitter | console, in the splitter's share.
+   The console hidden to its head docks under the code at every width. Explicit rows and columns:
+   the splitter not in use is display:none, which would shift the rest. */
 .center {
   display: grid;
-  grid-template-rows: auto minmax(0, var(--editor-rows, 65fr)) 1px minmax(0, var(--panel-rows, 35fr));
+  grid-template-rows: minmax(0, var(--editor-rows, 65fr)) auto minmax(0, var(--panel-rows, 35fr));
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   background: var(--bg);
 }
 /* Start-up, before the workbench knows whether there are files (data-files is set with the first
-   tree): the column is laid out but unpainted, so the editor head, the view switch and the panel
-   arrive without moving anything already seen (no layout shift). */
+   tree): the column is laid out but unpainted, so the editor head and the console arrive without
+   moving anything already seen (no layout shift). */
 .workbench:not([data-files]) .center { visibility: hidden; }
-/* The panel collapsed to its bar: the code takes the height (759 px of code at 1440 x 900). */
-.center[data-panel="collapsed"] { grid-template-rows: auto minmax(0, 1fr) 1px auto; }
-/* An empty workspace has no panel: the starters lead. */
-.workbench[data-files="none"] .center { grid-template-rows: auto minmax(0, 1fr); }
+/* The console hidden to its head: the code takes the height. */
+.center[data-panel="collapsed"] { grid-template-rows: minmax(0, 1fr) auto auto; }
+/* An empty workspace has no console: the empty state leads. */
+.workbench[data-files="none"] .center { grid-template-rows: minmax(0, 1fr); }
 .workbench[data-files="none"] .center > .splitter,
 .workbench[data-files="none"] .center > .panel { display: none; }
-/* Explicit rows: the view switch is display:none on wide screens, which would shift the rest. */
-.view-switch { display: none; grid-row: 1; }
 /* minmax(0, 1fr): a long tab name scrolls inside the tab strip instead of widening the page. */
-.editor-area { grid-row: 2; display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
-.center > .splitter { grid-row: 3; }
-.center > .panel { grid-row: 4; }
-/* One column: the sheet's shadow layer (desktop) shares it with the parts it lies under. */
-.center > * { grid-column: 1; }
+.editor-area { grid-row: 1; grid-column: 1; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
+.center > .splitter.horizontal { grid-row: 2; grid-column: 1; }
+.center > .splitter.vertical { display: none; }
+.center > .panel { grid-row: 3; grid-column: 1; }
 .editor-area > .banner { grid-row: 1; }
 .editor-area > .editor-head { grid-row: 2; }
 .editor-area > .editor-panel { grid-row: 3; }
+.editor-area > .editor-foot { grid-row: 4; }
+@media (min-width: 1100px) {
+  .center[data-panel="open"] {
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, var(--code-cols, 54fr)) auto minmax(0, var(--console-cols, 46fr));
+  }
+  .center[data-panel="open"] > .splitter.horizontal { display: none; }
+  .center[data-panel="open"] > .splitter.vertical { display: block; grid-row: 1; grid-column: 2; }
+  .center[data-panel="open"] > .panel { grid-row: 1; grid-column: 3; }
+}
+/* The code card's foot (900 px and wider): the language and Ln/Col, in the hint tier. */
+.editor-foot { display: none; }
 
 /* The editor head: the open files on the left, the error jump on the right. */
 .editor-head { display: flex; align-items: center; gap: var(--s3); height: var(--h-head); min-width: 0; padding: 0 var(--s3) 0 var(--s2); background: var(--surface); }
@@ -458,12 +530,13 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   border: 0;
   border-radius: var(--r-control);
   background: var(--error-band);
-  box-shadow: inset 2px 0 0 var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
   color: var(--text);
-  font-size: var(--fs-1);
-  font-weight: var(--w-strong);
+  font-size: var(--fs-2);
+  font-weight: var(--w-label);
   white-space: nowrap;
 }
+.error-jump > * { pointer-events: none; }
 .error-jump .icon { width: var(--icon-md); height: var(--icon-md); color: var(--danger); }
 .error-jump:hover .jump-words { text-decoration: underline; text-underline-offset: 3px; }
 
@@ -545,52 +618,80 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .editor-empty:empty { display: none; }
 
 /* ------------------------------------------------------------------ empty states */
+/* The empty workspace (Workbench Pro, item 7): a small code mark, the title and the lede, one
+   primary New file in the action fill with its keyboard hint, the starters in one sentence, then
+   the other ways in as a ruled list (hairlines between rows, no cards). The column is centred in
+   the card, 520 px wide at the most. */
+.editor-empty:has(> .empty-state[data-empty="workspace"]) { display: grid; place-items: center; }
 .empty-state { max-width: 540px; }
+.empty-state[data-empty="workspace"] { width: min(520px, 100%); }
+.empty-mark { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: var(--s4); border-radius: var(--r-control); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--text-secondary); }
+.empty-mark .icon { width: var(--icon-xl); height: var(--icon-xl); }
 .empty-title { margin: 0 0 var(--s2); font-size: var(--fs-display); font-weight: var(--w-strong); line-height: var(--lh-display); }
 .empty-state.compact .empty-title { font-size: var(--fs-title); }
 /* The lede says what happens to the code (saved on this computer): the secondary tier, not a hint,
    and the column's width (540 px holds about 75 characters; a 46ch cap broke it a line early). */
 .empty-lede { margin: 0 0 var(--s5); color: var(--text-secondary); }
-.starters { display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: var(--r-control); overflow: hidden; }
-.starter {
+.empty-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
+.empty-new { min-height: 44px; padding: 0 var(--s4) 0 var(--s3); }
+.empty-new > * { pointer-events: none; }
+.empty-hint { color: var(--text-muted); font-size: var(--fs-2); line-height: var(--lh-2); }
+/* A touch screen has no Ctrl P to press. */
+@media (pointer: coarse) { .empty-hint { display: none; } }
+.empty-starters { margin: var(--s3) 0 var(--s6); color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); }
+.empty-starters .starter { font-family: var(--font-name); }
+.text-btn { min-height: var(--target); padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.text-btn:hover { text-decoration-thickness: 2px; }
+.text-btn:disabled { color: var(--text-muted); text-decoration: none; }
+.empty-options { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--divider); }
+.empty-options > li { border-bottom: 1px solid var(--divider); }
+.empty-option {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: var(--icon-md) minmax(0, 1fr) var(--icon-md);
   align-items: center;
   gap: var(--s3);
-  min-height: 48px;
-  padding: 0 var(--s4);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--s2);
   border: 0;
-  background: var(--bg);
+  border-radius: var(--r-control);
+  background: none;
   color: var(--text);
   text-align: left;
 }
-.starter + .starter { border-top: 1px solid var(--border); }
-.starter:hover:not(:disabled) { background: var(--hover); }
-.starter:focus-visible { outline-offset: -3px; }
-.starter-icon { width: var(--icon-xl); height: var(--icon-xl); color: var(--text-secondary); }
-.starter-file { font: var(--w-strong) var(--fs-2)/var(--lh-2) var(--font-code); }
-.starter-lang { color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
-/* New from example...: the starters' quieter second way, a tertiary underlined text button. */
-.empty-examples { margin: var(--s2) 0 0; }
-.text-btn { min-height: var(--target); padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
-.text-btn:hover { text-decoration-thickness: 2px; }
-.empty-more { margin-top: var(--s5); }
-.empty-label { margin: 0 0 var(--s1); color: var(--text-muted); }
+.empty-option > * { pointer-events: none; }
+.empty-option:hover:not(:disabled) { background: var(--hover); }
+.empty-option:focus-visible { outline-offset: -2px; }
+.empty-option:disabled { color: var(--text-muted); }
+.empty-option-icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-secondary); }
+.empty-option-go { width: var(--icon-md); height: var(--icon-md); color: var(--text-muted); }
+.empty-option-text { display: flex; flex-direction: column; min-width: 0; }
+.empty-option-label { font-weight: var(--w-label); }
+.empty-option-note { color: var(--text-muted); font-size: var(--fs-2); line-height: var(--lh-2); }
 
 /* ------------------------------------------------------------------ bottom panel */
 /* color: set here, not inherited, so it resolves with the panel's own tokens (the console keeps its
    own colours in Signal light, tokens.css), not the page's ink computed above it. */
-.panel { display: grid; grid-template-rows: var(--h-panel-bar) minmax(0, 1fr); min-height: 0; min-width: 0; background: var(--terminal-bg); color: var(--text); }
-.panel[data-collapsed="true"] { grid-template-rows: var(--h-panel-bar); }
+/* The console card: its head (the segmented Output / Problems / Flowchart control, full screen and
+   hide at its end), the Output tab's tool row (Input, Restart Python, Clear), then the tab's body. */
+.panel { display: grid; grid-template-rows: var(--h-panel-bar) auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; background: var(--terminal-bg); color: var(--text); }
+.panel > .panel-bar { grid-row: 1; }
+.panel > .panel-actions { grid-row: 2; }
+.panel > .panel-body { grid-row: 3; }
+/* Hidden to its head, the console keeps the Output tab's tool row: Input is given before a first run. */
+.panel[data-collapsed="true"] { grid-template-rows: var(--h-panel-bar) auto; }
+.panel:not([data-tab="output"]) > .panel-actions { display: none; }
 .panel-bar {
   display: flex;
   align-items: center;
   gap: var(--s1);
   min-width: 0;
-  padding: 0 var(--s2) 0 var(--s1);
-  background: var(--surface);
+  padding: 0 var(--s2);
+  background: var(--runlog-bg);
 }
-.panel-tabs { display: flex; align-items: center; gap: 2px; align-self: stretch; flex: none; }
+/* The segmented control: a track with a 1 px control edge; the chosen tab is a raised chip with a
+   hairline ring, so the choice is a shape, not a colour. */
+.panel-tabs { display: flex; align-items: center; gap: 2px; flex: none; padding: 2px; border-radius: var(--r-control); background: var(--terminal-bg); box-shadow: inset 0 0 0 1px var(--border-strong); }
 .panel-tabs [role="tab"], .view-switch [role="tab"] {
   position: relative;
   display: inline-flex;
@@ -607,24 +708,21 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .panel-tabs [role="tab"]:hover, .view-switch [role="tab"]:hover { color: var(--text); }
 .panel-tabs [role="tab"][aria-selected="true"], .view-switch [role="tab"][aria-selected="true"] { color: var(--text); }
-/* The panel's tabs are pills like the editor's: the chosen one lifted with its 1 px inset ring. */
-.panel-tabs [role="tab"] { height: var(--tab-h); border-radius: var(--r-control); }
+.panel-tabs [role="tab"] { height: calc(var(--h-panel-bar) - 12px); border-radius: var(--r-row); }
+.panel-tabs [role="tab"] > * { pointer-events: none; }
 .panel-tabs [role="tab"]:hover:not([aria-selected="true"]) { background: var(--hover); }
-.panel-tabs [role="tab"][aria-selected="true"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
-/* The phone view switch keeps the 2 px location bar under the chosen view. */
-.view-switch [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; left: var(--s2); right: var(--s2); bottom: 0; height: 2px; background: var(--location); }
+.panel-tabs [role="tab"][aria-selected="true"] { background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
 .panel-tabs [role="tab"]:focus-visible, .view-switch [role="tab"]:focus-visible { outline-offset: -2px; }
-/* The ring replaces the lifted tab's edge: drawn over the 1 px --border-strong edge it met that grey
-   (1.29:1 in Signal light), not the bar's ground. */
+/* The ring replaces the chip's edge: drawn over the 1 px --border-strong edge it met that grey, not
+   the track's ground. */
 .panel-tabs [role="tab"][aria-selected="true"]:focus-visible { box-shadow: none; }
-/* Language and Ln/Col at the panel bar's end (900 px and wider), in the hint tier. */
-.panel-facts { display: flex; align-items: center; gap: var(--s3); flex: none; min-width: 0; padding: 0 var(--s1) 0 var(--s2); color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); }
-.panel-facts:empty { display: none; }
+.panel-head-tools { display: flex; align-items: center; gap: var(--s1); margin-left: auto; }
 .count { min-width: 20px; padding: 0 var(--s1); border: 1px solid var(--border-strong); border-radius: var(--r-key); font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui); text-align: center; }
 .count:empty { display: none; }
-.count[data-errors]:not([data-errors="0"]) { color: var(--danger); border-color: var(--danger); }
+.count[data-errors]:not([data-errors="0"]) { color: var(--danger); border-color: var(--danger); background: var(--error-band); }
 .panel-toggle .icon { width: var(--icon-md); height: var(--icon-md); }
-.panel-actions { display: flex; align-items: center; gap: var(--s1); flex: none; margin-left: auto; }
+.panel-actions { display: flex; align-items: center; gap: var(--s1); min-width: 0; padding: var(--s1) var(--s2); background: var(--terminal-bg); box-shadow: inset 0 -1px 0 var(--divider); }
+.panel-actions > #clear-output { margin-left: auto; }
 .panel-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-body:focus-visible { outline-offset: -2px; }
 
@@ -663,27 +761,26 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .pack-text { margin: 0; }
 .pack-offer progress { width: 100%; height: var(--s2); accent-color: var(--control-on); }
 
-/* The run-log header: the current run's file, state and result above its log. A failed run's
-   header lies on the error band (a layer under its content, never a gradient) with a 2 px danger
-   bar, and lifts the exception into one button. */
+/* The run header (Workbench Pro, item 4): the current run's file, its state and result ("Exited
+   with code 1" with its icon, the time) above its log, on the console's own ground with a rule
+   under it. A failed run gets no red band: its exception is one chip on a line of its own (the
+   error band's fill inside a 1 px danger edge) and the help an inset under it. */
 .runlog {
-  position: relative;
-  isolation: isolate;
   flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   column-gap: var(--s3);
-  row-gap: var(--s1);
+  row-gap: var(--s2);
   min-height: var(--h-runlog);
-  padding: var(--s1) var(--s3);
-  background: var(--runlog-bg);
+  padding: var(--s2) var(--s3);
+  background: var(--terminal-bg);
+  box-shadow: inset 0 -1px 0 var(--divider);
   color: var(--text);
   font-size: var(--fs-2);
   line-height: var(--lh-2);
 }
-.runlog[data-failed]::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--error-band); }
-.runlog[data-failed] { border-left: 2px solid var(--danger); padding-left: calc(var(--s3) - 2px); }
+.runlog[data-failed] { padding-block: var(--s3); }
 .rl-file { font: var(--fs-2)/var(--lh-2) var(--font-name); }
 /* "Last run:" before the file's name while another file is open (B11): words in the UI face, in
    --text-secondary (a pair on runlog-bg and on error-band@runlog-bg already). */
@@ -710,20 +807,23 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 /* The lifted exception, 16 px after the facts: its own danger icon and 1 px danger edge; the
    exception class at 600 and the message in --text, the place in --text-secondary. */
 .exc {
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 100%;
   align-items: center;
   gap: var(--s2);
-  min-height: var(--tool);
-  margin-left: var(--s1);
-  padding: 0 var(--s2);
+  min-height: 36px;
+  padding: var(--s1) var(--s3);
   border: 1px solid var(--danger);
   border-radius: var(--r-control);
-  background: transparent;
+  background: var(--error-band);
   color: var(--text);
   font: inherit;
   text-align: left;
 }
-.exc:hover { background: var(--hover); }
+.exc > * { pointer-events: none; }
+.exc:hover .exc-what { text-decoration: underline; text-underline-offset: 3px; }
+.exc-what { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.exc-where { flex: none; }
 .exc .icon { width: var(--icon-md); height: var(--icon-md); }
 .exc-icon { color: var(--danger); }
 .exc-class { font-weight: var(--w-strong); }
@@ -741,7 +841,8 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 /* A name or a snippet from the message is a quiet chip, so "//" reads as one token, not "/ /"
    (text and text-secondary on hover@error-band@runlog-bg and hover@bg: src/styles/consistency.test.ts). */
 .err-help code { padding: 0 2px; border-radius: var(--r-key); background: var(--hover); font-family: var(--font-code); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.runlog > .err-help { flex: 1 1 100%; padding-block: var(--s1); }
+/* In the run header the help is an inset: the raised ground, its own corners. */
+.runlog > .err-help { flex: 1 1 100%; padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--surface-raised); }
 .problems > li > .err-help { padding: 0 var(--s3) var(--s2) calc(var(--s3) + var(--icon-md) + var(--s2)); }
 
 /* The log. Its focus ring is drawn on the scroller, inset, so scrolling never cuts its top or bottom
@@ -1227,16 +1328,17 @@ input.switch {
   .shortcut-list dd + dt { margin-top: var(--s2); }
 }
 
-/* ------------------------------------------------------------------ desktop: the editor as a sheet */
-/* From 900 px (redesign 2, Signal; every theme): the top bar, the file list and the status bar are
-   one frame on --surface with no lines between them, and the editor area and its panel form one
-   sheet on the code's ground, with a 1 px --border edge and --r-sheet outer corners (the top ones on
-   the editor area, the bottom ones on the panel), set --sheet-gap into the frame on the right and
-   below. Tone layers and 1 px borders only: no shadow, blur or blend. overflow: clip keeps the
-   children's grounds inside the corners without making a scroll container. Phones (below 900 px)
-   keep their full-bleed layout. */
+/* ------------------------------------------------------------------ desktop: two cards in a frame */
+/* From 900 px (Workbench Pro; every theme): the rail, the top bar and the file list are one frame on
+   --surface with no lines between them, and the code card and the console card are set --sheet-gap
+   into the frame on the right and below. Tone layers, 1 px borders and the one soft shadow under
+   the code card (light themes) only: no blur or blend. overflow: clip keeps the children's grounds
+   inside the corners without making a scroll container. Phones (below 900 px) keep their
+   full-bleed layout. */
+.view-bar { display: none; }
 @media (min-width: 900px) {
-  /* The status bar's facts live in the panel bar and the sidebar's foot here (layout.ts place()). */
+  /* The status bar's facts live in the code card's foot, the top bar, the rail and the sidebar's
+     foot here (layout.ts place()). */
   .statusbar { display: none; }
   .main, .work, .center { background: var(--surface); }
   .center { position: relative; padding: 0 var(--sheet-gap) var(--sheet-gap) 0; }
@@ -1244,31 +1346,26 @@ input.switch {
      once behind it, never on the editor itself: static, so typing never repaints it. */
   .center::before {
     content: "";
-    grid-row: 2 / -1;
+    grid-row: 1;
     grid-column: 1;
     border-radius: var(--r-sheet);
     box-shadow: var(--shadow-pop);
     pointer-events: none;
   }
-  .editor-area {
-    background: var(--bg);
+  /* Two cards (Workbench Pro): the code on the code's ground and the console on its own, each with
+     a 1 px --border edge and --r-sheet corners, the 8 px splitter the gutter between them. */
+  .editor-area, .center > .panel {
     border: 1px solid var(--border);
-    border-bottom: 0;
-    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    border-radius: var(--r-sheet);
     overflow: clip;
   }
-  .center > .panel {
-    border: 1px solid var(--border);
-    border-top: 0;
-    border-radius: 0 0 var(--r-sheet) var(--r-sheet);
-    overflow: clip;
-  }
-  /* An empty workspace has no panel: its sheet is rounded all round. */
-  .workbench[data-files="none"] .editor-area { border-bottom: 1px solid var(--border); border-radius: var(--r-sheet); }
-  /* The editor head is part of the sheet: the code's ground, a --border rule under it. */
+  .editor-area { background: var(--bg); }
+  /* The editor head is part of the card: the code's ground, a --border rule under it. */
   .editor-head { background: var(--bg); border-bottom: 1px solid var(--border); }
-  /* The panel's bar too: the code's ground (the splitter above it is the rule). */
-  .panel-bar { background: var(--bg); padding: 0 var(--s2); }
+  /* The card's foot: the file's language and Ln/Col, in the hint tier, under a rule. */
+  .editor-foot { display: flex; align-items: center; gap: var(--s4); min-height: 28px; padding: 0 var(--s3); border-top: 1px solid var(--divider); color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+  .workbench[data-open="false"] .editor-foot { display: none; }
+  .editor-foot > #status-pos { margin-left: auto; }
 }
 
 /* ------------------------------------------------------------------ touch */
@@ -1280,13 +1377,50 @@ input.switch {
   .text-btn { min-height: var(--tool); }
 }
 
-/* ------------------------------------------------------------------ narrow screens: drawer, one view switch */
-/* Below 900 px: the sidebar is a drawer; the top bar holds Files, the file's name, the sync
-   status, Run and Settings (48 px); one Code / Output / Problems switch (44 px) replaces the panel's
-   tabs; there is no editor head (no tab strip: files switch in the drawer, which marks open files),
-   so the code starts 92 px from the top. */
+/* ------------------------------------------------------------------ narrow screens: drawer, bottom view bar */
+/* Below 900 px: the sidebar is a drawer; the top bar holds the mark, the file's name, Search, the
+   sync status, Run (44 px) and Settings (48 px tall); a bottom view bar holds Files and the Code /
+   Output / Problems / Flowchart switch (52 px items, the console's tabs give way to it); there is
+   no editor head (no tab strip: files switch in the drawer, which marks open files), so the code
+   starts under the top bar. */
 .drawer-scrim { display: none; }
 @media (max-width: 899px) {
+  .rail { display: none; }
+  .topbar-start > .brand-mark { margin-left: var(--s2); }
+  .view-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
+    gap: 2px;
+    padding: var(--s1) var(--s2) var(--s2);
+    background: var(--surface);
+    box-shadow: inset 0 1px 0 var(--divider);
+  }
+  .workbench[data-files="none"] .view-switch { visibility: hidden; }
+  .view-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
+  .view-bar .drawer-toggle, .view-switch [role="tab"] {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    height: 52px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text-muted);
+    font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui);
+  }
+  .view-bar .drawer-toggle > *, .view-switch [role="tab"] > * { pointer-events: none; }
+  .view-bar .icon { width: var(--icon-xl); height: var(--icon-xl); }
+  .view-bar .rail-label, .view-label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The chosen view and an open drawer: lifted on the raised ground with a hairline ring. */
+  .view-switch [role="tab"][aria-selected="true"], .view-bar .drawer-toggle[aria-expanded="true"] { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border), var(--shadow-pop); }
+  .view-bar :focus-visible { outline-offset: -2px; }
+  /* Problems' count sits on the icon's corner. */
+  .view-switch .count { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 16px; padding: 0 3px; background: var(--surface); }
   .topbar { gap: var(--s1); padding: 0 var(--s1); }
   .topbar-start { flex: 1 1 auto; gap: var(--s1); }
   .topbar-end { flex: none; gap: var(--s1); min-width: 0; }
@@ -1303,12 +1437,13 @@ input.switch {
   /* Capture lives in the editor head here, moved by layout.ts at the next frame: hidden in the top bar
      at once, so a dialog closing as the window narrows never gives focus back to it there. */
   .topbar-end > .capture-btn { display: none; }
-  .drawer-toggle { display: inline-grid; }
   .palette-btn { padding: 0; }
   .palette-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
   .palette-btn-label { display: none; }
   .crumb { padding: 0 0 0 var(--s1); flex: 0 1 auto; }
-  .crumb > .crumb-dir, .crumb-file > .crumb-sep { display: none; }
+  .crumb > .crumb-dir, .crumb > .crumb-root, .crumb-file > .crumb-sep { display: none; }
+  /* No file open: the workspace's name stands alone. */
+  .crumb > .crumb-root:only-child { display: flex; }
   .crumb > .crumb-file { min-width: 52px; }
   /* No tab strip here: the file name shows unsaved typing as a tab does, a dot and italics. The dot
      sits in the gap after the name (the bar's gaps and the next control's padding leave 12 px or
@@ -1322,7 +1457,7 @@ input.switch {
     position: fixed;
     z-index: 30;
     top: var(--h-topbar);
-    bottom: 0;
+    bottom: var(--h-viewbar);
     left: 0;
     width: min(320px, 86vw);
     border-right: 1px solid var(--divider);
@@ -1331,39 +1466,31 @@ input.switch {
     transition: transform var(--dur), visibility 0s linear var(--dur);
   }
   .workbench[data-drawer="open"] .sidebar { transform: none; visibility: visible; transition: transform var(--dur); }
-  .workbench[data-drawer="open"] .drawer-scrim { display: block; position: fixed; inset: var(--h-topbar) 0 0; z-index: 29; background: var(--scrim); }
-  .center, .center[data-panel="collapsed"] { grid-template-rows: var(--h-switch) minmax(0, 1fr); }
-  .workbench[data-files="none"] .center { grid-template-rows: minmax(0, 1fr); }
-  .workbench[data-files="none"] .view-switch { display: none; }
-  .view-switch { display: flex; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider); }
-  /* Four views share 320 px: Linux fonts made the row 321 px with the desktop tabs' 12 px padding (CI,
-     2026-10-26), so on phones a tab pads 8 px and may shrink below its label's natural width. */
-  .view-switch [role="tab"] { flex: 1 1 0; min-width: 0; padding: 0 var(--s2); }
-  .view-switch [role="tab"][aria-selected="true"]::after { left: var(--s4); right: var(--s4); }
+  .workbench[data-drawer="open"] .drawer-scrim { display: block; position: fixed; inset: var(--h-topbar) 0 var(--h-viewbar); z-index: 29; background: var(--scrim); }
+  /* One view fills the work area: the code card, or the console card. */
+  .center, .center[data-panel="collapsed"] { grid-template-rows: minmax(0, 1fr); }
   .center[data-view="code"] > .panel { display: none; }
   .center:not([data-view="code"]) > .editor-area { display: none; }
-  .center > .panel { grid-row: 2; }
-  .workbench[data-files="none"] .center > .editor-area { grid-row: 1; }
+  .center > .panel { grid-row: 1; }
   .editor-head { display: none; }
-  /* The panel's own tabs and collapse give way to the switch; its tools row stays (Output only). */
+  /* The console's own head (tabs, full screen, hide) gives way to the view bar; its tools row stays
+     (Output only). */
   .panel, .panel[data-collapsed="true"] { grid-template-rows: auto minmax(0, 1fr); }
-  .panel-bar { height: var(--h-panel-bar); padding: 0 var(--s1); box-shadow: inset 0 -1px 0 var(--border); }
-  .panel-tabs, .panel-toggle, .panel-max { display: none; }
-  .panel-actions { flex: 1; margin-left: 0; }
-  .panel-actions > #clear-output { margin-left: auto; }
-  .center[data-view="problems"] .panel-bar, .center[data-view="flowchart"] .panel-bar { display: none; }
-  /* Without its tools row the panel is one row: the list (or the chart) fills the view on one ground. */
-  .center[data-view="problems"] > .panel, .center[data-view="flowchart"] > .panel { grid-template-rows: minmax(0, 1fr); }
+  .panel > .panel-actions { grid-row: 1; }
+  .panel > .panel-body { grid-row: 2; }
+  .panel-bar { display: none; }
+  .panel:not([data-tab="output"]) { grid-template-rows: minmax(0, 1fr); }
+  .panel:not([data-tab="output"]) > .panel-body { grid-row: 1; }
+  .panel-actions { padding: 0 var(--s1); min-height: var(--h-panel-bar); }
   .label-wide { display: none; }
   .live-hint { display: none; }
-  .runlog { padding: var(--s1) var(--s3); }
-  .runlog[data-failed] { padding-left: calc(var(--s3) - 2px); }
+  .runlog { padding: var(--s2) var(--s3); }
   /* The waiting words wrap before End input does; End input is a 44 px target. */
   .run-status[data-phase="waiting"] { flex: 1 1 0; min-width: 0; }
   .end-input { min-height: var(--tool); }
   .live-send.icon-btn.small { width: var(--tool); height: var(--tool); }
   /* The lifted exception: full width, two lines (the exception, then its place), 44 px tall. */
-  .exc { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; flex: 1 1 100%; column-gap: var(--s2); min-height: var(--tool); margin: 0; padding: var(--s1) var(--s2); }
+  .exc { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; flex: 1 1 100%; column-gap: var(--s2); min-height: var(--tool); margin: 0; padding: var(--s1) var(--s3); }
   .exc-icon { grid-column: 1; grid-row: 1; }
   .exc-what { grid-column: 2; grid-row: 1; }
   .exc-where { grid-column: 2; grid-row: 2; }
@@ -1409,6 +1536,10 @@ input.switch {
   /* The drawer's switcher and quick actions alone filled a 200 px window (400% zoom of 1280 x 800),
      cutting off the Files head and the tree: here the drawer scrolls as one column instead. */
   .sidebar { overflow-y: auto; overscroll-behavior: contain; }
+  /* The view bar ends the page here (it is not fixed), so the drawer and its scrim reach the
+     window's foot; Escape or a tap on the scrim closes it. */
+  .workbench .sidebar { bottom: 0; }
+  .workbench[data-drawer="open"] .drawer-scrim { bottom: 0; }
   .sidebar > .tree-host { flex: none; min-height: auto; overflow: visible; contain: none; }
 }
 
@@ -1422,9 +1553,11 @@ input.switch {
    The tokens named are only what the browser replaces. Every mark keeps its shape, so none is told
    by colour alone. */
 @media (forced-colors: active) {
-  .view-switch [role="tab"][aria-selected="true"]::after { border-bottom: 2px solid var(--location); }
-  /* The chosen editor and panel tab pills: their inset ring becomes an outline. */
-  .tab[data-active="true"], .panel-tabs [role="tab"][aria-selected="true"] { outline: 2px solid var(--location); outline-offset: -2px; }
+  /* The chosen editor tab, panel tab and view, and Files while the list shows: their lifted chip
+     (a fill and an inset ring) becomes an outline; the segmented track keeps its edge as a border. */
+  .tab[data-active="true"], .panel-tabs [role="tab"][aria-selected="true"], .view-switch [role="tab"][aria-selected="true"],
+  .rail .rail-btn[aria-expanded="true"], .view-bar .drawer-toggle[aria-expanded="true"] { outline: 2px solid var(--location); outline-offset: -2px; }
+  .panel-tabs { border: 1px solid var(--border-strong); }
   .palette-btn, .capture-btn { border: 1px solid var(--border-strong); }
   .tree-row { position: relative; }
   [role="treeitem"][aria-current="true"] > .tree-row::before {
@@ -1460,5 +1593,5 @@ input.switch {
   :root .cm-tooltip .cm-completionIcon-keyword::after { box-sizing: border-box; border: 0.45em solid var(--text-muted); background: none; }
   .splitter.vertical { border-left: 1px solid var(--divider); }
   .splitter.horizontal { border-top: 1px solid var(--divider); }
-  .splitter:focus-visible { outline: var(--ring); outline-offset: 0; }
+  .splitter:focus-visible, .center > .splitter:focus-visible { outline: var(--ring); outline-offset: 0; }
 }

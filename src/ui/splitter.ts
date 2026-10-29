@@ -16,6 +16,12 @@ export interface SplitterOptions {
   min: number;
   max: () => number;
   initial: number;
+  /**
+   * The region the value sizes lies after the bar (right of a vertical one, below a horizontal one),
+   * so the arrow that moves the bar towards it makes it bigger: ArrowLeft for a vertical bar,
+   * ArrowUp for a horizontal one. Otherwise ArrowRight (vertical) grows it.
+   */
+  after?: boolean;
   /** Step for one arrow press; Shift multiplies by 4. */
   step: number;
   /** Units shown to assistive technology. */
@@ -112,8 +118,12 @@ export function createSplitter(o: SplitterOptions): Splitter {
 
   element.addEventListener("keydown", (e) => {
     const big = e.shiftKey ? 4 : 1;
-    const back = o.orientation === "vertical" ? "ArrowLeft" : "ArrowDown";
-    const fwd = o.orientation === "vertical" ? "ArrowRight" : "ArrowUp";
+    // A horizontal bar has always sized the region below it (the panel): ArrowUp grows it.
+    const after = o.after ?? o.orientation === "horizontal";
+    // The keys that move the bar towards the start (left, up) and towards the end (right, down).
+    const [toStart, toEnd] = o.orientation === "vertical" ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+    const back = after ? toEnd : toStart;
+    const fwd = after ? toStart : toEnd;
     if (e.key === back) set(value - o.step * big);
     else if (e.key === fwd) set(value + o.step * big);
     else if (e.key === "Home") set(o.min);

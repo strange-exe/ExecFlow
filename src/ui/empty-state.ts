@@ -1,64 +1,72 @@
-// What the editor area shows without a file, in reading order: first "Create your first
-// file" with a starter for each language, then importing files, then connecting GitHub.
+// What the editor area shows without a file (Workbench Pro, item 7), in reading order: the title
+// and what happens to the code, one primary action (New file, which names a file in the list), the
+// one-click starters in a sentence under it, then the other ways in as one ruled list: an example,
+// importing files or a folder, connecting GitHub.
 import { LANGUAGES, type LanguageId } from "../core/languages";
-import { h } from "./dom";
+import { h, isMac } from "./dom";
 import { icon, type IconName } from "./icons";
 
-const LANG_ICON: Record<LanguageId, IconName> = { python: "file-py", c: "file-c", cpp: "file-cpp" };
-
 export interface EmptyActions {
+  /** New file: a name typed in the file list (as the rail's New file does). */
+  newFile(): void;
+  /** A starter: a saved main.py, main.c or main.cpp with a short program, opened. */
   create(lang: LanguageId): void;
   importFiles(): void;
   importFolder(): void;
   connect(): void;
-  /** "New from example...": the examples dialog (focus comes back to `opener`). */
+  /** "New from example": the examples dialog (focus comes back to `opener`). */
   examples(opener: HTMLElement): void;
 }
 
+/** One row of the ruled list: its icon, its words over what it does, and a caret. */
+function option(id: string | null, iconName: IconName, label: string, note: string): HTMLButtonElement {
+  return h(
+    "button",
+    { type: "button", class: "empty-option", ...(id ? { id } : {}) },
+    icon(iconName, "empty-option-icon"),
+    h("span", { class: "empty-option-text" }, h("span", { class: "empty-option-label" }, label), h("span", { class: "empty-option-note" }, note)),
+    icon("caret-right", "empty-option-go"),
+  );
+}
+
 export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLElement {
-  const choices = LANGUAGES.map((lang) => {
-    const button = h(
-      "button",
-      { type: "button", class: "starter", "data-language": lang.id },
-      icon(LANG_ICON[lang.id], "starter-icon"),
-      h("span", { class: "starter-file" }, lang.defaultFilename),
-      h("span", { class: "starter-lang" }, lang.label),
-    );
+  const newFile = h("button", { type: "button", class: "btn primary empty-new", id: "empty-new-file" }, icon("plus"), "New file");
+  newFile.addEventListener("click", () => actions.newFile());
+  // The starters: each file's name as a text button, in one sentence ("or start with main.py, ...").
+  const starters = LANGUAGES.map((lang) => {
+    const button = h("button", { type: "button", class: "text-btn starter", "data-language": lang.id, title: `A short ${lang.label} program in ${lang.defaultFilename}` }, lang.defaultFilename);
     button.disabled = readOnly;
     button.addEventListener("click", () => actions.create(lang.id));
     return button;
   });
-  const importFiles = h("button", { type: "button", class: "btn" }, icon("upload-simple"), "Import files");
-  const importFolder = h("button", { type: "button", class: "btn" }, icon("folder-plus"), "Import a folder");
-  // An outline button like Import: a borderless one read as plain text beside the rule-separated rows.
-  const connect = h("button", { type: "button", class: "btn" }, icon("github-logo"), "Connect GitHub");
-  // The starters lead; the examples are the same step's quieter second way (a tertiary text button).
-  const examples = h("button", { type: "button", class: "text-btn", id: "empty-examples" }, "New from example...");
+  const sentence: (Node | string)[] = ["Or start with "];
+  starters.forEach((button, i) => sentence.push(button, i === starters.length - 1 ? "." : i === starters.length - 2 ? " or " : ", "));
+  newFile.disabled = readOnly;
+  const examples = option("empty-examples", "file-text", "New from example", "Pick a short program to run and change");
+  const importFiles = option(null, "upload-simple", "Import files", "Open .py, .c or .cpp files from this computer");
+  const importFolder = option(null, "folder-plus", "Import a folder", "Bring a whole project in at once");
+  const connect = option(null, "github-logo", "Connect GitHub", "Keep your files in a private repository, to work on them from other computers");
   examples.addEventListener("click", () => actions.examples(examples));
   importFiles.disabled = readOnly;
   importFolder.disabled = readOnly;
   importFiles.addEventListener("click", actions.importFiles);
   importFolder.addEventListener("click", actions.importFolder);
   connect.addEventListener("click", actions.connect);
+  const mod = isMac() ? "Cmd" : "Ctrl";
   return h(
     "div",
     { class: "empty-state", "data-empty": "workspace" },
-    h("h2", { class: "empty-title", id: "empty-title" }, "Create your first file"),
-    h("p", { class: "empty-lede" }, "Start with a short program in Python, C or C++. It is saved on this computer as you type."),
-    h("div", { class: "starters", role: "group", "aria-labelledby": "empty-title" }, ...choices),
-    h("p", { class: "empty-examples" }, examples),
+    h("div", { class: "empty-mark", "aria-hidden": "true" }, icon("code-simple")),
+    h("h2", { class: "empty-title", id: "empty-title" }, "Write your first program"),
+    h("p", { class: "empty-lede" }, "Python, C and C++ run right here in the browser. Your files are saved on this computer as you type."),
     h(
       "div",
-      { class: "empty-more" },
-      h("p", { class: "empty-label" }, "Already have code?"),
-      h("div", { class: "row-actions" }, importFiles, importFolder),
+      { class: "empty-start" },
+      newFile,
+      h("span", { class: "empty-hint" }, "or press ", h("kbd", { class: "keycap" }, mod), " ", h("kbd", { class: "keycap" }, "P"), " and type a command"),
     ),
-    h(
-      "div",
-      { class: "empty-more" },
-      h("p", { class: "empty-label" }, "Keep your files in a private GitHub repository, to work on them from other computers."),
-      h("div", { class: "row-actions" }, connect),
-    ),
+    h("p", { class: "empty-starters", role: "group", "aria-labelledby": "empty-title" }, ...sentence),
+    h("ul", { class: "empty-options", "aria-label": "Other ways to start" }, ...[examples, importFiles, importFolder, connect].map((b) => h("li", null, b))),
   );
 }
 

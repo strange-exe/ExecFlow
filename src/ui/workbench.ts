@@ -19,7 +19,8 @@ import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
 import { exportZip, pickFiles } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
-import { createLayout, NARROW } from "./layout";
+import { createLayout, NARROW, WIDE } from "./layout";
+import type { Splitter } from "./splitter";
 import { closeMenus, menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
 import type { PaletteApi } from "./palette-model";
@@ -348,7 +349,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
 
   function startCreate(kind: "file" | "dir", dir?: WsPath) {
     if (explainReadOnly()) return;
-    if (L.narrow() && !L.drawerOpen()) L.openDrawer();
+    if (!L.drawerOpen()) L.openDrawer();
     tree.startCreate(kind, dir);
   }
 
@@ -724,8 +725,17 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   function renderShell() {
     const running = root.dataset.run === "running" || root.dataset.run === "waiting";
     const back = reopening() !== null;
-    root.dataset.open = String(editors.activeId !== null || back || running);
+    const open = editors.activeId !== null || back || running;
+    root.dataset.open = String(open);
     root.dataset.files = tree.isEmpty && !running ? "none" : "some";
+    // Nothing open: Run is shown disabled, still a Tab stop that says why (Workbench Pro, item 7).
+    if (open) {
+      L.runButton.removeAttribute("aria-disabled");
+      L.runButton.removeAttribute("aria-describedby");
+    } else {
+      L.runButton.setAttribute("aria-disabled", "true");
+      L.runButton.setAttribute("aria-describedby", "run-why");
+    }
     root.toggleAttribute("data-restoring", back);
     if (root.dataset.files === "none" && L.view() !== "code") L.showView("code");
   }
@@ -743,6 +753,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         : tree.isEmpty
           ? emptyWorkspace(
               {
+                newFile: () => startCreate("file"),
                 create: (lang) => void createStarter(lang),
                 importFiles: () => void importFrom(false, ""),
                 importFolder: () => void importFrom(true, ""),
@@ -1515,11 +1526,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   restartButton.addEventListener("click", restartPython);
   clearButton.addEventListener("click", () => output.clear());
   // Maximise / restore the panel: resizing without dragging (WCAG 2.2 SC 2.5.7). Desktop only;
-  // below 900 px Output fills the screen anyway.
-  const panelSize = L.splitters.panel;
-  let restoreTo = panelSize.initial;
+  // below 900 px Output fills the screen anyway. It sizes the console with whichever splitter sizes
+  // it at this width (beside the code from 1100 px, under it below), each keeping its own restore size.
+  const restoreTo = new Map<Splitter, number>();
   const maxButton = h("button", { type: "button", class: "icon-btn small panel-max", id: "panel-max", "aria-pressed": "false" });
   const renderMax = () => {
+    const panelSize = L.panelSplitter();
     const on = panelSize.value >= panelSize.max();
     maxButton.setAttribute("aria-pressed", String(on));
     maxButton.setAttribute("aria-label", "Maximise the panel");
@@ -1527,15 +1539,18 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     maxButton.replaceChildren(icon(on ? "corners-in" : "corners-out"));
   };
   maxButton.addEventListener("click", () => {
-    if (panelSize.value >= panelSize.max()) panelSize.set(restoreTo < panelSize.max() ? restoreTo : panelSize.initial);
+    const panelSize = L.panelSplitter();
+    const back = restoreTo.get(panelSize) ?? panelSize.initial;
+    if (panelSize.value >= panelSize.max()) panelSize.set(back < panelSize.max() ? back : panelSize.initial);
     else {
-      restoreTo = panelSize.value;
+      restoreTo.set(panelSize, panelSize.value);
       panelSize.set(panelSize.max());
     }
     L.expandPanel();
     renderMax();
   });
-  for (const type of ["keyup", "pointerup", "dblclick"]) panelSize.element.addEventListener(type, renderMax);
+  for (const split of [L.splitters.panel, L.splitters.console]) for (const type of ["keyup", "pointerup", "dblclick"]) split.element.addEventListener(type, renderMax);
+  matchMedia(WIDE).addEventListener("change", renderMax);
   renderMax();
   // Input (text given to the program first) opens its box above the log, so it shows Output; the
   // caret goes into the box it opened (it sat four Tab stops past the toggle: review B, 2026-10-18).
@@ -1544,7 +1559,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     L.showPanelTab("output");
     if (output.inputToggle.getAttribute("aria-expanded") === "true") output.stdin.focus();
   });
-  L.panelActions.append(output.inputToggle, restartButton, clearButton, maxButton);
+  L.panelActions.append(output.inputToggle, restartButton, clearButton);
+  L.panelHeadTools.append(maxButton);
 
   // ---------------------------------------------------------------- the Flowchart view
   // Nothing of it loads on the first visit: its chunk (view, layout, renderer) the first time the
@@ -2019,7 +2035,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       rename: () => {
         const path = fileOf(editors.activeId)?.path;
         if (!path || explainReadOnly()) return;
-        if (L.narrow() && !L.drawerOpen()) L.openDrawer();
+        if (!L.drawerOpen()) L.openDrawer();
         tree.reveal(path);
         tree.startRename(path);
       },
@@ -2037,7 +2053,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
       capture: (opener) => snippet.open(opener, opener.closest(".cm-editor") ? "context" : "head-key"),
       fileList: () => {
-        if (L.narrow()) L.openDrawer();
+        L.openDrawer();
         tree.focus();
       },
       output: goToOutput,
@@ -2194,7 +2210,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   });
 
   // ---------------------------------------------------------------- the Run button and keyboard
-  L.runButton.addEventListener("click", (e) => void run({ repeat: e.detail > 1 }));
+  // A disabled Run (nothing open) does nothing: its description says why.
+  L.runButton.addEventListener("click", (e) => {
+    if (L.runButton.getAttribute("aria-disabled") === "true") return;
+    void run({ repeat: e.detail > 1 });
+  });
 
   addEventListener("keydown", (e) => {
     // Cleared in another tab: none of the app's keys run (the palette would list old files).
@@ -2226,7 +2246,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       void closeFile(id);
     } else if (mod && e.shiftKey && (key === "e" || e.code === "KeyE")) {
       e.preventDefault();
-      if (L.narrow()) L.openDrawer();
+      L.openDrawer();
       tree.focus();
     } else if (mod && (key === "`" || e.code === "Backquote")) {
       e.preventDefault();

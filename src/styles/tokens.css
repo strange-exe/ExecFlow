@@ -485,7 +485,8 @@
   --h-panel-bar: 36px;
   --h-runlog: 32px;
   --h-status: 24px;
-  --h-switch: 44px;
+  --rail-w: 64px;        /* the activity rail (900 px and wider) */
+  --h-viewbar: 64px;     /* the phone's bottom view bar: 52 px items, 4 + 8 px padding */
   --h-row: 28px;
   --tab-h: 30px;         /* an editor tab or panel tab pill */
   --target: 24px;        /* WCAG 2.2 minimum, everywhere */
@@ -519,10 +520,11 @@
    more; touch screens and phones keep the 44 px ones above. */
 @media (min-width: 900px) and (pointer: fine) {
   :root {
-    --h-topbar: 48px;
+    /* Workbench Pro: a 56 px top bar and 32 px rows (the tree, menus). */
+    --h-topbar: 56px;
     --h-head: 44px;
-    --h-panel-bar: 40px;
-    --h-row: 28px;
+    --h-panel-bar: 44px;
+    --h-row: 32px;
     --h-status: 28px;
     --tool: 30px;
     --primary-h: 32px;

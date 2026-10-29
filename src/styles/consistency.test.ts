@@ -89,8 +89,10 @@ describe("type: one heading weight, titles and chrome on their line-height token
 
   it("chrome text that inherited the body's 1.5 pairs its size token with the line-height token", () => {
     const pairs: Record<string, string> = {
-      ".region-title": "var(--lh-hint)", ".palette-btn": "var(--lh-2)", ".starter-lang": "var(--lh-hint)", ".problem-source": "var(--lh-hint)",
-      ".problem-where": "var(--lh-hint)", ".starter-file": "var(--lh-2)",
+      // Workbench Pro: the Files heading is at the secondary size (13 px), the empty workspace's
+      // starters are a sentence of their own (.empty-starters) and its ruled list's notes and hint new.
+      ".region-title": "var(--lh-2)", ".palette-btn": "var(--lh-2)", ".empty-starters": "var(--lh-2)", ".problem-source": "var(--lh-hint)",
+      ".problem-where": "var(--lh-hint)", ".empty-option-note": "var(--lh-2)", ".empty-hint": "var(--lh-2)",
     };
     const wrong = Object.entries(pairs).filter(([sel, lh]) => !exact(sel).some((r) => lineHeight(r) === lh)).map(([sel]) => sel);
     expect(wrong).toEqual([]);
