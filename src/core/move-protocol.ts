@@ -18,8 +18,13 @@
 export const MOVE_PATH = "/move";
 /** What tells the new address's page that the old one opened it to receive files. */
 export const MOVE_HASH = "#move-from";
-/** The whole hand-over, from the new tab opening to the answer. */
+/** From the new tab opening to the files being sent (it says it is ready, the zip is built). */
 export const MOVE_TIMEOUT_MS = 60_000;
+/**
+ * Once the files are sent, the new tab is asking the student, who may take their time: the old
+ * address waits this long more for the answer, and never closes that tab while it waits.
+ */
+export const ANSWER_TIMEOUT_MS = 15 * 60_000;
 /** How often the old address checks the new tab is still open. */
 export const CLOSED_POLL_MS = 500;
 
@@ -144,6 +149,9 @@ export function sendFiles(deps: SendDeps): Promise<SendResult> {
             if (finished) return;
             // The exact origin, never "*": if that tab has gone somewhere else, nothing is delivered.
             win.postMessage({ type: "codeeditor-move", v: 1, zip: blob, count }, deps.to);
+            // The student is being asked there now: no closing their tab under the dialog.
+            clearTimeout(timer);
+            timer = setTimeout(() => finish({ kind: "timeout" }), ANSWER_TIMEOUT_MS);
             deps.onState?.("sent");
           },
           () => {},
@@ -154,7 +162,7 @@ export function sendFiles(deps: SendDeps): Promise<SendResult> {
       }
     });
     zip.catch((e: unknown) => finish({ kind: "failed", reason: e instanceof Error ? e.message : String(e) }, true));
-    const timer = setTimeout(() => finish({ kind: "timeout" }, true), MOVE_TIMEOUT_MS);
+    let timer = setTimeout(() => finish({ kind: "timeout" }, true), MOVE_TIMEOUT_MS);
     const poll = setInterval(() => {
       if (win.closed) finish({ kind: "closed" });
     }, CLOSED_POLL_MS);

@@ -2,6 +2,7 @@
 // which messages count, and both halves of the hand-over driven with fake windows and fake events.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ANSWER_TIMEOUT_MS,
   MOVE_HASH,
   MOVE_PATH,
   MOVE_TIMEOUT_MS,
@@ -194,6 +195,31 @@ describe("sendFiles (the old address)", () => {
     await expect(result).resolves.toEqual({ kind: "timeout" });
     expect(MOVE_TIMEOUT_MS).toBe(60_000);
     expect(win.closed).toBe(true);
+  });
+
+  it("once the files are sent, the student's answer may take longer than a minute, and their tab is never closed under the dialog", async () => {
+    const { deps, win, ch } = sender();
+    const result = sendFiles(deps);
+    await vi.advanceTimersByTimeAsync(MOVE_TIMEOUT_MS - 5000);
+    ch.send({ origin: TO, source: win, data: READY });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(win.posted).toHaveLength(1);
+    let settled = false;
+    void result.then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(2 * MOVE_TIMEOUT_MS);
+    expect(settled).toBe(false);
+    expect(win.closed).toBe(false);
+    ch.send({ origin: TO, source: win, data: { type: "codeeditor-move-done", v: 1, added: 2, skipped: 0 } });
+    await expect(result).resolves.toEqual({ kind: "done", added: 2, skipped: 0 });
+  });
+
+  it("with no answer at all after sending, it gives up later, leaving the tab open", async () => {
+    const { deps, win, ch } = sender();
+    const result = sendFiles(deps);
+    ch.send({ origin: TO, source: win, data: READY });
+    await vi.advanceTimersByTimeAsync(ANSWER_TIMEOUT_MS);
+    await expect(result).resolves.toEqual({ kind: "timeout" });
+    expect(win.closed).toBe(false);
   });
 
   it("a zip that can't be built is reported, and the opened tab is closed", async () => {

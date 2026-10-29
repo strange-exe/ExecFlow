@@ -121,7 +121,7 @@ function offerMove(app: MoveApp, to: string): void {
       case "closed":
         return say("The new tab closed before your files arrived. Nothing was moved.", { tone: "warning", action: again });
       case "timeout":
-        return say(`${host} didn't answer within a minute, so nothing was moved. Try again, or download your files as a .zip and import them there.`, { tone: "warning", action: download });
+        return say(`${host} didn't answer in time. If your files aren't there, try again, or download them as a .zip and import them there.`, { tone: "warning", action: download });
       case "failed":
         return say(`Your files couldn't be packed (${result.reason}). Nothing was moved.`, { tone: "error", action: download });
       case "refused":
