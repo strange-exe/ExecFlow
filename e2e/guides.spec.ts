@@ -42,7 +42,8 @@ for (const route of GUIDE_ROUTES) {
           [document.title, document.body.textContent, ...[...document.querySelectorAll("[aria-label], [title], [alt], meta[content]")].map((el) => `${el.getAttribute("aria-label")} ${el.getAttribute("title")} ${el.getAttribute("alt")} ${el.getAttribute("content")}`)].join("\n"),
         );
         expect(shownText).toContain("CodeEditor");
-        expect(shownText.match(/execflow/gi), "the name Execflow on the page").toBeNull();
+        // Since 0.12.0 the site's address (canonical, og:url, og:image) carries the new name; only it may.
+        expect(shownText.replaceAll("https://execflow.abhinesh.codes/", "").match(/execflow/gi), "the name Execflow on the page").toBeNull();
         await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${SITE}${route.path}`);
         // The page is its own, not the editor's shell.
         await expect(page.locator("#app")).toHaveCount(0);
