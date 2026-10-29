@@ -16,9 +16,16 @@
   </head>
   <body class="about">
     <a class="about-skip" href="#content">Skip to the content</a>
-    <header class="about-head">
-      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
-      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    <header class="about-top">
+      <div class="about-head">
+        <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
+        <nav class="about-nav" aria-label="On this page">
+          <a href="#content">Overview</a>
+          <a href="#flowcharts">Flowcharts</a>
+          <a href="#changelog">What's new</a>
+        </nav>
+        <a class="about-btn about-btn-primary about-open" href="/">Open the editor</a>
+      </div>
     </header>
 
     <main id="content">
@@ -45,7 +52,7 @@
         </div>
       </section>
 
-      <section class="about-flow" aria-labelledby="flow-title">
+      <section class="about-flow" aria-labelledby="flow-title" id="flowcharts">
         <div class="about-flow-text">
           <h2 id="flow-title">See how your code runs</h2>
           <p>
@@ -128,13 +135,30 @@ for i in range(3):
 
       <section class="about-changelog" aria-labelledby="changelog-title" id="changelog">
         <h2 id="changelog-title">What's new</h2>
-        <p>You are on CodeEditor <span data-app-version></span>. Every change that reached the site, newest first.</p>
-        <ol class="about-releases"></ol>
+        <p>Every change that reached the site, newest first. Features raise the middle number, fixes the last one.</p>
+        <ul class="release-facts">
+          <li>You are on <strong class="release-mono">CodeEditor <span data-app-version></span></strong></li>
+          <li><strong data-release-count></strong> releases since <span data-first-date></span></li>
+        </ul>
+        <!-- page.ts renderChangelog() draws the releases from src/about/changelog.ts. -->
+        <div class="release-layout">
+          <div class="release-card">
+            <ol class="release-list" id="releases-recent"></ol>
+            <div class="release-older-row" hidden>
+              <button type="button" class="release-older-toggle" aria-expanded="false" aria-controls="releases-older"></button>
+            </div>
+            <ol class="release-list release-list-older" id="releases-older" hidden></ol>
+          </div>
+          <nav class="release-index" aria-labelledby="release-index-title">
+            <h3 id="release-index-title">Releases</h3>
+            <ol></ol>
+          </nav>
+        </div>
       </section>
     </main>
 
     <footer class="about-foot">
-      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <p class="about-foot-note">CodeEditor is free for students.</p>
       <nav aria-label="More">
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>

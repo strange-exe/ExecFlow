@@ -8,6 +8,7 @@ import type { Page, TestInfo } from "@playwright/test";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANGELOG } from "../src/about/changelog";
+import { olderLabel, olderRange } from "../src/about/timeline";
 import { expect, hierarchyShots, openIn, test, tolerating } from "./helpers";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -60,6 +61,12 @@ test.describe("the About page", () => {
     ["dark", "light"],
     ["light", "dark"],
   ] as const) {
+    test.describe(() => {
+    // The picture first starts on the device's source; page.ts shot() then switches it to the saved
+    // theme's, and Firefox aborts the fetch it had started (measured 2026-10-29, 1 run in 6). That
+    // cancel of the device's picture is the switch itself, so it alone is excused, here only; the
+    // saved theme's picture must still load (asserted below).
+    test.use(tolerating(new RegExp(`^request failed: http://127\\.0\\.0\\.1:\\d+/media/about-flowchart-${device}\\.[0-9a-f]+\\.webp NS_BINDING_ABORTED$`)));
     test(`a saved ${saved} theme on a ${device} device shows the ${saved} flowchart screenshot`, async ({ page }) => {
       await page.goto("/about");
       // A fixed theme (Signal Dark or Signal Light), not "match device": theme-boot.js paints it whatever the device says.
@@ -70,6 +77,7 @@ test.describe("the About page", () => {
       await shot.scrollIntoViewIfNeeded();
       await expect.poll(() => shot.evaluate((i: HTMLImageElement) => (i.complete ? i.currentSrc : ""))).toContain(`/media/about-flowchart-${saved}.`);
     });
+    });
   }
 
   test("320 px: nothing scrolls sideways", async ({ page }) => {
@@ -78,38 +86,193 @@ test.describe("the About page", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   });
 
-  test("the changelog lists every release, newest first, with its items as text", async ({ page }) => {
+  test("What's new is a timeline of every release, newest first, the latest 3 open, the build's version marked Current", async ({ page }) => {
     await page.goto("/about#changelog");
     const releases = page.locator("#changelog .release");
+    // Every release is in the page (find-in-page, screen readers' lists), the older ones folded.
     await expect(releases).toHaveCount(CHANGELOG.length);
-    await expect(releases.first().locator("h3")).toContainText(CHANGELOG[0].version);
-    await expect(releases.last().locator("h3")).toContainText("0.1.0");
     await expect(page.locator("#changelog")).toBeInViewport();
-    // The version shown is the build's.
+    expect(await releases.evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.version))).toEqual(CHANGELOG.map((r) => r.version));
+    for (const [n, r] of CHANGELOG.entries()) {
+      const item = releases.nth(n);
+      // The title is the release's heading (an h3 under the section's h2); its version and date sit
+      // beside it. By class, not role: the folded ones are hidden, and roles skip hidden elements.
+      const title = item.locator(".release-title");
+      await expect(title).toHaveText(r.title);
+      expect(await title.evaluate((h) => h.tagName)).toBe("H3");
+      await expect(item.locator(".release-version")).toHaveText(r.version);
+      await expect(item.locator("time")).toHaveAttribute("datetime", r.date);
+      if (n < 3) await expect(item).toBeVisible();
+      else await expect(item).toBeHidden();
+    }
+    // The version shown is the build's, and that release (only) says Current, in words.
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
     await expect(page.locator("[data-app-version]")).toHaveText(pkg.version);
+    await expect(page.locator('#changelog .release[data-current="true"]')).toHaveCount(1);
+    await expect(page.locator('#changelog .release[data-current="true"]')).toHaveAttribute("data-version", pkg.version);
+    await expect(page.locator('#changelog .release[data-current="true"] .release-badge')).toHaveText("Current");
+    await expect(page.locator("#changelog .release-badge")).toHaveCount(1);
+    await expect(page.locator("[data-release-count]")).toHaveText(String(CHANGELOG.length));
+    await expect(page.locator("[data-first-date]")).toHaveText("18 October 2026");
   });
 
-  test("each kind of change is one named list; the older releases fold away and open by keyboard", async ({ page }) => {
+  test("a release's changes: a tag column (glyph and word, one neutral style) in Added, Changed, Fixed order, folded after 6", async ({ page }) => {
     await page.goto("/about#changelog");
-    const latest = page.locator("#changelog .release").first();
-    // One tag per kind, naming its own list (not a label repeated on every line).
-    for (const kind of new Set(CHANGELOG[0].items.map((i) => i.kind))) {
-      const word = kind[0].toUpperCase() + kind.slice(1);
-      const list = latest.getByRole("list", { name: word });
-      await expect(list).toHaveCount(1);
-      await expect(list.getByRole("listitem")).toHaveCount(CHANGELOG[0].items.filter((i) => i.kind === kind).length);
-    }
-    // The first four are open; the rest wait under one disclosure that names how many and how far back.
-    const fold = page.locator("#changelog details.release-older");
-    const summary = fold.locator("summary");
-    await expect(summary).toHaveText(`Earlier releases (${CHANGELOG.length - 4}), back to 0.1.0`);
-    await expect(fold.locator(".release").first()).toBeHidden();
-    await summary.focus();
+    const r = CHANGELOG.find((x) => x.items.length > 6)!;
+    const release = page.locator(`#changelog .release[data-version="${r.version}"]`);
+    const ordered = ["added", "changed", "fixed"].flatMap((k) => r.items.filter((i) => i.kind === k));
+    const rows = release.locator(".release-item");
+    await expect(rows).toHaveCount(r.items.length);
+    expect(await release.locator(".release-tag").evaluateAll((els) => els.map((e) => e.textContent))).toEqual(ordered.map((i) => i.kind[0].toUpperCase() + i.kind.slice(1)));
+    expect(await release.locator(".release-text").evaluateAll((els) => els.map((e) => e.textContent))).toEqual(ordered.map((i) => i.text));
+    await expect(release.locator(".release-sum")).toHaveText(
+      (["added", "changed", "fixed"] as const)
+        .map((k) => [k, r.items.filter((i) => i.kind === k).length] as const)
+        .filter(([, n]) => n)
+        .map(([k, n]) => `${n} ${k}`)
+        .join(", "),
+    );
+    // Every tag has its glyph, and the kinds differ by glyph and word, never by colour alone.
+    await expect(release.locator(".release-tag svg")).toHaveCount(r.items.length);
+    const colours = await release.locator(".release-tag").evaluateAll((els) => [...new Set(els.map((e) => `${getComputedStyle(e).color} ${getComputedStyle(e).backgroundColor}`))]);
+    expect(colours).toHaveLength(1);
+    // The first 6 show; one button names how many more, and controls the list it opens.
+    const more = release.locator(".release-more");
+    await expect(more).toHaveText(`Show all ${r.items.length} changes (${r.items.length - 6} more)`);
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    const list = page.locator(`#${await more.getAttribute("aria-controls")}`);
+    await expect(list).toHaveClass(/release-items/);
+    await expect(rows.nth(5)).toBeVisible();
+    await expect(rows.nth(6)).toBeHidden();
+    await more.focus();
+    await page.keyboard.press("Space");
+    await expect(more).toHaveAttribute("aria-expanded", "true");
+    await expect(rows.last()).toBeVisible();
+    await expect(more).toHaveText("Show fewer changes");
     await page.keyboard.press("Enter");
-    await expect(fold).toHaveJSProperty("open", true);
-    await expect(fold.locator(".release").last()).toBeVisible();
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(rows.nth(6)).toBeHidden();
+    // Short releases have no such button.
+    await expect(page.locator(`#changelog .release[data-version="${CHANGELOG.find((x) => x.items.length <= 6)!.version}"] .release-more`)).toHaveCount(0);
   });
+
+  test("the older releases wait behind one button that names how many and their range; it opens by keyboard", async ({ page }) => {
+    await page.goto("/about#changelog");
+    const toggle = page.locator("#changelog .release-older-toggle");
+    const older = CHANGELOG.slice(3);
+    // The words' format is unit-tested (timeline.test.ts); here, that the button carries them.
+    await expect(toggle).toHaveAccessibleName(`${olderLabel(older.length)} ${olderRange(older)}`);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const list = page.locator(`#${await toggle.getAttribute("aria-controls")}`);
+    await expect(list).toBeHidden();
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(list).toBeVisible();
+    await expect(list.locator(".release")).toHaveCount(older.length);
+    await expect(list.locator(".release").last()).toBeVisible();
+    await expect(toggle.locator(".release-older-label")).toHaveText("Hide older releases");
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(list).toBeHidden();
+  });
+
+  test("from 1080 px a release index lists every version, the current one marked; a link to an older release opens it and moves focus to its title", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/about#changelog");
+    const index = page.getByRole("navigation", { name: "Releases" });
+    await expect(index).toBeVisible();
+    const links = index.getByRole("link");
+    await expect(links).toHaveCount(CHANGELOG.length);
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+    const current = index.locator('a[aria-current="true"]');
+    await expect(current).toHaveCount(1);
+    await expect(current).toContainText(pkg.version);
+    await expect(current).toContainText("(current version)");
+    const target = CHANGELOG.find((r) => r.version === "0.4.0")!;
+    const link = index.getByRole("link", { name: new RegExp(`^${target.version.replaceAll(".", "\\.")} `) });
+    await expect(link).toHaveAttribute("href", "#v0-4-0");
+    await link.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#changelog .release-older-toggle")).toHaveAttribute("aria-expanded", "true");
+    const title = page.locator("#v0-4-0");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveText(target.title);
+    await expect(title).toBeInViewport();
+    expect(new URL(page.url()).hash).toBe("#v0-4-0");
+    // Narrower, the index goes (the timeline alone).
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await expect(index).toBeHidden();
+  });
+
+  test("Ctrl, Cmd, Shift and Alt clicks on the release index are left to the browser (new tab, window); a plain click is the page's", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/about#changelog");
+    const index = page.getByRole("navigation", { name: "Releases" });
+    await expect(index.getByRole("link").first()).toBeVisible();
+    const prevented = await page.evaluate(() => {
+      const link = document.querySelector<HTMLAnchorElement>('.release-index a[href="#v0-4-0"]')!;
+      const out: Record<string, boolean> = {};
+      for (const key of ["ctrlKey", "metaKey", "shiftKey", "altKey", "plain"]) {
+        let seen = false;
+        // Runs after the index's own listener; it records what that listener did, then keeps the
+        // click from going anywhere (no new tab in the test).
+        const record = (e: Event): void => {
+          seen = e.defaultPrevented;
+          e.preventDefault();
+        };
+        addEventListener("click", record, { once: true });
+        link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, [key]: true }));
+        out[key] = seen;
+      }
+      return out;
+    });
+    expect(prevented).toEqual({ ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, plain: true });
+  });
+
+  test("a deep link to an older release opens the fold, shows its title and moves focus there; so does a hash change after load", async ({ page }) => {
+    await page.goto("/about#v0-2-0");
+    const toggle = page.locator("#changelog .release-older-toggle");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#v0-2-0")).toBeInViewport();
+    await expect(page.locator("#v0-2-0")).toBeFocused();
+    // After load: fold it again, then change the hash in the page.
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await page.evaluate(() => {
+      location.hash = "#v0-3-0";
+    });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const title = page.locator("#v0-3-0");
+    await expect(title).toBeInViewport();
+    await expect(title).toBeFocused();
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`${scheme}: with every fold open, What's new is axe clean; on a phone its buttons are 44 px and nothing scrolls sideways`, async ({ page }) => {
+      await openIn(page, "/about#changelog", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      // The older releases' button and one per long release (else this would pass with nothing to open).
+      const folds = 1 + CHANGELOG.filter((r) => r.items.length > 6).length;
+      await expect(page.locator("#changelog button[aria-expanded][aria-controls]")).toHaveCount(folds);
+      // The older releases first: their own "Show all" buttons show only once that fold is open.
+      await page.locator("#changelog .release-older-toggle").click();
+      // One at a time (an opened button leaves this selector, so indexes would shift).
+      const closed = page.locator('#changelog button[aria-expanded="false"]');
+      for (let n = folds - 1; n > 0; n--) {
+        await closed.first().click();
+        await expect(closed).toHaveCount(n - 1);
+      }
+      const axe = await new AxeBuilder({ page }).include("#changelog").withTags(AXE_TAGS).analyze();
+      expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
+      for (const width of [390, 320]) {
+        await page.setViewportSize({ width, height: 800 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), `${width} px`).toBe(false);
+        const heights = await page.locator("#changelog button").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+        expect(Math.min(...heights), `${width} px`).toBeGreaterThanOrEqual(44);
+      }
+    });
+  }
 
   test("keyboard: the first Tab stop is a skip link, then Open the editor; focus is visible", async ({ page }) => {
     await page.goto("/about");
@@ -125,7 +288,11 @@ test.describe("the About page", () => {
     await expect(skip).toBeFocused();
     await expect(skip).toBeInViewport();
     if (linksAreStops) {
-      await page.keyboard.press("Tab");
+      // The home link, the bar's three section links (Overview, Flowcharts, What's new), then Open the editor.
+      for (const name of ["CodeEditor", "Overview", "Flowcharts", "What's new"]) {
+        await page.keyboard.press("Tab");
+        await expect(page.locator(".about-head").getByRole("link", { name, exact: true })).toBeFocused();
+      }
       await page.keyboard.press("Tab");
     } else {
       await page.locator(".about-head .about-btn").focus();

@@ -14,71 +14,160 @@
     <link rel="stylesheet" href="/src/styles/legal.css" />
   </head>
   <body class="legal">
-    <header class="legal-head">
-      <a class="legal-home" href="/"><img src="icons/mark-v2.svg" width="20" height="20" alt="" />CodeEditor</a>
-      <a class="legal-back" href="/">Open the editor</a>
+    <a class="legal-skip" href="#main">Skip to the text</a>
+    <header class="legal-top">
+      <a class="legal-brand" href="/"><img src="icons/mark-v2.svg" width="24" height="24" alt="" />CodeEditor</a>
+      <span class="legal-crumb">Legal</span>
+      <span class="legal-sp"></span>
+      <a class="legal-top-link" href="/about">About</a>
+      <a class="legal-btn" href="/">Open the editor</a>
     </header>
-    <main class="legal-main">
-      <h1>Terms</h1>
-      <p class="legal-date">Last updated 27 October 2026</p>
 
-      <section class="legal-short" aria-labelledby="short">
-        <h2 id="short">The short version</h2>
-        <ul>
-          <li>CodeEditor is free, made by one person, and comes with no guarantee.</li>
-          <li>Your code is yours. Keep your own copy of anything that matters.</li>
-          <li>Don't use CodeEditor to harm other people or their systems.</li>
+    <div class="legal-shell">
+      <nav class="legal-side" aria-label="Legal documents">
+        <p class="legal-side-label">Legal</p>
+        <ul class="legal-docs">
+          <li><a class="legal-doc" href="/privacy">Privacy</a></li>
+          <li>
+            <a class="legal-doc" href="/terms" aria-current="page">Terms</a>
+            <ol class="legal-toc" aria-label="Sections of Terms">
+              <li><a href="#what"><span class="legal-n">1</span> <span>What CodeEditor is</span></a></li>
+              <li><a href="#code"><span class="legal-n">2</span> <span>Your code</span></a></li>
+              <li><a href="#use"><span class="legal-n">3</span> <span>Using it fairly</span></a></li>
+              <li><a href="#warranty"><span class="legal-n">4</span> <span>No guarantee</span></a></li>
+              <li><a href="#source"><span class="legal-n">5</span> <span>Source code</span></a></li>
+              <li><a href="#changes"><span class="legal-n">6</span> <span>Changes</span></a></li>
+            </ol>
+          </li>
+          <li>
+            <a class="legal-doc" href="/licenses.txt"
+              >Licences<svg class="legal-ext" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h4v4M13 3 7.5 8.5M11.5 9.5V13H3V4.5h3.5" /></svg
+            ></a>
+          </li>
         </ul>
-      </section>
-
-      <h2 id="what">What CodeEditor is</h2>
-      <p>
-        CodeEditor is a code editor that runs Python, C and C++ programs in your browser, draws flowcharts of them, and
-        can keep your files in a GitHub repository you choose. It is made and run by Abhinesh. Using it means you agree to
-        these terms. How your data is handled is on the <a href="/privacy">Privacy</a> page.
-      </p>
-
-      <h2 id="code">Your code</h2>
-      <p>
-        You own what you write. CodeEditor claims no rights to it. You are responsible for what you write, run, store and
-        share with it, including what you put in your GitHub repository and in shared links.
-      </p>
-
-      <h2 id="use">Using it fairly</h2>
-      <p>Please don't:</p>
-      <ul>
-        <li>use CodeEditor to attack, overload or get into systems or accounts that aren't yours;</li>
-        <li>try to break, overload or misuse the site or its sign-in step;</li>
-        <li>use it to store or share anything you don't have the right to share.</li>
-      </ul>
-      <p>When you connect GitHub, GitHub's own <a href="https://docs.github.com/en/site-policy/github-terms/github-terms-of-service">terms of service</a> apply to what happens there.</p>
-
-      <h2 id="warranty">No guarantee</h2>
-      <p>
-        CodeEditor is provided as it is, without any warranty. It may have bugs, change, or stop working at any time, and
-        a program's result in CodeEditor can differ from the same program elsewhere. Your browser can lose the files it
-        keeps, so sync or export anything you can't afford to lose. As far as the law allows, the maker of CodeEditor is
-        not liable for any loss or damage that comes from using it.
-      </p>
-
-      <h2 id="source">Source code</h2>
-      <p>
-        CodeEditor's source code is open under the
-        <a href="https://github.com/strange-exe/code-editor/blob/main/LICENSE">MIT licence</a>. The tools it includes
-        come under their own licences: <a href="/licenses.txt">every licence text</a>.
-      </p>
-
-      <h2 id="changes">Changes</h2>
-      <p>These terms may change. The date at the top shows the last change. Questions go to the project's <a href="https://github.com/strange-exe/code-editor/issues">GitHub issues</a>.</p>
-    </main>
-    <footer class="legal-foot">
-      <nav aria-label="Legal">
-        <a href="/privacy">Privacy</a>
-        <a href="/terms" aria-current="page">Terms</a>
-        <a href="/licenses.txt">Licences</a>
-        <a href="/about">About</a>
-        <a href="https://github.com/strange-exe/code-editor">Source code</a>
+        <p class="legal-side-note">Questions go to the project's <a href="https://github.com/strange-exe/code-editor/issues">GitHub issues</a>.</p>
       </nav>
+
+      <main id="main" class="legal-main" tabindex="-1">
+        <nav class="legal-seg" aria-label="Legal documents">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms" aria-current="page">Terms</a>
+        </nav>
+
+        <details class="legal-toc-m" data-current="short">
+          <summary>
+            <span class="legal-lbl"><b>On this page</b><span data-current-label>The short version</span></span>
+            <span class="legal-chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4" /></svg></span>
+          </summary>
+          <ol class="legal-toc">
+            <li><a href="#what"><span class="legal-n">1</span> <span>What CodeEditor is</span></a></li>
+            <li><a href="#code"><span class="legal-n">2</span> <span>Your code</span></a></li>
+            <li><a href="#use"><span class="legal-n">3</span> <span>Using it fairly</span></a></li>
+            <li><a href="#warranty"><span class="legal-n">4</span> <span>No guarantee</span></a></li>
+            <li><a href="#source"><span class="legal-n">5</span> <span>Source code</span></a></li>
+            <li><a href="#changes"><span class="legal-n">6</span> <span>Changes</span></a></li>
+          </ol>
+        </details>
+
+        <article class="legal-paper" aria-labelledby="title">
+          <div class="legal-prose">
+            <header class="legal-doc-head">
+              <h1 id="title">Terms</h1>
+              <p class="legal-lead">The terms for using CodeEditor.</p>
+              <div class="legal-meta">
+                <p class="legal-updated">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
+                  <span>Last updated</span> <time datetime="2026-10-27">27 October 2026</time>
+                </p>
+                <a href="/privacy"
+                  >Read the Privacy page<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg
+                ></a>
+              </div>
+            </header>
+
+            <section class="legal-short" aria-labelledby="short">
+              <h2 id="short">The short version</h2>
+              <ul>
+                <li>CodeEditor is free, made by one person, and comes with no guarantee.</li>
+                <li>Your code is yours. Keep your own copy of anything that matters.</li>
+                <li>Don't use CodeEditor to harm other people or their systems.</li>
+              </ul>
+            </section>
+
+            <section class="legal-sec">
+              <div class="legal-h"><h2 id="what"><span class="legal-n">1</span> <span class="legal-tx">What CodeEditor is</span></h2></div>
+              <p>
+                CodeEditor is a code editor that runs Python, C and C++ programs in your browser, draws flowcharts of them, and
+                can keep your files in a GitHub repository you choose. It is made and run by Abhinesh. Using it means you agree to
+                these terms. How your data is handled is on the <a href="/privacy">Privacy</a> page.
+              </p>
+            </section>
+
+            <section class="legal-sec">
+              <div class="legal-h"><h2 id="code"><span class="legal-n">2</span> <span class="legal-tx">Your code</span></h2></div>
+              <p>
+                You own what you write. CodeEditor claims no rights to it. You are responsible for what you write, run, store and
+                share with it, including what you put in your GitHub repository and in shared links.
+              </p>
+            </section>
+
+            <section class="legal-sec">
+              <div class="legal-h"><h2 id="use"><span class="legal-n">3</span> <span class="legal-tx">Using it fairly</span></h2></div>
+              <p>Please don't:</p>
+              <ul>
+                <li>use CodeEditor to attack, overload or get into systems or accounts that aren't yours;</li>
+                <li>try to break, overload or misuse the site or its sign-in step;</li>
+                <li>use it to store or share anything you don't have the right to share.</li>
+              </ul>
+              <p>When you connect GitHub, GitHub's own <a href="https://docs.github.com/en/site-policy/github-terms/github-terms-of-service">terms of service</a> apply to what happens there.</p>
+            </section>
+
+            <section class="legal-sec">
+              <div class="legal-h"><h2 id="warranty"><span class="legal-n">4</span> <span class="legal-tx">No guarantee</span></h2></div>
+              <p>
+                CodeEditor is provided as it is, without any warranty. It may have bugs, change, or stop working at any time, and
+                a program's result in CodeEditor can differ from the same program elsewhere. Your browser can lose the files it
+                keeps, so sync or export anything you can't afford to lose. As far as the law allows, the maker of CodeEditor is
+                not liable for any loss or damage that comes from using it.
+              </p>
+            </section>
+
+            <section class="legal-sec">
+              <div class="legal-h"><h2 id="source"><span class="legal-n">5</span> <span class="legal-tx">Source code</span></h2></div>
+              <p>
+                CodeEditor's source code is open under the
+                <a href="https://github.com/strange-exe/code-editor/blob/main/LICENSE">MIT licence</a>. The tools it includes
+                come under their own licences: <a href="/licenses.txt">every licence text</a>.
+              </p>
+            </section>
+
+            <section class="legal-sec">
+              <div class="legal-h"><h2 id="changes"><span class="legal-n">6</span> <span class="legal-tx">Changes</span></h2></div>
+              <p>These terms may change. The date at the top shows the last change. Questions go to the project's <a href="https://github.com/strange-exe/code-editor/issues">GitHub issues</a>.</p>
+            </section>
+
+            <a class="legal-next" href="/privacy">
+              <span><span class="legal-next-k">Next document</span><span class="legal-next-t">Privacy</span><span class="legal-next-d">What CodeEditor keeps, where it goes, and how to remove it.</span></span>
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+            </a>
+          </div>
+        </article>
+      </main>
+    </div>
+
+    <footer class="legal-foot">
+      <div class="legal-foot-in">
+        <span>CodeEditor</span>
+        <nav aria-label="Site">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms" aria-current="page">Terms</a>
+          <a href="/licenses.txt">Licences</a>
+          <a href="/about">About</a>
+          <a href="https://github.com/strange-exe/code-editor">Source code</a>
+        </nav>
+      </div>
     </footer>
+    <div class="legal-toast" role="status" data-state="idle"></div>
+    <script type="module" src="/src/legal/page.ts"></script>
   </body>
 </html>

@@ -1,6 +1,10 @@
-/* The Privacy and Terms pages (privacy.html, terms.html): long-form reading in the app's own tokens.
-   Reading order: 1. the title and its date, 2. the short version, 3. the sections. The header and
-   footer are quiet (tier 2). No script of their own: theme-boot.js paints the saved theme. */
+/* The Privacy and Terms pages (privacy.html, terms.html), Workbench Pro (.claude/design/redesign6/legal).
+   Reading order: 1. the title and its lead, 2. the "Last updated" chip, 3. the short version, 4. the
+   numbered sections, 5. the next document. The frame (header, sidebar, footer) is quiet, on --surface;
+   the text sits on a card of --bg. From 1024 px a sticky sidebar lists the documents and the current
+   one's sections; below it, a Privacy / Terms switch and a sticky "On this page" disclosure.
+   src/legal/page.ts adds the scroll spy and the copy-link buttons; without it the page still reads
+   fully (both lists are static HTML). Colours come from tokens.css only. */
 @import "./tokens.css";
 
 *,
@@ -9,137 +13,767 @@
   box-sizing: border-box;
 }
 
-/* The reading column is 720 px (about 75 characters of 16 px Geist); the header, the text and the
-   footer share its edges: a side padding of half the room around it, at least --s4. */
+/* Roles on this page, all from the theme's tokens: the sunken box (the short version, the date chip,
+   the switch) is --terminal-bg, the hairlines --divider, the card --bg on the --surface frame. The
+   card and the raised chips get a 1 px ring and, in light only, a soft lift of the ink colour. */
 body.legal {
   margin: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 16px;
-  line-height: 1.6;
+  line-height: 28px;
   -webkit-text-size-adjust: 100%;
+}
+html {
+  scroll-padding-top: var(--s5);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 .legal a {
   color: var(--link);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
-.legal a:focus-visible {
-  outline: 2px solid var(--focus);
+.legal a:hover {
+  text-decoration-thickness: 2px;
+}
+.legal :focus-visible {
+  outline: var(--ring);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--r-badge);
 }
-
-.legal-head,
-.legal-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s4);
-  padding: var(--s3) max(var(--s4), calc((100% - 720px) / 2));
-  font-size: var(--fs-2);
-  line-height: var(--lh-2);
-  color: var(--text-secondary);
-  background: var(--surface);
+.legal main:focus {
+  outline: none;
 }
-.legal-head {
-  border-bottom: 1px solid var(--divider);
+.legal code {
+  font-family: var(--font-code);
+  font-size: 14px;
+  padding: 1px 6px;
+  border-radius: var(--r-badge);
+  background: var(--terminal-bg);
+  box-shadow: inset 0 0 0 1px var(--divider);
 }
-.legal-foot {
-  border-top: 1px solid var(--divider);
-  margin-top: auto;
-}
-.legal-head a,
-.legal-foot a {
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
-}
-.legal .legal-home {
-  gap: var(--s2);
-  color: var(--text);
-  font-weight: var(--w-strong);
-  text-decoration: none;
-}
-.legal-home img {
+.legal svg {
   display: block;
-}
-.legal-foot nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2) var(--s5);
-}
-
-.legal-main {
-  width: 100%;
-  padding: var(--s6) max(var(--s4), calc((100% - 720px) / 2));
-}
-
-.legal h1 {
-  margin: 0;
-  font-size: var(--fs-display);
-  line-height: var(--lh-display);
-  letter-spacing: var(--tracking-title);
-  font-weight: var(--w-strong);
-}
-.legal-date {
-  margin: var(--s1) 0 var(--s5);
-  color: var(--text-muted);
-  font-size: var(--fs-1);
-}
-.legal h2 {
-  margin: var(--s6) 0 var(--s2);
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
-  letter-spacing: var(--tracking-title);
-  font-weight: var(--w-strong);
-}
-.legal h3 {
-  margin: var(--s5) 0 var(--s2);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  font-weight: var(--w-strong);
-}
-.legal p {
-  margin: 0 0 var(--s3);
-}
-.legal ul {
-  margin: 0 0 var(--s3);
-  padding-left: var(--s5);
-}
-.legal li + li {
-  margin-top: var(--s2);
+  flex: none;
 }
 .legal strong {
   font-weight: var(--w-strong);
 }
+.legal time,
+.legal-n {
+  font-variant-numeric: tabular-nums;
+}
 
-/* The short version: set apart by a rule in the action colour, not a card. */
+/* ---- skip link ---- */
+.legal .legal-skip {
+  position: absolute;
+  left: var(--s4);
+  top: -64px;
+  z-index: 30;
+  padding: var(--s2) var(--s3);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--r-row);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px color-mix(in srgb, var(--text) 7%, transparent);
+}
+.legal .legal-skip:focus {
+  top: var(--s3);
+}
+
+/* ---- header: a quiet frame bar ---- */
+.legal-top {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s5);
+  border-bottom: 1px solid var(--divider);
+}
+.legal .legal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: var(--w-strong);
+  font-size: 15px;
+}
+.legal-brand img {
+  display: block;
+}
+.legal-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--text-muted);
+  font-size: var(--fs-1);
+}
+.legal-crumb::before {
+  content: "/";
+  color: var(--border-strong);
+}
+.legal-sp {
+  flex: 1;
+}
+.legal .legal-top-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--s2);
+  border-radius: var(--r-row);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--fs-1);
+}
+.legal .legal-top-link:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.legal .legal-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-row);
+  background: var(--action);
+  color: var(--on-action);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+.legal .legal-btn:hover {
+  background: var(--action-hover);
+}
+
+/* ---- layout: sidebar + reading card ---- */
+.legal-shell {
+  flex: 1;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5) 64px;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.legal-main {
+  min-width: 0;
+}
+
+/* ---- sidebar: the legal documents, the current one opened into its numbered sections ---- */
+.legal-side {
+  position: sticky;
+  top: var(--s5);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: var(--s1) var(--s1) var(--s4);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+.legal-side-label {
+  margin: 0 0 var(--s2) 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  font-weight: var(--w-label);
+}
+.legal-docs,
+.legal-toc {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.legal-docs > li + li {
+  margin-top: 2px;
+}
+.legal .legal-doc {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: var(--r-row);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: var(--w-label);
+}
+.legal .legal-doc:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.legal .legal-doc[aria-current="page"] {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px color-mix(in srgb, var(--text) 7%, transparent);
+}
+.legal-ext {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+.legal-side .legal-toc {
+  margin: var(--s2) 0 var(--s3) 15px;
+  border-left: 1px solid var(--divider);
+}
+.legal .legal-toc a {
+  position: relative;
+  display: flex;
+  gap: var(--s2);
+  min-height: 28px;
+  padding: var(--s1) var(--s2) var(--s1) 14px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--fs-2);
+  line-height: var(--lh-1);
+}
+.legal .legal-toc a:hover {
+  color: var(--text);
+}
+.legal-toc a .legal-n {
+  min-width: 14px;
+}
+.legal .legal-toc .legal-sub a {
+  padding-left: 36px;
+}
+.legal-toc .legal-sub a .legal-n {
+  min-width: 22px;
+}
+/* The section being read: the link colour, a heavier weight and a 2 px bar (never colour alone). */
+.legal .legal-toc a[aria-current="true"] {
+  color: var(--link);
+  font-weight: var(--w-label);
+}
+.legal-side .legal-toc a[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: var(--s1);
+  bottom: var(--s1);
+  width: 2px;
+  border-radius: 2px;
+  background: var(--location);
+}
+.legal-side-note {
+  margin: var(--s4) 10px 0;
+  padding-top: var(--s4);
+  border-top: 1px solid var(--divider);
+  color: var(--text-muted);
+  font-size: var(--fs-2);
+  line-height: var(--lh-1);
+}
+
+/* ---- the reading card ---- */
+.legal-paper {
+  background: var(--bg);
+  border-radius: var(--r-control);
+  box-shadow:
+    0 0 0 1px var(--divider),
+    0 1px 2px color-mix(in srgb, var(--text) 7%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--text) 7%, transparent);
+  padding: 48px 64px 56px 88px;
+  min-width: 0;
+}
+.legal-prose {
+  max-width: 68ch;
+}
+.legal-doc-head {
+  padding-bottom: var(--s6);
+}
+.legal h1 {
+  margin: 0;
+  font-size: 40px;
+  line-height: 48px;
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--w-strong);
+}
+.legal-lead {
+  margin: var(--s3) 0 0;
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--text-secondary);
+}
+.legal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s5);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--text-secondary);
+}
+.legal-updated {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  height: 32px;
+  padding: 0 var(--s3) 0 10px;
+  border-radius: var(--r-row);
+  background: var(--terminal-bg);
+  box-shadow: inset 0 0 0 1px var(--divider);
+}
+.legal-updated time {
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+.legal .legal-meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--target);
+}
+
+/* ---- the short version: a sunken box with square accent bullets ---- */
 .legal-short {
-  padding-left: var(--s4);
-  border-left: 3px solid var(--action);
+  margin: 0;
+  padding: 20px var(--s5) 22px;
+  border-radius: var(--r-control);
+  background: var(--terminal-bg);
+  box-shadow: inset 0 0 0 1px var(--divider);
 }
 .legal-short h2 {
-  margin-top: 0;
+  margin: 0 0 10px;
   font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  letter-spacing: 0;
+  line-height: 24px;
+  font-weight: var(--w-strong);
 }
 .legal-short ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.legal-short li {
+  position: relative;
+  padding-left: 20px;
+  line-height: 26px;
+}
+.legal-short li + li {
+  margin-top: var(--s2);
+}
+.legal-short li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--location);
+}
+
+/* ---- numbered sections, hairlines between them ---- */
+.legal-sec {
+  padding-top: 40px;
+  margin-top: 40px;
+  border-top: 1px solid var(--divider);
+}
+.legal-short + .legal-sec {
+  margin-top: var(--s4);
+  border-top: 0;
+}
+/* The heading and its copy-link button side by side (the button stays out of the heading's name). */
+.legal-h {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+}
+.legal-sec > .legal-h ~ .legal-h {
+  margin-top: var(--s6);
+}
+.legal-h h2,
+.legal-h h3 {
+  position: relative;
+  margin: 0;
+  font-weight: var(--w-strong);
+}
+.legal-h h2 {
+  font-size: 22px;
+  line-height: 30px;
+  letter-spacing: -0.01em;
+}
+.legal-h h3 {
+  font-size: 18px;
+  line-height: 26px;
+}
+/* Section numbers hang in the card's margin, so the headings keep one edge. */
+.legal-h .legal-n {
+  position: absolute;
+  right: calc(100% + var(--s4));
+  top: 0;
+  font-weight: var(--w-label);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.legal-anchor {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-row);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.legal-h:hover .legal-anchor,
+.legal-anchor:focus {
+  opacity: 1;
+}
+.legal-anchor:hover {
+  background: var(--terminal-bg);
+  color: var(--text);
+}
+@media (hover: none) {
+  .legal-anchor {
+    opacity: 1;
+  }
+}
+.legal-sec p {
+  margin: 0 0 var(--s4);
+}
+.legal-sec ul {
+  margin: 0 0 var(--s4);
+  padding-left: 22px;
+}
+.legal-sec li {
+  padding-left: var(--s1);
+}
+.legal-sec li + li {
+  margin-top: 10px;
+}
+.legal-sec li::marker {
+  color: var(--text-muted);
+}
+.legal-sec > :last-child {
   margin-bottom: 0;
 }
 
-@media (max-width: 480px) {
-  .legal-main {
-    padding-top: var(--s5);
+/* ---- next document ---- */
+.legal .legal-next {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin-top: 48px;
+  padding: var(--s4) 20px;
+  min-height: 72px;
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+  text-decoration: none;
+}
+.legal .legal-next:hover {
+  background: var(--terminal-bg);
+}
+.legal-next span {
+  display: block;
+}
+.legal-next-k {
+  font-size: var(--fs-2);
+  line-height: 18px;
+  color: var(--text-muted);
+}
+.legal-next-t {
+  font-weight: var(--w-strong);
+  line-height: 24px;
+}
+.legal-next-d {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--text-secondary);
+}
+.legal-next svg {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+
+/* ---- footer ---- */
+.legal-foot {
+  border-top: 1px solid var(--divider);
+}
+.legal-foot-in {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--s4) var(--s5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s5);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--text-muted);
+}
+.legal-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) 20px;
+}
+.legal .legal-foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.legal .legal-foot a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.legal .legal-foot a[aria-current="page"] {
+  color: var(--text);
+  font-weight: var(--w-label);
+}
+
+/* ---- the "link copied" toast (role=status) ---- */
+.legal-toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--s5);
+  z-index: 20;
+  max-width: calc(100vw - 2 * var(--s4));
+  transform: translateX(-50%);
+  padding: var(--s2) 14px;
+  border-radius: var(--r-row);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+/* Empty, it draws nothing but stays in the accessibility tree: a live region that appears together
+   with its first text isn't announced by every screen reader. */
+.legal-toast:empty {
+  padding: 0;
+}
+
+/* ---- phone parts, hidden from 1024 px ---- */
+.legal-seg,
+.legal-toc-m {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  html {
+    scroll-padding-top: 68px;
+  }
+  .legal-shell {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--s4) var(--s4) 48px;
+    gap: var(--s4);
+  }
+  .legal-side {
+    display: none;
+  }
+  .legal-seg {
+    display: flex;
+    gap: var(--s1);
+    width: max-content;
+    max-width: 100%;
+    padding: var(--s1);
+    border-radius: var(--r-control);
+    background: var(--terminal-bg);
+    box-shadow: inset 0 0 0 1px var(--divider);
+  }
+  .legal .legal-seg a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 var(--s4);
+    border-radius: var(--r-row);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: var(--fs-1);
+    font-weight: var(--w-label);
+  }
+  .legal .legal-seg a[aria-current="page"] {
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 0 0 1px var(--border), 0 1px 2px color-mix(in srgb, var(--text) 7%, transparent);
+  }
+  .legal-toc-m {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin: 0 calc(-1 * var(--s4));
+    background: var(--surface);
+    border-bottom: 1px solid var(--divider);
+  }
+  .legal-toc-m summary {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    min-height: 52px;
+    padding: 6px var(--s4);
+    list-style: none;
+    cursor: pointer;
+  }
+  .legal-toc-m summary::-webkit-details-marker {
+    display: none;
+  }
+  .legal-lbl {
+    display: grid;
+    min-width: 0;
+    line-height: 18px;
+  }
+  .legal-lbl b {
+    font-size: var(--fs-1);
+    font-weight: var(--w-strong);
+  }
+  .legal-lbl span {
+    overflow: hidden;
+    font-size: var(--fs-2);
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .legal-chev {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    border-radius: var(--r-row);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-secondary);
+  }
+  .legal-toc-m[open] .legal-chev svg {
+    transform: rotate(180deg);
+  }
+  .legal-toc-m .legal-toc {
+    max-height: calc(100vh - 140px);
+    overflow: auto;
+    padding: var(--s1) var(--s2) var(--s3) var(--s4);
+  }
+  .legal .legal-toc-m .legal-toc a {
+    align-items: center;
+    min-height: 44px;
+    padding-left: var(--s3);
+    border-radius: var(--r-row);
+    font-size: 15px;
+    color: var(--text-secondary);
+  }
+  .legal .legal-toc-m .legal-toc .legal-sub a {
+    padding-left: 38px;
+  }
+  .legal-toc-m .legal-toc a .legal-n {
+    min-width: 18px;
+  }
+  .legal .legal-toc-m .legal-toc a[aria-current="true"] {
+    background: var(--list-selected);
+    color: var(--link);
+    font-weight: var(--w-strong);
+  }
+  .legal-paper {
+    padding: var(--s6) var(--s6) 40px;
+  }
+  .legal-h .legal-n {
+    position: static;
+  }
+}
+@media (max-width: 639px) {
+  .legal-top {
+    padding: 0 var(--s4);
+  }
+  .legal-crumb,
+  .legal .legal-top-link {
+    display: none;
+  }
+  .legal .legal-btn {
+    height: 44px;
+    padding: 0 var(--s4);
+  }
+  .legal-shell {
+    padding: var(--s4) 0 40px;
+  }
+  .legal-seg {
+    margin: 0 var(--s4);
+  }
+  .legal-toc-m {
+    margin: 0;
+  }
+  .legal-paper {
+    border-radius: 0;
+    box-shadow: 0 1px 0 var(--divider), 0 -1px 0 var(--divider);
+    padding: 28px var(--s4) 36px;
   }
   .legal h1 {
-    font-size: 26px;
-    line-height: 32px;
+    font-size: 32px;
+    line-height: 40px;
+  }
+  .legal-lead {
+    font-size: 17px;
+    line-height: 26px;
+  }
+  .legal-short {
+    padding: var(--s4) var(--s4) 18px;
+  }
+  .legal-h h2 {
+    font-size: 20px;
+    line-height: 28px;
+  }
+  .legal-sec {
+    padding-top: var(--s6);
+    margin-top: var(--s6);
+  }
+  .legal-foot-in {
+    padding: var(--s4);
+  }
+}
+
+/* ---- dark: rings only, no lift (a shadow of light ink would glow) ---- */
+:root[data-theme="dark"] .legal .legal-skip,
+:root[data-theme="dark"] .legal .legal-doc[aria-current="page"],
+:root[data-theme="dark"] .legal .legal-seg a[aria-current="page"] {
+  box-shadow: 0 0 0 1px var(--border);
+}
+@media (min-width: 640px) {
+  :root[data-theme="dark"] .legal-paper {
+    box-shadow: 0 0 0 1px var(--divider);
+  }
+}
+
+/* ---- print: the document only. src/legal/page.ts switches to the light tokens while printing, so
+   the text is dark on the paper whichever scheme is on screen. ---- */
+@media print {
+  .legal-skip,
+  .legal-top,
+  .legal-side,
+  .legal-seg,
+  .legal-toc-m,
+  .legal-foot,
+  .legal-anchor,
+  .legal-next,
+  .legal-toast {
+    display: none !important;
+  }
+  body.legal {
+    background: none;
+  }
+  .legal-shell {
+    display: block;
+    padding: 0;
+  }
+  .legal .legal-paper {
+    box-shadow: none;
+    padding: 0;
+    background: none;
   }
 }

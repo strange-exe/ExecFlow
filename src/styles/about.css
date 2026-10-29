@@ -11,9 +11,11 @@
   box-sizing: border-box;
 }
 
+/* Workbench Pro (redesign6): the page is the frame (--surface), its content on cards (--bg) with a
+   hairline edge and small stacked shadows in light, the edge alone in dark. */
 body.about {
   margin: 0;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 16px;
@@ -45,6 +47,26 @@ body.about {
 .about-skip:focus {
   top: var(--s3);
 }
+.release-card,
+.about-lang,
+.about .release-index a[aria-current="true"] {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--text) 8%, transparent);
+}
+:root[data-theme="dark"] :is(.release-card, .about-lang),
+:root[data-theme="dark"] .about .release-index a[aria-current="true"] {
+  box-shadow: 0 0 0 1px var(--divider);
+}
+
+/* Read by screen readers, not shown (absolute, so it never takes a grid cell). */
+.about-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* The page column: 1120 px, with a gutter of at least --s4. */
 .about-head,
@@ -57,12 +79,42 @@ body.about {
   padding-right: var(--s4);
 }
 
+/* The bar: the mark and name, the page's sections, and the one blue Open the editor, over a hairline. */
+.about-top {
+  border-bottom: 1px solid var(--divider);
+}
 .about-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s4);
-  min-height: 64px;
+  gap: var(--s5);
+  min-height: 56px;
+}
+.about-nav {
+  display: flex;
+  gap: var(--s1);
+}
+.about .about-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-row);
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  font-weight: var(--w-label);
+  text-decoration: none;
+}
+.about .about-nav a:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.about-open {
+  margin-left: auto;
+}
+@media (max-width: 720px) {
+  .about-nav {
+    display: none;
+  }
 }
 .about .about-home {
   display: inline-flex;
@@ -104,8 +156,17 @@ body.about {
   background: var(--hover);
 }
 .about-head .about-btn {
-  min-height: 36px;
-  padding: 0 var(--s4);
+  min-height: 32px;
+  padding: 0 var(--s3);
+  font-size: var(--fs-2);
+}
+/* On a phone it is the primary action: 44 px. */
+@media (max-width: 720px) {
+  .about-head .about-btn {
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: var(--fs-1);
+  }
 }
 
 /* ---------------------------------------------------------------- hero */
@@ -194,8 +255,8 @@ body.about {
 }
 .about h2 {
   margin: 0 0 var(--s3);
-  font-size: clamp(26px, 3vw, 34px);
-  line-height: 1.15;
+  font-size: clamp(26px, 3vw, 32px);
+  line-height: 1.25;
   letter-spacing: var(--tracking-title);
   font-weight: var(--w-strong);
 }
@@ -243,21 +304,20 @@ body.about {
 }
 .about-lang {
   padding: var(--s5);
-  border-radius: var(--r-dialog);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: var(--r-control);
+  background: var(--bg);
   transition: transform 0.2s ease-out;
 }
 .about-lang-wide {
-  background: color-mix(in srgb, var(--action) 10%, var(--surface));
+  background: color-mix(in srgb, var(--action) 5%, var(--bg));
 }
 /* A real program, as text (not a picture of an editor). */
 .about-code {
   margin: var(--s2) 0 var(--s4);
   padding: var(--s4);
-  border-radius: var(--r-control);
-  background: var(--bg);
-  box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: var(--r-row);
+  background: color-mix(in srgb, var(--text) 4%, var(--bg));
+  box-shadow: inset 0 0 0 1px var(--divider);
   font-family: var(--font-code);
   font-size: var(--fs-2);
   line-height: 1.7;
@@ -448,142 +508,390 @@ body.about {
   margin-top: var(--s1);
 }
 
-/* Changelog: the heading column stays beside the releases on wide screens. */
-.about-changelog {
+/* ---------------------------------------------------------------- What's new: a release timeline
+   (redesign6/whatsnew/design.md). Reading order: 1. the latest release's title, 2. its changes by
+   their tag, 3. the version rail and the index. One card on the frame; each release is a rail
+   (version, date, Current) | the axis (a ring per release, filled for the build's) | the body. The
+   kinds are a glyph and a word in one neutral style, so they read in grayscale and without colour. */
+.release-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) 20px;
+  margin: 0 0 var(--s5);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-2);
+  line-height: 20px;
+  color: var(--text-muted);
+}
+.release-facts strong {
+  color: var(--text);
+  font-weight: var(--w-label);
+}
+.release-mono {
+  font-family: var(--font-code);
+}
+.release-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--s4);
+  gap: var(--s6);
 }
-.about-releases {
+.release-card {
+  background: var(--bg);
+  border-radius: var(--r-control);
+}
+.release-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-/* A release: the version chip and title, the date, then one group per kind of change, each a tag
-   (its word, and a dot in the kind's colour) over a bulleted list whose lines wrap under their
-   own text. */
 .release {
-  padding: var(--s5) 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: 128px 20px minmax(0, 1fr);
+  column-gap: var(--s4);
+  padding: 28px var(--s6) 28px 28px;
 }
 .release + .release,
-.release-older-item {
+.release-list-older {
   border-top: 1px solid var(--divider);
 }
-.release-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s1) var(--s3);
-  margin: 0;
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  font-weight: var(--w-strong);
+.release-meta {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding-top: 3px;
 }
 .release-version {
-  padding: 0 var(--s2);
-  border-radius: var(--r-control);
-  background: var(--surface-raised);
-  box-shadow: inset 0 0 0 1px var(--border);
   font-family: var(--font-code);
   font-size: var(--fs-2);
-  font-weight: var(--w-label);
-}
-.release:first-child .release-version {
-  box-shadow: inset 0 0 0 1px var(--action);
+  line-height: 20px;
   color: var(--text);
 }
 .release-date {
-  display: block;
-  margin-top: var(--s1);
   font-size: var(--fs-2);
+  line-height: 20px;
   color: var(--text-muted);
 }
-.release-group {
-  margin-top: var(--s4);
-}
-.release-kind {
+.release-badge {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: var(--s2);
-  margin: 0;
+  height: 20px;
+  margin-top: 6px;
+  padding: 0 6px;
+  border-radius: var(--r-badge);
+  background: var(--list-selected);
+  color: var(--link);
   font-size: var(--fs-hint);
   line-height: var(--lh-hint);
   font-weight: var(--w-strong);
-  letter-spacing: 0.02em;
-  color: var(--text);
 }
-.release-kind::before {
+/* The axis: a 1 px line from the first ring to the last one shown (page.ts marks the ends). */
+.release-axis {
+  position: relative;
+}
+.release-axis::before {
   content: "";
-  width: 8px;
-  height: 8px;
+  position: absolute;
+  left: 9px;
+  top: -28px;
+  bottom: -28px;
+  width: 1px;
+  background: var(--divider);
+}
+.release.is-first .release-axis::before {
+  top: 13px;
+}
+.release.is-last .release-axis::before {
+  bottom: auto;
+  height: 41px;
+}
+.release.is-first.is-last .release-axis::before {
+  display: none;
+}
+.release-node {
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 2px var(--border-strong);
 }
-.release-group[data-kind="added"] .release-kind::before { background: var(--success); }
-.release-group[data-kind="changed"] .release-kind::before { background: var(--info); }
-.release-group[data-kind="fixed"] .release-kind::before { background: var(--warning); }
-.release-items {
-  margin: var(--s2) 0 0;
-  padding: 0 0 0 var(--s5);
-  list-style: disc;
-  color: var(--text-secondary);
+.release[data-current="true"] .release-node {
+  background: var(--action);
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--action);
 }
-.release-items li {
-  margin-top: var(--s1);
-  padding-left: var(--s1);
+.release-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: var(--w-strong);
+  letter-spacing: -0.01em;
+  scroll-margin-top: var(--s5);
 }
-.release-items li::marker {
+.release-title:focus {
+  outline: none;
+}
+.about .release-title:focus-visible {
+  outline: var(--ring);
+  outline-offset: 4px;
+}
+/* (0,2,0): outranks `.about main p`. */
+.about .release-sum {
+  margin: 2px 0 0;
+  font-size: var(--fs-2);
+  line-height: 20px;
   color: var(--text-muted);
 }
-/* The older releases fold away; open, they read like the ones above. */
-.release-older-item {
-  padding-top: var(--s4);
+.release-items {
+  display: grid;
+  gap: var(--s2);
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
 }
-.release-older > summary {
+/* A change: the tag in its own column, the sentence in the next. */
+.release-item {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  column-gap: var(--s3);
+  align-items: start;
+  font-size: var(--fs-1);
+  line-height: var(--lh-prose);
+}
+.release-item[hidden] {
+  display: none;
+}
+.release-tag {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: var(--s3);
-  min-height: 44px;
-  list-style: none;
-  cursor: pointer;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px 0 6px;
+  border-radius: var(--r-badge);
+  background: color-mix(in srgb, var(--text) 4%, var(--bg));
+  box-shadow: inset 0 0 0 1px var(--divider);
+  color: var(--text-secondary);
+  font-family: var(--font-code);
+  font-size: 11px;
+  line-height: 16px;
+}
+.release-glyph {
+  flex: none;
+}
+.release-text {
+  max-width: 68ch;
   color: var(--text);
+}
+/* The folds: more changes in a release, and the older releases. Both are buttons with
+   aria-expanded and aria-controls; the chevron turns only with motion welcome. */
+.release-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 32px;
+  margin: var(--s3) 0 0 96px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-row);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-2);
   font-weight: var(--w-label);
+  line-height: 1;
+  cursor: pointer;
 }
-.release-older > summary::-webkit-details-marker { display: none; }
-/* The disclosure's chevron (the native marker goes with display: inline-flex): right, then down. */
-.release-older > summary::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  margin: 0 2px 0 var(--s1);
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg);
+.release-more:hover {
+  background: var(--hover);
 }
-.release-older[open] > summary::before { transform: rotate(45deg); }
-.release-older > summary:focus-visible {
-  outline: var(--ring);
-  outline-offset: 2px;
-  border-radius: var(--r-control);
+.release-chev {
+  flex: none;
 }
-.about-releases-older {
+[aria-expanded="true"] > .release-chev {
+  transform: rotate(180deg);
+}
+.release-older-row {
+  padding: var(--s3) 28px var(--s3) 192px;
+  border-top: 1px solid var(--divider);
+}
+.release-older-row[hidden] {
+  display: none;
+}
+.release-older-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 44px;
+  padding: 6px var(--s3);
+  border: 0;
+  border-radius: var(--r-row);
+  background: color-mix(in srgb, var(--text) 4%, var(--bg));
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-1);
+  line-height: 20px;
+  font-weight: var(--w-label);
+  text-align: left;
+  cursor: pointer;
+}
+.release-older-toggle:hover {
+  background: var(--hover);
+}
+.release-older-range {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-2);
+  font-weight: 400;
+}
+
+/* The release index: every version, the build's marked; shown from 1080 px. */
+.release-index {
+  display: none;
+}
+.about .release-index h3 {
+  margin: 0 0 var(--s2);
+  padding: 0 var(--s2);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  font-weight: var(--w-strong);
+  color: var(--text-muted);
+}
+.release-index ol {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-@media (min-width: 900px) {
-  .about-changelog {
-    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-    gap: var(--s6);
-    align-items: start;
+.release-index-month {
+  margin: var(--s3) 0 var(--s1);
+  padding: 0 var(--s2);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  color: var(--text-muted);
+}
+.about .release-index a {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--s2);
+  align-items: center;
+  min-height: 28px;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r-row);
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  line-height: 20px;
+  text-decoration: none;
+}
+.about .release-index a:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.release-index-v {
+  font-family: var(--font-code);
+  font-size: var(--fs-hint);
+  color: var(--text-muted);
+}
+.release-index-t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.about .release-index a[aria-current="true"] {
+  background: var(--bg);
+  color: var(--text);
+}
+.release-index a[aria-current="true"] .release-index-v {
+  color: var(--link);
+  font-weight: var(--w-strong);
+}
+@media (min-width: 1080px) {
+  .release-layout {
+    grid-template-columns: minmax(0, 1fr) 232px;
   }
-  .about-changelog > h2,
-  .about-changelog > p {
-    grid-column: 1;
+  .release-index {
+    display: block;
+    position: sticky;
+    top: var(--s5);
+    align-self: start;
   }
-  .about-releases {
+  /* A long release keeps its version and date in view while it is read. */
+  .release-meta {
+    position: sticky;
+    top: var(--s5);
+    align-self: start;
+  }
+}
+/* A phone: the rail folds into a line above the title; the axis stays at the left; tags sit inline. */
+@media (max-width: 720px) {
+  .release {
+    grid-template-columns: 20px minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 20px var(--s4) 20px 10px;
+  }
+  .release-meta {
     grid-column: 2;
-    grid-row: 1 / span 3;
+    grid-row: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s1) 10px;
+    padding: 0 0 var(--s1);
+  }
+  .release-badge {
+    margin-top: 0;
+  }
+  .release-axis {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .release-axis::before {
+    top: -20px;
+    bottom: -20px;
+  }
+  .release.is-first .release-axis::before {
+    top: 13px;
+  }
+  .release-body {
+    grid-column: 2;
+  }
+  .release-title {
+    font-size: 17px;
+    line-height: 24px;
+  }
+  .release-items {
+    gap: 10px;
+  }
+  .release-item {
+    display: block;
+  }
+  .release-tag {
+    display: inline-flex;
+    height: 20px;
+    margin-right: var(--s2);
+    vertical-align: 1px;
+  }
+  .release-more {
+    min-height: 44px;
+    margin-left: 0;
+    font-size: var(--fs-1);
+  }
+  .release-older-row {
+    padding: var(--s3) var(--s4);
+  }
+  .release-older-toggle {
+    flex-wrap: wrap;
+    gap: 2px var(--s3);
+  }
+  .release-older-range {
+    flex-basis: 100%;
+    margin-left: 26px;
   }
 }
 
@@ -594,20 +902,26 @@ body.about {
   align-items: center;
   justify-content: space-between;
   gap: var(--s4);
-  padding-top: var(--s5);
-  padding-bottom: var(--s6);
+  padding-top: 20px;
+  padding-bottom: 28px;
   border-top: 1px solid var(--divider);
+}
+.about-foot-note {
+  margin: 0;
+  font-size: var(--fs-2);
+  color: var(--text-muted);
 }
 .about-foot nav {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2) var(--s5);
 }
-.about-foot nav a {
+.about .about-foot nav a {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
   font-size: var(--fs-2);
+  color: var(--text-secondary);
 }
 
 /* ---------------------------------------------------------------- motion (none under reduced motion) */
@@ -623,5 +937,8 @@ body.about {
   .about-lang:hover,
   .swatch:hover .swatch-sample {
     transform: translateY(-2px);
+  }
+  .release-chev {
+    transition: transform 0.15s ease;
   }
 }
