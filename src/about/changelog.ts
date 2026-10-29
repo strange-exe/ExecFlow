@@ -20,6 +20,18 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.11.0",
+    date: "2026-10-29",
+    title: "Guides for Python, C, C++ and flowcharts, and a clearer Capture snippet",
+    items: [
+      { kind: "added", text: "Guide pages for Python, C, C++ and turning code into a flowchart, each with real examples, their output and a link that opens the code here." },
+      { kind: "added", text: "An About link in the editor, and titles, descriptions and a preview picture for search results and shared links." },
+      { kind: "changed", text: "Capture snippet: a large preview, colour choices as pictures, switches for line numbers and the file name, and Copy image always at the bottom." },
+      { kind: "changed", text: "What's new: each kind of change has its own colour, and the current release has a light running round its edge." },
+      { kind: "fixed", text: "An address that doesn't exist shows a Page not found page instead of opening the editor." },
+    ],
+  },
+  {
     version: "0.10.0",
     date: "2026-10-29",
     title: "New colours, a What's new timeline, and easier Privacy and Terms",

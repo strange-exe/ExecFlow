@@ -138,8 +138,8 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     const mini = h("span", { class: "snippet-mini" }, ...lines);
     const swatch = h("span", { class: "snippet-swatch", "aria-hidden": "true" }, mini);
     if (colors) {
-      // Through the CSSOM (the CSP allows no style attribute); the stylesheet's token colours stay
-      // underneath when the choice's colours can't be read.
+      // Through the CSSOM (one property at a time, never parsed as markup); the stylesheet's token
+      // colours stay underneath when the choice's colours can't be read.
       swatch.style.backgroundColor = over(colors.bg, colors.action, IMAGE_MIXES.mat.pct / 100);
       mini.style.backgroundColor = colors.bg;
       mini.style.boxShadow = `inset 0 0 0 1px ${colors.border}`;

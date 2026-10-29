@@ -6,6 +6,24 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.11.0] - 2026-10-29
+
+Guides for Python, C, C++ and flowcharts, and a clearer Capture snippet
+
+### Added
+
+- Guide pages for Python, C, C++ and turning code into a flowchart, each with real examples, their output and a link that opens the code here.
+- An About link in the editor, and titles, descriptions and a preview picture for search results and shared links.
+
+### Changed
+
+- Capture snippet: a large preview, colour choices as pictures, switches for line numbers and the file name, and Copy image always at the bottom.
+- What's new: each kind of change has its own colour, and the current release has a light running round its edge.
+
+### Fixed
+
+- An address that doesn't exist shows a Page not found page instead of opening the editor.
+
 ## [0.10.0] - 2026-10-29
 
 New colours, a What's new timeline, and easier Privacy and Terms
