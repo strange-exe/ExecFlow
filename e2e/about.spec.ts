@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { CHANGELOG } from "../src/about/changelog";
 import { OPEN_RELEASES, olderLabel, olderRange } from "../src/about/timeline";
 import { expect, hierarchyShots, openIn, test, tolerating } from "./helpers";
+import { contrast } from "./pixels";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const scene = (page: Page) => page.locator("[data-scene]");
@@ -116,7 +117,7 @@ test.describe("the About page", () => {
     await expect(page.locator("[data-first-date]")).toHaveText("18 October 2026");
   });
 
-  test("a release's changes: a tag column (glyph and word, one neutral style) in Added, Changed, Fixed order, folded after 6", async ({ page }) => {
+  test("a release's changes: a tag column (glyph, word and a hue per kind) in Added, Changed, Fixed order, folded after 6", async ({ page }) => {
     await page.goto("/about#changelog");
     const r = CHANGELOG.find((x) => x.items.length > 6)!;
     // A release past the first OPEN_RELEASES waits in the older fold: open it first.
@@ -134,10 +135,18 @@ test.describe("the About page", () => {
         .map(([k, n]) => `${n} ${k}`)
         .join(", "),
     );
-    // Every tag has its glyph, and the kinds differ by glyph and word, never by colour alone.
+    // Every tag has its glyph, and the kinds differ by glyph and word, never by colour alone: the word
+    // keeps the text colour; the hue (glyph, tint, ring) is one per kind, a different one each.
     await expect(release.locator(".release-tag svg")).toHaveCount(r.items.length);
-    const colours = await release.locator(".release-tag").evaluateAll((els) => [...new Set(els.map((e) => `${getComputedStyle(e).color} ${getComputedStyle(e).backgroundColor}`))]);
-    expect(colours).toHaveLength(1);
+    const looks = await release.locator(".release-tag").evaluateAll((els) =>
+      els.map((e) => ({ kind: (e as HTMLElement).dataset.kind!, word: getComputedStyle(e).color, hue: `${getComputedStyle(e.querySelector("svg")!).color} ${getComputedStyle(e).backgroundColor}` })),
+    );
+    expect(new Set(looks.map((l) => l.word)).size, "one word colour").toBe(1);
+    const hueOf = new Map<string, Set<string>>();
+    for (const l of looks) hueOf.set(l.kind, (hueOf.get(l.kind) ?? new Set()).add(l.hue));
+    for (const [kind, hues] of hueOf) expect(hues.size, `one look for ${kind}`).toBe(1);
+    const hues = [...hueOf.values()].map((s) => [...s][0]);
+    expect(new Set(hues).size, "each kind its own hue").toBe(hues.length);
     // The first 6 show; one button names how many more, and controls the list it opens.
     const more = release.locator(".release-more");
     await expect(more).toHaveText(`Show all ${r.items.length} changes (${r.items.length - 6} more)`);
@@ -250,6 +259,44 @@ test.describe("the About page", () => {
     await expect(title).toBeFocused();
   });
 
+  test("the current release has a moving border and a beaconing node only when motion is welcome; the content stays on top, and the tags move, never fade", async ({ page }) => {
+    const current = page.locator('#changelog .release[data-current="true"]');
+    const look = () =>
+      current.evaluate((e) => {
+        const edge = e.querySelector(".release-edge");
+        const tag = e.querySelector(".release-tag")!;
+        const title = e.querySelector(".release-title")!.getBoundingClientRect();
+        return {
+          edges: document.querySelectorAll("#changelog .release-edge").length,
+          hidden: edge?.getAttribute("aria-hidden"),
+          light: edge ? getComputedStyle(edge, "::before").backgroundImage.includes("conic-gradient") : false,
+          turn: edge ? getComputedStyle(edge, "::before").animationName : "",
+          pulse: getComputedStyle(e.querySelector(".release-node")!, "::after").animationName,
+          // The title is what a click there reaches: the edge layer is under the content.
+          onTop: e.querySelector(".release-title")!.contains(document.elementFromPoint(title.left + 20, title.top + title.height / 2)),
+          tagKeyframes: [...document.getAnimations()].filter((a) => a.effect && (a.effect as KeyframeEffect).target === tag).map((a) => JSON.stringify((a.effect as KeyframeEffect).getKeyframes().map((k) => k.opacity ?? null))),
+        };
+      });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/about#changelog");
+    await current.scrollIntoViewIfNeeded();
+    const on = await look();
+    expect(on.edges, "only the current release has the edge").toBe(1);
+    expect(on.hidden).toBe("true");
+    expect(on.light, "a conic light").toBe(true);
+    expect(on.turn).toBe("release-edge-turn");
+    expect(on.pulse).toBe("release-node-pulse");
+    expect(on.onTop).toBe(true);
+    // Scroll-driven tags (where the browser has them) animate transform only: no opacity keyframe.
+    for (const k of on.tagKeyframes) expect(k, "no opacity in a tag's entrance").not.toMatch(/\d/);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    const off = await look();
+    expect(off.turn, "the light rests with reduced motion").toBe("none");
+    expect(off.light, "and still lights the edge").toBe(true);
+    expect(off.pulse, "no beacon with reduced motion").toBe("none");
+  });
+
   for (const scheme of ["light", "dark"] as const) {
     test(`${scheme}: with every fold open, What's new is axe clean; on a phone its buttons are 44 px and nothing scrolls sideways`, async ({ page }) => {
       await openIn(page, "/about#changelog", scheme);
@@ -267,6 +314,19 @@ test.describe("the About page", () => {
       }
       const axe = await new AxeBuilder({ page }).include("#changelog").withTags(AXE_TAGS).analyze();
       expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
+      // axe checks the words; each kind's glyph is a graphic that carries meaning: 3:1 on its tint.
+      const glyphs = await page.locator("#changelog .release-tag").evaluateAll((els) => {
+        // Computed colours come as rgb(...) or, from color-mix, color(srgb r g b) with 0-1 channels.
+        const rgb = (c: string) => {
+          const n = c.match(/[\d.]+/g)!.map(Number);
+          return (c.startsWith("color(") ? n.slice(0, 3).map((v) => Math.round(v * 255)) : n.slice(0, 3)) as [number, number, number];
+        };
+        const seen = new Map<string, { glyph: [number, number, number]; ground: [number, number, number] }>();
+        for (const e of els) seen.set((e as HTMLElement).dataset.kind!, { glyph: rgb(getComputedStyle(e.querySelector("svg")!).color), ground: rgb(getComputedStyle(e).backgroundColor) });
+        return [...seen];
+      });
+      expect(glyphs.map(([kind]) => kind).sort()).toEqual(["added", "changed", "fixed"]);
+      for (const [kind, c] of glyphs) expect(contrast(c.glyph, c.ground), `${scheme} ${kind} glyph on its tint`).toBeGreaterThanOrEqual(3);
       for (const width of [390, 320]) {
         await page.setViewportSize({ width, height: 800 });
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), `${width} px`).toBe(false);
