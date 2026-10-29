@@ -82,10 +82,12 @@
     app.appendChild(box);
   }
   // A module script (or a file it imports) that fails to load fires "error" on its <script>, which
-  // doesn't bubble: listen in the capture phase.
+  // doesn't bubble: listen in the capture phase. Only the app's own scripts count: on the custom
+  // domains Cloudflare adds its analytics beacon as a module from another origin, and ad blockers
+  // (Brave by default) block it (owner's report, 2026-10-29).
   window.addEventListener("error", function (e) {
     var t = e.target;
-    if (t && t.tagName === "SCRIPT" && t.type === "module") failed();
+    if (t && t.tagName === "SCRIPT" && t.type === "module" && new URL(t.src, location.href).origin === location.origin) failed();
   }, true);
   document.addEventListener("codeeditor:start-failed", failed);
 })();
