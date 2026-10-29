@@ -1,23 +1,50 @@
-/* The Capture snippet dialog (src/ui/snippet-dialog.ts, final-v3 sections 5.1 and 5.2; round 2,
-   .claude/design/batch3/s.md; round 3, .claude/tasks/snippet-dialog-v3.md). A lazy stylesheet: the
-   dialog's module imports it, and Vite's preload helper waits for it before the module runs, so the
-   dialog never shows unstyled. Tokens only (tokens.test.ts checks). Three layouts, set by script on
-   the dialog (data-layout, data-compact): stacked (the body the one scroller), side by side from
-   900 px wide (the stage left, the options column right, only that column may scroll), and compact
-   (the dialog the one scroller). The stage's height is set in px from script when stacked. */
+/* The Capture snippet dialog (src/ui/snippet-dialog.ts, final-v3 sections 5.1 and 5.2; round 3,
+   .claude/tasks/snippet-dialog-v3.md; redesign 6, .claude/design/redesign6/snippet/design.md). A
+   lazy stylesheet: the dialog's module imports it, and Vite's preload helper waits for it before the
+   module runs, so the dialog never shows unstyled. Tokens only (tokens.test.ts checks). Three
+   layouts, set by script on the dialog (data-layout, data-compact): stacked (the body the one
+   scroller; below 900 px a full-screen sheet), side by side from 900 px wide (the stage left, the
+   options in a 360 px rail on the right, only the rail may scroll), and compact (the dialog the one
+   scroller). The frame's height is set in px from script when stacked; frameBudget (snippet-flow.ts)
+   counts the paddings and borders below, so a change here changes it too. */
 
-/* Stacked: the body scrolls between the head and the footer, so a focused option is never under the footer. */
-.snippet-dialog .dialog-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* From 900 px: at most 820 px tall, 24 px of the window left on each side (frameBudget's dialogMax). */
+.dialog.snippet-dialog { max-height: min(820px, calc(100dvh - 48px)); }
 /* A wrapped title breaks into even lines ("Capture snippet of / lines 2 to 3"), never a lone "3". */
-.snippet-dialog .dialog-title { text-wrap: balance; }
+.snippet-dialog .dialog-title { flex: 1 1 auto; min-width: 0; text-wrap: balance; }
+/* The body scrolls between the head and the footer (stacked), so a focused option is never under the footer. */
+.dialog.snippet-dialog .dialog-body { flex: 1 1 auto; min-height: 0; padding: 0; overflow: auto; }
 
-/* The preview: the export bitmap itself, fitted whole inside the stage (never enlarged, never
-   scrolled), centred by auto margins. The stage has no ground or border of its own (round 2): the
-   image brings its card and background, and a second frame round them read as boxes in boxes. The
-   1 px transparent border keeps round 1's geometry and shows in forced colours. Actual size
-   (data-actual) shows the image 1:1 and the stage scrolls; an image larger than it then starts at
-   its top-left corner (auto margins never push it out of reach). */
-.snippet-stage { display: flex; flex-direction: column; min-width: 0; }
+/* The head's keyboard hint (hidden from assistive technology; the close button's title says it). */
+.snippet-esc {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ the stage
+   The stage column holds the sunken panel (the stage's own ground and a hairline), then any notes.
+   In the panel: the bar (a quiet "Preview" tag and Actual size) and the frame. The frame is the
+   export bitmap itself, fitted whole (never enlarged, never scrolled), centred by auto margins;
+   Actual size (data-actual) shows it 1:1 and the frame scrolls, an image larger than it starting at
+   its top-left corner (auto margins never push it out of reach). Stacked, the bar sits under the
+   image: the script moves it there in the DOM (placeStageBar), so the Tab order is the drawn order. */
+.snippet-stage { display: flex; flex-direction: column; min-width: 0; padding: var(--s3) var(--s4) 0; }
+.snippet-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s3);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
 .snippet-frame {
   display: flex;
   flex-direction: column;
@@ -33,16 +60,16 @@
 }
 .snippet-frame[data-actual] { overflow: auto; }
 .snippet-frame > canvas { display: block; flex: none; margin: auto; }
-/* The ring inside the frame's edge: the body that scrolls the frame clips anything outside its box,
-   and the frame sits flush with the body's top (as .panel-body's ring). */
+/* The ring inside the frame's edge (as .panel-body's ring), so nothing that scrolls or clips it hides it. */
 .snippet-frame:focus-visible { outline-offset: -2px; }
 .snippet-frame-text { margin: 0; padding: var(--s2); }
 
-/* Under the stage, right-aligned: the Actual size toggle. Pressed, it takes the selected look the
-   theme tiles and the segments use (the location ring, the list-selected ground, the strong weight). */
-.snippet-stagebar { display: flex; justify-content: flex-end; margin-top: var(--s2); }
-/* A row's height: 44 px on touch screens and phones, like the choices beside it. */
-.snippet-stagebar .btn { min-height: var(--h-row); }
+.snippet-stagebar { display: flex; align-items: center; justify-content: center; gap: var(--s2); }
+.snippet-stage-tag { display: none; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+/* A row's height: 44 px on touch screens and phones. Pressed, it takes the selected look the theme
+   tiles use (the location ring, the list-selected ground, the strong weight). */
+.snippet-stagebar .btn { min-height: var(--h-row); background: var(--bg); }
+.snippet-stagebar .btn:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--hover); }
 .snippet-stagebar .btn[aria-pressed="true"] { border-color: transparent; background: var(--list-selected); box-shadow: inset 0 0 0 2px var(--location); font-weight: var(--w-strong); }
 
 /* Notes under the stage: an info icon and words, the field-note size. */
@@ -57,50 +84,171 @@
 }
 .snippet-note .icon { width: var(--icon-sm); height: var(--icon-sm); margin-top: calc((var(--lh-hint) - var(--icon-sm)) / 2); }
 
-.snippet-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: var(--s4) var(--s5);
-  margin-top: var(--s4);
-}
-.snippet-options fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-/* Deep Field's fieldset legend: one size step above the options, never weight alone. The highlight
-   field's label is a group title too, so it takes the same step. */
+/* ------------------------------------------------------------ the options rail
+   Sections divided by hairlines: Colours, Show, Highlight lines, then Background, Frame and Scale
+   together. Legends float (a floated legend is an ordinary box), so a section's padding and its
+   hairline sit where they are drawn, never through the legend. */
+.snippet-options { min-width: 0; padding: 0 var(--s4) var(--s4); }
+.snippet-options > * { min-width: 0; margin: 0; padding: var(--s4) 0; border: 0; }
+.snippet-options > * + * { border-top: 1px solid var(--divider); }
+.snippet-options > .snippet-segmented + .snippet-segmented { border-top: 0; padding-top: 0; }
+.snippet-options > .snippet-segmented:has(+ .snippet-segmented) { padding-bottom: var(--s2); }
+/* Deep Field's fieldset legend: the label weight (one heading weight), above its controls. The
+   highlight field's label is a group title too, so it takes the same look. */
 .snippet-options legend,
 .snippet-highlight > label {
-  margin-bottom: var(--s1);
+  float: left;
+  width: 100%;
+  margin: 0 0 var(--s2);
   padding: 0;
   color: var(--text);
-  font-size: var(--fs-section);
+  font-size: var(--fs-1);
   font-weight: var(--w-label);
-  line-height: var(--lh-section);
+  line-height: var(--lh-1);
 }
-.snippet-choice {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  column-gap: var(--s2);
-  min-height: var(--h-row);
-}
-.snippet-choice > label { overflow-wrap: anywhere; }
+.snippet-highlight > label { float: none; display: block; }
 
-/* Background, Frame and Scale (round 3): one row of segments in a track. Each segment is a native
-   radio (one Tab stop for the group, arrows choose) and its label, the segment's face. Selected: the list-selected ground, a 2 px location ring (3:1 or more
-   against the track and its own ground: contrast.ts "location" on bg and on list-selected@bg) and
-   the strong weight, so the state is never colour alone. */
+/* Colours: three swatch chips. Each is a native radio over the whole chip (one Tab stop for the
+   group, arrows choose), over a small picture of its choice (snippet-dialog.ts paints it in the
+   image's own colours through the CSSOM; the tokens here stay underneath) and its full name. Chosen: a 2 px
+   location ring round the picture (3:1 on the dialog), the tick badge and the strong weight. */
+.snippet-chips { clear: both; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); }
+.snippet-chip { position: relative; display: grid; align-content: start; gap: var(--s1); min-width: 0; }
+.snippet-chip > input,
+.snippet-switch > input,
+.snippet-segment > input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+/* The input's own ring would be drawn on an invisible box: the part it covers carries it. */
+.snippet-chip > input:focus-visible,
+.snippet-switch > input:focus-visible,
+.snippet-segment > input:focus-visible { outline: none; }
+.snippet-swatch {
+  display: grid;
+  place-items: center;
+  height: calc(var(--s6) + var(--s5));
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.snippet-mini {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  width: 70%;
+  height: 30px;
+  padding: 0 var(--s2);
+  border-radius: var(--r-badge);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.snippet-mini > i { display: block; height: 3px; border-radius: 2px; }
+.snippet-mini > i:nth-child(1) { width: 52%; background: var(--syn-keyword); }
+.snippet-mini > i:nth-child(2) { width: 78%; background: var(--syn-function); }
+.snippet-mini > i:nth-child(3) { width: 64%; background: var(--syn-string); }
+.snippet-chip > label { min-height: calc(2 * var(--lh-hint)); color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); overflow-wrap: anywhere; }
+.snippet-tick { position: absolute; top: -6px; right: -6px; display: none; width: 18px; height: 18px; border-radius: 50%; background: var(--location); box-shadow: 0 0 0 2px var(--bg); }
+.snippet-tick::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--on-action);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.snippet-chip:has(> input:checked) .snippet-swatch { box-shadow: inset 0 0 0 1px var(--location), 0 0 0 1px var(--location); }
+.snippet-chip:has(> input:checked) .snippet-tick { display: block; }
+.snippet-chip:has(> input:checked) > label { color: var(--text); font-weight: var(--w-strong); }
+.snippet-chip:has(> input:focus-visible) .snippet-swatch { outline: var(--ring); outline-offset: 3px; }
+
+/* Show: native checkboxes drawn as switches (the app's switch: a 36 x 20 track, its knob at the end
+   when on, so the state is told by place as well as colour). The checkbox covers the whole row,
+   36 px on desktop and 44 on touch screens and phones; the track carries the focus ring. */
+.snippet-switch {
+  position: relative;
+  /* Under the floated legend, never squeezed beside it. */
+  clear: both;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: max(var(--h-row), calc(var(--s6) + var(--s1)));
+}
+.snippet-switch > label { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+.snippet-track {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin-right: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  transition: background-color var(--dur), border-color var(--dur);
+}
+/* The knob, drawn as a border (it stays visible in forced colours, which drop backgrounds). */
+.snippet-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 0;
+  height: 0;
+  border: 7px solid var(--text-secondary);
+  border-radius: 50%;
+  transition: transform var(--dur);
+}
+.snippet-switch:has(> input:checked) .snippet-track { border-color: var(--control-on); background: var(--control-on); }
+.snippet-switch:has(> input:checked) .snippet-track::after { border-color: var(--on-action); transform: translateX(16px); }
+.snippet-switch:hover > label { text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.snippet-switch:has(> input:focus-visible) .snippet-track { outline: var(--ring); outline-offset: 2px; }
+
+/* Highlight lines: a text field in the code font, its message (when there is one), then its hint. */
+.snippet-highlight { min-width: 0; }
+.snippet-highlight > input { width: 100%; min-width: 0; font-family: var(--font-code); }
+.snippet-highlight .field-note { margin: var(--s1) 0 0; line-height: var(--lh-hint); }
+/* An invalid field: a 2 px danger edge (the 1 px border and a 1 px inset line, so nothing moves).
+   Its message is app.css's shared .field-error (DESIGN.md decision 13). */
+.snippet-highlight > input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+
+/* Background, Frame and Scale: the legend left of a sunken track (above it on phones). Each segment
+   is a native radio (one Tab stop for the group, arrows choose) over its label, the segment's face.
+   Selected: a raised chip on the dialog's ground with a --border-strong edge (3:1 on the dialog and
+   on the track: contrast.ts border-strong on bg and surface) and the strong weight, so the state
+   is never colour alone. A segment is never narrower than its words in their bold form (so a
+   chosen label never runs into the edge, at any text size), and the words' box is always that
+   bold width (a hidden bold copy under them), so choosing never moves a segment. */
+.snippet-segmented > legend {
+  width: 84px;
+  margin: 0 var(--s1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  /* The track's height: the segment, the track's padding (2 x 2) and its border (2 x 1). */
+  line-height: calc(var(--h-row) + 6px);
+}
 .snippet-segments {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: minmax(min-content, 1fr);
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--surface) 60%, var(--bg));
 }
 .snippet-segment { position: relative; display: flex; min-width: 0; min-height: var(--h-row); border-radius: calc(var(--r-control) - 3px); }
-/* The radio itself covers the segment, invisible, above its label: a press anywhere on the segment
-   lands on the native control. */
-.snippet-segment > input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; appearance: none; cursor: pointer; }
 .snippet-segment > label {
   position: relative;
   display: flex;
@@ -108,105 +256,122 @@
   align-items: center;
   justify-content: center;
   min-width: 0;
-  padding: 0 var(--s2);
+  padding: 0 var(--s1);
   border-radius: inherit;
-  color: var(--text);
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
   text-align: center;
 }
-.snippet-segment:hover > label { background: var(--hover); }
-.snippet-segment:has(> input:checked) { background: var(--list-selected); box-shadow: inset 0 0 0 2px var(--location); }
-.snippet-segment:has(> input:checked) > label { background: none; font-weight: var(--w-strong); }
+.snippet-segment-words { display: grid; justify-items: center; }
+/* No overflow clip: a clipped grid item's minimum is 0, and the copy would then reserve nothing. */
+.snippet-segment-words::after { content: attr(data-label); height: 0; visibility: hidden; font-weight: var(--w-strong); }
+.snippet-segment:hover > label { color: var(--text); background: var(--hover); }
+.snippet-segment:has(> input:checked) { background: var(--bg); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.snippet-segment:has(> input:checked) > label { background: none; color: var(--text); font-weight: var(--w-strong); }
 .snippet-segment:has(> input:focus-visible) { outline: var(--ring); outline-offset: 1px; }
-/* The radio's own ring would be drawn on an invisible box: the segment carries it. */
-.snippet-segment > input:focus-visible { outline: none; }
-/* Forced colours drop box-shadow: the selected segment keeps an outline in the system's text colour. */
+/* Forced colours drop box-shadow and force one system colour on every outline: each swatch keeps a
+   1 px edge, the chosen segment and chip a 2 px one inside, and keyboard focus (which in a radio
+   group lands on the chosen one) a ring outside, so focus never looks like the choice (2.4.7). */
 @media (forced-colors: active) {
-  .snippet-segment:has(> input:checked) { outline: 2px solid; outline-offset: -2px; }
+  .snippet-swatch { outline: 1px solid var(--border-strong); outline-offset: -1px; }
+  .snippet-segment:has(> input:checked),
+  .snippet-chip:has(> input:checked) .snippet-swatch { outline: 2px solid; outline-offset: -2px; }
+  .snippet-segment:has(> input:focus-visible),
+  .snippet-chip:has(> input:focus-visible) .snippet-swatch { outline: var(--ring); outline-offset: 3px; }
 }
 
-/* Only when the chosen scale can't fit: the step taken, under the Scale segments (tier 3). */
-.snippet-scale-note { margin: var(--s1) 0 0; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+/* Only when the chosen scale can't fit: the step taken, under the Scale track (tier 3). */
+.snippet-scale-note { clear: both; margin: var(--s1) 0 0 88px; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
 .snippet-scale-note:empty { display: none; }
 
-/* Highlight lines: a text field, its message (when there is one), then its hint. */
-.snippet-highlight { min-width: 0; }
-.snippet-highlight > input { width: 100%; min-width: 0; }
-.snippet-highlight .field-note { margin: 0; line-height: var(--lh-hint); }
-/* An invalid field: a 2 px danger edge (the 1 px border and a 1 px inset line, so nothing moves).
-   Its message is app.css's shared .field-error (DESIGN.md decision 13). */
-.snippet-highlight > input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
-
-/* Side by side (round 3, 900 px wide and taller than compact): a wider dialog of a fixed height; the
-   stage fills the left of the body, the options are a column of their own on the right that scrolls
-   when it must; the body itself never scrolls. A quiet divider rule separates the two. */
-.snippet-dialog[data-layout="side"] { width: min(1120px, calc(100vw - 32px)); height: min(760px, calc(100dvh - 32px)); }
-.snippet-dialog[data-layout="side"] .dialog-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(320px, 32%, 360px);
-  grid-template-rows: minmax(0, 1fr);
-  column-gap: var(--s5);
-  overflow: hidden;
-}
-.snippet-dialog[data-layout="side"] .snippet-stage { min-height: 0; }
-.snippet-dialog[data-layout="side"] .snippet-frame { flex: 1 1 auto; min-height: 0; }
-.snippet-dialog[data-layout="side"] .snippet-options {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
-  min-height: 0;
-  margin: 0;
-  padding: 0 var(--s1) var(--s1) var(--s5);
-  border-left: 1px solid var(--divider);
-  overflow-y: auto;
-}
-
-/* The footer (app.css: its rule shows while the body scrolls), then the status, the PNG's size and
-   the buttons. The status is the shared .result-line on the chrome's 20 px line. Where the footer is
-   640 px or wider, one row: the status (its two lines reserved), the size and the buttons. From 480
-   px the status keeps the row's left and its two lines, the size sits above the buttons. Narrower
-   the status is a line of its own that takes no room while empty (the dialog is at its tallest
-   there: the buttons sit at its bottom, and a result only shortens the scrolled body), then the
-   size, then the buttons. So a result moves nothing, and no empty band sits above the buttons. */
-.snippet-actions { container-type: inline-size; }
+/* ------------------------------------------------------------ the footer
+   The PNG's size (a tag and the size in the code font, its width kept for any size up to 16384 x
+   16384 px, so a new size never moves the status), the status (the shared .result-line, its two
+   lines reserved, so a result moves nothing), then Download and Copy image, the one filled button.
+   No rule of its own: app.css draws the footer's --divider rule while the body scrolls (C14). */
+.dialog.snippet-dialog .snippet-actions { padding: var(--s3) var(--s4) var(--s3) var(--s5); }
 .snippet-footer {
   flex: 1 1 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "status" "size" "buttons";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "size status buttons";
   align-items: center;
-  gap: 0 var(--s3);
+  gap: var(--s2) var(--s4);
 }
-.snippet-status { grid-area: status; }
-.snippet-status:not(:empty) { margin-bottom: var(--s2); }
-/* Tier 3, its width kept for any size up to 16384 x 16384 px, so a new size never moves the status. */
 .snippet-size {
   grid-area: size;
-  justify-self: end;
-  min-width: 15ch;
-  min-height: var(--lh-hint);
-  margin: 0 0 var(--s1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-hint);
-  font-variant-numeric: tabular-nums;
   line-height: var(--lh-hint);
-  text-align: end;
   white-space: nowrap;
 }
-.snippet-buttons { grid-area: buttons; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s2); }
-@container (min-width: 480px) {
-  .snippet-footer { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "status size" "status buttons"; }
-  /* Two reserved lines: a one-line result sits in the middle of the row, beside the buttons. */
-  .snippet-status { min-width: 0; min-height: calc(2 * var(--lh-1)); align-items: center; }
-  .snippet-status:not(:empty) { margin-bottom: 0; }
-  .snippet-status .icon { margin-top: 0; }
+.snippet-size-tag { padding: 0 var(--s1); border: 1px solid var(--border); border-radius: var(--r-badge); font-weight: var(--w-label); }
+.snippet-size-value { min-width: 16ch; color: var(--text-secondary); font-family: var(--font-code); font-variant-numeric: tabular-nums; }
+/* No image (too big, failed): no size, and no lone tag; the place is kept. */
+.snippet-size:has(> .snippet-size-value:empty) { visibility: hidden; }
+.snippet-status { grid-area: status; min-width: 0; min-height: calc(2 * var(--lh-1)); align-items: center; }
+.snippet-status .icon { margin-top: 0; }
+.snippet-buttons { grid-area: buttons; display: flex; justify-content: flex-end; gap: var(--s2); }
+
+/* ------------------------------------------------------------ side by side (900 px and wider) */
+.dialog.snippet-dialog[data-layout="side"] { width: min(1200px, calc(100vw - 48px)); height: min(820px, calc(100dvh - 48px)); max-width: none; }
+.snippet-dialog[data-layout="side"] .dialog-head { padding: var(--s3) var(--s3) var(--s3) var(--s5); }
+.snippet-dialog[data-layout="side"] .dialog-title { font-size: var(--fs-section); line-height: var(--lh-section); }
+.dialog.snippet-dialog[data-layout="side"] .dialog-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
 }
-@container (min-width: 640px) {
-  .snippet-footer { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "status size buttons"; }
-  .snippet-size { margin: 0; }
+.snippet-dialog[data-layout="side"] .snippet-stage { min-height: 0; padding: var(--s4); }
+.snippet-dialog[data-layout="side"] .snippet-panel { flex: 1 1 auto; min-height: 0; }
+.snippet-dialog[data-layout="side"] .snippet-frame { flex: 1 1 auto; min-height: 0; }
+.snippet-dialog[data-layout="side"] .snippet-stagebar { justify-content: space-between; }
+.snippet-dialog[data-layout="side"] .snippet-stage-tag { display: block; }
+.snippet-dialog[data-layout="side"] .snippet-options {
+  min-height: 0;
+  padding: 0 var(--s5) var(--s5);
+  border-left: 1px solid var(--divider);
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------ below 900 px: a full-screen sheet
+   The status line (none while empty), the size, then Download and Copy side by side, 44 px tall. */
+@media (max-width: 899px) {
+  .dialog.snippet-dialog {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .snippet-dialog .dialog-head { padding: var(--s2) var(--s1) var(--s2) var(--s4); }
+  .dialog.snippet-dialog .snippet-actions { padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom)); }
+  .snippet-footer { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "status status" "size size"; gap: 0 var(--s2); }
+  .snippet-size { justify-self: end; margin-bottom: var(--s2); }
+  /* Empty, the status takes no room (a result then shortens the body; the buttons stay at the bottom). */
+  .snippet-status { min-height: 0; }
+  .snippet-status:not(:empty) { margin-bottom: var(--s2); }
+  .snippet-buttons { display: contents; }
+  .snippet-buttons > .btn { min-width: 0; }
+  .snippet-buttons > .btn:only-child { grid-column: 1 / -1; }
+  .snippet-segmented > legend { width: 100%; margin: 0 0 var(--s2); line-height: var(--lh-1); }
+  .snippet-scale-note { margin-left: 0; }
+}
+/* Below 900 px and on touch screens there is no keyboard to press Esc on. */
+@media (max-width: 899px), (pointer: coarse) {
+  .snippet-esc { display: none; }
 }
 
 /* Compact mode (very short or zoomed windows): the dialog is the one scroller, and every part keeps its height. */
 .snippet-dialog[data-compact] > * { flex: none; }
-.snippet-dialog[data-compact] .dialog-body { overflow: visible; }
+.dialog.snippet-dialog[data-compact] .dialog-body { overflow: visible; }
 .snippet-dialog[data-compact] .snippet-status { min-height: calc(2 * var(--lh-1)); }
