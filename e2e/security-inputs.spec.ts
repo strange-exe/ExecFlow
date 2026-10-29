@@ -37,7 +37,9 @@ async function injected(page: Page) {
       // CodeMirror's own cursor helpers are <img class="cm-widgetBuffer">.
       if (tag === "img" && !el.classList.contains("cm-widgetBuffer")) found.push("img");
       if (["b", "iframe", "object", "embed", "svg:script", "foreignobject"].includes(tag)) found.push(tag);
-      if (tag === "script" && !(el as HTMLScriptElement).src) found.push("inline script");
+      // The page's own structured data (index.html: a JSON-LD data block in <head>, never run) is not one.
+      const ownData = el.parentElement === document.head && (el as HTMLScriptElement).type === "application/ld+json";
+      if (tag === "script" && !(el as HTMLScriptElement).src && !ownData) found.push("inline script");
       if (/^\s*javascript:/i.test(el.getAttribute("href") ?? "")) found.push("javascript: link");
     }
     return { found, csp: (window as unknown as { __csp: string[] }).__csp };

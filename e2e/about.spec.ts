@@ -30,7 +30,7 @@ test.describe("the About page", () => {
       test(`${vp.name} ${scheme}: the first viewport answers what, who and what next; axe clean; no sideways scroll`, async ({ page }, info) => {
         await page.setViewportSize(vp);
         await openIn(page, "/about", scheme);
-        await expect(page).toHaveTitle("About CodeEditor");
+        await expect(page).toHaveTitle("About CodeEditor: run Python, C and C++ in your browser");
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toBeInViewport();

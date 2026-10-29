@@ -1,0 +1,3 @@
+# GitHub sends a student back here after sign-in (src/sync/auth-callback.ts). With 404.html in the
+# build, Pages no longer answers unknown addresses with the editor, so this one is served it by name.
+/auth-callback / 200

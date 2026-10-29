@@ -3,18 +3,66 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>CodeEditor</title>
-    <meta name="description" content="A free code editor for students: write, run and chart Python, C and C++ in your browser, with nothing to install. Files can sync to your own GitHub repository." />
+    <title>CodeEditor: free online Python, C and C++ compiler</title>
+    <meta name="description" content="Write and run Python, C and C++ online with nothing to install. A free code editor for students, with a flowchart of your code and sync to your own GitHub." />
     <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
     <script src="theme-boot.js"></script>
+    <!-- Structured data for search engines (a data block: browsers never run it). No rating or review: there are none. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://code-editor.abhinesh.codes/#website",
+            "name": "CodeEditor",
+            "alternateName": ["Code Editor", "code-editor.abhinesh.codes"],
+            "url": "https://code-editor.abhinesh.codes/"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://code-editor.abhinesh.codes/#app",
+            "name": "CodeEditor",
+            "url": "https://code-editor.abhinesh.codes/",
+            "description": "A free code editor for students: write and run Python, C and C++ in the browser with nothing to install, and see a flowchart of how the code runs.",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Any (runs in a web browser)",
+            "browserRequirements": "Requires JavaScript and WebAssembly in an up-to-date browser.",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "isAccessibleForFree": true,
+            "inLanguage": "en",
+            "featureList": [
+              "Run Python in the browser, with input, numpy and pandas",
+              "Compile and run C and C++ in the browser",
+              "Flowcharts of Python, C and C++ code",
+              "Plain-words explanations of common errors",
+              "Sync files to your own private GitHub repository",
+              "Share code with one link"
+            ],
+            "image": "https://code-editor.abhinesh.codes/media/social-card.2ff605c9.png"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
+    <h1 class="visually-hidden">CodeEditor</h1>
     <div id="app" class="workbench" data-state="loading" data-runnable="false">
-      <noscript><p class="noscript">CodeEditor needs JavaScript to edit and run code.</p></noscript>
+      <noscript>
+        <div class="noscript">
+          <p>CodeEditor is a free code editor for students. Write Python, C and C++ in your browser and run them there, with nothing to install, then see a flowchart of how your program runs. Your files can sync to your own GitHub repository.</p>
+          <p>The editor needs JavaScript to edit and run code. Turn it on for this site, or read more first:</p>
+          <ul>
+            <li><a href="/about">About CodeEditor</a></li>
+            <li><a href="/privacy">Privacy</a></li>
+            <li><a href="/terms">Terms</a></li>
+          </ul>
+        </div>
+      </noscript>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

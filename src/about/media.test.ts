@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { SOCIAL_CARD } from "./site";
 
 const DIR = "public/media";
 const files = readdirSync(DIR);
@@ -13,14 +14,15 @@ const html = readFileSync("about.html", "utf8");
 describe("the About page's media files", () => {
   it.each(files)("%s is named after its content", (name) => {
     const hash = createHash("sha256").update(readFileSync(`${DIR}/${name}`)).digest("hex");
-    const match = /^[a-z0-9.-]+\.([0-9a-f]{8})\.(webp|mp4)$/.exec(name);
+    const match = /^[a-z0-9.-]+\.([0-9a-f]{8})\.(webp|mp4|png)$/.exec(name);
     expect(match, `${name}: rename it to <name>.${hash.slice(0, 8)}.<ext>`).not.toBeNull();
     expect(match![1], `${name}: its bytes changed; rename it to <name>.${hash.slice(0, 8)}.<ext>`).toBe(hash.slice(0, 8));
   });
 
-  it("every file about.html names exists, and every file is used", () => {
+  it("every file about.html names exists, and every file is used (by about.html, or as every page's social card)", () => {
     const named = new Set([...html.matchAll(/\/media\/([^"\s]+)/g)].map((m) => m[1]));
     expect([...named].filter((name) => !files.includes(name))).toEqual([]);
+    named.add(SOCIAL_CARD.path.replace("/media/", ""));
     expect(files.filter((name) => !named.has(name))).toEqual([]);
   });
 });
