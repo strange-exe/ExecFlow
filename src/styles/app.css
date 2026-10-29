@@ -578,7 +578,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .empty-label { margin: 0 0 var(--s1); color: var(--text-muted); }
 
 /* ------------------------------------------------------------------ bottom panel */
-.panel { display: grid; grid-template-rows: var(--h-panel-bar) minmax(0, 1fr); min-height: 0; min-width: 0; background: var(--terminal-bg); }
+/* color: set here, not inherited, so it resolves with the panel's own tokens (the console keeps its
+   own colours in Signal light, tokens.css), not the page's ink computed above it. */
+.panel { display: grid; grid-template-rows: var(--h-panel-bar) minmax(0, 1fr); min-height: 0; min-width: 0; background: var(--terminal-bg); color: var(--text); }
 .panel[data-collapsed="true"] { grid-template-rows: var(--h-panel-bar); }
 .panel-bar {
   display: flex;

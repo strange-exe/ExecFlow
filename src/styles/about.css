@@ -635,6 +635,47 @@ body.about {
   background: var(--action);
   box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--action);
 }
+/* The current release has a moving border: a light runs round its edge. .release-edge (page.ts) is a
+   clipped layer under the content (isolation keeps it above the card's ground): a large conic
+   gradient (::before) turns behind a cover (::after) that leaves 1.5 px of it showing as the edge.
+   It turns by transform, so the compositor draws it with no style work per frame; with reduced
+   motion it rests, still a lit edge. */
+.release[data-current="true"] {
+  isolation: isolate;
+}
+.release-edge {
+  position: absolute;
+  inset: 8px;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: var(--r-control);
+  pointer-events: none;
+}
+.release-edge::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* A square wider than the box's diagonal, so the corners stay covered as it turns. */
+  width: max(160%, 640px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: conic-gradient(
+    from 200deg,
+    transparent 0 52%,
+    var(--action) 68%,
+    var(--info) 78%,
+    var(--success) 86%,
+    transparent 94%
+  );
+}
+.release-edge::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: calc(var(--r-control) - 1.5px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--action) 7%, var(--bg)), var(--bg) 62%);
+}
 .release-title {
   margin: 0;
   font-size: 18px;
@@ -676,7 +717,11 @@ body.about {
 .release-item[hidden] {
   display: none;
 }
+/* Each kind has its hue (Added green, Changed amber, Fixed blue) on the glyph, a light tint and the
+   ring; the word stays in the text colour, so the kinds also differ by glyph and word, never by
+   colour alone. */
 .release-tag {
+  --kind: var(--text-muted);
   justify-self: start;
   display: inline-flex;
   align-items: center;
@@ -684,15 +729,26 @@ body.about {
   height: 22px;
   padding: 0 7px 0 6px;
   border-radius: var(--r-badge);
-  background: color-mix(in srgb, var(--text) 4%, var(--bg));
-  box-shadow: inset 0 0 0 1px var(--divider);
-  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--kind) 16%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kind) 55%, var(--bg));
+  color: var(--text);
   font-family: var(--font-code);
   font-size: 11px;
+  font-weight: 500;
   line-height: 16px;
+}
+.release-tag[data-kind="added"] {
+  --kind: var(--success);
+}
+.release-tag[data-kind="changed"] {
+  --kind: var(--warning);
+}
+.release-tag[data-kind="fixed"] {
+  --kind: var(--action);
 }
 .release-glyph {
   flex: none;
+  color: var(--kind);
 }
 .release-text {
   max-width: 68ch;
@@ -951,5 +1007,72 @@ body.about {
   }
   .release-chev {
     transition: transform 0.15s ease;
+  }
+  /* A change's glyph acts out its kind when the row is pointed at: the plus turns, the arrow
+     steps on, the tick pops. */
+  .release-glyph {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .release-item:hover .release-tag[data-kind="added"] .release-glyph {
+    transform: rotate(90deg);
+  }
+  .release-item:hover .release-tag[data-kind="changed"] .release-glyph {
+    transform: translateX(2px);
+  }
+  .release-item:hover .release-tag[data-kind="fixed"] .release-glyph {
+    transform: scale(1.25);
+  }
+  .release-tag {
+    transition: box-shadow 0.2s ease;
+  }
+  .release-item:hover .release-tag {
+    box-shadow: inset 0 0 0 1px var(--kind);
+  }
+  .release-edge::before {
+    animation: release-edge-turn 5s linear infinite;
+  }
+  /* The current release's node beacons: a ring that grows and fades (transform and opacity only). */
+  .release[data-current="true"] .release-node::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--action);
+    animation: release-node-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+}
+@keyframes release-edge-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes release-node-pulse {
+  from {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+/* The tags slide in as their release scrolls into view, tied to the scroll itself (no script, no
+   timer). Movement only, never opacity: a tag is readable at every point. Browsers without
+   scroll-driven animations show them in place. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .release-tag {
+      animation: release-tag-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+  }
+}
+@keyframes release-tag-in {
+  from {
+    transform: translateX(-10px) scale(0.92);
+  }
+  to {
+    transform: none;
   }
 }

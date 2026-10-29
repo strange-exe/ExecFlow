@@ -102,6 +102,12 @@ function renderRelease(r: Release): HTMLLIElement {
     body.append(more);
   }
   item.append(meta, axis, body);
+  if (current) {
+    // The light that runs round the current release's edge (about.css): decoration only.
+    const edge = el("span", "release-edge");
+    edge.setAttribute("aria-hidden", "true");
+    item.append(edge);
+  }
   return item;
 }
 
