@@ -81,12 +81,21 @@ export async function readPicked(list: readonly File[], folder: boolean, budget?
   return picked;
 }
 
-/** Saves every file and empty folder as a .zip (opaque GitHub files are left out and named). */
-export async function exportZip(store: WorkspaceStore, ws: string, name: string): Promise<{ count: number; skipped: string[] }> {
+/**
+ * Every file and empty folder as a .zip Blob, without downloading it (opaque GitHub files are left
+ * out and named). The export below saves it; the move to the new address sends it (address-move.ts).
+ */
+export async function workspaceZip(store: WorkspaceStore, ws: string): Promise<{ blob: Blob; count: number; skipped: string[] }> {
   const data = await store.loadExport(ws);
   const { writeZip } = await import("../storage/zip");
   const bytes = await writeZip(data.files, data.dirs);
+  return { blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/zip" }), count: data.files.length, skipped: data.skipped };
+}
+
+/** Saves every file and empty folder as a .zip (opaque GitHub files are left out and named). */
+export async function exportZip(store: WorkspaceStore, ws: string, name: string): Promise<{ count: number; skipped: string[] }> {
+  const { blob, count, skipped } = await workspaceZip(store, ws);
   const safe = name.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "workspace";
-  downloadBlob(`${safe}.zip`, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/zip" }));
-  return { count: data.files.length, skipped: data.skipped };
+  downloadBlob(`${safe}.zip`, blob);
+  return { count, skipped };
 }

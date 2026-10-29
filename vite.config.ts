@@ -70,6 +70,27 @@ const isolation = {
 // https://developers.cloudflare.com/web-analytics/faq/
 const BEACON = "https://static.cloudflareinsights.com/beacon.min.js";
 
+/**
+ * The site's old and new addresses, for the one-click move (src/ui/address-move.ts): the old one
+ * shows the banner, the new one takes the files. Fixed at build time; MOVE_FROM and MOVE_TO
+ * override them for the end-to-end tests (two origins on one machine: 127.0.0.1 and localhost).
+ * Each must be an exact origin, or the build stops.
+ */
+function moveOrigin(name: "MOVE_FROM" | "MOVE_TO", fallback: string): string {
+  const value = process.env[name] ?? fallback;
+  let origin = "";
+  try {
+    origin = new URL(value).origin;
+  } catch {
+    // reported below
+  }
+  if (origin !== value || !/^https?:$/.test(new URL(value).protocol)) throw new Error(`${name} must be an exact origin like https://example.org (got ${JSON.stringify(value)}).`);
+  return value;
+}
+const MOVE_FROM = moveOrigin("MOVE_FROM", "https://code-editor.abhinesh.codes");
+const MOVE_TO = moveOrigin("MOVE_TO", "https://execflow.abhinesh.codes");
+if (MOVE_FROM === MOVE_TO) throw new Error("MOVE_FROM and MOVE_TO must differ.");
+
 const directives = (connect: string, scripts = "") =>
   [
     "default-src 'self'",
@@ -116,6 +137,9 @@ const hashedNames = {
 /** Worker bundles live under assets/w/ so the worker-only policy can target them. */
 const workerNames = { entryFileNames: "assets/w/[hash].js", chunkFileNames: "assets/w/[hash].js", assetFileNames: "assets/[hash][extname]" };
 
+/** A header name starting with this removes that header (Cloudflare Pages' "! Name" line). */
+const DETACH = "! ";
+
 /**
  * Header rules, in Cloudflare Pages _headers order. Every rule whose path matches applies; a header
  * named by several rules is joined with ", ". The preview server applies the same list, so the
@@ -136,6 +160,12 @@ const securityRules: [string, Record<string, string>][] = [
     },
   ],
   ["/assets/w/*", { "Content-Security-Policy": workerCsp }],
+  // The move to the new address (src/ui/address-move.ts): /move is the editor without cross-origin
+  // isolation, so the old and the new address can open each other and keep the reference that
+  // postMessage needs (COOP same-origin cuts it). "! Name" removes a header an earlier rule set
+  // (Cloudflare Pages _headers; the preview server below does the same).
+  // https://developers.cloudflare.com/pages/configuration/headers/
+  ["/move", { [`${DETACH}Cross-Origin-Opener-Policy`]: "", [`${DETACH}Cross-Origin-Embedder-Policy`]: "" }],
 ];
 
 /** Hashed and versioned files never change; everything else revalidates on every visit. */
@@ -158,7 +188,10 @@ function headersFor(path: string, rules = securityRules): Record<string, string>
   const out: Record<string, string> = {};
   for (const [rule, headers] of rules) {
     if (!matches(rule, path)) continue;
-    for (const [name, value] of Object.entries(headers)) out[name] = out[name] ? `${out[name]}, ${value}` : value;
+    for (const [name, value] of Object.entries(headers)) {
+      if (name.startsWith(DETACH)) delete out[name.slice(DETACH.length)];
+      else out[name] = out[name] ? `${out[name]}, ${value}` : value;
+    }
   }
   return out;
 }
@@ -191,7 +224,7 @@ function pagesHeaders(): Plugin {
     apply: "build",
     generateBundle() {
       const block = ([path, headers]: [string, Record<string, string>]) =>
-        `${path}\n${Object.entries(headers).map(([n, v]) => `  ${n}: ${v}`).join("\n")}\n`;
+        `${path}\n${Object.entries(headers).map(([n, v]) => (n.startsWith(DETACH) ? `  ${n}` : `  ${n}: ${v}`)).join("\n")}\n`;
       this.emitFile({ type: "asset", fileName: "_headers", source: [...securityRules, ...cacheRules].map(block).join("\n") });
     },
   };
@@ -246,7 +279,7 @@ const LICENSE_NOTES = [
   "LLVM (clang 8 and lld), in the C/C++ pack: Apache-2.0 WITH LLVM-exception and the University of Illinois/NCSA licence; the pack's own copy is served beside it as /clang/<version>/LICENSE.llvm.txt.",
   "numpy, pandas, python-dateutil, pytz and six are served as their original wheel files, each with its licence inside (its .dist-info folder).",
   "wasi-libc, in the C/C++ pack's sysroot: the 2019 build carries no licence file; upstream wasi-libc is Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT, with musl's parts MIT and cloudlibc's BSD-2-Clause.",
-  "The colour themes in Settings use the published palettes of other themes; each is listed with its source and licence in the README: https://github.com/strange-exe/code-editor#third-party-software",
+  "The colour themes in Settings use the published palettes of other themes; each is listed with its source and licence in the README: https://github.com/strange-exe/ExecFlow#third-party-software",
 ];
 
 function licenseFileOf(pkg: string): string | null {
@@ -367,6 +400,30 @@ function guidePages(): Plugin {
   };
 }
 
+/**
+ * move.html, served at /move: the built editor page again, for the move to the new address
+ * (src/ui/address-move.ts), which needs it without cross-origin isolation (securityRules "/move").
+ * Never indexed, and never precached (globIgnores): the service worker would answer it with the
+ * headers it stored, and a move needs the network anyway.
+ */
+function movePage(): Plugin {
+  return {
+    name: "code-editor:move-page",
+    apply: "build",
+    generateBundle: {
+      order: "post",
+      handler(_options, bundle) {
+        const index = bundle["index.html"];
+        if (!index || index.type !== "asset") throw new Error("move.html: the built index.html is missing.");
+        const html = String(index.source);
+        const page = html.replace("<head>", '<head>\n    <meta name="robots" content="noindex" />');
+        if (page === html || html.includes('name="robots"')) throw new Error("move.html: index.html's <head> changed; re-check the move page.");
+        this.emitFile({ type: "asset", fileName: "move.html", source: page });
+      },
+    },
+  };
+}
+
 /** `vite preview` sends the same security headers as Cloudflare, per path (cache rules left out). */
 function previewHeaders(): Plugin {
   return {
@@ -403,6 +460,9 @@ export default defineConfig(({ mode }) => ({
   // The CSP is enforced on the production build (`vite preview`, which the end-to-end tests use).
   // The dev server keeps only the isolation headers.
   server: { headers: isolation },
+  // `vite preview` would reuse server.headers on every response; previewHeaders() sends the
+  // deployed site's own rules instead, including /move's, which has no isolation headers.
+  preview: { headers: {} },
   // Workers have their own plugin list: the flowchart worker is where web-tree-sitter lives.
   // Workers drop console.* and debugger like the page (their libraries log: web-tree-sitter, memfs).
   worker: {
@@ -434,6 +494,8 @@ export default defineConfig(({ mode }) => ({
     __PYODIDE_DIR__: JSON.stringify(pyodideDir),
     __PYODIDE_BYTES__: JSON.stringify(pyodideBytes()),
     __CLANG_PACK__: JSON.stringify(clangPack(mode)),
+    __MOVE_FROM__: JSON.stringify(MOVE_FROM),
+    __MOVE_TO__: JSON.stringify(MOVE_TO),
   },
   plugins: [
     devIsolation(),
@@ -443,6 +505,7 @@ export default defineConfig(({ mode }) => ({
     collectPackages(),
     thirdPartyLicenses(),
     guidePages(),
+    movePage(),
     previewHeaders(),
     site(),
     VitePWA({
@@ -476,7 +539,8 @@ export default defineConfig(({ mode }) => ({
         // The flowchart's parser files (~4.5 MB) are not precached either: they download the first time
         // a flowchart is asked for, and are runtime-cached below.
         // The About page's code and images (assets/a/, media/) are cached when /about is opened, below.
-        globIgnores: ["clang/**", "flowchart/**", "_routes.json", "assets/a/**", "media/**"],
+        // move.html is the editor served without isolation for the move to the new address (movePage).
+        globIgnores: ["clang/**", "flowchart/**", "_routes.json", "assets/a/**", "media/**", "move.html"],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Versioned or hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the
         // service worker can reuse what the page already downloaded (no second 6 MB download).
