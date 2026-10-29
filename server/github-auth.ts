@@ -7,11 +7,14 @@
 // Rules, each applied before anything is forwarded:
 // - One method per route, else 405. Bodies only as application/json, at most 4 KB, else 415/413.
 //   (A cross-site JSON POST needs a CORS preflight, and nothing here ever answers one.)
-// - Origin must equal ALLOWED_ORIGIN exactly, and Sec-Fetch-Site must be same-origin when the
-//   browser sends it, else 403. Preview and old deployments have another origin, so they refuse.
+// - ALLOWED_ORIGIN is one exact origin or a comma-separated list of at most 4 (the site's address
+//   and its old one while it moves). One invalid entry and the relay is off (404 not_configured).
+// - Origin must equal one listed origin exactly, and Sec-Fetch-Site must be same-origin when the
+//   browser sends it, else 403. Preview deployments have another origin, so they refuse.
 // - Every field's shape is checked (code, PKCE verifier, ghr_/ghu_ tokens, repository id).
 // - Upstream URLs are constants; nothing from the request becomes a URL or a header. redirect_uri
-//   comes from ALLOWED_ORIGIN, never from the request. No redirects are followed; 10 s timeout.
+//   comes from the matched ALLOWED_ORIGIN entry, never from the request's own header or URL. No
+//   redirects are followed; 10 s timeout.
 // - Answers carry only whitelisted fields; GitHub's errors map to a fixed set of words, and
 //   GitHub's own text is never passed on. No CORS headers, no caching, nothing is logged.
 // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app
@@ -24,7 +27,7 @@ export interface AuthEnv {
   /** An encrypted Pages secret, Production only. */
   GITHUB_CLIENT_SECRET?: string;
   GITHUB_APP_SLUG?: string;
-  /** The exact production origin, e.g. https://code.example.org (no trailing slash). */
+  /** The exact production origin, e.g. https://code.example.org (no trailing slash), or up to 4 of them separated by commas. */
   ALLOWED_ORIGIN?: string;
 }
 
@@ -116,24 +119,43 @@ function isOrigin(v: unknown): v is string {
   if (typeof v !== "string" || v.length > 200) return false;
   try {
     const url = new URL(v);
-    return url.origin === v && (url.protocol === "https:" || url.hostname === "127.0.0.1" || url.hostname === "localhost");
+    // The URL parser keeps "*" in a host ("https://*.example.org" is its own origin): only plain
+    // host characters count, so nothing that looks like a wildcard is ever an allowed origin.
+    const plainHost = every(url.host, (c) => (c >= 0x61 && c <= 0x7a) || isDigit(c) || c === 0x2e || c === 0x2d || c === 0x3a);
+    return url.origin === v && plainHost && (url.protocol === "https:" || url.hostname === "127.0.0.1" || url.hostname === "localhost");
   } catch {
     return false;
   }
+}
+
+/** At most this many origins in ALLOWED_ORIGIN (the site's address, plus an old one while it moves). */
+export const MAX_ORIGINS = 4;
+
+/**
+ * ALLOWED_ORIGIN: one exact origin, or several separated by commas (spaces around a comma are
+ * ignored). Every entry must be an exact origin; no wildcards. One bad or empty entry, or more than
+ * MAX_ORIGINS, and the whole value is refused, so the relay fails closed rather than half-open.
+ */
+function originsOf(value: unknown): string[] | null {
+  if (typeof value !== "string" || value.length > MAX_ORIGINS * 201) return null;
+  const entries = value.split(",").map((e) => e.trim());
+  if (entries.length > MAX_ORIGINS || !entries.every(isOrigin)) return null;
+  return entries;
 }
 
 interface Config {
   clientId: string;
   clientSecret: string;
   slug: string;
-  origin: string;
+  origins: readonly string[];
 }
 
 function configOf(env: AuthEnv): Config | null {
-  const { GITHUB_CLIENT_ID: clientId, GITHUB_CLIENT_SECRET: clientSecret, GITHUB_APP_SLUG: slug, ALLOWED_ORIGIN: origin } = env;
-  if (!isClientId(clientId) || !isSlug(slug) || !isOrigin(origin)) return null;
+  const { GITHUB_CLIENT_ID: clientId, GITHUB_CLIENT_SECRET: clientSecret, GITHUB_APP_SLUG: slug, ALLOWED_ORIGIN: allowed } = env;
+  const origins = originsOf(allowed);
+  if (!isClientId(clientId) || !isSlug(slug) || !origins) return null;
   if (typeof clientSecret !== "string" || clientSecret.length < 8 || clientSecret.length > 255 || !every(clientSecret, (c) => c > 0x20 && c < 0x7f)) return null;
-  return { clientId, clientSecret, slug, origin };
+  return { clientId, clientSecret, slug, origins };
 }
 
 // ---------------------------------------------------------------- the request
@@ -187,13 +209,18 @@ async function jsonBody(request: Request): Promise<BodyResult> {
   return { ok: true, body: body as Record<string, unknown> };
 }
 
-/** Same site only: the exact origin, and the browser's own Sec-Fetch-Site when it sends one. */
-function sameOrigin(request: Request, origin: string, requireOrigin: boolean): boolean {
+/**
+ * Same site only: the Origin header equals one listed origin exactly, and the browser's own
+ * Sec-Fetch-Site says same-origin when it sends one. Returns the matched LIST ENTRY (callers derive
+ * URLs from it, never from the header), "" for an allowed request with no Origin (a same-origin GET
+ * sends none), or null to refuse.
+ */
+function matchOrigin(request: Request, origins: readonly string[], requireOrigin: boolean): string | null {
   const site = request.headers.get("sec-fetch-site");
-  if (site !== null && site !== "same-origin") return false;
+  if (site !== null && site !== "same-origin") return null;
   const sent = request.headers.get("origin");
-  if (sent === null) return !requireOrigin;
-  return sent === origin;
+  if (sent === null) return requireOrigin ? null : "";
+  return origins.find((o) => o === sent) ?? null;
 }
 
 // ---------------------------------------------------------------- GitHub
@@ -286,7 +313,8 @@ export async function handleAuth(route: AuthRoute, request: Request, env: AuthEn
     if (request.method !== method) return fail(405, "method_not_allowed", { Allow: method });
     const config = configOf(env);
     if (!config) return fail(404, "not_configured");
-    if (!sameOrigin(request, config.origin, route !== "config")) return fail(403, "forbidden");
+    const origin = matchOrigin(request, config.origins, route !== "config");
+    if (origin === null) return fail(403, "forbidden");
     if (route === "config") return reply(200, { clientId: config.clientId, appSlug: config.slug });
 
     const parsed = await jsonBody(request);
@@ -301,7 +329,8 @@ export async function handleAuth(route: AuthRoute, request: Request, env: AuthEn
         client_secret: config.clientSecret,
         code,
         code_verifier: verifier,
-        redirect_uri: config.origin + CALLBACK_PATH,
+        // The matched entry (POST routes always carry an Origin, so it is never ""), not the header.
+        redirect_uri: origin + CALLBACK_PATH,
       };
       if (repoId !== undefined) fields.repository_id = String(repoId);
       return await tokenRequest(fetchImpl, fields);

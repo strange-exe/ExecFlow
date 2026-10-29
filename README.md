@@ -284,8 +284,9 @@ On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
    on any computer. Your code runs in your browser; the app reads and writes files only in the
    repositories you install it on." With Gists on (step 6), add: "Share link also makes secret gists
    when you ask it to." **Homepage URL**: the production site.
-2. **Callback URL**: exactly `https://<production origin>/auth-callback`, one URL only. Leave any
-   option that allows matching other URLs (wildcards, subdomains, paths) off.
+2. **Callback URL**: exactly `https://<production origin>/auth-callback`, one URL per address the
+   site answers on (while the site moves to a new address, one for the old and one for the new).
+   Leave any option that allows matching other URLs (wildcards, subdomains, paths) off.
 3. **Expire user authorization tokens**: on (the default).
 4. **Request user authorization (OAuth) during installation**: off. **Enable Device Flow**: off.
 5. **Setup URL**: empty; **Redirect on update**: off. **Webhook**: untick Active.
@@ -307,7 +308,12 @@ On Cloudflare: Workers & Pages, the project, Settings, Variables and Secrets
 **Production** environment only:
 
 9. `GITHUB_CLIENT_ID` (text), `GITHUB_APP_SLUG` (text), `ALLOWED_ORIGIN` (text): the exact production
-   origin, `https://` and the custom domain, no trailing slash.
+   origin, `https://` and the custom domain, no trailing slash. While the site moves to a new
+   address, list both, separated by a comma (at most 4, spaces around the comma allowed), for
+   example `https://execflow.abhinesh.codes,https://code-editor.abhinesh.codes`. Every entry must be
+   an exact origin with no wildcard and no path; one bad entry turns sign-in off for every address
+   (the Connect dialog then shows only the token path). Sign-in sends GitHub the callback of the
+   address the student is on, so each listed address needs its own callback URL (step 2).
 10. `GITHUB_CLIENT_SECRET`, type **Secret**. Not in Preview: preview deployments are public, and their
     origin differs from `ALLOWED_ORIGIN`, so they refuse sign-in anyway.
 11. Check the build's root directory is the repository root (so `functions/` is deployed with the
