@@ -76,6 +76,8 @@ export function isTyping(target: EventTarget | null): boolean {
 }
 
 export const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform);
+/** The modifier's name in aria-keyshortcuts: Meta (Cmd) on a Mac, where the shortcuts use it, else Control. */
+export const ariaMod = () => (isMac() ? "Meta" : "Control");
 
 /**
  * Untrusted text (a file name, a repository's name, a reason that quotes one) made safe to put in

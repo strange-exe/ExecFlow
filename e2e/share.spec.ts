@@ -10,6 +10,7 @@ import {
   answer, connectGitHub, expectNoToken, GHU1, githubNoise, routeGitHub, routeSignIn, saveKey, signInAndPick, syncCount, syncNoise, syncStatus, waitSync, type GitHubRoute,
 } from "./sync-fake";
 import type { FakeGitHubOptions, RemoteChange } from "../src/sync/test-helpers";
+import { readCodeLink } from "../src/core/code-link";
 
 test.use({ serviceWorkers: "block" });
 test.use(syncNoise());
@@ -699,6 +700,29 @@ test.describe("attacker pass", () => {
     }
     expect(await page.locator("body").innerText()).not.toContain("window.__xss");
     await expectNoToken(page, gh);
+  });
+
+  test("a name with an invisible mark and a line separator is tagged in the title, every sentence and the QR label", async ({ page }) => {
+    const [alm, ls] = [String.fromCodePoint(0x61c), String.fromCodePoint(0x2028)];
+    const name = `a${alm}b${ls}c.py`;
+    const tagged = "a[U+061C]b[U+2028]c.py";
+    await recordClipboard(page);
+    await openApp(page);
+    await importFiles(page, [{ name, text: MAIN }]);
+    await shareFromTree(page, name, "code");
+    await expect(page.locator("#share-dialog-title")).toHaveText(`Share ${tagged}`);
+    await expect(dialog(page)).toContainText(`CodeEditor makes a copy of ${tagged} as a secret gist`);
+    await page.locator("#share-qr-toggle").click();
+    await expect(dialog(page)).toHaveAttribute("data-qr", "shown");
+    await expect(page.locator("#share-qr")).toHaveAttribute("aria-label", `QR code of the link to ${tagged}`);
+    // The link itself carries the real name: the student who opens it gets the file as it is.
+    const url = await link(page).inputValue();
+    expect(await readCodeLink(url.slice(url.indexOf("#")))).toMatchObject({ ok: true, file: { name } });
+    for (const choice of ["code", "repo", "gist"] as const) {
+      await page.locator(`#share-${choice}`).check();
+      const text = await dialog(page).evaluate((d) => d.textContent + [...d.querySelectorAll("[aria-label]")].map((e) => e.getAttribute("aria-label")).join(""));
+      expect(text.includes(alm) || text.includes(ls), choice).toBe(false);
+    }
   });
 });
 

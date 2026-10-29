@@ -5,6 +5,8 @@
 // the DOM through the deps; the unit tests supply fakes. Lazy (the dialog's chunk).
 import type { ColorChoice, PaintFamily, PaintInfo } from "../core/snippet";
 import { checkColors, sameOptions, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
+import { layoutOf } from "../editor/snippet-canvas";
+import { chooseScale, layoutImage, type Metrics } from "../editor/snippet-render";
 import { DEFAULT_OWN, OWN } from "../theme/palettes";
 
 export { sameOptions };
@@ -44,7 +46,7 @@ export interface Drawn {
   readonly colors: ImageColors;
   readonly t: number;
 }
-/** Read by the renderer at each 50-row yield: when set, it frees its canvas and stops. */
+/** Read by the renderer after each yield (snippet-canvas.ts inSlices): when set, it frees its canvas and stops. */
 export interface RenderSignal {
   readonly stopped: boolean;
 }
@@ -52,12 +54,21 @@ export type RenderOutcome<R> = { readonly ok: true; readonly value: R } | { read
 
 export interface SchedulerDeps<R extends Drawn> {
   render(options: ImageOptions, signal: RenderSignal): Promise<RenderOutcome<R>>;
+  /**
+   * The scale these options are drawn at (the dialog: the step a too-big scale takes; 0 when none
+   * fits). Two requests that differ only in a Scale drawn at the same scale make the same image, so
+   * the second one renders nothing. Without it, every Scale is its own image.
+   */
+  drawnScale?(options: ImageOptions): number;
   /** Frees a bitmap that will never be shown again. */
   free(result: R): void;
-  /** Shows a finished render, in one step (the scheduler frees the previous one right after). */
-  swap(result: R, options: ImageOptions, generation: number): void;
-  /** Removes the shown render and says why there is none (the preview never shows what the export would not produce). */
-  fail(reason: RenderFailure, options: ImageOptions, generation: number): void;
+  /**
+   * Shows a finished render, in one step (the scheduler frees the previous one right after).
+   * `adopted`: nothing was drawn, the shown render takes newer options that make the same image.
+   */
+  swap(result: R, options: ImageOptions, generation: number, adopted: boolean): void;
+  /** Removes the shown render and says why there is none (the preview never shows what the export would not produce); `adopted` as for swap. */
+  fail(reason: RenderFailure, options: ImageOptions, generation: number, adopted: boolean): void;
   /** data-preview and aria-busy, after every change. */
   state(state: PreviewState): void;
   /** From 400 ms into a render until no render runs: "Making the preview..." (`first`) or "Updating the preview...". */
@@ -106,6 +117,57 @@ interface Waiter<R> {
   reject(reason: RenderFailure): void;
 }
 
+/**
+ * The scale the options are drawn at, from the rows and the code font's measures: the step a
+ * too-big Scale takes (chooseScale), 0 when the image is too big at every scale. Before the
+ * measures exist (no render has landed) it is the Scale chosen.
+ */
+export function drawnScaleOf(rows: readonly { readonly number: number | null }[], metrics: Metrics | null, o: ImageOptions): number {
+  if (!metrics) return o.scale;
+  const look = layoutImage(rows, metrics, layoutOf(o));
+  return chooseScale(look.width, look.height, o.scale)?.scale ?? 0;
+}
+
+export interface DrawnScales {
+  /** drawnScaleOf the newest rows and measures, kept per options object until the measures change. */
+  scale(o: ImageOptions): number;
+  /**
+   * A render landed with these rows and measures. True when they differ from the last ones (a
+   * render after a font fallback measures the real font differently): what was kept is dropped.
+   */
+  measure(rows: readonly { readonly number: number | null }[], metrics: Metrics): boolean;
+}
+
+/** The dialog's drawnScale for the scheduler: measures from every render, never only the first one. */
+export function createDrawnScales(): DrawnScales {
+  let rows: readonly { readonly number: number | null }[] | null = null;
+  let metrics: Metrics | null = null;
+  let kept = new WeakMap<ImageOptions, number>();
+  return {
+    scale(o) {
+      if (!rows || !metrics) return o.scale;
+      let s = kept.get(o);
+      if (s === undefined) {
+        s = drawnScaleOf(rows, metrics, o);
+        kept.set(o, s);
+      }
+      return s;
+    },
+    measure(r, m) {
+      if (r === rows && metrics && m.ch === metrics.ch && m.lineH === metrics.lineH && m.widest === metrics.widest) return false;
+      rows = r;
+      metrics = m;
+      kept = new WeakMap();
+      return true;
+    },
+  };
+}
+
+/** Both make the same image: the same options, or the same but for a Scale drawn at the same scale. */
+export function sameImage(a: ImageOptions, b: ImageOptions, drawnScale?: (o: ImageOptions) => number): boolean {
+  return sameOptions(a, b) || (!!drawnScale && sameOptions({ ...a, scale: b.scale }, b) && drawnScale(a) === drawnScale(b));
+}
+
 export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>): PreviewScheduler<R> {
   let current: Current<R> | null = null;
   let running: Running<R> | null = null;
@@ -119,12 +181,25 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
   let pendingOn = false;
   let pendingFirst = true;
 
-  const isReady = () => !!current?.result && !!newest && sameOptions(current.options, newest);
+  const same = (a: ImageOptions, b: ImageOptions) => sameImage(a, b, deps.drawnScale);
+  const isReady = () => !!current?.result && !!newest && same(current.options, newest);
 
   function report() {
     if (isReady()) deps.state("ready");
-    else if (current?.failure && newest && sameOptions(current.options, newest) && !running) deps.state(current.failure === "too-big" ? "too-big" : "failed");
+    else if (current?.failure && newest && same(current.options, newest) && !running) deps.state(current.failure === "too-big" ? "too-big" : "failed");
     else deps.state("rendering");
+  }
+
+  /**
+   * The newest options make the shown image without being its options: nothing renders, the shown
+   * result takes them (swap or fail again, marked adopted, with the same bitmap and generation), so
+   * the frame's options and every later check are the newest ones.
+   */
+  function adopt(options: ImageOptions) {
+    if (!current) return;
+    current = { ...current, options };
+    if (current.result) deps.swap(current.result, options, current.generation, true);
+    else if (current.failure) deps.fail(current.failure, options, current.generation, true);
   }
 
   function stopPending() {
@@ -183,7 +258,7 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
       } else if (!closed) {
         const previous = current;
         current = { result: o.value, failure: null, options: run.options, generation: run.generation };
-        deps.swap(o.value, run.options, run.generation);
+        deps.swap(o.value, run.options, run.generation, false);
         if (previous?.result) deps.free(previous.result);
       }
       if (!discard) run.waiter?.resolve(pinnedOf(run, o.value));
@@ -193,7 +268,7 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
       if (o.reason !== "stopped" && !discard && !closed) {
         const previous = current;
         current = { result: null, failure: reason, options: run.options, generation: run.generation };
-        deps.fail(reason, run.options, run.generation);
+        deps.fail(reason, run.options, run.generation, false);
         if (previous?.result) deps.free(previous.result);
       }
       run.waiter?.reject(reason);
@@ -205,6 +280,7 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
 
   /** Starts what should run next, if nothing runs: a waiting pinned render first (held or closed or not), else the newest options. */
   function kick() {
+    if (!closed && current && newest && !sameOptions(current.options, newest) && same(current.options, newest)) adopt(newest);
     if (running) return;
     if (nextPinned) {
       const { options, waiter } = nextPinned;
@@ -213,7 +289,7 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
       return;
     }
     if (closed || held || !newest) return;
-    if (current && sameOptions(current.options, newest)) return;
+    if (current && same(current.options, newest)) return;
     start(newest, null);
   }
 
@@ -222,7 +298,7 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
       if (closed) return;
       newest = options;
       if (running) {
-        if (sameOptions(running.options, options)) running.outdated = false;
+        if (same(running.options, options)) running.outdated = false;
         else if (!running.pinned) running.outdated = true;
       }
       kick();
@@ -231,7 +307,7 @@ export function createPreviewScheduler<R extends Drawn>(deps: SchedulerDeps<R>):
     renderFor(options) {
       return new Promise<PinnedRender<R>>((resolve, reject) => {
         const waiter: Waiter<R> = { resolve, reject };
-        if (running && sameOptions(running.options, options) && !running.cancelled) {
+        if (running && same(running.options, options) && !running.cancelled) {
           running.pinned = true;
           running.outdated = false;
           const before = running.waiter;

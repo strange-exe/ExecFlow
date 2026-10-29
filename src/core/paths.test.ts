@@ -45,6 +45,12 @@ describe("normalizePath", () => {
     expect(() => normalizePath(cp(0x928).repeat(86))).toThrow(PathError); // 258 bytes
   });
 
+  it("a reserved name over 255 bytes is refused for its length, so the message never quotes it", () => {
+    const long = "con." + "a".repeat(300);
+    expect(() => normalizePath(long)).toThrow("a name is too long");
+    expect(() => normalizePath("con.py")).toThrow('"con.py" is a reserved name on Windows');
+  });
+
   it("checks the global hidden-character regex the same way every time", () => {
     const bad = "a" + cp(0x2060) + "b";
     expect(tryNormalizePath(bad)).toBeNull();

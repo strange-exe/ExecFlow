@@ -3,6 +3,7 @@
 // work offline and cost a first visit nothing. Each runs to exit code 0 (e2e/examples.spec.ts runs
 // every one, with the input it asks for). String.raw keeps the programs' own backslashes ("\n").
 import type { LanguageId } from "../core/languages";
+import { tryNormalizePath } from "../core/paths";
 
 export interface Example {
   /** The file name it is added under (a free one if that is taken: freeName). */
@@ -294,16 +295,26 @@ int main() {
 
 /**
  * `name` if no entry has it (compared as storage does: `taken` holds folded keys), else "name-2.ext",
- * "name-3.ext" and so on.
+ * "name-3.ext" and so on. A name too long to store with its number gets a shorter stem, cut by whole
+ * characters (as sync/merge copyName does), so the result is always a name storage accepts.
  */
 export function freeName(name: string, taken: (path: string) => boolean): string {
   if (!taken(name)) return name;
   const dot = name.lastIndexOf(".");
   const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  const shortened = (chars: readonly string[], suffix: string) => {
+    for (let keep = chars.length; keep > 0; keep--) {
+      const candidate = chars.slice(0, keep).join("") + suffix;
+      if (tryNormalizePath(candidate) === candidate) return candidate;
+    }
+    return null;
+  };
+  // An extension too long to keep (a name that is almost all extension) is cut along with the rest.
+  const numbered = (n: number) => shortened([...stem], `-${n}${ext}`) ?? shortened([...name], `-${n}`) ?? `${n}`;
   // A workspace holds at most 2000 files, so a free number comes long before the bound.
   for (let n = 2; n < 100_000; n++) {
-    const candidate = `${stem}-${n}${ext}`;
+    const candidate = numbered(n);
     if (!taken(candidate)) return candidate;
   }
-  return `${stem}-${Date.now()}${ext}`;
+  return numbered(Date.now());
 }

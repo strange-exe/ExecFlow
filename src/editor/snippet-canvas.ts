@@ -17,8 +17,13 @@ import {
 /** Rows wrap at 100 columns, after a space at column 50 or later. */
 const WRAP_AT = 100;
 const BREAK_FROM = 50;
-/** Rows drawn between yields; 50 rows or fewer never yield. */
+/**
+ * More rows than this: the render's set-up and its fills each end their task before the text pass
+ * (at 50 rows or fewer they don't). The text pass yields on time at any row count (inSlices, SLICE_MS).
+ */
 const BATCH = 50;
+/** The text pass yields once this much time has gone since its last yield (a row count cost 5 hops per 200 rows, 30 ms each in Windows WebKit). */
+export const SLICE_MS = 8;
 
 /** One task later (a posted message: timers and animation frames are throttled in hidden pages). */
 export function nextTask(): Promise<void> {
@@ -30,6 +35,26 @@ export function nextTask(): Promise<void> {
     };
     channel.port2.postMessage(null);
   });
+}
+
+/**
+ * Runs `each` for 0 to count - 1, yielding a task whenever more than `budget` ms have gone since the
+ * slice began; the signal is read after every yield. False: it was set (stopped, nothing more drawn).
+ */
+export async function inSlices(
+  count: number, each: (i: number) => void, signal: RenderSignal,
+  yieldTask: () => Promise<void> = nextTask, now: () => number = () => performance.now(), budget = SLICE_MS,
+): Promise<boolean> {
+  let slice = now();
+  for (let i = 0; i < count; i++) {
+    if (i > 0 && now() - slice > budget) {
+      await yieldTask();
+      if (signal.stopped) return false;
+      slice = now();
+    }
+    each(i);
+  }
+  return true;
 }
 
 export interface Prepared {
@@ -118,12 +143,40 @@ export function freeCanvas(canvas: HTMLCanvasElement): void {
   canvas.height = 0;
 }
 
-/** 400 and 400 italic at the code size with the selected text, 400 a size smaller with the name. Drawing goes ahead whatever loading says. */
-async function loadFonts(font: CodeFont, sample: string, name: string): Promise<void> {
-  if (typeof document === "undefined" || !document.fonts) return;
+/**
+ * 400 and 400 italic at the code size with the selected text, 400 a size smaller with the name.
+ * Drawing goes ahead whatever loading says. True: both code faces loaded (their widths are final).
+ */
+async function loadFonts(font: CodeFont, sample: string, name: string): Promise<boolean> {
+  if (typeof document === "undefined" || !document.fonts) return true;
   // load() rejects when a font fails (MDN); a throw, should an engine throw instead, counts the same: a failed load, never a failed render.
   const load = async (spec: string, text: string) => document.fonts.load(spec, text || " ");
-  await Promise.allSettled([load(fontOf(font, font.size, false), sample), load(fontOf(font, font.size, true), sample), load(fontOf(font, font.size - 1, false), name)]);
+  const [regular, italic] = await Promise.allSettled([
+    load(fontOf(font, font.size, false), sample), load(fontOf(font, font.size, true), sample), load(fontOf(font, font.size - 1, false), name),
+  ]);
+  return regular.status === "fulfilled" && italic.status === "fulfilled";
+}
+
+/** The measuring pass's result: the code font's 0 and space, its line box and baseline, the widest row. */
+export interface Measured {
+  readonly ch: number;
+  readonly spaceW: number;
+  readonly lineH: number;
+  readonly codeV: { readonly ascent: number; readonly descent: number };
+  readonly widest: number;
+}
+const MEASURED = new WeakMap<Prepared, { readonly font: CodeFont; readonly measured: Measured }>();
+
+/**
+ * The measuring pass once per opening: the rows and the font are fixed for it, and no option feeds
+ * into it. Kept only when the code fonts loaded (`final`): a fallback face's widths are never kept.
+ */
+export function measuredOnce(prepared: Prepared, font: CodeFont, final: boolean, measure: () => Measured | null): Measured | null {
+  const kept = MEASURED.get(prepared);
+  if (kept && kept.font.family === font.family && kept.font.size === font.size) return kept.measured;
+  const measured = measure();
+  if (measured && final) MEASURED.set(prepared, { font, measured });
+  return measured;
 }
 
 /** Ascent and descent of the font set on `ctx`, for the CSS half-leading baseline. */
@@ -233,25 +286,28 @@ export async function drawImage(
   let measure: HTMLCanvasElement | null = null;
   let kept = false;
   try {
-    await loadFonts(font, prepared.sample, options.name ? name : "");
+    const final = await loadFonts(font, prepared.sample, options.name ? name : "");
     // More than one batch: the preparing (on the first render) and the fonts' check end their task
     // before the measuring pass (one 36 to 57 ms task otherwise, Chromium, 300 rows, lab, 2026-10-21).
     if (prepared.rows.length > BATCH) await nextTask();
     if (signal.stopped) return { ok: false, reason: "stopped" };
-    measure = document.createElement("canvas");
-    measure.width = 1;
-    measure.height = 1;
-    const m = measure.getContext("2d");
-    if (!m) return { ok: false, reason: "device" };
-    m.font = fontOf(font, font.size, false);
-    const ch = onGrid(m.measureText("0").width);
-    const spaceW = onGrid(m.measureText(" ").width);
-    const lineH = font.size * 1.5;
+    const measured = measuredOnce(prepared, font, final, () => {
+      measure = document.createElement("canvas");
+      measure.width = 1;
+      measure.height = 1;
+      const m = measure.getContext("2d");
+      if (!m) return null;
+      m.font = fontOf(font, font.size, false);
+      const ch = onGrid(m.measureText("0").width);
+      const spaceW = onGrid(m.measureText(" ").width);
+      const codeV = vertical(m, font.size);
+      let widest = 0;
+      for (const row of prepared.rows) widest = Math.max(widest, walkRow(m, row, font, { ch, spaceW, tabSize: prepared.tabSize }));
+      return { ch, spaceW, lineH: font.size * 1.5, codeV, widest: onGrid(widest) };
+    });
+    if (!measured) return { ok: false, reason: "device" };
+    const { ch, spaceW, lineH, codeV, widest } = measured;
     const space = { ch, spaceW, tabSize: prepared.tabSize };
-    const codeV = vertical(m, font.size);
-    let widest = 0;
-    for (const row of prepared.rows) widest = Math.max(widest, walkRow(m, row, font, space));
-    widest = onGrid(widest);
     const metrics: Metrics = { ch, lineH, widest };
     const layout = layoutImage(prepared.rows, metrics, layoutOf(options));
     const fit = chooseScale(layout.width, layout.height, options.scale);
@@ -332,16 +388,13 @@ export async function drawImage(
     ctx.strokeStyle = colors["gutter-text"];
     const rows = prepared.rows;
     // More than one batch: the measuring pass, the bitmap's allocation and its fills end their task
-    // before the text pass starts (50 rows or fewer still never yield).
+    // before the text pass starts (not at 50 rows or fewer). The text pass then yields every SLICE_MS
+    // ms whatever the row count, so a slow small render can yield too, and stop there.
     if (rows.length > BATCH) {
       await nextTask();
       if (signal.stopped) return { ok: false, reason: "stopped" };
     }
-    for (let i = 0; i < rows.length; i++) {
-      if (i > 0 && i % BATCH === 0) {
-        await nextTask();
-        if (signal.stopped) return { ok: false, reason: "stopped" };
-      }
+    const drawn = await inSlices(rows.length, (i) => {
       const row = rows[i];
       const top = layout.codeTop + i * lineH;
       const y = baselineIn(top, lineH, codeV);
@@ -357,7 +410,8 @@ export async function drawImage(
         ctx.fillStyle = colors[run.token];
         ctx.fillText(text, layout.codeX + x, y);
       });
-    }
+    }, signal);
+    if (!drawn) return { ok: false, reason: "stopped" };
     if (layout.credit) drawCredit(ctx, layout.credit, font, creditInk(colors, options.background));
     kept = true;
     return { ok: true, value: { canvas, colors, t, layout, scale: s, metrics, readback } };

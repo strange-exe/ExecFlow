@@ -126,6 +126,38 @@ test("Run steps back after a failed run, keeps its name, shortcut and Ctrl+Enter
   expect(await runFill(page)).toBe(filled);
 });
 
+test("on a Mac the shortcuts are announced with Meta and shown with Cmd, and Meta+P is the key that works", async ({ page }) => {
+  // The runners are not Macs (the other specs expect Control): make this page one before it loads.
+  await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "platform", { get: () => "MacIntel", configurable: true }));
+  await page.setViewportSize(DESKTOP);
+  await openApp(page);
+  expect(await page.evaluate(() => navigator.platform), "the page sees a Mac").toBe("MacIntel");
+  await importFiles(page, FILES);
+  await openFromTree(page, "main.py");
+  const runButton = page.locator("#run-button");
+  const palette = page.locator("#palette-button");
+  await expect(palette).toHaveAttribute("aria-keyshortcuts", "Meta+P Meta+Shift+P F1");
+  await expect(palette).toHaveAttribute("title", "Search or run a command (Cmd+P)");
+  await expect(page.locator("#quick-search")).toHaveAttribute("aria-keyshortcuts", "Meta+P");
+  await expect(runButton).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
+  await expect(runButton).toHaveAttribute("title", "Run (Cmd+Enter)");
+
+  // While it runs, Stop is announced with Meta too; after it, Run again.
+  await runButton.click();
+  await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 45_000 });
+  await expect(runButton).toHaveAttribute("aria-keyshortcuts", "Meta+Period");
+  await expect(runButton).toHaveAttribute("title", "Stop (Cmd+.)");
+  await page.locator("#live-input-field").fill("Ada");
+  await page.locator("#live-input-field").press("Enter");
+  await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
+  await expect(runButton).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
+
+  // The announced key is the one that opens the palette.
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Meta+P");
+  await expect(page.locator("#palette-input")).toBeFocused();
+});
+
 test("after a failed run the error jump comes first in the editor head, and it and the lifted exception open calc.py at line 2", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
@@ -808,7 +840,8 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
     await expect(chosen).toBeFocused();
     // 0.7.0 Settings: the sections list beside the pane is on the first screen, so the Editor options
     // are one choice away whatever the height. The first three are on the first screen (the
-    // dialog's legal foot now takes a line: ligatures, the fourth, starts about 30 px below it).
+    // dialog's legal foot now takes a line: the options after them, from "Enter accepts the top
+    // suggestion" (2026-10-28) on, start below it).
     const nav = dialog.getByRole("navigation", { name: "Settings sections" });
     await expect(nav.getByRole("button", { name: "Editor" })).toBeInViewport();
     const body = await box(page, "#settings .dialog-body");
@@ -834,7 +867,7 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
     await nav.getByRole("button", { name: "Editor" }).click();
     await expect(dialog.getByRole("heading", { name: "Editor" })).toBeFocused();
     const pane = await box(page, "#settings .dialog-body");
-    for (const id of ["#set-code-size", "#set-wrap", "#set-suggest", "#set-ligatures"]) {
+    for (const id of ["#set-code-size", "#set-wrap", "#set-suggest", "#set-enter-top", "#set-ligatures"]) {
       const control = await box(page, id);
       expect(control.y, `${id} below the pane's top`).toBeGreaterThanOrEqual(pane.y);
       expect(control.y + control.height, `${id} in the pane`).toBeLessThanOrEqual(pane.y + pane.height);

@@ -3,19 +3,32 @@
 // it is someone else's code. A lazy chunk (with the link decoder), loaded only when the page opens
 // with #code=. Name and code go in as text, every unshown character tagged (shown()), so the
 // preview can neither run markup nor hide part of the code. State attribute for tests: data-state
-// ("ready"). The file is added under a free name (examples.ts freeName), never over a file.
+// ("ready", "adding", "refused"). The file is added under a free name (examples.ts freeName), never
+// over a file, chosen again when Add is pressed. The dialog closes only once the file is added: an
+// add that fails (a read-only tab, storage refusing it) says why inside the dialog and keeps the
+// shared file there, so Add can be pressed again.
 import { detectLanguage } from "../core/languages";
 import { readCodeLink, readRefusalText } from "../core/code-link";
 import { dialogShell, openModal } from "./dialogs";
 import { h, plural, shown } from "./dom";
 import { freeName } from "./examples";
+import { icon } from "./icons";
 import type { Notice } from "./notice";
+
+/** Why a file wasn't added: one sentence, and whether it is the tab (read-only) or a failure. */
+export interface AddRefusal {
+  message: string;
+  readOnly?: boolean;
+}
 
 export interface CodeLinkDeps {
   /** A path already in the workspace (compared as storage compares names). */
   taken(path: string): boolean;
-  /** Adds the file at the workspace root and opens it (a read-only tab explains instead). */
-  add(path: string, text: string): void;
+  /**
+   * Adds the file at the workspace root and opens it: null once it is added, else why not (a
+   * read-only tab adds nothing). It shows no notice: the dialog says why.
+   */
+  add(path: string, text: string): Promise<AddRefusal | null>;
   readonly notice: Pick<Notice, "show">;
 }
 
@@ -27,27 +40,57 @@ export async function openCodeLink(hash: string, deps: CodeLinkDeps): Promise<vo
     return void deps.notice.show("A code link arrived while a dialog was open, so it wasn't opened. Close the dialog, then open the link again.", { tone: "info" });
   }
   const { name, text } = read.file;
-  const target = freeName(name, deps.taken);
   const lines = text === "" ? 0 : text.replace(/\n$/, "").split("\n").length;
   const language = detectLanguage(name)?.label;
 
   const { dialog, body } = dialogShell("code-link", `Open ${shown(name)}?`, { wide: true });
   dialog.classList.add("code-link");
+  const about = h("p", { class: "field-note", id: "code-link-about" });
+  /** The free name now (the files can change while the dialog is open), said in the note. */
+  const target = (): string => {
+    const free = freeName(name, deps.taken);
+    about.textContent = `${language ? `${language}, ` : ""}${plural(lines, "line")}.${free === name ? "" : ` You already have a file named ${shown(name)}, so this one is added as ${shown(free)}.`}`;
+    return free;
+  };
+  target();
+  const result = h("p", { class: "result-line", id: "code-link-result", role: "status" });
   body.append(
     h("p", { id: "code-link-lede" }, "Someone shared this code with you in a link. It isn't in your files yet, and it doesn't run until you press Run."),
-    h("p", { class: "field-note", id: "code-link-about" }, `${language ? `${language}, ` : ""}${plural(lines, "line")}.${target === name ? "" : ` You already have a file named ${shown(name)}, so this one is added as ${shown(target)}.`}`),
+    about,
     h("pre", { class: "code-link-preview", id: "code-link-preview", tabindex: "0", "aria-label": `The code in ${shown(name)}` }, h("code", null, shown(text))),
+    result,
   );
   dialog.setAttribute("aria-describedby", "code-link-lede code-link-about");
   const cancel = h("button", { type: "button", class: "btn", id: "code-link-cancel" }, "Not now");
   const add = h("button", { type: "button", class: "btn primary", id: "code-link-add" }, "Add to my files");
   dialog.append(h("div", { class: "dialog-actions" }, cancel, add));
   cancel.addEventListener("click", () => dialog.close());
-  add.addEventListener("click", (e) => {
-    // The second click of a double click does nothing (the Run rule): one press, one file.
-    if (e.detail > 1) return;
-    dialog.close();
-    deps.add(target, text);
+  let adding = false;
+  add.addEventListener("click", async (e) => {
+    // The second click of a double click, or a press while one is adding, does nothing (the Run
+    // rule): one press, one file.
+    if (e.detail > 1 || adding) return;
+    adding = true;
+    // Busy for assistive technology; the button stays enabled and focusable (a press now does nothing).
+    dialog.setAttribute("aria-busy", "true");
+    dialog.dataset.state = "adding";
+    result.replaceChildren();
+    delete result.dataset.tone;
+    let refusal: AddRefusal | null;
+    try {
+      refusal = await deps.add(target(), text);
+    } catch (error) {
+      refusal = { message: `The file wasn't added: ${error instanceof Error ? error.message : String(error)}` };
+    }
+    adding = false;
+    dialog.removeAttribute("aria-busy");
+    if (!refusal) return void dialog.close();
+    // Closed while it was adding: the sentence still reaches the student.
+    if (!dialog.open) return void deps.notice.show(refusal.message, { tone: refusal.readOnly ? "info" : "error" });
+    // Kept open with the code: the student can press Add again, or Not now.
+    dialog.dataset.state = "refused";
+    result.dataset.tone = refusal.readOnly ? "warning" : "error";
+    result.replaceChildren(icon(refusal.readOnly ? "warning" : "warning-circle", "result-icon"), h("span", null, shown(refusal.message)));
   });
   dialog.addEventListener("close", () => dialog.remove(), { once: true });
   openModal(dialog, add, null);

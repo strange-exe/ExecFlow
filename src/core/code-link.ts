@@ -147,7 +147,23 @@ export async function readCodeLink(hash: string): Promise<{ ok: true; file: Shar
   if (name.includes("/")) return fail({ kind: "bad-name", reason: "it names a folder, and a code link holds one file" });
   const checked = checkText(record.t);
   if (!checked.ok) return fail({ kind: "not-text", reason: checked.reason });
-  return { ok: true, file: { name, text: record.t } };
+  const lf = toLf(record.t);
+  if (!lf.ok) return fail({ kind: "not-text", reason: lf.reason });
+  return { ok: true, file: { name, text: lf.text } };
+}
+
+/**
+ * Text with LF line endings, as storage keeps every file. Windows line endings throughout become
+ * LF; a lone carriage return or a mix is refused, so the preview never offers a file that Add can't
+ * store. Stricter than a file import (core/bytes), which also refuses a mix but converts a file
+ * whose only line ending is CR.
+ */
+function toLf(text: string): { ok: true; text: string } | { ok: false; reason: string } {
+  if (!text.includes("\r")) return { ok: true, text };
+  const rest = text.replaceAll("\r\n", "");
+  if (rest.includes("\r")) return { ok: false, reason: "it contains carriage returns that don't end a line, so it is probably not a text file" };
+  if (rest.includes("\n")) return { ok: false, reason: "it mixes different line endings" };
+  return { ok: true, text: text.replaceAll("\r\n", "\n") };
 }
 
 /** One sentence for a link that couldn't be opened. */

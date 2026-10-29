@@ -3,7 +3,7 @@ import { crc32, inflateRawSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Page } from "@playwright/test";
-import { expect, expectActive, importFiles, openApp, openFromTree, setCode, test, treeItem } from "./helpers";
+import { expect, expectActive, importFiles, openApp, openFromTree, setCode, test, treeItem, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -120,7 +120,7 @@ test("importing a cloned project folder: every file that was left out is named, 
   await expect(page.locator("#app")).toHaveAttribute("data-runnable", "true");
 });
 
-test("export, then import into a fresh browser: the same files with the same bytes (CRLF, BOM, folders)", async ({ page, browser }, testInfo) => {
+test("export, then import into a fresh browser: the same files with the same bytes (CRLF, BOM, folders)", async ({ page, browser, tolerate }, testInfo) => {
   await openApp(page);
   const crlf = "print(1)\r\nprint(2)\r\n";
   const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("x = 1\n")]);
@@ -166,13 +166,19 @@ test("export, then import into a fresh browser: the same files with the same byt
   const root = testInfo.outputPath("unzipped");
   writeTree(root, Object.fromEntries([...first.files].map(([p, b]) => [`Workspace/${p}`, b])));
   const fresh = await browser.newContext({ serviceWorkers: "block" });
-  const page2 = await fresh.newPage();
-  await openApp(page2);
-  await importFolder(page2, join(root, "Workspace"));
-  await expect.poll(() => storedPaths(page2), { timeout: 20_000 }).toContain("Workspace/sub/inner.c");
-  const second = readZip(await exportZip(page2));
-  for (const [p, bytes] of first.files) expect(second.files.get(`Workspace/${p}`)?.equals(bytes), p).toBe(true);
-  await fresh.close();
+  // The fixture's checks (console, page errors, failed requests) for the fresh profile too.
+  const watch = watchContext(fresh, testInfo.project.name, tolerate);
+  try {
+    const page2 = await fresh.newPage();
+    await openApp(page2);
+    await importFolder(page2, join(root, "Workspace"));
+    await expect.poll(() => storedPaths(page2), { timeout: 20_000 }).toContain("Workspace/sub/inner.c");
+    const second = readZip(await exportZip(page2));
+    for (const [p, bytes] of first.files) expect(second.files.get(`Workspace/${p}`)?.equals(bytes), p).toBe(true);
+    expect(watch.settle(), "console errors and failed requests in the fresh profile").toEqual([]);
+  } finally {
+    await fresh.close();
+  }
 });
 
 test("a file imported twice with different case is refused or merged, never two entries that clash", async ({ page }) => {

@@ -34,7 +34,7 @@ import type * as ShareRules from "../sync/share";
 import type { RepoLinkState } from "../sync/share";
 import type { AuthKind } from "../sync/repo-check";
 import { dialogShell, openModal } from "./dialogs";
-import { h, svg } from "./dom";
+import { h, shown, svg } from "./dom";
 import { icon } from "./icons";
 import type { Notice } from "./notice";
 
@@ -147,7 +147,11 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   if (open || document.querySelector("dialog[open], .menu")) return;
   open = true;
   const { rules } = deps;
-  const name = nameOf(deps.path);
+  // Drawn in the dialog's sentences, its title and the QR label with every unshown character tagged
+  // (shown(), as the code-link dialog and the tree draw names). Only the file's own data (the link,
+  // the gist, the titled copy) carries the real name.
+  const fileName = nameOf(deps.path);
+  const name = shown(fileName);
   const { dialog, body } = dialogShell("share-dialog", `Share ${name}`, { wide: true });
   dialog.classList.add("sync-dialog", "share-dialog");
   /** Aborted when the dialog closes: a gist not sent by then never is. */
@@ -172,7 +176,8 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (tone === "done") result.dataset.done = "";
     else if (tone) result.dataset.tone = tone;
     const glyph = tone === "done" ? icon("check-circle", "result-icon") : tone === "error" ? icon("warning-circle", "result-icon") : tone === "warning" ? icon("warning", "result-icon") : null;
-    result.replaceChildren(...(glyph ? [glyph] : []), h("span", null, message));
+    // Tagged here too: a sentence from the share rules (sync/share.ts) can quote the path.
+    result.replaceChildren(...(glyph ? [glyph] : []), h("span", null, shown(message)));
   }
   const setPrimary = (glyph: "copy" | "github-logo" | "link-simple", label: string) => primary.replaceChildren(icon(glyph), label);
 
@@ -274,13 +279,14 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   }
   /** "Copy with title": the link named "Open <file> in CodeEditor" where links can carry a title. */
   async function copyTitled(url: string) {
-    const title = `Open ${name} in CodeEditor`;
+    // The real name: the title is pasted elsewhere as the link's label (the sentence below tags it).
+    const title = `Open ${fileName} in CodeEditor`;
     // Built as an element, so the file name is escaped by the serializer, never pasted into markup.
     const html = h("a", { href: url }, title).outerHTML;
     try {
       await (deps.writeRich ?? clipboardWriteRich)(html, `${title}: ${url}`);
       dialog.dataset.copy = "titled";
-      say(`Copied the link with the title "${title}". Documents, mail and Teams show the title; chat apps such as WhatsApp show the whole link.`, "done");
+      say(`Copied the link with the title "${shown(title)}". Documents, mail and Teams show the title; chat apps such as WhatsApp show the whole link.`, "done");
     } catch {
       dialog.dataset.copy = "refused";
       say(`This browser didn't let CodeEditor copy. The link is selected in its field: press ${deps.mac ? "Cmd+C" : "Ctrl+C"} to copy it.`, "warning");
@@ -495,11 +501,12 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
       const made = gist as { url: string | null } | null;
       if (made) {
         const url = made.url;
-        deps.notice.show(`Made a secret gist of ${name} after the dialog closed: anyone with its link can open it.${url ? "" : " Find it under Your gists on GitHub."}`, {
+        // The notice tags unshown characters itself (notice.ts), so it gets the real name.
+        deps.notice.show(`Made a secret gist of ${fileName} after the dialog closed: anyone with its link can open it.${url ? "" : " Find it under Your gists on GitHub."}`, {
           tone: "warning",
           action: url ? { label: "Open the gist", run: () => void window.open(url, "_blank", "noopener,noreferrer") } : undefined,
         });
-      } else if (outcome.tone === "error") deps.notice.show(`No gist of ${name} was made: ${outcome.message}`, { tone: "info" });
+      } else if (outcome.tone === "error") deps.notice.show(`No gist of ${fileName} was made: ${outcome.message}`, { tone: "info" });
       return;
     }
     render();

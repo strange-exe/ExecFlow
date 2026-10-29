@@ -30,8 +30,9 @@ function checkSegment(segment: string): void {
   if (HIDDEN_CHAR.test(segment)) throw new PathError("names can't contain invisible characters");
   if (NOT_ON_WINDOWS.test(segment)) throw new PathError('names can\'t contain \\ : * ? " < > or |');
   if (/[. ]$/.test(segment)) throw new PathError("names can't end with a dot or a space");
-  if (RESERVED.test(segment)) throw new PathError(`"${segment}" is a reserved name on Windows`);
+  // Length first: the reserved-name message quotes the name, so it never quotes more than a name can hold.
   if (new TextEncoder().encode(segment).length > MAX_SEGMENT_BYTES) throw new PathError("a name is too long");
+  if (RESERVED.test(segment)) throw new PathError(`"${segment}" is a reserved name on Windows`);
 }
 
 /** Returns the canonical form of `input`, or throws PathError explaining what is wrong with it. */

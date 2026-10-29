@@ -68,6 +68,26 @@ async function setOptions(page: Page, colors: "match" | "light" | "dark", number
 }
 
 /**
+ * Test 9's layout walk: a look's inputs set in one task, then their change events in that same
+ * task, so a step makes one finished render, not one per changed control (up to three, each about
+ * 150 ms in WebKit, plus six Playwright round trips: audit 2026-10-28). The controls' own path
+ * (check, setChecked) is setOptions', which the walk still takes for two of its steps.
+ */
+async function setLook(page: Page, colors: "match" | "light" | "dark", numbers: boolean, name: boolean, look: Look = {}) {
+  const { background = "medium", frame = "plain", scale = 2 } = look;
+  const wanted: [string, boolean][] = [
+    [`input[name=snippet-colors][value=${colors}]`, true], ["#snippet-numbers", numbers], ["#snippet-name", name],
+    [`#snippet-background-${background}`, true], [`#snippet-frame-${frame}`, true], [`#snippet-scale-${scale}`, true],
+  ];
+  await dialogOf(page).evaluate((d, list) => {
+    const changed = list.map(([sel, on]) => [d.querySelector<HTMLInputElement>(sel)!, on] as const).filter(([el, on]) => el.checked !== on);
+    for (const [el, on] of changed) el.checked = on;
+    for (const [el] of changed) el.dispatchEvent(new Event("change", { bubbles: true }));
+  }, wanted);
+  await previewReady(page, `${colors} ${numbers ? "numbers" : "no-numbers"} ${name ? "name" : "no-name"} ${scale}x ${background} ${frame}`);
+}
+
+/**
  * The pixel map of 9.2 on the default image (bitmap coordinates at scale 2): round 1's map moved
  * into the card (CARD_AT px from each side), the background around it, and the card's rounded
  * corners showing the background.
@@ -404,9 +424,10 @@ test("8: the options are remembered on this device, cleaned when read, and work 
   await blocked.close();
 });
 
-// At 1440 each file walks 23 option sets, and every one redraws the preview (b.py's is 200 lines):
-// about 20 s per file in WebKit alone, so each file is its own test, with its own time budget (both
-// together passed 120 s under a full three-engine run, 2026-10-28).
+// At 1440 each file walks 23 option sets, and every one redraws the preview (b.py's is 200 lines),
+// so each file is its own test, with its own time budget (both together passed 120 s under a full
+// three-engine run, 2026-10-28). Most steps set their inputs in one task (setLook): b.py's test took
+// 31 and 32 s in WebKit with one worker before that, 21 and 19 s after (lab, 2026-10-28).
 const NOTHING_MOVES = [
   { vp: { width: 1440, height: 900 }, files: ["main.py"] },
   { vp: { width: 1440, height: 900 }, files: ["b.py"] },
@@ -442,17 +463,19 @@ for (const { vp, files } of NOTHING_MOVES) {
         for (const colors of ["match", "light", "dark"] as const)
           for (const numbers of [true, false])
             for (const name of [true, false]) {
-              await setOptions(page, colors, numbers, name);
+              await setLook(page, colors, numbers, name);
               near(first, await boxes(), `${file} ${colors} ${numbers} ${name}`);
             }
-        // Round 2: every background and frame (the layouts they make), and every scale.
+        // Round 2: every background and frame (the layouts they make), and every scale. The first
+        // look and the last step go through the controls themselves.
         for (const background of ["none", "small", "medium", "large"] as const)
           for (const frame of ["plain", "window"] as const) {
-            await setOptions(page, "match", true, frame === "plain", { background, frame });
+            const set = background === "none" && frame === "plain" ? setOptions : setLook;
+            await set(page, "match", true, frame === "plain", { background, frame });
             near(first, await boxes(), `${file} ${background} ${frame}`);
           }
         for (const scale of [1, 3] as const) {
-          await setOptions(page, "match", false, false, { background: "large", scale });
+          await setLook(page, "match", false, false, { background: "large", scale });
           near(first, await boxes(), `${file} ${scale}x`);
         }
         await setOptions(page, "match", true, true);

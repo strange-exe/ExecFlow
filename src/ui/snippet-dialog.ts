@@ -8,7 +8,8 @@
 // of their own), stacked below that, and compact (the dialog the one scroller) in very short windows.
 // Built per opening and removed on close, so no listener outlives it. The preview and the exports
 // run through snippet-flow.ts; results speak in the status line while open and in the page's notice
-// after close. State attributes (data-preview, data-renders, data-preview-options,
+// after close. State attributes (data-preview, data-renders: renders shown, never an adopted one
+// (snippet-flow.ts adopt), data-preview-options,
 // data-preview-pending, data-compact, data-layout; #app data-capture, data-capture-reason,
 // data-captures) are what tests wait on, never wording.
 import "../styles/snippet-image.css";
@@ -28,7 +29,7 @@ import { downloadBlob, h, srOnly } from "./dom";
 import { icon, type IconName } from "./icons";
 import type { Notice } from "./notice";
 import {
-  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, previewFit, sameOptions,
+  createDrawnScales, createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, previewFit, sameImage,
   type BudgetMeasures, type ExportKind, type ExportResult, type Paint, type RenderFailure, type SnippetLayout,
 } from "./snippet-flow";
 
@@ -230,7 +231,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
 
   // ---------------------------------------------------------------- the frame's size (5.2)
   let prepared: Prepared | null = null;
-  /** The code font's measures, from the first render: the size line is worked out from them at once. */
+  /** The code font's measures, from the latest render that measured differently: the size line is worked out from them at once. */
   let metrics: Metrics | null = null;
   let layouts: { width: number; height: number }[] | null = null;
   let frameCap = 420;
@@ -330,7 +331,15 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
 
   // ---------------------------------------------------------------- the preview (5.3, 7.3)
   let preparing: Promise<Prepared> | null = null;
+  /**
+   * The scale the options are drawn at (snippet-flow.ts drawnScaleOf), from the latest render's
+   * measures; before the first, the Scale chosen. Two Scale choices drawn at the same scale make the
+   * same bitmap, so the scheduler renders it once.
+   */
+  const drawnScales = createDrawnScales();
+  const drawnScale = (o: ImageOptions) => drawnScales.scale(o);
   const scheduler = createPreviewScheduler<DrawnImage>({
+    drawnScale,
     async render(o, signal) {
       const colors = imageColors(o.colors, paint);
       if (!colors) return { ok: false, reason: "failed" };
@@ -339,32 +348,36 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
       return drawImage(p, o, colors, signal, font, name);
     },
     free: (r) => freeCanvas(r.canvas),
-    swap(r, o) {
+    swap(r, o, _generation, adopted) {
       r.canvas.setAttribute("aria-hidden", "true");
-      if (!layouts && prepared) {
-        // The first render landed: the frame takes its height for the whole opening (the default look's tallest layout).
-        const rows = prepared.rows;
-        metrics = r.metrics;
-        layouts = STAGE_LAYOUTS.map((l) => layoutImage(rows, r.metrics, l));
-        sizeFrame();
+      if (prepared) {
+        // Every render's measures: one drawn with a fallback font measures differently from a later
+        // one with the real font, and the size line and the drawn scales follow the newest.
+        if (drawnScales.measure(prepared.rows, r.metrics)) metrics = r.metrics;
+        if (!layouts) {
+          // The first render landed: the frame takes its height for the whole opening (the default look's tallest layout).
+          const rows = prepared.rows;
+          layouts = STAGE_LAYOUTS.map((l) => layoutImage(rows, r.metrics, l));
+          sizeFrame();
+        }
       }
       fitCanvas(r);
       frame.replaceChildren(r.canvas);
       keepFocusInView();
       size.textContent = sizeText(r.canvas.width, r.canvas.height);
       stepNote.textContent = scaleNote(o.scale, r.scale);
-      dialog.dataset.renders = String((Number(dialog.dataset.renders) || 0) + 1);
+      if (!adopted) dialog.dataset.renders = String((Number(dialog.dataset.renders) || 0) + 1);
       dialog.dataset.previewOptions = optionsWord(o);
       frame.setAttribute("aria-label", previewLabel(plan, name, o, paint, partial));
       frame.setAttribute("aria-busy", "false");
     },
-    fail(reason, o) {
+    fail(reason, o, _generation, adopted) {
       const m = failureMessage(reason);
       frame.replaceChildren(h("p", { class: "snippet-frame-text" }, captureMessage(m, at).text));
       frame.setAttribute("aria-label", reason === "too-big" ? NO_PREVIEW["too-big"] : NO_PREVIEW.failed);
       size.textContent = "";
       stepNote.textContent = "";
-      dialog.dataset.renders = String((Number(dialog.dataset.renders) || 0) + 1);
+      if (!adopted) dialog.dataset.renders = String((Number(dialog.dataset.renders) || 0) + 1);
       dialog.dataset.previewOptions = optionsWord(o);
       say(m);
     },
@@ -424,7 +437,7 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
     fileName,
     previewProblem() {
       const c = scheduler.current();
-      return c?.failure && sameOptions(c.options, options()) ? c.failure : null;
+      return c?.failure && sameImage(c.options, options(), drawnScale) ? c.failure : null;
     },
     started() {
       setStatus(null, "empty");

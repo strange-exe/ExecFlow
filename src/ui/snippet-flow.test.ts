@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_IMAGE_OPTIONS, IMAGE_TOKENS, type ImageColors, type ImageOptions } from "../core/snippet-dialog";
 import { OWN } from "../theme/palettes";
 import {
-  createExporter, createPreviewScheduler, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, PENDING_MS, previewFit,
+  createDrawnScales, createExporter, createPreviewScheduler, drawnScaleOf, frameBudget, frameContent, frameEstimate, imageColors, paintFamily, PENDING_MS, previewFit,
   type Drawn, type ExportResult, type Paint, type PreviewState, type RenderFailure, type RenderOutcome, type RenderSignal,
 } from "./snippet-flow";
 
@@ -22,20 +22,21 @@ interface FakeRender {
   options: ImageOptions;
   signal: RenderSignal;
   canvas: FakeCanvas;
-  /** The render reaches its end (no yield on the way: 50 rows or fewer). */
+  /** The render reaches its end with no yield on the way. */
   done(): void;
   fail(reason: RenderFailure): void;
-  /** A 50-row yield: stops (freeing its canvas) when the signal says so; true when it carries on. */
+  /** A yield (snippet-canvas.ts inSlices): stops (freeing its canvas) when the signal says so; true when it carries on. */
   step(): boolean;
 }
 
-function harness() {
+function harness(drawnScale?: (o: ImageOptions) => number) {
   const renders: FakeRender[] = [];
   const log: string[] = [];
   const states: PreviewState[] = [];
   const pending: string[] = [];
   let n = 0;
   const scheduler = createPreviewScheduler<FakeDrawn>({
+    drawnScale,
     render: (options, signal) =>
       new Promise<RenderOutcome<FakeDrawn>>((resolve) => {
         const canvas = { id: ++n, freed: false };
@@ -60,8 +61,8 @@ function harness() {
       log.push(`free ${r.canvas.id}`);
       r.canvas.freed = true;
     },
-    swap: (r, options) => log.push(`swap ${r.canvas.id} ${word(options)}`),
-    fail: (reason, options) => log.push(`fail ${reason} ${word(options)}`),
+    swap: (r, options, _generation, adopted) => log.push(`${adopted ? "adopt" : "swap"} ${r.canvas.id} ${word(options)}`),
+    fail: (reason, options, _generation, adopted) => log.push(`${adopted ? "adopt-fail" : "fail"} ${reason} ${word(options)}`),
     state: (s) => states.push(s),
     pending: (on, first) => pending.push(`${on} ${first ? "first" : "update"}`),
   });
@@ -326,6 +327,123 @@ describe("the preview scheduler (7.3)", () => {
     s.request(A);
     await flush();
     expect(states.at(-1)).toBe("failed");
+  });
+});
+
+// A large image's 3x does not fit and steps down to 2x: 3x and 2x then make the same bitmap, which
+// was rendered again (110 to 160 ms in WebKit, audit 2026-10-28). The dialog gives the scale each
+// request is drawn at; here 3 steps down to 2.
+describe("the preview scheduler: requests that make the same bitmap", () => {
+  const S3: ImageOptions = { ...A, scale: 3 };
+  const S2: ImageOptions = { ...A, scale: 2 };
+  const S1: ImageOptions = { ...A, scale: 1 };
+  const key = (o: ImageOptions) => Math.min(o.scale, 2);
+
+  it("other colours at a Scale that steps down the same way are still another image (only the scale may differ)", async () => {
+    const h = harness(key);
+    h.scheduler.request(S3);
+    h.renders[0].done();
+    await flush();
+    h.scheduler.request({ ...B, scale: 2 });
+    expect(h.renders).toHaveLength(2);
+  });
+
+  it("a Scale that steps down to the shown bitmap renders nothing; the frame takes the new options", async () => {
+    const h = harness(key);
+    h.scheduler.request(S3);
+    h.renders[0].done();
+    await flush();
+    h.scheduler.request(S2);
+    expect(h.renders).toHaveLength(1);
+    expect(h.scheduler.isReady()).toBe(true);
+    expect(h.states.at(-1)).toBe("ready");
+    expect(h.scheduler.current()).toMatchObject({ options: S2, generation: 1 });
+    // Adopted, not drawn: the dialog's data-renders counts renders shown, so it leaves this one out.
+    expect(h.log).toEqual(["swap 1 match numbers name", "adopt 1 match numbers name"]);
+    // A scale that makes another bitmap still renders.
+    h.scheduler.request(S1);
+    expect(h.renders).toHaveLength(2);
+    expect(h.scheduler.isReady()).toBe(false);
+  });
+
+  it("asked while that render runs, it keeps the render going and takes its result", async () => {
+    const h = harness(key);
+    h.scheduler.request(S3);
+    h.scheduler.request(S2);
+    expect(h.renders[0].signal.stopped).toBe(false);
+    h.renders[0].done();
+    await flush();
+    expect(h.renders).toHaveLength(1);
+    expect(h.scheduler.isReady()).toBe(true);
+    expect(h.scheduler.current()?.options).toEqual(S2);
+    expect(h.log).toEqual(["swap 1 match numbers name", "adopt 1 match numbers name"]);
+  });
+
+  it("an export of the stepped-down scale pins the running render instead of starting one", async () => {
+    const h = harness(key);
+    h.scheduler.request(S3);
+    const waiter = h.scheduler.renderFor(S2);
+    expect(h.renders).toHaveLength(1);
+    h.renders[0].done();
+    expect((await waiter).result.canvas.id).toBe(1);
+    await flush();
+    expect(h.renders).toHaveLength(1);
+  });
+
+  it("a too-big result counts for every scale that steps down the same way: no render, the failure said again", async () => {
+    const h = harness(key);
+    h.scheduler.request(S3);
+    h.renders[0].fail("too-big");
+    await flush();
+    h.scheduler.request(S2);
+    expect(h.renders).toHaveLength(1);
+    expect(h.states.at(-1)).toBe("too-big");
+    expect(h.log).toEqual(["fail too-big match numbers name", "adopt-fail too-big match numbers name"]);
+  });
+});
+
+describe("the drawn scale: the dialog's key for requests that make the same bitmap", () => {
+  const rows = [{ number: 1 }, { number: 2 }];
+  const narrow = { ch: 9, lineH: 22.5, widest: 144 };
+  /** 6,000 px of code: wider than MAX_SIDE at 3, so Scale 3 steps down to 2. */
+  const wide = { ch: 9, lineH: 22.5, widest: 6000 };
+  /** Wider than MAX_SIDE even at scale 1. */
+  const huge = { ch: 9, lineH: 22.5, widest: 20_000 };
+  const S3: ImageOptions = { ...A, scale: 3 };
+
+  it("is the Scale chosen while no render gave the measures", () => {
+    expect(drawnScaleOf(rows, null, S3)).toBe(3);
+    const scales = createDrawnScales();
+    expect(scales.scale(S3)).toBe(3);
+    expect(scales.scale({ ...A, scale: 1 })).toBe(1);
+  });
+
+  it("is the step a too-big Scale takes, and 0 when the image is too big at every scale", () => {
+    expect(drawnScaleOf(rows, narrow, S3)).toBe(3);
+    expect(drawnScaleOf(rows, wide, S3)).toBe(2);
+    expect(drawnScaleOf(rows, wide, { ...A, scale: 2 })).toBe(2);
+    expect(drawnScaleOf(rows, huge, S3)).toBe(0);
+    expect(drawnScaleOf(rows, huge, { ...A, scale: 1 })).toBe(0);
+  });
+
+  it("new measures (a font that loaded after a fallback render) clear what was worked out from the old ones", () => {
+    const scales = createDrawnScales();
+    expect(scales.measure(rows, narrow)).toBe(true);
+    expect(scales.scale(S3)).toBe(3);
+    // The same measures again (a later render of the same font): nothing changes.
+    expect(scales.measure(rows, { ...narrow })).toBe(false);
+    expect(scales.scale(S3)).toBe(3);
+    // The real font measures wider: the same options object is worked out again, not read from the cache.
+    expect(scales.measure(rows, wide)).toBe(true);
+    expect(scales.scale(S3)).toBe(2);
+    expect(scales.measure(rows, huge)).toBe(true);
+    expect(scales.scale(S3)).toBe(0);
+  });
+
+  it("other rows count as new measures too", () => {
+    const scales = createDrawnScales();
+    scales.measure(rows, narrow);
+    expect(scales.measure([...rows], narrow)).toBe(true);
   });
 });
 

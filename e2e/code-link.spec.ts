@@ -7,7 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { deflateRawSync } from "node:zlib";
 import { makeCodeLink } from "../src/core/code-link";
-import { expect, expectActive, importFiles, openApp, showFiles, test, treeItem } from "./helpers";
+import { expect, expectActive, importFiles, openApp, showFiles, test, treeItem, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -99,6 +99,8 @@ test.describe("a link that can't be opened says why and adds nothing", () => {
     ["a deflate bomb", async () => forge(Buffer.alloc(5 * 1024 * 1024)), /holds more than a code link can/],
     ["a path out of the workspace", async () => forge(JSON.stringify({ n: "../evil.c", t: "x" })), /file name can't be used/],
     ["Trojan Source text", async () => forge(JSON.stringify({ n: "a.c", t: `/*${String.fromCodePoint(0x202e)}*/` })), /text-direction characters/],
+    ["a lone carriage return (storage keeps LF only)", async () => forge(JSON.stringify({ n: "a.c", t: ["int a;", "int b;", ""].join(String.fromCharCode(13)) })), /carriage returns/],
+    ["mixed line endings", async () => forge(JSON.stringify({ n: "a.c", t: `int a;${String.fromCharCode(13)}\nint b;\n` })), /mixes different line endings/],
   ];
   for (const [what, make, says] of cases) {
     test(what, async ({ page }) => {
@@ -112,6 +114,85 @@ test.describe("a link that can't be opened says why and adds nothing", () => {
   }
 });
 
+test("a link with Windows line endings is added with LF, as a file import adds it", async ({ page }) => {
+  const forged = `#code=1.${deflateRawSync(JSON.stringify({ n: "crlf.c", t: C_PROGRAM.split("\n").join(String.fromCharCode(13) + "\n") })).toString("base64url")}`;
+  await openLink(page, forged);
+  await expect(preview(page)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+  await page.locator("#code-link-add").click();
+  await expectActive(page, "crlf.c");
+  await expect(dialog(page)).toHaveCount(0);
+});
+
+test("while Add is adding, the dialog is marked busy and the button stays live; then it closes", async ({ page }) => {
+  await openLink(page, await fragment("hello.c", C_PROGRAM));
+  // Read in the same task as the press: the add is still pending then.
+  const during = await page.evaluate(() => {
+    const add = document.querySelector<HTMLButtonElement>("#code-link-add")!;
+    add.click();
+    const d = document.querySelector<HTMLDialogElement>("dialog#code-link")!;
+    return { busy: d.getAttribute("aria-busy"), state: d.dataset.state, disabled: add.disabled, ariaDisabled: add.getAttribute("aria-disabled") };
+  });
+  expect(during).toEqual({ busy: "true", state: "adding", disabled: false, ariaDisabled: null });
+  await expect(dialog(page)).toHaveCount(0);
+  await expectActive(page, "hello.c");
+});
+
+test.describe("an add that fails keeps the shared file in the dialog", () => {
+  test("storage refusing it: the dialog, the preview and the reason stay; Add again adds it", async ({ page }) => {
+    await openLink(page, await fragment("hello.c", C_PROGRAM));
+    // Every IndexedDB write fails until the flag is cleared (a full disk, say).
+    await page.evaluate(() => {
+      const w = window as unknown as { __failWrites: boolean };
+      w.__failWrites = true;
+      for (const method of ["put", "add"] as const) {
+        const real = IDBObjectStore.prototype[method];
+        IDBObjectStore.prototype[method] = function (this: IDBObjectStore, ...args: Parameters<typeof real>) {
+          if (w.__failWrites) throw new DOMException("The disk is full (test).", "QuotaExceededError");
+          return real.apply(this, args);
+        };
+      }
+    });
+    await page.locator("#code-link-add").click();
+    await expect(dialog(page)).toHaveAttribute("data-state", "refused");
+    await expect(dialog(page)).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("#code-link-result")).toHaveAttribute("data-tone", "error");
+    await expect(page.locator("#code-link-result")).toContainText("The disk is full (test).");
+    await expect(preview(page)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+    await expect(treeItem(page, "hello.c")).toHaveCount(0);
+    await page.evaluate(() => ((window as unknown as { __failWrites: boolean }).__failWrites = false));
+    await page.locator("#code-link-add").click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expectActive(page, "hello.c");
+    await expect(treeItem(page, "hello.c")).toHaveCount(1);
+  });
+
+  test("a read-only tab says so in the dialog and keeps the file; the editing tab adds it from the same link", async ({ page, context }) => {
+    await openApp(page);
+    const hash = await fragment("hello.c", C_PROGRAM);
+    const second = await context.newPage();
+    await openLink(second, hash);
+    await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
+    await second.locator("#code-link-add").click();
+    await expect(dialog(second)).toHaveAttribute("data-state", "refused");
+    await expect(second.locator("#code-link-result")).toHaveAttribute("data-tone", "warning");
+    await expect(second.locator("#code-link-result")).toContainText("read-only");
+    await expect(preview(second)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+    // The link stays in this tab's address bar, to open in the editing tab.
+    expect(new URL(second.url()).hash).toBe(hash);
+    await page.evaluate((h) => (location.hash = h), hash);
+    await expect(dialog(page)).toHaveAttribute("data-state", "ready");
+    await page.locator("#code-link-add").click();
+    await expectActive(page, "hello.c");
+    // The free name is chosen again at each press: the read-only tab learns of hello.c and would
+    // now add the file as hello-2.c, never over it.
+    await expect(async () => {
+      await second.locator("#code-link-add").click();
+      await expect(second.locator("#code-link-about")).toContainText("so this one is added as hello-2.c.", { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await expect(dialog(second)).toHaveAttribute("data-state", "refused");
+  });
+});
+
 test("a link pasted into the address bar of an open tab opens too (only the fragment changes)", async ({ page }) => {
   await openApp(page);
   const hash = await fragment("later.py", 'print("later")\n');
@@ -120,7 +201,7 @@ test("a link pasted into the address bar of an open tab opens too (only the frag
   await expect(page.locator("#code-link-title")).toHaveText("Open later.py?");
 });
 
-test("Share link makes the link with nothing sent; a second browser profile opens it", async ({ page, browser }) => {
+test("Share link makes the link with nothing sent; a second browser profile opens it", async ({ page, browser, tolerate }, info) => {
   await page.addInitScript(() => {
     const w = window as unknown as { __copied: string[] };
     w.__copied = [];
@@ -143,18 +224,17 @@ test("Share link makes the link with nothing sent; a second browser profile open
   expect(sent.filter((u) => !u.includes("static.cloudflareinsights.com"))).toEqual([]);
 
   const other = await browser.newContext({ serviceWorkers: "block" });
+  // The fixture's checks (console, page errors, failed requests) for the second profile too.
+  const watch = watchContext(other, info.project.name, tolerate);
   try {
     const them = await other.newPage();
-    const errors: string[] = [];
-    them.on("pageerror", (e) => errors.push(String(e)));
-    them.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     await them.goto(url!);
     await expect(them.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
     await expect(dialog(them)).toHaveAttribute("data-state", "ready");
     await expect(preview(them)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
     await them.locator("#code-link-add").click();
     await expectActive(them, "hello.c");
-    expect(errors).toEqual([]);
+    expect(watch.settle(), "console errors and failed requests in the second profile").toEqual([]);
   } finally {
     await other.close();
   }

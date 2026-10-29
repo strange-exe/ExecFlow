@@ -16,7 +16,7 @@
 import type { RunHooks, RunRequest, RunResult, RunStatus, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
 import { parentOf } from "../core/paths";
 import { createInputChannel, sendInput } from "./input-channel";
-import type { BootSource, FromPython, ToPython } from "./protocol";
+import type { FromPython, ToPython } from "./protocol";
 import { checkDiagnostics } from "./python-diagnostics";
 import { checkWritten, prepareRunFiles } from "./python-files";
 import { nextPackageSet } from "./python-packages";
@@ -24,15 +24,6 @@ import { GRACE_MS, RunClock, START_ATTEMPTS } from "./run-clock";
 
 export type PythonState = "idle" | "booting" | "ready" | "running" | "failed";
 type StopReason = "timeout" | "stopped" | "output-limit";
-
-export interface BootInfo {
-  source: BootSource;
-  /** Start-up time, packages included. */
-  ms: number;
-  /** Packages loaded, dependencies included. */
-  packages: string[];
-  packageMs: number;
-}
 
 /** Python's memory cap, from the runtime folder's name ("314.0.7-heap512"). */
 const HEAP_MB = Number(/-heap(\d+)$/.exec(__PYODIDE_DIR__)?.[1] ?? 0);
@@ -57,8 +48,6 @@ const list = (names: readonly string[]) => names.join(", ");
 export class PythonRunner {
   state: PythonState = "idle";
   bootError = "";
-  /** How the current runtime started (for diagnostics and tests). */
-  lastBoot: BootInfo | null = null;
 
   private listeners = new Set<(state: PythonState) => void>();
   private worker: Worker | null = null;
@@ -231,9 +220,7 @@ export class PythonRunner {
           return reject(new Error("superseded"));
         }
         // Sent before any user code ran, so it can be believed (still type-checked).
-        this.available = isStringList(data.available) ? data.available : [];
-        this.lastBoot = { source: data.source === "snapshot" ? "snapshot" : "fresh", ms: Number(data.ms) || 0, packages: isStringList(data.loaded) ? data.loaded : [], packageMs: Number(data.packageMs) || 0 };
-        worker.addEventListener("message", this.onChecked);
+        this.available = isStringList(data.available) ? data.available : [];        worker.addEventListener("message", this.onChecked);
         resolve();
       };
       worker.addEventListener("message", onMessage);
@@ -480,5 +467,4 @@ export const warmUp = (): void => python.warmUp();
 export const restart = (): void => python.restart();
 export const state = (): PythonState => python.state;
 export const onState = (fn: (state: PythonState) => void): (() => void) => python.onState(fn);
-export const bootInfo = (): BootInfo | null => python.lastBoot;
 export const downloadShown = (): { loaded: number; total: number } | null => python.downloadShown();

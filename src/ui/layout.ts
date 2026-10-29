@@ -10,7 +10,7 @@
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
-import { h, isMac, srOnly, svg } from "./dom";
+import { ariaMod, h, isMac, srOnly, svg } from "./dom";
 import { icon } from "./icons";
 import { chartPanelSize } from "./panel-size";
 import { clamp, createSplitter, type Splitter } from "./splitter";
@@ -125,6 +125,7 @@ export function createLayout(root: HTMLElement): Layout {
   const shortQuery = matchMedia(SHORT);
 
   const mod = isMac() ? "Cmd" : "Ctrl";
+  const m = ariaMod();
   // ---------------------------------------------------------------- top bar
   const drawerToggle = h("button", { type: "button", class: "icon-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "false", "aria-controls": "sidebar", title: "Files" }, icon("sidebar-simple"));
   // The breadcrumb: the open file's folders (the secondary tier) and its name (the name font, in
@@ -134,7 +135,7 @@ export function createLayout(root: HTMLElement): Layout {
   const syncSlot = h("div", { class: "sync-slot", id: "sync-slot" });
   const runLabel = h("span", { class: "run-label" }, "Run");
   // The shortcut is in the tooltip and aria-keyshortcuts (workbench.ts setRunning), not in the fill.
-  const runButton = h("button", { type: "button", class: "btn primary run", id: "run-button", "data-running": "false", "aria-keyshortcuts": "Control+Enter", title: "Run (Ctrl+Enter)" }, h("span", { class: "run-icon" }, icon("play-fill")), runLabel);
+  const runButton = h("button", { type: "button", class: "btn primary run", id: "run-button", "data-running": "false", "aria-keyshortcuts": `${m}+Enter`, title: `Run (${mod}+Enter)` }, h("span", { class: "run-icon" }, icon("play-fill")), runLabel);
   const settingsButton = h("button", { type: "button", class: "icon-btn", id: "settings-button", "aria-label": "Settings", title: "Settings" }, icon("gear"));
   // The command palette's visible way in (Ctrl+P, F1 and Ctrl+Shift+P are its keys): a field-like
   // button in the middle of the top bar, its words and its key on it; below 900 px it is the
@@ -144,7 +145,7 @@ export function createLayout(root: HTMLElement): Layout {
     "button",
     {
       type: "button", class: "palette-btn", id: "palette-button", "aria-label": "Search or run a command", "aria-haspopup": "dialog",
-      "aria-keyshortcuts": "Control+P Control+Shift+P F1", title: `Search or run a command (${mod}+P)`,
+      "aria-keyshortcuts": `${m}+P ${m}+Shift+P F1`, title: `Search or run a command (${mod}+P)`,
     },
     icon("magnifying-glass"),
     h("span", { class: "palette-btn-label" }, "Search or run a command"),
@@ -167,7 +168,7 @@ export function createLayout(root: HTMLElement): Layout {
   const quickButton = (id: string, iconName: Parameters<typeof icon>[0], label: string, keys?: string) =>
     h(
       "button",
-      { type: "button", class: "quick-btn", id, ...(keys ? { "aria-keyshortcuts": "Control+P" } : {}) },
+      { type: "button", class: "quick-btn", id, ...(keys ? { "aria-keyshortcuts": `${m}+P` } : {}) },
       icon(iconName),
       h("span", { class: "quick-label" }, label),
       keys ? h("kbd", { class: "keycap", "aria-hidden": "true" }, keys) : null,

@@ -694,15 +694,15 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   await page.keyboard.press("Enter");
   await page.keyboard.type("i");
   await expect(page.locator(".cm-tooltip-autocomplete [role=option]").nth(1)).toBeVisible();
-  // A list just opened ignores keys for 75 ms (CodeMirror's interactionDelay): Down until one is picked.
+  // The top option is picked when the list opens (the default since 2026-10-28). The second one is
+  // measured, away from the list's rounded corner (its border curves into the first row). A list
+  // just opened ignores keys for 75 ms (CodeMirror's interactionDelay): Down until it is picked.
+  const options = page.locator(".cm-tooltip-autocomplete [role=option]");
+  await expect(options.nth(0)).toHaveAttribute("aria-selected", "true");
   await expect(async () => {
     await page.keyboard.press("ArrowDown");
-    await expect(page.locator(".cm-tooltip-autocomplete [role=option][aria-selected]")).toHaveCount(1, { timeout: 500 });
+    await expect(options.nth(1)).toHaveAttribute("aria-selected", "true", { timeout: 500 });
   }).toPass();
-  // The second option, away from the list's rounded corner (its border curves into the first row).
-  await page.keyboard.press("ArrowDown");
-  const options = page.locator(".cm-tooltip-autocomplete [role=option]");
-  await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
   await page.mouse.move(1, 1);
   // The option's own left edge only: its kind icon (an italic f on some) leans into a wider strip.
   const edge = (r: Box): Box => ({ x: r.x, y: r.y + 2, width: 1, height: r.height - 4 });

@@ -74,17 +74,6 @@ function isDigitSeparator(text: string, i: number): boolean {
   return /[0-9a-fA-F]/.test(text[i - 1] ?? "") && /[0-9a-fA-F]/.test(text[i + 1] ?? "") && /\b\d[\w']*$/.test(text.slice(Math.max(0, i - 32), i));
 }
 
-/** 1-based line and 0-based UTF-16 column of `offset` in `text`. */
-export function lineColAt(text: string, offset: number): { line: number; col: number } {
-  let line = 1;
-  let start = 0;
-  for (let i = text.indexOf("\n"); i >= 0 && i < offset; i = text.indexOf("\n", i + 1)) {
-    line++;
-    start = i + 1;
-  }
-  return { line, col: offset - start };
-}
-
 const MAIN = /\b(?:int|void|auto|signed|unsigned)\s+main\s*\(/;
 
 /** Whether the source defines (or at least declares at file level) a main function. */

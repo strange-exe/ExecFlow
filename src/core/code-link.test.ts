@@ -24,7 +24,7 @@ describe("making and reading a code link", () => {
     ["hello.cpp", '#include <iostream>\nint main() {\n  std::cout << "Hello\\n";\n}\n'],
     ["empty.py", ""],
     ["नमस्ते.py", `print("नमस्ते, दुनिया")  # Hindi\nprint("${String.fromCodePoint(0x1f600)}")\n`],
-    ["tabs.c", "int main(void) {\n\treturn 0;\n}\r\n"],
+    ["tabs.c", "int main(void) {\n\treturn 0;\n}\n"],
   ])("%s comes back exactly as it went in", async (name, text) => {
     expect(await roundTrip(name, text)).toEqual({ ok: true, file: { name, text } });
   });
@@ -111,6 +111,20 @@ describe("reading a hostile or damaged link", () => {
       expect(read.ok).toBe(false);
       if (!read.ok) expect(read.refusal.kind).toBe("not-text");
     }
+  });
+
+  it("Windows line endings come back as LF (files are stored with LF), as a file import converts them", async () => {
+    const CR = String.fromCharCode(13);
+    const t = ["int main(void) {", "  return 0;", "}", ""].join(CR + "\n");
+    expect(await readCodeLink(forgeJson({ n: "a.c", t }))).toEqual({ ok: true, file: { name: "a.c", text: "int main(void) {\n  return 0;\n}\n" } });
+  });
+
+  it.each([
+    ["a lone carriage return", ["a", "b"].join(String.fromCharCode(13)), /carriage return/],
+    ["mixed line endings", "a" + String.fromCharCode(13) + "\nb\n", /mix/],
+  ])("%s is refused before any preview (a file import refuses a mix too, but converts CR-only files)", async (_, t, reason) => {
+    const read = await readCodeLink(forgeJson({ n: "a.c", t }));
+    expect(read).toMatchObject({ ok: false, refusal: { kind: "not-text", reason: expect.stringMatching(reason) } });
   });
 
   it("markup in the code is kept as text (the UI shows it as text); a name can't hold < or >", async () => {
