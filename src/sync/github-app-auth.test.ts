@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureCallback, takeCallback } from "./auth-callback";
 import { createClient, GitHubError, TokenUnavailable } from "./github";
 import {
@@ -286,6 +286,147 @@ describe("the app token source", () => {
     const source = createAppTokenSource({ tokens: t, remember: false, fetch: r.fetch, now: () => 9 * HOUR, lock: sharedLock(), store: memoryStore() });
     await expect(source.current()).rejects.toMatchObject({ kind: "auth" });
     expect(r.calls).toEqual([]);
+  });
+
+  /** A relay whose refresh answer waits for release(); revokes answer 204 at once. */
+  function heldRelay() {
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const r = relay(async (route) => {
+      if (route === "revoke") return new Response(null, { status: 204 });
+      await held;
+      return json(200, pair(A2, R2));
+    });
+    const revoked = () => r.calls.filter((c) => c.route === "revoke").map((c) => c.body.access_token);
+    return { ...r, release, revoked };
+  }
+  const tick = () => new Promise((res) => setTimeout(res, 0));
+
+  it("signed out mid-refresh: the late pair is revoked, never adopted, and nothing is sealed after the database is deleted", async () => {
+    const r = heldRelay();
+    const source = createAppTokenSource({ tokens: fresh(0), remember: true, fetch: r.fetch, now: () => 8 * HOUR, lock: (run) => run() });
+    const refreshing = source.refresh!(A1).then(
+      () => "adopted",
+      (e: unknown) => e,
+    );
+    await tick();
+    // "Sign out and clear this computer": close the source, then delete the secrets database.
+    expect(await source.close()).toBe(true);
+    await deleteSecretsDb();
+    r.release();
+    expect(await refreshing).toEqual(new TokenUnavailable("auth"));
+    await tick();
+    expect(r.revoked()).toEqual([A1, A2]);
+    expect(source.tokens().access).toBe(A1);
+    expect((await indexedDB.databases()).map((d) => d.name)).not.toContain(SECRETS_DB);
+    expect(await loadAppTokens()).toBeNull();
+  });
+
+  it("closed while the new pair is being sealed: close waits for the seal, then revokes the pair it sealed", async () => {
+    const r = relay((route) => (route === "revoke" ? new Response(null, { status: 204 }) : json(200, pair(A2, R2))));
+    let finishSave!: () => void;
+    const store = memoryStore();
+    const save = store.save;
+    store.save = (t) => new Promise<void>((res) => (finishSave = res)).then(() => save(t));
+    const source = createAppTokenSource({ tokens: fresh(0), remember: true, fetch: r.fetch, now: () => 8 * HOUR, lock: (run) => run(), store });
+    const refreshing = source.refresh!(A1);
+    while (!finishSave) await tick();
+    let closedAt = 0;
+    const closing = source.close().then((ok) => ((closedAt = store.saves), ok));
+    await tick();
+    finishSave();
+    expect(await closing).toBe(true);
+    expect(closedAt).toBe(1);
+    expect(await refreshing).toBe(true);
+    expect(r.calls.filter((c) => c.route === "revoke").map((c) => c.body.access_token)).toEqual([A2]);
+  });
+
+  it("a closed source hands out no token and refreshes nothing", async () => {
+    const r = relay((route) => (route === "revoke" ? new Response(null, { status: 204 }) : json(200, pair(A2, R2))));
+    const store = memoryStore();
+    // A fresh token (no refresh due), so current() can't lean on the refresh's own check.
+    const source = createAppTokenSource({ tokens: fresh(0), remember: true, fetch: r.fetch, now: () => 0, lock: sharedLock(), store });
+    await source.close();
+    await expect(source.current()).rejects.toEqual(new TokenUnavailable("auth"));
+    await expect(source.refresh!(A1)).rejects.toEqual(new TokenUnavailable("auth"));
+    expect(r.calls.map((c) => c.route)).toEqual(["revoke"]);
+    expect(store.saves).toBe(0);
+  });
+
+  it("closed while another tab's pair is being read: it is not taken", async () => {
+    const r = relay((route) => (route === "revoke" ? new Response(null, { status: 204 }) : json(200, pair(A3, R2))));
+    let source!: ReturnType<typeof createAppTokenSource>;
+    const store = memoryStore(fresh(0, A2, R2));
+    const load = store.load;
+    store.load = async () => {
+      void source.close();
+      return load();
+    };
+    source = createAppTokenSource({ tokens: fresh(0), remember: true, fetch: r.fetch, now: () => 8 * HOUR, lock: (run) => run(), store });
+    await expect(source.refresh!(A1)).rejects.toEqual(new TokenUnavailable("auth"));
+    expect(source.tokens().access).toBe(A1);
+    expect(r.calls.map((c) => c.route)).toEqual(["revoke"]);
+  });
+
+  it("closed while GitHub refuses the refresh, or while the stored pair is read: nothing is forgotten (that would make the deleted database again)", async () => {
+    // Refused (bad_refresh_token) after the source was closed.
+    let release!: () => void;
+    const held = new Promise<void>((res) => (release = res));
+    const r = relay(async (route) => (route === "revoke" ? new Response(null, { status: 204 }) : (await held, json(400, { error: "bad_refresh_token" }))));
+    const store = memoryStore();
+    let forgets = 0;
+    store.forget = async () => void forgets++;
+    const source = createAppTokenSource({ tokens: fresh(0), remember: true, fetch: r.fetch, now: () => 8 * HOUR, lock: (run) => run(), store });
+    const refreshing = source.refresh!(A1).catch((e: unknown) => e);
+    while (!r.calls.some((c) => c.route === "refresh")) await tick();
+    await source.close();
+    release();
+    expect(await refreshing).toEqual(new TokenUnavailable("auth"));
+
+    // The refresh token itself expired, and the source was closed while the stored pair was read.
+    let closing!: ReturnType<typeof createAppTokenSource>;
+    const old = memoryStore();
+    old.forget = async () => void forgets++;
+    old.load = async () => {
+      void closing.close();
+      return null;
+    };
+    closing = createAppTokenSource({ tokens: { ...fresh(0), refreshExpiresAt: HOUR }, remember: true, fetch: r.fetch, now: () => 8 * HOUR, lock: (run) => run(), store: old });
+    await expect(closing.refresh!(A1)).rejects.toEqual(new TokenUnavailable("auth"));
+    expect(forgets).toBe(0);
+  });
+
+  it("another tab deletes the secrets while this one seals a refreshed pair: the seal makes the database again, so this tab deletes it once close() returns", async () => {
+    const r = relay((route) => (route === "revoke" ? new Response(null, { status: 204 }) : json(200, pair(A2, R2))));
+    // Hold the seal between its encryption and its write (where IndexedDB is opened).
+    const encrypt = crypto.subtle.encrypt.bind(crypto.subtle);
+    let releaseSeal!: () => void;
+    const sealHeld = new Promise<void>((res) => (releaseSeal = res));
+    let encrypting = false;
+    const spy = vi.spyOn(crypto.subtle, "encrypt").mockImplementation(async (...args) => {
+      encrypting = true;
+      await sealHeld;
+      return encrypt(...args);
+    });
+    try {
+      const source = createAppTokenSource({ tokens: fresh(0), remember: true, fetch: r.fetch, now: () => 8 * HOUR, lock: (run) => run() });
+      const refreshing = source.refresh!(A1);
+      while (!encrypting) await tick();
+      // The clearing tab: its delete runs now, before this tab's seal opens the database.
+      await deleteSecretsDb();
+      // This tab hears "cleared": close() waits for its own seal...
+      const closing = source.close();
+      releaseSeal();
+      expect(await closing).toBe(true);
+      expect(await refreshing).toBe(true);
+      // ...which made the database again, with the pair in it (the race the finding describes).
+      expect((await loadAppTokens())?.access).toBe(A2);
+      // So the tab that heard "cleared" deletes it too, after close(): nothing is left.
+      await deleteSecretsDb();
+      expect((await indexedDB.databases()).map((d) => d.name)).not.toContain(SECRETS_DB);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("offline near expiry: the remaining minutes are still used; once expired it is 'network'", async () => {

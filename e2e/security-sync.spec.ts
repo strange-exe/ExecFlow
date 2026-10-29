@@ -267,8 +267,10 @@ test("Sign out and clear with a second tab open still deletes both databases, an
   await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
 
   await clearThisComputer(page);
-  // Give the other tab time to react (it is told to close its connection) and to try anything it would.
-  await expect(second.locator(".notice")).toHaveAttribute("data-tone", "warning", { timeout: 15_000 });
+  // The other tab is told, drops everything it holds (the cleared screen, no files), and is given
+  // time to try anything it would.
+  await expect(second.locator("#app")).toHaveAttribute("data-state", "cleared", { timeout: 15_000 });
+  await expect(second.locator(".tree [role=treeitem]")).toHaveCount(0);
   await second.waitForTimeout(3000);
   expect(await databases(page)).not.toContain("codeeditor-secrets");
   const entries = await page.evaluate(async () => {

@@ -303,6 +303,13 @@ export interface AppTokenSource extends TokenSource {
   readonly remembered: boolean;
   /** The pair now (for revoke on Disconnect). */
   tokens(): AppTokens;
+  /**
+   * Ends this sign-in for good (Disconnect, "Sign out and clear this computer"): nothing is
+   * adopted or sealed after this, a refresh still on its way is revoked when it lands, and a seal
+   * already being written finishes first (so the caller's delete comes after it). Then revokes the
+   * live access token: true when GitHub confirmed it.
+   */
+  close(): Promise<boolean>;
 }
 
 export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
@@ -313,8 +320,13 @@ export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
   let tokens = { ...o.tokens };
   const seen = new Set<string>([tokens.access, tokens.refresh]);
   let inflight: Promise<void> | null = null;
+  /** Set by close(): a signed-out source never takes or keeps a pair again. */
+  let closed = false;
+  /** The seal being written now (close() waits for it). */
+  let sealing: Promise<void> | null = null;
 
   const adopt = (next: AppTokens) => {
+    if (closed) throw new TokenUnavailable("auth");
     tokens = { ...next };
     seen.add(next.access);
     seen.add(next.refresh);
@@ -323,6 +335,7 @@ export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
   /** Refreshes unless the pair already moved on from `stale` (here, or in another tab). */
   function refreshFrom(stale: string): Promise<void> {
     inflight ??= lock(async () => {
+      if (closed) throw new TokenUnavailable("auth");
       if (tokens.access !== stale) return;
       if (o.remember) {
         const stored = await store.load().catch(() => null);
@@ -331,8 +344,10 @@ export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
           return;
         }
       }
+      // A closed source forgets nothing: the store may have been deleted, and forget() would open
+      // (so make) it again.
       if (now() >= tokens.refreshExpiresAt) {
-        if (o.remember) await store.forget().catch(() => {});
+        if (o.remember && !closed) await store.forget().catch(() => {});
         throw new TokenUnavailable("auth");
       }
       let next: AppTokens;
@@ -341,15 +356,22 @@ export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
       } catch (error) {
         const kind = error instanceof SignInError ? error.kind : "unavailable";
         if (kind === "bad_refresh_token") {
-          if (o.remember) await store.forget().catch(() => {});
+          if (o.remember && !closed) await store.forget().catch(() => {});
           throw new TokenUnavailable("auth");
         }
         throw new TokenUnavailable(kind === "network" ? "network" : "server");
       }
+      if (closed) {
+        // Signed out while GitHub was answering: this pair was never anyone's, so end it.
+        void revokeToken(next.access, fetchImpl);
+        throw new TokenUnavailable("auth");
+      }
       adopt(next);
       if (o.remember) {
         // A sealed pair that is no longer the live one would only fail later: drop it instead.
-        await store.save(next).catch(() => store.forget().catch(() => {}));
+        sealing = store.save(next).catch(() => store.forget().catch(() => {}));
+        await sealing;
+        sealing = null;
       }
     }).finally(() => {
       inflight = null;
@@ -363,6 +385,7 @@ export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
     tokens: () => ({ ...tokens }),
     secrets: () => [...seen],
     async current() {
+      if (closed) throw new TokenUnavailable("auth");
       if (tokens.accessExpiresAt - now() > REFRESH_EARLY_MS) return tokens.access;
       try {
         await refreshFrom(tokens.access);
@@ -376,6 +399,11 @@ export function createAppTokenSource(o: AppSourceOptions): AppTokenSource {
     async refresh(stale) {
       await refreshFrom(stale);
       return tokens.access !== stale;
+    },
+    async close() {
+      closed = true;
+      await sealing;
+      return revokeToken(tokens.access, fetchImpl);
     },
   };
 }
