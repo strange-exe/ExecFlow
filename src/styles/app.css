@@ -221,6 +221,13 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .capture-btn { min-height: var(--tool); padding: 0 var(--s3) 0 var(--s2); border-color: transparent; color: var(--text-muted); font-size: var(--fs-2); }
 .capture-btn:hover:not(:disabled) { color: var(--text); }
 .capture-btn > * { pointer-events: none; }
+/* Under 1100 px the rail and the sidebar leave the top bar less room: Capture is its icon (its name
+   and tooltip keep the words), so the breadcrumb and the field keep theirs (Firefox's wider faces
+   overflowed 1024 px by a few pixels). */
+@media (min-width: 900px) and (max-width: 1099px) {
+  .topbar .capture-label { display: none; }
+  .topbar .capture-btn { padding: 0 var(--s2); }
+}
 
 /* ------------------------------------------------------------------ Run, Stop */
 .run { height: var(--primary-h); min-height: var(--primary-h); padding: 0 var(--s4) 0 var(--s3); gap: var(--s2); font-size: var(--fs-1); }
@@ -1357,9 +1364,15 @@ input.switch {
   .editor-area, .center > .panel {
     border: 1px solid var(--border);
     border-radius: var(--r-sheet);
-    overflow: clip;
   }
+  .center > .panel { overflow: clip; }
+  /* The code card does not clip: the suggestion list's info and other tooltips drawn beside the
+     code may reach over the console card (WebKit draws them absolute, inside the card). Its first
+     and last rows round their own corners instead, so no ground pokes past the card's. */
   .editor-area { background: var(--bg); }
+  .editor-area > .banner, .editor-head { border-radius: calc(var(--r-sheet) - 1px) calc(var(--r-sheet) - 1px) 0 0; }
+  .editor-area > .editor-foot { border-radius: 0 0 calc(var(--r-sheet) - 1px) calc(var(--r-sheet) - 1px); }
+  .workbench[data-open="false"] .editor-panel, .workbench[data-open="false"] .editor-empty { border-radius: calc(var(--r-sheet) - 1px); }
   /* The editor head is part of the card: the code's ground, a --border rule under it. */
   .editor-head { background: var(--bg); border-bottom: 1px solid var(--border); }
   /* The card's foot: the file's language and Ln/Col, in the hint tier, under a rule. */
@@ -1565,6 +1578,9 @@ input.switch {
   }
   [role="treeitem"][aria-selected="true"] > .tree-row::after { content: ""; position: absolute; inset: 0; border: 1px solid var(--location); pointer-events: none; }
   .error-jump { border: 1px solid var(--danger); border-left-width: 2px; }
+  /* The run header's error chip is the failed run's only mark: Firefox draws a button's own edge in
+     the muted ButtonBorder (2.6:1), so its edge takes the button's text colour, 2 px. */
+  .exc { border: 2px solid currentColor; }
   /* The field error and an error on a result line: the bar becomes a border; an invalid field keeps
      its 1 px edge plus aria-invalid. */
   .field-error, .dialog-body .result-line[data-tone="error"] { border-left: 2px solid var(--danger); }
