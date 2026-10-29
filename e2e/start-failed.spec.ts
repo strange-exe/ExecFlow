@@ -39,6 +39,33 @@ test("a module the app needs is missing: the page says it couldn't start, and Re
   await expect(page.locator(".start-failed")).toHaveCount(0);
 });
 
+test.describe("a blocked analytics beacon", () => {
+  // On the custom domains Cloudflare adds its Web Analytics beacon as <script type="module"> from
+  // static.cloudflareinsights.com; Brave and phone ad blockers block it (owner's report, 2026-10-29:
+  // "couldn't start" on code-editor.abhinesh.codes, fine on .pages.dev, where nothing is added). A
+  // script that isn't the app's own must not say the app couldn't start.
+  test.use(tolerating(/cloudflareinsights|ERR_BLOCKED_BY_CLIENT|ERR_FAILED|Failed to load|Load request cancelled|NS_ERROR/i));
+  test("a cross-origin module that fails to load leaves the app starting normally", async ({ page }) => {
+    const beacon = "https://static.cloudflareinsights.com/beacon.min.js/vtest";
+    let blocked = false;
+    await page.route(beacon, (route) => {
+      blocked = true;
+      return route.abort("blockedbyclient");
+    });
+    // The page as the custom domain serves it: the beacon added before </head>.
+    await page.route((url) => url.pathname === "/", async (route) => {
+      if (route.request().resourceType() !== "document") return route.continue();
+      const res = await route.fetch();
+      const body = (await res.text()).replace("</head>", `<script type="module" src="${beacon}" crossorigin="anonymous"></script></head>`);
+      return route.fulfill({ response: res, body });
+    });
+    await page.goto("/");
+    await expect(page.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+    expect(blocked, "the beacon was requested and blocked").toBe(true);
+    await expect(page.locator(".start-failed")).toHaveCount(0);
+  });
+});
+
 for (const vp of [
   { name: "desktop", width: 1440, height: 900 },
   { name: "phone", width: 390, height: 844 },
