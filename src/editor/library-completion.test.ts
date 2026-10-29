@@ -446,6 +446,25 @@ describe("C and C++ snippets", () => {
     expect(await insert("main.c", "sc", "scanf", "statement")).toBe('scanf("%d", &variable);');
   });
 
+  // "int main" + Enter (main on top and picked) gave "int int main(void) {", which doesn't compile
+  // (review, 2026-10-28): after a return type the snippet inserts the rest of the function.
+  it("main after a return type typed before it inserts the rest of the function, never a second type", async () => {
+    const after = async (path: string, typed: string) => {
+      const state = stateFor(path, typed, { extra: indentUnit.of("    ") });
+      const option = one(await optionsAfter(path, typed, typed), "main", "function");
+      return accept(state, option, typed.length - 2, typed.length).doc.toString();
+    };
+    expect(await after("main.c", "int ma")).toBe("int main(void) {\n    \n    return 0;\n}");
+    expect(await after("main.c", "static int ma")).toBe("static int main(void) {\n    \n    return 0;\n}");
+    // void main: no return value (C warns about the type, C++ refuses it; the text stays the student's).
+    expect(await after("main.c", "void ma")).toBe("void main(void) {\n    \n}");
+    expect(await after("main.cpp", "int ma")).toBe("int main() {\n    \n}");
+    expect(await after("main.cpp", "void ma")).toBe("void main() {\n    \n}");
+    // Not a type word before it (a longer word that ends in int): the whole function, as at a line's start.
+    expect(await after("main.c", "    ma")).toBe("    int main(void) {\n        \n        return 0;\n    }");
+    expect(await after("main.c", "print ma")).toBe("print int main(void) {\n    \n    return 0;\n}");
+  });
+
   it("class and C++'s main in C++ only; the keywords stay plain words beside them", async () => {
     expect(await insert("main.cpp", "cl", "class", "definition")).toBe("class Name {\npublic:\n    \n};");
     expect(await insert("main.cpp", "ma", "main", "function")).toBe("int main() {\n    \n}");

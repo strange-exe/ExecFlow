@@ -2,7 +2,7 @@ import {
   clearSnippet, completionKeymap, completionStatus, hasNextSnippetField, insertCompletionText, pickedCompletion, snippetCompletion, startCompletion,
   type Completion,
 } from "@codemirror/autocomplete";
-import { defaultKeymap, insertBlankLine } from "@codemirror/commands";
+import { defaultKeymap, insertBlankLine, insertNewlineAndIndent } from "@codemirror/commands";
 import { getIndentUnit } from "@codemirror/language";
 import { EditorState, Transaction, type Extension, type TransactionSpec } from "@codemirror/state";
 import { EditorView, keymap, type KeyBinding } from "@codemirror/view";
@@ -11,7 +11,7 @@ import { BIDI_CONTROL, HIDDEN } from "../core/safety";
 import { ALPHA_OK, COLOR_VARS, PAIRS } from "../theme/contrast";
 import extensionsSource from "./extensions.ts?raw";
 import {
-  APP_KEYS, appHandlers, BASE, DEFAULT_PREFS, ESCAPE_KEY, EXTRA_SPECIALS, fileConf, fileExtensions, fileIdFacet, LINT_SPEC, notifyDocChanged,
+  APP_KEYS, appHandlers, BASE, DEFAULT_PREFS, ENTER_KEY, ESCAPE_KEY, EXTRA_SPECIALS, fileConf, fileExtensions, fileIdFacet, LINT_SPEC, notifyDocChanged,
   prefsConf, prefsExtension, READ_ONLY, TOOLTIP_EDGE,
 } from "./extensions";
 import { CHROME_SPEC, highlightStyle } from "./highlight";
@@ -232,9 +232,13 @@ describe("suggestions", () => {
 
   it("installs each completionKeymap binding once: autocompletion() does, at the highest precedence", () => {
     for (const binding of completionKeymap) expect(maps.filter((m) => m.includes(binding)).length, binding.key ?? binding.mac).toBe(1);
-    // Highest precedence: ahead of defaultKeymap (whose Enter inserts a new line).
+    // Highest precedence: ahead of defaultKeymap (whose Enter inserts a new line), and after ENTER_KEY
+    // (enter-key.test.ts), which leaves it Enter unless the word is already typed in full.
     const enter = completionKeymap.find((b) => b.key === "Enter")!;
-    expect(at(enter)).toBeLessThan(maps.findIndex((m) => m.some((b) => b.key === "Enter" && b !== enter)));
+    const newLine = maps.findIndex((m) => m.some((b) => b.key === "Enter" && b.run === insertNewlineAndIndent));
+    expect(newLine).toBeGreaterThanOrEqual(0);
+    expect(at(enter)).toBeLessThan(newLine);
+    expect(at(ENTER_KEY)).toBeLessThan(at(enter));
   });
 
   it("tries ESCAPE_KEY before completionKeymap's Escape and before the snippet keymap", () => {

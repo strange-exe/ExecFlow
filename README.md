@@ -54,8 +54,9 @@ and logs nothing, and syncing never goes through it.
   Safari can't number pages for a web page: there the footer has no page number and is printed
   with each file's code (their print dialog can add its own page numbers). Works offline; the PDF
   is made by the browser, so its text can be selected and searched.
-- Share link... (a file's menu in the list, More file actions, and the search): with GitHub
-  connected, choose who can open the link, then copy it. See [Sharing a file](#sharing-a-file).
+- Share link... (a file's menu in the list, More file actions, and the search): a code link that
+  carries the file inside the link (no account needed), or, with GitHub connected, a link to the
+  file in your repository or a secret gist. See [Sharing a file](#sharing-a-file).
 - Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
   name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).
@@ -111,8 +112,9 @@ Other commands:
 
 GitHub Actions (`.github/workflows/ci.yml`) checks every push to `main` and every pull request.
 One job runs `npm ci --ignore-scripts`, the type check, the unit tests and `npm run build`; when
-it passes, the end-to-end suite runs in Chromium, Firefox and WebKit, one job per browser (the
-Chromium job also runs the typing-speed test, with one worker as every CI job). The
+it passes, the end-to-end suite runs in Chromium, Firefox and WebKit: one job each for Chromium
+and Firefox, and WebKit as three shards (`--shard=1/3` to `3/3`) to stay under the 60-minute job
+limit (the Chromium job also runs the typing-speed test, with one worker as every CI job). The
 downloads in `node_modules/.cache/` are kept between runs, and a failed end-to-end job keeps its
 `test-results/` folder as an artifact for 7 days. CI doesn't hold back deploys: Cloudflare Pages
 builds every push to `main` on its own.
@@ -138,8 +140,12 @@ The library lists are generated from the C/C++ pack's sysroot and from Pyodide
 of that language is shown, and work offline after the first visit. Keywords and snippets come with
 the editor itself, so they are offered even if the rest can't load yet.
 
-- Nothing is picked when the list opens, so Enter makes a new line. Down or Up picks a suggestion,
-  then Enter accepts it. Tab never accepts one.
+- The top suggestion is picked when the list opens, so Enter accepts it; Down or Up picks another.
+  If the top suggestion is just the word you typed (`print` typed in full), Enter makes a new line
+  unless an arrow key picked it. Otherwise Enter accepts what is on top: `n = i` becomes `n = id`
+  when the file has no `i`, and a snippet such as `def`, `if` or `main` still expands (after
+  `int`, `main` writes the rest of the function). Tab never accepts one. With "Enter accepts the
+  top suggestion" off in Settings, nothing is picked until Down or Up, and Enter makes a new line.
 - Ctrl+Space shows the list at any time (on macOS also Alt+\`). "Suggestions while typing" in
   Settings stops the list from opening by itself.
 - Esc closes the list, or ends a snippet. Inside a snippet, Tab and Shift+Tab move between its
@@ -231,9 +237,18 @@ with the name, Contents and a 90-day expiry filled in; you pick the repository t
 
 ### Sharing a file
 
-Share link... asks who can open the link, then copies it. Nothing is shared until you choose.
+Share link... asks how to share, then copies the link. Nothing is shared until you choose.
 
-- **People with access to the repository** (the default): the file's page on GitHub,
+- **Code link** (the default; works without GitHub): the file's name and code, compressed, in
+  the link itself (`#code=1.<data>`). The part after `#` is never sent to a server, so nothing is
+  uploaded and anyone can open it. A link holds up to 8000 characters, so chat apps keep it
+  whole; a file too long for one says so. Copy with title copies it as
+  a titled link ("Open main.py in CodeEditor") for documents and mail, and Show QR code draws it
+  to scan from a screen. Opening a code link shows a read-only preview first; Add puts it in your
+  files under a free name, and it never runs by itself. Damaged links, links whose content would
+  unpack beyond 256 KB, names that aren't a single safe file name, and text that isn't plain text
+  are refused; hidden characters in a name or the code are shown as tags in the preview.
+- **People with access to the repository**: the file's page on GitHub,
   `https://github.com/<owner>/<repo>/blob/<commit>/<path>`, pinned to the commit of the last sync.
   It opens only for you and the repository's collaborators while the repository is private. The
   dialog says so when it is public, and says when it couldn't check (offline, or GitHub didn't
@@ -343,10 +358,14 @@ Then `npm run build` and `npm run dev:pages`, and open http://127.0.0.1:8788.
 | `src/editor` | CodeMirror 6 editor sessions, diagnostics and suggestions (`src/editor/data`: the generated library lists) |
 | `src/runner`, `src/workers` | The Python and C/C++ runtimes and their workers |
 | `src/ui`, `src/theme`, `src/styles` | The workbench, the colour themes, the styles |
+| `src/flowchart` | The flowchart: the tree-sitter grammar pack and its download, the per-language readers, the engine, layout, drawing and export |
+| `src/about` | The About page (`about.html`), the release list (`changelog.ts`), What's new, and the three.js scene, whose chunks are cached only once /about is opened |
 
 The page is cross-origin isolated (COOP and COEP), so programs can wait for typed input. Its
-Content-Security-Policy allows scripts only from the site itself (no `eval`), and network requests
-only to the site and `https://api.github.com`. The workers that run code get a stricter policy
+Content-Security-Policy allows scripts only from the site itself (no `eval`), plus Cloudflare's
+Web Analytics beacon (`static.cloudflareinsights.com/beacon.min.js`, which Cloudflare adds at its
+edge and which reports to the site's own `/cdn-cgi/rum`; see the Privacy page), and network
+requests only to the site and `https://api.github.com`. The workers that run code get a stricter policy
 (the site only), and Python's worker has storage, network, locks, messaging to other tabs and its
 own `postMessage` removed before any program starts (a program can't send the page messages).
 
@@ -378,6 +397,11 @@ sends; [Terms](https://code-editor.abhinesh.codes/terms) are the rules for using
 from Settings. The build writes `/licenses.txt` with every licence text the site's files ship under
 (`vite.config.ts`, `thirdPartyLicenses`); a bundled npm package without a licence file stops the build.
 
+What changed in each release: [CHANGELOG.md](CHANGELOG.md), or the
+[About page](https://code-editor.abhinesh.codes/about#changelog) on the site. Releases are listed in
+`src/about/changelog.ts`, which writes CHANGELOG.md (`node scripts/write-changelog.mjs`) and the
+About page's list; a release also bumps `version` in package.json.
+
 ## Third-party software
 
 CodeEditor bundles or downloads the following. Their licences apply to their parts.
@@ -403,6 +427,8 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c) 0.24.1 (its `.wasm`) | MIT | Flowchart: the C grammar |
 | [tree-sitter-cpp](https://github.com/tree-sitter/tree-sitter-cpp) 0.23.4 (its `.wasm`) | MIT | Flowchart: the C++ grammar |
 | [tree-sitter-python](https://github.com/tree-sitter/tree-sitter-python) 0.25.0 (its `.wasm`) | MIT | Flowchart: the Python grammar |
+| [three.js](https://threejs.org/) 0.186.1 | MIT | The About page's 3D scene |
+| [uqr](https://github.com/unjs/uqr) 0.1.3 | MIT | Share link's QR code |
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto

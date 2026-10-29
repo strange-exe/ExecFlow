@@ -7,12 +7,13 @@ import { conflictName, foldKey, isInside, nameOf, parentOf } from "../core/paths
 import type { EntryMeta, RunResult, RunStatus, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
 import type { EditorManager, FileId, Problem } from "../editor/editor-manager";
 import { toLineCol } from "../editor/positions";
-import { deleteAllLocalData, isVersionError, openWorkspaceDb, StorageError, type UiState, type WorkspaceDb, type WorkspaceRecord } from "../storage/db";
+import { deleteAllLocalData, isClosedError, isVersionError, openWorkspaceDb, StorageError, type UiState, type WorkspaceDb, type WorkspaceRecord } from "../storage/db";
 import { createTabCoordinator, relayChanges, type ReadOnlyReason, type TabCoordinator } from "../storage/tabs";
 import { createWorkspaceStore, type WorkspaceStore } from "../storage/workspace";
 import { attachCodeMenu } from "./code-menu";
+import type { AddRefusal } from "./code-link-dialog";
 import { confirmDialog } from "./dialogs";
-import { h, isMac, isTyping, listNames, plural, shown } from "./dom";
+import { ariaMod, h, isMac, isTyping, listNames, plural, shown } from "./dom";
 import { noEditor, type Editors } from "./editors";
 import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
@@ -190,7 +191,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       ({ EditorManager }) => {
         manager ??= new EditorManager({
           parent: L.editorHost,
-          prefs: { lineWrapping: settings.get().lineWrapping, suggestOnTyping: settings.get().suggestOnTyping },
+          prefs: { lineWrapping: settings.get().lineWrapping, suggestOnTyping: settings.get().suggestOnTyping, enterAcceptsTop: settings.get().enterAcceptsTop },
           readOnly: idle.readOnly,
           // Read at each suggestion request: import and #include names, and the -std settings
           // that decide which library names fit.
@@ -334,9 +335,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     return node ? (node.kind === "dir" ? node.path : parentOf(node.path)) : "";
   };
 
+  /** Why this tab can't write, in one sentence. */
+  const readOnlyText = () => (tab?.reason === "no-locks" ? "This browser can't keep tabs in step, so this tab is read-only." : "This tab is read-only: the workspace is open for editing in another tab. Choose Edit here to edit in this tab.");
   function explainReadOnly(): boolean {
     if (canWrite()) return false;
-    notice.show(tab?.reason === "no-locks" ? "This browser can't keep tabs in step, so this tab is read-only." : "This tab is read-only: the workspace is open for editing in another tab. Choose Edit here to edit in this tab.", { tone: "info" });
+    notice.show(readOnlyText(), { tone: "info" });
     return true;
   }
 
@@ -1039,7 +1042,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     L.runLabel.textContent = running ? "Stop" : "Run";
     // The shortcut is in the tooltip and aria-keyshortcuts, not drawn inside the button.
     L.runButton.title = running ? `Stop (${isMac() ? "Cmd" : "Ctrl"}+.)` : `Run (${isMac() ? "Cmd" : "Ctrl"}+Enter)`;
-    L.runButton.setAttribute("aria-keyshortcuts", running ? "Control+Period" : "Control+Enter");
+    L.runButton.setAttribute("aria-keyshortcuts", `${ariaMod()}+${running ? "Period" : "Enter"}`);
     L.runButton.querySelector(".run-icon")!.replaceChildren(icon(running ? "stop-fill" : "play-fill"));
     L.panelActions.querySelector<HTMLButtonElement>("#restart-python")!.disabled = running;
     // A run in progress keeps Stop and the panel on screen, even with no file open.
@@ -1686,12 +1689,19 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
    */
   let unsynced = "0";
   async function refreshSyncCount() {
-    const rec = await store.getWorkspace(ws);
-    if (!rec?.remote) unsynced = "0";
-    else {
-      const stats = await store.workspaceStats(ws);
-      // New files count too: storage reports them as "added", apart from "changed".
-      unsynced = String(stats.changed + stats.added + stats.deleted);
+    try {
+      const rec = await store.getWorkspace(ws);
+      if (!rec?.remote) unsynced = "0";
+      else {
+        const stats = await store.workspaceStats(ws);
+        // New files count too: storage reports them as "added", apart from "changed".
+        unsynced = String(stats.changed + stats.added + stats.deleted);
+      }
+    } catch (e) {
+      // Another tab cleared the storage: this tab already says so and offers Reload, and every
+      // caller starts this without waiting, so a closed connection ends here instead of unhandled.
+      if (isClosedError(e)) return;
+      throw e;
     }
     const status = L.syncSlot.querySelector<HTMLElement>("#sync-status");
     if (status) status.dataset.unsynced = unsynced;
@@ -1916,7 +1926,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   function openExamples(opener: HTMLElement | null = focused()) {
     examplesChunk ??= import("./examples-dialog");
     examplesChunk.then(
-      (m) => m.openExamples({ taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), create: (p, text) => void addFile(p, text), returnTo: opener }),
+      (m) => m.openExamples({ taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), create: (p, text) => void addFile(p, text).then((r) => r && notice.show(r.message, { tone: r.readOnly ? "info" : "error" })), returnTo: opener }),
       (e: unknown) => {
         examplesChunk = null;
         notice.show(`The examples couldn't open: ${errorText(e)}`);
@@ -1955,17 +1965,21 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
     );
   }
-  /** Adds a file at `path` with `text` and opens it (an example). */
-  async function addFile(path: WsPath, text: string) {
-    if (explainReadOnly()) return;
+  /**
+   * Adds a file at `path` with `text` and opens it (an example, a code link): null once it is added,
+   * else why not. It shows no notice itself: the caller says why where the student is looking.
+   */
+  async function addFile(path: WsPath, text: string): Promise<AddRefusal | null> {
+    if (!canWrite()) return { message: readOnlyText(), readOnly: true };
     try {
       await store.createFile(ws, path, text);
     } catch (e) {
-      return notice.show(storageMessage(e));
+      return { message: storageMessage(e) };
     }
     await refreshTree();
     await openFile(path, { focus: true });
     announcer.say(`Added ${path}. Press ${isMac() ? "Command" : "Control"} Enter to run it.`);
+    return null;
   }
 
   let paletteChunk: Promise<typeof import("./palette")> | null = null;
@@ -2070,6 +2084,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (now.codeSize !== before.codeSize) root.style.setProperty("--code-size", `${now.codeSize}px`);
     if (now.lineWrapping !== before.lineWrapping) editors.setPrefs({ lineWrapping: now.lineWrapping });
     if (now.suggestOnTyping !== before.suggestOnTyping) editors.setPrefs({ suggestOnTyping: now.suggestOnTyping });
+    if (now.enterAcceptsTop !== before.enterAcceptsTop) editors.setPrefs({ enterAcceptsTop: now.enterAcceptsTop });
   });
 
   async function signOutAndClear() {
@@ -2253,8 +2268,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     codeLinkChunk.then(
       (m) => {
         // The code leaves the address bar: a reload doesn't offer it again, and a bookmark doesn't keep it.
-        if (location.hash === hash) history.replaceState(history.state, "", location.pathname + location.search);
-        return m.openCodeLink(hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => void addFile(p, text), notice });
+        // A read-only tab can't add it, so there it stays, to copy into the editing tab.
+        if (location.hash === hash && canWrite()) history.replaceState(history.state, "", location.pathname + location.search);
+        return m.openCodeLink(hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), notice });
       },
       () => {
         codeLinkChunk = null;

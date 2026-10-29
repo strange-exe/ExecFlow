@@ -15,7 +15,7 @@
 // its 200 kB gzip budget (research doc section 3). Every instance is built once.
 
 import {
-  completeFromList, snippetCompletion, type Completion, type CompletionSource,
+  completeFromList, snippet, snippetCompletion, type Completion, type CompletionSource,
 } from "@codemirror/autocomplete";
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
@@ -290,15 +290,37 @@ const LOOPS_AND_BLOCKS: readonly Completion[] = [
   snippetCompletion('scanf("${%d}", &${variable});', boosted(BEGINNER_C_NAMES, { label: "scanf", detail: "statement", type: "keyword" })),
 ];
 
+/** A return type typed just before main, a word of its own (`int `, `static int `, `void `). */
+const MAIN_TYPE = /(?:^|[^\w$])(int|void)\s+$/;
+
+/**
+ * The main snippet: the whole function where main starts the declaration, and only the rest of it
+ * after a return type typed before it. With the top option picked, "int main" + Enter used to
+ * write "int int main(void) {", which doesn't compile (review, 2026-10-28). After void the body
+ * has no `return 0;`, and the type stays the one typed (the compiler says what it thinks of it).
+ */
+function mainSnippet(templates: Readonly<Record<"whole" | "int" | "void", string>>): Completion {
+  const apply = { whole: snippet(templates.whole), int: snippet(templates.int), void: snippet(templates.void) };
+  return boosted(BEGINNER_C_NAMES, {
+    label: "main",
+    detail: "function",
+    type: "keyword",
+    apply: (view, completion, from, to) => {
+      const type = MAIN_TYPE.exec(lineBefore(view.state, from))?.[1] as "int" | "void" | undefined;
+      apply[type ?? "whole"](view, completion, from, to);
+    },
+  });
+}
+
 /** Snippets for C files, offered with the keywords (and under the same guard). */
 export const C_SNIPPETS: readonly Completion[] = [
-  snippetCompletion("int main(void) {\n\t${}\n\treturn 0;\n}", boosted(BEGINNER_C_NAMES, { label: "main", detail: "function", type: "keyword" })),
+  mainSnippet({ whole: "int main(void) {\n\t${}\n\treturn 0;\n}", int: "main(void) {\n\t${}\n\treturn 0;\n}", void: "main(void) {\n\t${}\n}" }),
   ...LOOPS_AND_BLOCKS,
 ];
 
 /** Snippets for C++ files and headers. */
 export const CPP_SNIPPETS: readonly Completion[] = [
-  snippetCompletion("int main() {\n\t${}\n}", boosted(BEGINNER_C_NAMES, { label: "main", detail: "function", type: "keyword" })),
+  mainSnippet({ whole: "int main() {\n\t${}\n}", int: "main() {\n\t${}\n}", void: "main() {\n\t${}\n}" }),
   ...LOOPS_AND_BLOCKS,
   snippetCompletion("class ${Name} {\npublic:\n\t${}\n};", { label: "class", detail: "definition", type: "keyword" }),
 ];

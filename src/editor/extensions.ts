@@ -2,19 +2,21 @@
 // all states (identical configuration everywhere); what differs per file or per moment lives in
 // three compartments that also work across states: fileConf (grammar, completion, label, path),
 // readOnlyConf (another tab is editing, storage is blocked, a conflict copy is being written, or an
-// opaque file) and prefsConf (line wrapping, suggestions while typing; ligatures are CSS).
+// opaque file) and prefsConf (line wrapping, suggestions while typing, Enter accepting the top
+// suggestion; ligatures are CSS).
 // App shortcuts and the doc-change hook reach the app through the appHandlers facet, and the
 // workspace's files and build standards through completion-context.ts libraryContext, so BASE
 // itself holds no reference to any manager.
 
 import {
-  autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completionStatus, pickedCompletion, type Completion,
+  autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completionStatus, pickedCompletion, selectedCompletion,
+  setSelectedCompletion, type Completion,
 } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab, insertNewlineAndIndent } from "@codemirror/commands";
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
 import { lintGutter, linter, lintKeymap, type Diagnostic } from "@codemirror/lint";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, Facet, Prec, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, Facet, Prec, StateField, type Extension, type StateEffectType } from "@codemirror/state";
 import {
   drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap,
   lineNumbers, tooltips, ViewPlugin, type KeyBinding, type ViewUpdate,
@@ -93,6 +95,71 @@ export const ESCAPE_KEY: KeyBinding = {
     // Data a suggestion was waiting for doesn't open the list after Escape (late-data.ts).
     forgetWaiting(view);
     return closeCompletion(view) || clearSnippet(view);
+  },
+};
+
+/**
+ * The effect type autocompletion() moves the pick with: Down, Up, PageDown and PageUp
+ * (moveCompletionSelection) and a press on the list's "more above/below" edge all dispatch it, and
+ * nothing else does (autocomplete 6.20.3; the list opening with its first option picked doesn't).
+ * setSelectedCompletion is the exported way to make one; its `type` is what StateEffect.is compares
+ * (@codemirror/state 6.7.6), though the typings keep it internal. enter-key.test.ts fails if that
+ * ever changes (an arrow key then Enter on a word typed in full would make a new line).
+ */
+const MOVE_PICK = (setSelectedCompletion(0) as unknown as { type: StateEffectType<number> }).type;
+
+/**
+ * The option the user picked by hand while the list is open, else null. It lasts until the text
+ * changes or the list closes: typing on (or Backspace) refilters the list, and what is picked then
+ * is CodeMirror's pick, even where CodeMirror keeps the same option or comes back to it. Kept as
+ * the option itself, not an index, and ENTER_KEY also compares it with the option picked now.
+ * (Review, 2026-10-28: kept through typing, "pr", Down to property, "i", Backspace, "operty" made
+ * Enter accept property instead of the new line a word typed in full gets.)
+ */
+const pickedByHand = StateField.define<Completion | null>({
+  create: () => null,
+  update(value, tr) {
+    // tr.state is the new state (its fields are computed on demand, @codemirror/state 6.7.6).
+    if (tr.effects.some((e) => e.is(MOVE_PICK))) return selectedCompletion(tr.state);
+    return value && (tr.docChanged || completionStatus(tr.state) === null) ? null : value;
+  },
+});
+
+/** A character an identifier can have (letters, digits and _ in any script, and GNU C's $). */
+const IDENT_CHAR = /[\p{L}\p{N}_$]/u;
+
+/**
+ * Whether Enter, with `option` picked in the open list, makes a new line instead of accepting it:
+ * when the pick wasn't moved by hand (`byHand`), accepting would insert exactly the option's label
+ * (no snippet, no apply text of its own: Enter on "def" still expands the snippet), and the word
+ * that ends `before` (the line up to the cursor) is that label, case and all. Then accepting would
+ * change nothing, and "print" + Enter is a new line, as it was before Enter accepted the top option
+ * (the trap measured in .claude/research/autocomplete.md, Tier 0). The word must start there: in
+ * "xprint" accepting print would replace the whole word. Every source here ends its range at the cursor.
+ */
+export function enterKeepsWord(option: Completion, byHand: boolean, before: string): boolean {
+  if (byHand || (option.apply ?? option.label) !== option.label || !before.endsWith(option.label)) return false;
+  const start = before.length - option.label.length;
+  return start === 0 || !IDENT_CHAR.test(before[start - 1]);
+}
+
+/**
+ * Enter with the list open and its pick not moved by hand, where accepting would change nothing
+ * (enterKeepsWord): closes the list and makes a new line, indented as Enter does. Otherwise it
+ * leaves Enter to completionKeymap (acceptCompletion; a read-only file accepts nothing) and then
+ * defaultKeymap. Beside ESCAPE_KEY, so before autocompletion()'s keymap.
+ */
+export const ENTER_KEY: KeyBinding = {
+  key: "Enter",
+  run: (view) => {
+    const { state } = view;
+    const option = selectedCompletion(state);
+    const { empty, head } = state.selection.main;
+    if (!option || state.readOnly || !empty) return false;
+    const byHand = state.field(pickedByHand, false) === option;
+    if (!enterKeepsWord(option, byHand, state.sliceDoc(state.doc.lineAt(head).from, head))) return false;
+    closeCompletion(view);
+    return insertNewlineAndIndent(view);
   },
 };
 
@@ -238,7 +305,7 @@ export const fileConf = new Compartment();
  * copy is written, opaque files. EditorState.readOnly only: `editable` stays true (focus, select, copy, search).
  */
 export const readOnlyConf = new Compartment();
-/** User preferences that need reconfiguration (line wrapping, suggestions while typing). */
+/** User preferences that need reconfiguration (line wrapping, suggestions while typing, Enter accepts the top suggestion). */
 export const prefsConf = new Compartment();
 
 export const READ_ONLY: Extension = EditorState.readOnly.of(true);
@@ -248,21 +315,39 @@ export interface EditorPrefs {
   lineWrapping: boolean;
   /** The list opens as you type (Settings, "Suggestions while typing"); Ctrl-Space always opens it. */
   suggestOnTyping: boolean;
+  /**
+   * The list opens with its first option picked, so Enter accepts it (Settings, "Enter accepts the
+   * top suggestion"; the owner's request, 2026-10-28). Off: nothing is picked until Down or Up, and
+   * Enter makes a new line (acceptCompletion returns false with nothing picked, autocomplete 6.20.3).
+   */
+  enterAcceptsTop: boolean;
 }
 
-export const DEFAULT_PREFS: Readonly<EditorPrefs> = { lineWrapping: false, suggestOnTyping: true };
+export const DEFAULT_PREFS: Readonly<EditorPrefs> = { lineWrapping: false, suggestOnTyping: true, enterAcceptsTop: true };
 
 /**
- * "Suggestions while typing". This is the only place activateOnTyping is set: autocompletion() in
- * BASE leaves it out, because two different values throw "Config merge conflict for field
- * activateOnTyping" (@codemirror/state 6.7.6). Everything else autocompletion() returns is a
- * shared instance (autocomplete 6.20.3), which a state includes only once.
+ * "Suggestions while typing" and "Enter accepts the top suggestion", one autocompletion() per pair,
+ * built once so that the same prefs give the compartment the same value. This is the only place
+ * activateOnTyping and selectOnOpen are set: autocompletion() in BASE leaves them out, because two
+ * different values for a field throw "Config merge conflict for field activateOnTyping" (or
+ * selectOnOpen; @codemirror/state 6.7.6). Everything else autocompletion() returns is a shared
+ * instance (autocomplete 6.20.3), which a state includes only once.
  */
-const WHILE_TYPING = { on: autocompletion({ activateOnTyping: true }), off: autocompletion({ activateOnTyping: false }) };
+const LIST_PREFS = {
+  typing: {
+    top: autocompletion({ activateOnTyping: true, selectOnOpen: true }),
+    none: autocompletion({ activateOnTyping: true, selectOnOpen: false }),
+  },
+  notTyping: {
+    top: autocompletion({ activateOnTyping: false, selectOnOpen: true }),
+    none: autocompletion({ activateOnTyping: false, selectOnOpen: false }),
+  },
+};
 
 /** A new extension value each call: compartments compare by identity, so build it once per change. */
 export function prefsExtension(prefs: EditorPrefs): Extension {
-  return [prefs.lineWrapping ? EditorView.lineWrapping : [], prefs.suggestOnTyping ? WHILE_TYPING.on : WHILE_TYPING.off];
+  const list = LIST_PREFS[prefs.suggestOnTyping ? "typing" : "notTyping"][prefs.enterAcceptsTop ? "top" : "none"];
+  return [prefs.lineWrapping ? EditorView.lineWrapping : [], list];
 }
 
 /** What fileConf holds for `path`. */
@@ -278,7 +363,8 @@ export function fileExtensions(path: string): Extension {
 
 export const BASE: Extension = [
   Prec.highest(keymap.of([...APP_KEYS])),
-  Prec.highest(keymap.of([ESCAPE_KEY])),
+  Prec.highest(keymap.of([ESCAPE_KEY, ENTER_KEY])),
+  pickedByHand,
   lineNumbers(),
   foldGutter({ markerDOM: foldMarker }),
   lintGutter({ markerFilter: withoutCallSites }),
@@ -293,12 +379,12 @@ export const BASE: Extension = [
   indentOnInput(),
   bracketMatching(),
   closeBrackets(),
-  // Installs completionKeymap itself, at the highest precedence (after ESCAPE_KEY above).
-  // selectOnOpen false (the user's choice, 2026-10-18): nothing is picked when the list opens, so
-  // Enter makes a new line as usual; Down picks the first option, Up the last, then Enter accepts
-  // (acceptCompletion returns false with nothing picked, autocomplete 6.20.3). A click still accepts.
-  // activateOnTyping is left to prefsConf (prefsExtension): set in one place only.
-  autocompletion({ addToOptions: [SPACE_BEFORE_DETAIL], selectOnOpen: false }),
+  // Installs completionKeymap itself, at the highest precedence (after ESCAPE_KEY and ENTER_KEY
+  // above). Whether the list opens with its first option picked (Enter accepts it; the owner's
+  // request, 2026-10-28, reversing the 2026-10-18 choice) or with nothing picked (Down picks the
+  // first, Up the last) is the "Enter accepts the top suggestion" setting. selectOnOpen and
+  // activateOnTyping are left to prefsConf (prefsExtension): each is set in one place only.
+  autocompletion({ addToOptions: [SPACE_BEFORE_DETAIL] }),
   completionAttribute,
   tooltipSpace,
   refuseReadOnlyPicks,

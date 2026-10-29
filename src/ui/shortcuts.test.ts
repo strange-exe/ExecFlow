@@ -9,8 +9,12 @@ import { EditorState } from "@codemirror/state";
 import { keymap, type Command } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { isMenuKey } from "../core/code-menu";
-import { APP_KEYS, BASE, ESCAPE_KEY } from "../editor/extensions";
+import { APP_KEYS, BASE, ENTER_KEY, ESCAPE_KEY } from "../editor/extensions";
 import { keyParts, paletteKey, shortcutGroups, shortcutKeys } from "./shortcuts";
+
+const ACCEPT_ROW = "Accept the picked suggestion (by default the top one, unless it is just the word you typed)";
+/** True with the setting on (the top option picked: Down moves on) and off (nothing picked: Down picks the first). */
+const MOVE_ROW = "Pick the next or previous suggestion";
 
 const rows = (mac: boolean) => new Map(shortcutGroups(mac).flatMap((g) => g.rows.map(([keys, what]) => [what, keys] as const)));
 
@@ -32,10 +36,14 @@ describe("shortcutGroups", () => {
   it.each([false, true])("lists the suggestion keys (mac: %s)", (mac) => {
     const r = rows(mac);
     expect(r.get("Show suggestions")).toBe("Ctrl Space");
-    // Nothing is picked when the list opens (selectOnOpen: false): an arrow key picks, then Enter.
-    expect(r.get("Pick a suggestion")).toBe("Down or Up");
-    expect(r.get("Accept the picked suggestion")).toBe("Enter");
-    expect(r.has("Accept a suggestion")).toBe(false);
+    // The top option is picked when the list opens (Settings, "Enter accepts the top suggestion",
+    // on by default since 2026-10-28): Enter accepts it, an arrow key picks another. Off, nothing is
+    // picked until an arrow key, so the rows say neither "another" nor "the top one" alone.
+    expect(r.get(MOVE_ROW)).toBe("Down or Up");
+    expect(r.get(ACCEPT_ROW)).toBe("Enter");
+    expect(r.has("Accept the picked suggestion")).toBe(false);
+    expect(r.has("Pick a suggestion")).toBe(false);
+    expect(r.has("Pick another suggestion")).toBe(false);
     // In Tab-moves-focus mode (Ctrl M) Tab leaves the editor even inside a snippet: the row says so
     // (research doc section 3; review RB-8).
     expect(r.get("Next or previous field in a snippet (not in Tab-moves-focus mode)")).toBe("Tab or Shift Tab");
@@ -168,9 +176,11 @@ const LABELLED = new Map<Command, { row: string; shiftInWords?: boolean }>([
   [fn("redo"), { row: "Redo" }],
   [fn("toggleTabFocusMode"), { row: "Turn Tab-moves-focus on or off" }],
   [startCompletion, { row: "Show suggestions" }],
-  [acceptCompletion, { row: "Accept the picked suggestion" }],
-  [completionMove("ArrowDown"), { row: "Pick a suggestion" }],
-  [completionMove("ArrowUp"), { row: "Pick a suggestion" }],
+  [acceptCompletion, { row: ACCEPT_ROW }],
+  // Enter with the word typed in full and the pick not moved: a new line (extensions.ts ENTER_KEY).
+  [ENTER_KEY.run!, { row: ACCEPT_ROW }],
+  [completionMove("ArrowDown"), { row: MOVE_ROW }],
+  [completionMove("ArrowUp"), { row: MOVE_ROW }],
   [closeCompletion, { row: "Close the list, or end the snippet" }],
   [ESCAPE_KEY.run!, { row: "Close the list, or end the snippet" }],
 ]);

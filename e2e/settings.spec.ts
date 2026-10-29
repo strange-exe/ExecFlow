@@ -87,10 +87,33 @@ test("the code font size is a stepper: buttons and typing both work, clamped to 
   expect(await page.locator("#app").evaluate((el) => getComputedStyle(el).getPropertyValue("--code-size").trim())).toBe("12px");
 });
 
+test("emptying a number field keeps its value: code size, time limit and output limit don't fall to their minimum", async ({ page }) => {
+  await openApp(page);
+  const dialog = await openSettings(page);
+  const cases = [
+    { name: "Code font size (px)", key: "codeSize", value: "17" },
+    { name: "Time limit (seconds)", key: "timeLimitS", value: "7" },
+    { name: "Output limit (thousands)", key: "outputLimitK", value: "64" },
+  ];
+  for (const { name, key, value } of cases) {
+    const field = dialog.getByRole("spinbutton", { name });
+    await field.fill(value);
+    await field.press("Tab");
+    await expect(field).toHaveValue(value);
+    expect((await stored(page))[key], `${key} saved`).toBe(Number(value));
+    await field.fill("");
+    await field.press("Tab");
+    await expect(field, `${key}: an empty field shows the kept value again`).toHaveValue(value);
+    expect((await stored(page))[key], `${key}: an empty field saves nothing`).toBe(Number(value));
+  }
+  await expect(dialog.getByRole("button", { name: "Smaller code font" })).toBeEnabled();
+  expect(await page.locator("#app").evaluate((el) => getComputedStyle(el).getPropertyValue("--code-size").trim())).toBe("17px");
+});
+
 test("on/off settings are switches with their own notes; a change is kept and shows again on reopening", async ({ page }) => {
   await openApp(page);
   let dialog = await openSettings(page);
-  for (const id of ["set-wrap", "set-suggest", "set-ligatures", "set-wall", "set-wextra", "set-autosync"]) {
+  for (const id of ["set-wrap", "set-suggest", "set-enter-top", "set-ligatures", "set-wall", "set-wextra", "set-autosync"]) {
     await expect(dialog.locator(`#${id}`), id).toHaveAttribute("role", "switch");
   }
   const wrap = dialog.getByRole("switch", { name: "Wrap long lines" });

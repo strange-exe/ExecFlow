@@ -44,6 +44,19 @@ describe("settings", () => {
     expect(createSettingsStore(storage).get().suggestOnTyping).toBe(false);
   });
 
+  // The owner's request (2026-10-28): on by default, and settings saved before the key existed get it on.
+  it("keeps Enter accepts the top suggestion on unless a stored false says otherwise, for settings saved before it existed too", () => {
+    expect(DEFAULT_SETTINGS.enterAcceptsTop).toBe(true);
+    expect(cleanSettings({}).enterAcceptsTop).toBe(true);
+    expect(cleanSettings({ enterAcceptsTop: false }).enterAcceptsTop).toBe(false);
+    for (const odd of ["false", 0, null, "off"]) expect(cleanSettings({ enterAcceptsTop: odd }).enterAcceptsTop, String(odd)).toBe(true);
+    const saved = memoryStorage({ [SETTINGS_KEY]: JSON.stringify({ codeSize: 14, suggestOnTyping: false }) });
+    expect(createSettingsStore(saved).get()).toMatchObject({ codeSize: 14, suggestOnTyping: false, enterAcceptsTop: true });
+    const storage = memoryStorage();
+    createSettingsStore(storage).update({ enterAcceptsTop: false });
+    expect(createSettingsStore(storage).get().enterAcceptsTop).toBe(false);
+  });
+
   it("survives broken stored data and keeps updates", () => {
     const storage = memoryStorage({ [SETTINGS_KEY]: "{not json" });
     const store = createSettingsStore(storage);

@@ -66,6 +66,14 @@ function numberField(id: string, [min, max]: readonly [number, number], step: nu
   return h("input", { type: "number", id, min, max, step: String(step), inputmode: "numeric" });
 }
 
+/**
+ * "Enter accepts the top suggestion" (extensions.ts EditorPrefs.enterAcceptsTop and ENTER_KEY):
+ * Enter makes a new line only where the top option is the typed word itself (not a snippet such as
+ * def or main, not True after "true", not nan after "int n"), and off, nothing is picked until an
+ * arrow key. Students read the line as a promise, so it says no more than that (review, 2026-10-28).
+ */
+const ENTER_TOP_NOTE = "If the top suggestion is just the word you typed, Enter makes a new line. Off, Down or Up picks one first.";
+
 const SECTIONS = [
   ["appearance", "Appearance"],
   ["editor", "Editor"],
@@ -96,7 +104,12 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
     smaller.disabled = size <= LIMITS.codeSize[0];
     larger.disabled = size >= LIMITS.codeSize[1];
   };
-  codeSize.addEventListener("change", () => showSize(set({ codeSize: Number(codeSize.value) }).codeSize));
+  // An emptied (or unreadable) field keeps the current value: Number("") is 0, which the store
+  // would clamp to the minimum.
+  codeSize.addEventListener("change", () => {
+    const v = codeSize.valueAsNumber;
+    showSize(Number.isFinite(v) ? set({ codeSize: v }).codeSize : s().codeSize);
+  });
   for (const [button, by] of [[smaller, -1], [larger, 1]] as const) {
     button.addEventListener("click", () => {
       showSize(set({ codeSize: s().codeSize + by }).codeSize);
@@ -106,16 +119,25 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   }
   const wrap = toggle("Wrap long lines", s().lineWrapping, undefined, "set-wrap");
   const suggest = toggle("Suggestions while typing", s().suggestOnTyping, "Ctrl+Space always shows them.", "set-suggest");
+  const enterTop = toggle("Enter accepts the top suggestion", s().enterAcceptsTop, ENTER_TOP_NOTE, "set-enter-top");
   const ligatures = toggle("Joined symbols in code", ligaturesOn(), "Draws != == -> and similar pairs as single shapes. Off shows exactly what you type.", "set-ligatures");
   wrap.input.addEventListener("change", () => set({ lineWrapping: wrap.input.checked }));
   suggest.input.addEventListener("change", () => set({ suggestOnTyping: suggest.input.checked }));
+  enterTop.input.addEventListener("change", () => set({ enterAcceptsTop: enterTop.input.checked }));
   ligatures.input.addEventListener("change", () => setLigatures(ligatures.input.checked));
 
   // ---------------------------------------------------------------- running programs
   const timeLimit = numberField("set-time", LIMITS.timeLimitS, 1);
   const outputLimit = numberField("set-output", LIMITS.outputLimitK, 16);
-  timeLimit.addEventListener("change", () => (timeLimit.value = String(set({ timeLimitS: Number(timeLimit.value) }).timeLimitS)));
-  outputLimit.addEventListener("change", () => (outputLimit.value = String(set({ outputLimitK: Number(outputLimit.value) }).outputLimitK)));
+  // As for the code size: an emptied field shows the kept value again and saves nothing.
+  timeLimit.addEventListener("change", () => {
+    const v = timeLimit.valueAsNumber;
+    timeLimit.value = String(Number.isFinite(v) ? set({ timeLimitS: v }).timeLimitS : s().timeLimitS);
+  });
+  outputLimit.addEventListener("change", () => {
+    const v = outputLimit.valueAsNumber;
+    outputLimit.value = String(Number.isFinite(v) ? set({ outputLimitK: v }).outputLimitK : s().outputLimitK);
+  });
   const cStd = select("set-c-std", C_STANDARDS.map((v) => [v, v === "gnu11" ? "gnu11 (default)" : v] as const), s().cStd);
   const cxxStd = select("set-cxx-std", CXX_STANDARDS.map((v) => [v, v === "c++17" ? "c++17 (default)" : v === "c++2a" ? "c++2a (C++20, partly)" : v] as const), s().cxxStd);
   // -O0 lets a NULL write or a stray index pass silently where -O2 stops the program (audit t7c, B13).
@@ -191,7 +213,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   // "Colour theme" names the theme radio group (theme-picker.ts: aria-labelledby="theme-title").
   body.append(
     section("appearance", "Appearance", h("p", { class: "field-label", id: "theme-title" }, "Colour theme"), picker.element),
-    section("editor", "Editor", row("Code font size (px)", stepper, undefined, codeSize), wrap.row, suggest.row, ligatures.row),
+    section("editor", "Editor", row("Code font size (px)", stepper, undefined, codeSize), wrap.row, suggest.row, enterTop.row, ligatures.row),
     section(
       "running",
       "Running programs",
@@ -305,6 +327,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       showSize(now.codeSize);
       wrap.input.checked = now.lineWrapping;
       suggest.input.checked = now.suggestOnTyping;
+      enterTop.input.checked = now.enterAcceptsTop;
       ligatures.input.checked = ligaturesOn();
       timeLimit.value = String(now.timeLimitS);
       outputLimit.value = String(now.outputLimitK);

@@ -110,10 +110,13 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
         ["Ctrl Space", "Show suggestions"],
         // macOS often keeps Ctrl Space for switching input sources; CodeMirror adds Alt ` there.
         ...(mac ? [["Alt `", "Show suggestions, when Ctrl Space switches the keyboard"] as [string, string]] : []),
-        // Nothing is picked when the list opens (extensions.ts, selectOnOpen: false), so Enter
-        // makes a new line until an arrow key picks an option.
-        ["Down or Up", "Pick a suggestion"],
-        ["Enter", "Accept the picked suggestion"],
+        // The list opens with its top option picked (Settings, "Enter accepts the top suggestion",
+        // on by default since 2026-10-28; extensions.ts prefsExtension), so Enter accepts it and an
+        // arrow key picks another. When the top option is just the typed word, the pick not moved,
+        // Enter makes a new line (ENTER_KEY); off, nothing is picked until an arrow key, and Enter
+        // makes a new line. Both rows hold either way ("by default", "next or previous").
+        ["Down or Up", "Pick the next or previous suggestion"],
+        ["Enter", "Accept the picked suggestion (by default the top one, unless it is just the word you typed)"],
         // In Tab-moves-focus mode (Ctrl M) Tab leaves the editor, inside a snippet too.
         ["Tab or Shift Tab", "Next or previous field in a snippet (not in Tab-moves-focus mode)"],
         ["Esc", "Close the list, or end the snippet"],

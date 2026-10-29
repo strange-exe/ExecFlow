@@ -12,6 +12,8 @@ export interface Settings {
   lineWrapping: boolean;
   /** The suggestion list opens while typing; Ctrl+Space always opens it. */
   suggestOnTyping: boolean;
+  /** The list opens with its top option picked, so Enter accepts it; off, Down or Up picks first (2026-10-28). */
+  enterAcceptsTop: boolean;
   /** Running-time limit in seconds (time waiting for typed input doesn't count). */
   timeLimitS: number;
   /** Output kept before a run is stopped, in thousands of characters (1024 each). */
@@ -31,6 +33,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   codeSize: 15,
   lineWrapping: false,
   suggestOnTyping: true,
+  // On for everyone, settings saved before it existed too (cleanSettings): the owner's request.
+  enterAcceptsTop: true,
   timeLimitS: 15,
   outputLimitK: 512,
   cStd: "gnu11",
@@ -67,6 +71,7 @@ export function cleanSettings(input: unknown): Settings {
     codeSize: clampInt(d.codeSize, LIMITS.codeSize, s.codeSize),
     lineWrapping: bool(d.lineWrapping, s.lineWrapping),
     suggestOnTyping: bool(d.suggestOnTyping, s.suggestOnTyping),
+    enterAcceptsTop: bool(d.enterAcceptsTop, s.enterAcceptsTop),
     timeLimitS: clampInt(d.timeLimitS, LIMITS.timeLimitS, s.timeLimitS),
     outputLimitK: clampInt(d.outputLimitK, LIMITS.outputLimitK, s.outputLimitK),
     cStd: oneOf(C_STANDARDS, d.cStd, s.cStd),

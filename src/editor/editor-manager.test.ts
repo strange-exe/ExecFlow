@@ -462,7 +462,7 @@ describe("read-only lock and preferences", () => {
     expect(wraps()).toBe(false);
     mgr.setPrefs({ lineWrapping: true });
     expect(wraps()).toBe(true);
-    expect(mgr.getPrefs()).toEqual({ lineWrapping: true, suggestOnTyping: true });
+    expect(mgr.getPrefs()).toEqual({ lineWrapping: true, suggestOnTyping: true, enterAcceptsTop: true });
   });
 });
 

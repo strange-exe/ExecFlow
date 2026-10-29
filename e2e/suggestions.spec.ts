@@ -1,7 +1,8 @@
 // The suggestion (autocomplete) list as a student meets it: opening it, the way out of the editor
 // with the list open or inside a snippet, tabs that turn read-only, target sizes and contrast
 // (Tier 0 of the autocomplete research, 2026-10-18); library names, the "Suggestions while typing"
-// setting and the lazy library data (Tier 1, 2026-10-19).
+// setting and the lazy library data (Tier 1, 2026-10-19); Enter accepting the top suggestion, and
+// its setting (the owner's request, 2026-10-28).
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { audit } from "./audit";
@@ -20,7 +21,10 @@ const option = (page: Page, label: string) =>
 const editorText = (page: Page) => page.locator(".cm-content").evaluate((el) => (el as HTMLElement).innerText);
 /** The editor's lines, as CodeMirror shows them (an empty line is ""). */
 const lines = (page: Page) => page.locator(".cm-content .cm-line").evaluateAll((els) => els.map((e) => e.textContent ?? ""));
-/** The option an arrow key picked (none until then: selectOnOpen is false). */
+/**
+ * The picked option: the top one when the list opens ("Enter accepts the top suggestion", on by
+ * default since 2026-10-28), or the one an arrow key picked; with the setting off, none until then.
+ */
 const picked = (page: Page) => list(page).locator('[role=option][aria-selected="true"]');
 
 /**
@@ -75,10 +79,102 @@ test("the list opens by typing and with Ctrl+Space, with 24 px rows and a space 
   await expect(def.locator(".cm-completionDetail")).toHaveText("function");
 });
 
-test("Enter accepts only a picked suggestion: with nothing picked it makes a new line", async ({ page }) => {
+/**
+ * The switch's help line. It promises a new line only where Enter really makes one: when the top
+ * option is the typed word itself (not a snippet such as def or main, not True after "true", not
+ * nan after "int n"; review, 2026-10-28).
+ */
+const ENTER_TOP_NOTE = "If the top suggestion is just the word you typed, Enter makes a new line. Off, Down or Up picks one first.";
+
+/** The Settings switch "Enter accepts the top suggestion", set to `on`; the dialog is closed again. */
+async function setEnterAcceptsTop(page: Page, on: boolean) {
+  await page.locator("#settings-button").click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  const box = settings.getByRole("switch", { name: "Enter accepts the top suggestion" });
+  await expect(box).toHaveAccessibleDescription(ENTER_TOP_NOTE);
+  await box.setChecked(on);
+  await expect(box).toBeChecked({ checked: on });
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+}
+
+// The owner's request (2026-10-28): Enter accepts the top suggestion without an arrow key. It
+// reverses the 2026-10-18 choice, whose measured trap ("print" + Enter accepting print instead of
+// making a new line) the exact-word rule keeps closed (extensions.ts ENTER_KEY).
+test("Enter accepts the top suggestion by default; a word typed in full makes a new line, unless an arrow key picked it", async ({ page }) => {
   await openApp(page);
   await emptyPythonFile(page);
   const content = page.locator(".cm-content");
+
+  // "pri": print is on top and picked when the list opens (named by aria-activedescendant); Enter accepts it.
+  await page.keyboard.type("pri");
+  await expect(option(page, "print")).toBeVisible();
+  const first = await list(page).getByRole("option").first().getAttribute("id");
+  await expect(picked(page)).toHaveCount(1);
+  await expect(picked(page)).toHaveAttribute("id", first ?? "(no id)");
+  await expect(content).toHaveAttribute("aria-activedescendant", first ?? "(no id)");
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print");
+  await pastInteractionDelay(page);
+  await page.keyboard.press("Enter");
+  await expect(list(page)).toHaveCount(0);
+  expect(await lines(page)).toEqual(["print"]);
+
+  // "print" typed in full: accepting would change nothing, so Enter makes a new line, indented as usual.
+  await setCode(page, "def f():\n    ");
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("print");
+  await expect(option(page, "print")).toBeVisible();
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print");
+  await pastInteractionDelay(page);
+  await page.keyboard.press("Enter");
+  await expect(list(page)).toHaveCount(0);
+  expect(await lines(page)).toEqual(["def f():", "    print", "    "]);
+
+  // Down then Up: back on print, but picked by hand, so Enter accepts it (and makes no new line).
+  // (print_count gives the list a second option: alone, print has nothing to move to.)
+  await setCode(page, "print_count = 0\n");
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("print");
+  await expect(option(page, "print_count")).toBeVisible();
+  await pastInteractionDelay(page);
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print");
+  await page.keyboard.press("ArrowDown");
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print_count");
+  await page.keyboard.press("ArrowUp");
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print");
+  await page.keyboard.press("Enter");
+  await expect(list(page)).toHaveCount(0);
+  expect(await lines(page)).toEqual(["print_count = 0", "print"]);
+
+  // "n = i" with a name i in the file: i is an exact match on top, so Enter makes a new line.
+  await setCode(page, "i = 0\n");
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("n = i");
+  await expect(editor(page)).toHaveAttribute("data-completion", "active");
+  await expect(list(page).locator(".cm-completionLabel").first()).toHaveText("i");
+  await pastInteractionDelay(page);
+  await page.keyboard.press("Enter");
+  await expect(list(page)).toHaveCount(0);
+  expect(await lines(page)).toEqual(["i = 0", "n = i", ""]);
+
+  // Without one, the top option is accepted: the cost of the default (Settings turns it off).
+  await setCode(page, "");
+  await page.keyboard.type("n = i");
+  await expect(editor(page)).toHaveAttribute("data-completion", "active");
+  const top = await list(page).locator(".cm-completionLabel").first().textContent();
+  expect(top).not.toBe("i");
+  await pastInteractionDelay(page);
+  await page.keyboard.press("Enter");
+  await expect(list(page)).toHaveCount(0);
+  expect(await lines(page)).toEqual([`n = ${top}`]);
+});
+
+test("Enter accepts the top suggestion, off: nothing is picked and Enter makes a new line until an arrow key picks, and it stays off after a reload", async ({ page }) => {
+  await openApp(page);
+  await emptyPythonFile(page);
+  const content = page.locator(".cm-content");
+  await setEnterAcceptsTop(page, false);
+  await content.click();
 
   // "n = i": the list offers names starting with i, nothing is picked, and Enter is a new line.
   // (Soft checks: one run shows every way the list's Enter is wrong.)
@@ -127,6 +223,30 @@ test("Enter accepts only a picked suggestion: with nothing picked it makes a new
   await page.keyboard.press("Escape");
   await expect(list(page)).toHaveCount(0);
   expect(await lines(page)).toEqual(["i"]);
+
+  // Kept on this device: after a reload the switch is still off, and so is the pick.
+  await reloadApp(page);
+  await expectActive(page, "main.py");
+  await showView(page, "code");
+  await page.locator("#settings-button").click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByRole("switch", { name: "Enter accepts the top suggestion" })).not.toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+  await setCode(page, "");
+  await page.keyboard.type("pri");
+  await expect(option(page, "print")).toBeVisible();
+  await expect(picked(page)).toHaveCount(0);
+  await pastInteractionDelay(page);
+  await page.keyboard.press("Enter");
+  await expect(list(page)).toHaveCount(0);
+  expect(await lines(page)).toEqual(["pri", ""]);
+
+  // On again: the next list opens with its top option picked.
+  await setEnterAcceptsTop(page, true);
+  await setCode(page, "");
+  await page.keyboard.type("pri");
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print");
 });
 
 /** Escape closes what is open, and the Tab right after it indents: focus stays and the text changes. */
@@ -225,19 +345,19 @@ test("in Ctrl+M mode Tab leaves the editor with the list open, accepting nothing
   await page.keyboard.type("pri");
   await expect(option(page, "print")).toBeVisible();
   await pastInteractionDelay(page);
-  await page.keyboard.press("ArrowDown");
-  await expect(picked(page)).toHaveCount(1);
+  // print is picked (the top option, picked when the list opens): Tab still accepts nothing.
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("print");
   await page.keyboard.press("Tab");
   await expect(content, "Tab in Ctrl+M mode leaves").not.toBeFocused();
   await expect(list(page), "leaving the editor closes the list").toHaveCount(0);
   expect(await editorText(page)).toBe("pri");
 
-  // Back in (the mode stays on): a snippet accepted with Down and Enter; Tab leaves it.
+  // Back in (the mode stays on): a snippet accepted with Enter (the top option, and a snippet adds
+  // more than the word, so Enter accepts it); Tab leaves it.
   await setCode(page, "");
   await page.keyboard.type("def");
   await expect(option(page, "def")).toBeVisible();
   await pastInteractionDelay(page);
-  await page.keyboard.press("ArrowDown");
   await expect(picked(page).locator(".cm-completionLabel")).toHaveText("def");
   await page.keyboard.press("Enter");
   await expect(page.locator(".cm-snippetField").first()).toBeVisible();
@@ -336,11 +456,9 @@ for (const scheme of ["light", "dark"] as const) {
     const axe = result.violations.filter((v) => !onlyTheList(v)).map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(" ")).slice(0, 4).join(", ")}`);
     expect(axe).toEqual([]);
 
-    // Nothing is picked when the list opens (selectOnOpen: false): Down picks the first option, so
-    // the checks below see a picked row as well as plain ones. (The scan took far longer than the
-    // 75 ms CodeMirror waits before the list takes keys.)
-    await expect(picked(page)).toHaveCount(0);
-    await page.keyboard.press("ArrowDown");
+    // The top option is picked when the list opens (the default), so the checks below see a picked
+    // row as well as plain ones. (The scan took far longer than the 75 ms CodeMirror waits before
+    // the list takes keys.)
     await expect(picked(page)).toHaveCount(1);
     const box = (await page.locator(".cm-tooltip-autocomplete").boundingBox())!;
     await page.screenshot({
@@ -390,10 +508,10 @@ for (const scheme of ["light", "dark"] as const) {
     expect(keyword.mask).toContain("data:image/svg+xml");
     expect(keyword.fill, "the key takes the icon's colour").toBe(keyword.color);
 
-    // Keyboard reach of the scrolling list: ArrowUp on the first option (picked above) wraps to the
-    // last one, and the list scrolls so that it is in view.
+    // Keyboard reach of the scrolling list: ArrowUp on the first option (picked when the list
+    // opened) wraps to the last one, and the list scrolls so that it is in view.
     expect(await list(page).evaluate((ul) => ul.scrollHeight > ul.clientHeight), "the list scrolls").toBe(true);
-    expect(await picked(page).evaluate((li) => li === li.parentElement?.firstElementChild), "Down picked the first option").toBe(true);
+    expect(await picked(page).evaluate((li) => li === li.parentElement?.firstElementChild), "the first option is picked").toBe(true);
     await page.keyboard.press("ArrowUp");
     const selected = picked(page);
     await expect(selected).toHaveCount(1);
@@ -451,22 +569,37 @@ async function axeWithListOpen(page: Page): Promise<string[]> {
   return result.violations.filter((v) => !onlyTheList(v)).map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(" ")).slice(0, 4).join(", ")}`);
 }
 
-test("#include <st offers stdio.h and no keywords; Down then Enter writes the whole line", async ({ page }) => {
+test("#include <st offers stdio.h and no keywords; Enter writes the whole line", async ({ page }) => {
   await openApp(page);
   await emptyStarter(page, "c");
   await page.keyboard.type("#include <st");
   await expect(option(page, "stdio.h")).toBeVisible();
   await expect(option(page, "int")).toHaveCount(0);
-  // stdio.h leads the headers (library-completion.ts BEGINNER): the first Down picks it.
+  // stdio.h leads the headers (library-completion.ts BEGINNER): it is the top option, picked when the list opens.
   await pastInteractionDelay(page);
-  await page.keyboard.press("ArrowDown");
   await expect(picked(page).locator(".cm-completionLabel")).toHaveText("stdio.h");
   await page.keyboard.press("Enter");
   await expect(list(page)).toHaveCount(0);
   expect(await lines(page)).toEqual(["#include <stdio.h>"]);
 });
 
-/** The labels of the open list, top to bottom (the list renders from its first option until one is picked). */
+// Review finding (2026-10-28): with the top option picked, "int main" + Enter expanded the main
+// snippet after the typed type, "int int main(void) {", which doesn't compile.
+for (const [language, want] of [["c", ["int main(void) {", "    ", "    return 0;", "}"]], ["cpp", ["int main() {", "    ", "}"]]] as const) {
+  test(`${language}: int main + Enter writes the rest of main after the type`, async ({ page }) => {
+    await openApp(page);
+    await emptyStarter(page, language);
+    await page.keyboard.type("int main");
+    await expect(editor(page)).toHaveAttribute("data-completion", "active");
+    await pastInteractionDelay(page);
+    await expect(picked(page).locator(".cm-completionLabel")).toHaveText("main");
+    await page.keyboard.press("Enter");
+    await expect(list(page)).toHaveCount(0);
+    expect(await lines(page)).toEqual(want);
+  });
+}
+
+/** The labels of the open list, top to bottom (the list renders from its first option, which is picked when it opens). */
 const order = (page: Page) => list(page).locator(".cm-completionLabel").allTextContents();
 
 // Review finding RB-2 (2026-10-19): options without a section (keywords, snippets) always ranked
@@ -510,7 +643,7 @@ test("the best match comes first: common library names lead, and a fuzzy keyword
   await first("import ma", "math");
 });
 
-test("import ma offers math and no builtins; math.sq offers sqrt with its signature, and Down then Enter accepts it", async ({ page }) => {
+test("import ma offers math and no builtins; math.sq offers sqrt with its signature, and Enter accepts it", async ({ page }) => {
   await openApp(page);
   await emptyStarter(page, "python");
   await page.keyboard.type("import ma");
@@ -525,7 +658,7 @@ test("import ma offers math and no builtins; math.sq offers sqrt with its signat
   await expect(sqrt).toBeVisible();
   await expect(sqrt.locator(".cm-completionDetail")).toHaveText("(x, /)");
   await pastInteractionDelay(page);
-  await page.keyboard.press("ArrowDown");
+  // The top option, picked when the list opens.
   await expect(picked(page).locator(".cm-completionLabel")).toHaveText("sqrt");
   // Our own one-line info, linked to the picked option for screen readers (only a synchronous info is).
   await expect(picked(page)).toHaveAttribute("aria-describedby", /./);
@@ -563,7 +696,8 @@ test("after using namespace std; std names come without the prefix, below your o
   // Your own vec_total matches as well (a prefix) and comes first.
   expect((await order(page)).slice(0, 2)).toEqual(["vec_total", "vector"]);
   await pastInteractionDelay(page);
-  await page.keyboard.press("ArrowDown");
+  // vec_total is picked when the list opens; Down picks vector.
+  await expect(picked(page).locator(".cm-completionLabel")).toHaveText("vec_total");
   await page.keyboard.press("ArrowDown");
   await expect(picked(page).locator(".cm-completionLabel")).toHaveText("vector");
   await expect(picked(page)).toHaveAccessibleDescription("std::vector, declared in <vector>");
@@ -769,9 +903,10 @@ for (const [width, height] of [[320, 640], [390, 844]] as const) test.describe(`
     expect(m.left, "8 px from the left edge").toBeGreaterThanOrEqual(8 - 0.5);
     expect(m.right, "8 px from the right edge").toBeLessThanOrEqual(m.width - 8 + 0.5);
 
-    // Pick the library's printf (the printf statement comes first: the same boost, and the keyword list's options lead).
+    // Pick the library's printf (the printf statement comes first, picked when the list opens: the
+    // same boost, and the keyword list's options lead), one Down below it.
     await pastInteractionDelay(page);
-    await page.keyboard.press("ArrowDown");
+    await expect(picked(page).locator(".cm-completionDetail")).toHaveText("statement");
     await page.keyboard.press("ArrowDown");
     await expect(picked(page).locator(".cm-completionDetail")).toHaveText("int printf(const char *, ...)");
     // No room beside the list here: the info would cover the next option, so it isn't drawn, and it
@@ -799,7 +934,8 @@ test("on a wide screen the picked option's info is drawn beside the list", async
   await page.keyboard.type("pri");
   await expect(option(page, "printf").first()).toBeVisible();
   await pastInteractionDelay(page);
-  await page.keyboard.press("ArrowDown");
+  // The printf statement is picked when the list opens; the library's printf is one Down below it.
+  await expect(picked(page).locator(".cm-completionDetail")).toHaveText("statement");
   await page.keyboard.press("ArrowDown");
   await expect(picked(page).locator(".cm-completionDetail")).toHaveText("int printf(const char *, ...)");
   const info = page.locator(".cm-completionInfo");

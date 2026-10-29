@@ -18,17 +18,21 @@ const pastInteractionDelay = (page: Page) => page.waitForTimeout(250);
 /** The files the open file's suggestions need from the workspace are parsed (own-completion.ts ownNamesLoader). */
 const namesReady = (page: Page) => expect(editor(page)).toHaveAttribute("data-index", "ready");
 
-/** Picks `label` with the arrow keys (nothing is picked when the list opens) and returns its info text. */
+/**
+ * Picks `label` (the top option is picked when the list opens, by default since 2026-10-28; Down
+ * moves on from there) and returns its info text.
+ */
 async function infoOf(page: Page, label: string): Promise<string | null> {
   await pastInteractionDelay(page);
+  await expect(picked(page)).toHaveCount(1);
   const count = await list(page).getByRole("option").count();
   for (let i = 0; i < count; i++) {
-    await page.keyboard.press("ArrowDown");
-    await expect(picked(page)).toHaveCount(1);
     if ((await picked(page).locator(".cm-completionLabel").textContent()) === label) {
       const id = await picked(page).getAttribute("aria-describedby");
       return id ? page.locator(`#${id}`).textContent() : null;
     }
+    await page.keyboard.press("ArrowDown");
+    await expect(picked(page)).toHaveCount(1);
   }
   throw new Error(`${label} is not in the list`);
 }
