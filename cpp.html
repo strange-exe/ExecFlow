@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Run C++ online in your browser | Execflow</title>
-    <meta name="description" content="Compile and run C++17 in your browser with clang 8 and libc++: cin and getline, vector, string and sort, with compiler errors explained in plain words. No sign-up." />
+    <title>Run C++ online in your browser | CodeEditor</title>
+    <meta name="description" content="Compile and run C++17 in your browser with clang 8 and libc++: cin, vector, string and sort, with compiler errors explained in plain words." />
     <link rel="canonical" href="https://code-editor.abhinesh.codes/cpp" />
     <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="Execflow" />
+    <meta property="og:site_name" content="CodeEditor" />
     <meta property="og:title" content="Run C++ online in your browser" />
     <meta property="og:description" content="C++17 compiled and run in your browser with clang 8 and libc++: cin, vector, string, and errors explained in plain words." />
     <meta property="og:url" content="https://code-editor.abhinesh.codes/cpp" />
@@ -26,7 +26,7 @@
   <body class="about guide">
     <a class="about-skip" href="#content">Skip to the content</a>
     <header class="about-head">
-      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />Execflow</a>
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
       <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
     </header>
     <nav class="guide-nav" aria-label="Guides">
@@ -42,7 +42,7 @@
       <section class="guide-hero" aria-labelledby="title">
         <h1 id="title">Run C++ online in your browser</h1>
         <p class="about-lede">
-          Execflow builds your C++ program with clang and the libc++ standard library, then runs it in your browser tab.
+          CodeEditor builds your C++ program with clang and the libc++ standard library, then runs it in your browser tab.
           <code>std::cin</code> waits for you to type, <code>vector</code>, <code>string</code> and the algorithms are
           there, and the errors students meet most are explained in plain words.
         </p>
@@ -58,12 +58,22 @@
         </dl>
       </section>
 
+      <section aria-labelledby="start">
+        <h2 id="start">Getting started</h2>
+        <ol class="guide-list">
+          <li>Open the <a href="/">editor</a> and make a file whose name ends in <code>.cpp</code>.</li>
+          <li>The first time, Output offers the compiler as a one-time download, the same one C uses. In CodeEditor's words: &ldquo;<span data-fact="packOffer"></span>&rdquo;</li>
+          <li>Press <strong>Run</strong>. CodeEditor builds the program and runs it; the run log shows how long each took.</li>
+          <li>When the program reads <code>std::cin</code>, type into the field in Output and press Enter, or put the input in the <strong>Input</strong> box before you run.</li>
+        </ol>
+      </section>
+
       <section aria-labelledby="examples">
         <h2 id="examples">Examples, with what they really printed</h2>
         <p>
-          Each program was built and run in Execflow, and the output is copied from that run, typed input included.
-          <strong>Open in Execflow</strong> puts it in the editor without running it. Make a file ending in
-          <code>.cpp</code> to write your own.
+          Each program was built and run in CodeEditor, and the output is copied from that run, typed input included.
+          <strong>Open in CodeEditor</strong> shows the program in CodeEditor as a preview first.
+          <strong>Add to my files</strong> puts it in the editor; nothing is built or run until you press Run.
         </p>
 
         <div class="guide-example">
@@ -99,9 +109,28 @@
           <h3 id="ex-std">The error everyone meets once: cout without std::</h3>
           <p>
             <code>cout</code> and <code>endl</code> live in the <code>std</code> namespace. clang even suggests the
-            fix; Execflow says why it is needed and the two ways to write it.
+            fix; CodeEditor says why it is needed and the two ways to write it.
           </p>
           <div data-example="cpp-std"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-args">no matching function: the wrong number of values</h3>
+          <p>
+            <code>greet</code> takes a name and an age, and the call gives only the name. clang's message says no
+            version of the function fits; CodeEditor counts the parameters for you.
+          </p>
+          <div data-example="cpp-args"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-push">A template error: push_back with the wrong type</h3>
+          <p>
+            A <code>std::vector&lt;int&gt;</code> holds whole numbers, and <code>"85"</code> in quotes is text. Errors
+            from templates like <code>vector</code> are the hardest to read. For this one CodeEditor has no explanation of
+            its own yet: it shows clang's message and marks the line.
+          </p>
+          <div data-example="cpp-push"></div>
         </div>
 
         <div class="guide-example">
@@ -136,9 +165,9 @@
         <h3>Does it work offline?</h3>
         <p>Yes, after the one-time 19.6 MB compiler download: from then on, C++ programs build and run without a connection.</p>
         <h3>Does <code>#include &lt;bits/stdc++.h&gt;</code> work?</h3>
-        <p>Yes. The header belongs to GCC's library, not to libc++, but students use it so often that Execflow ships its own version, which includes 41 standard headers, from <code>&lt;algorithm&gt;</code> to <code>&lt;vector&gt;</code>. A program starting with it printed:</p>
+        <p>Yes. The header belongs to GCC's library, not to libc++, but students use it so often that CodeEditor ships its own version, which includes 41 standard headers, from <code>&lt;algorithm&gt;</code> to <code>&lt;vector&gt;</code>. A program starting with it printed:</p>
         <p class="guide-quote"><span data-capture="cpp-bits:first"></span></p>
-        <p>It is precompiled once per standard and optimisation level, so later builds that include it are faster. Code meant for other compilers is still better off including the headers it uses.</p>
+        <p>It is precompiled the first time it is used, and kept for the last few compiler settings used, so later builds that include it are faster. Code meant for other compilers is still better off including the headers it uses.</p>
         <h3>Do I need to sign up?</h3>
         <p>No. Files stay in your browser, and syncing them to your own private GitHub repository is optional.</p>
         <h3>How do I share a program?</h3>
@@ -151,7 +180,7 @@
           <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers, and what a crash looks like.</li>
           <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: nested loops and early returns, drawn from your code.</li>
           <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas.</li>
-          <li><a href="/about">About Execflow</a>: everything the editor does, and what changed lately.</li>
+          <li><a href="/about">About CodeEditor</a>: everything the editor does, and what changed lately.</li>
         </ul>
       </section>
     </main>

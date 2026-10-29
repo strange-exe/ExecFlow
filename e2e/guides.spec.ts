@@ -1,8 +1,8 @@
 // The guide pages (src/pages/routes.ts: /flowchart-from-code, /python, /c, /cpp), as built: the
 // head and h1, no console errors or CSP violations (the fixture fails on errors; the page records
 // securitypolicyviolation events), axe clean in light and dark, no sideways scroll at 320 px, the
-// charts drawn in the page's own colours, and every "Open in Execflow" link opening the editor with
-// exactly that code shown and nothing run. With the real service worker, a guide page is never
+// charts drawn in the page's own colours, the product named CodeEditor everywhere, and every "Open in
+// CodeEditor" link opening the editor's preview of exactly that code, with nothing run. With the real service worker, a guide page is never
 // answered with the editor.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
@@ -35,7 +35,14 @@ for (const route of GUIDE_ROUTES) {
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         await expect(page).toHaveTitle(route.title);
         await expect(page.locator("h1")).toHaveCount(1);
-        await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| Execflow$/, ""));
+        await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| CodeEditor$/, ""));
+        // The product is CodeEditor in everything the page shows or says (the rename to Execflow is a
+        // later release): the tab title, all text (closed answers too), accessible names, link previews.
+        const shownText = await page.evaluate(() =>
+          [document.title, document.body.textContent, ...[...document.querySelectorAll("[aria-label], [title], [alt], meta[content]")].map((el) => `${el.getAttribute("aria-label")} ${el.getAttribute("title")} ${el.getAttribute("alt")} ${el.getAttribute("content")}`)].join("\n"),
+        );
+        expect(shownText).toContain("CodeEditor");
+        expect(shownText.match(/execflow/gi), "the name Execflow on the page").toBeNull();
         await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${SITE}${route.path}`);
         // The page is its own, not the editor's shell.
         await expect(page.locator("#app")).toHaveCount(0);
@@ -43,6 +50,11 @@ for (const route of GUIDE_ROUTES) {
         expect(await cspViolations(page), "CSP violations").toEqual([]);
         const axe = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
         expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+        // Every code block shows its program as text, exactly (an unescaped "<stdio.h>" would vanish as a tag).
+        for (const pre of await page.locator("pre.ex-code").all()) {
+          const id = await pre.evaluate((el) => el.closest(".ex")!.id.replace(/^ex-/, ""));
+          expect(await pre.evaluate((el) => el.textContent), id).toBe(data.sources[id].code.replace(/\n$/, ""));
+        }
         // Every chart's text is painted in the theme's own text colour (not the export's fixed ink).
         for (const chart of await page.locator("svg.fc-chart").all()) {
           const [fill, text] = await chart.evaluate((svg) => [getComputedStyle(svg.querySelector("text")!).fill, getComputedStyle(document.body).color]);
@@ -58,11 +70,17 @@ for (const route of GUIDE_ROUTES) {
       await page.goto(route.path);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, "sideways scroll").toBeLessThanOrEqual(0);
-      // Nor is any code, output or chart cut off inside its frame (the frames clip what overflows).
-      const clipped = await page.locator("pre, svg.fc-chart, .ex-bar").evaluateAll((els) =>
+      // Nor is any output or chart cut off inside its frame (the frames clip what overflows). A code
+      // block keeps its lines whole (a wrapped Python line reads as two) and scrolls sideways instead.
+      const clipped = await page.locator("pre:not(.ex-code), svg.fc-chart, .ex-bar").evaluateAll((els) =>
         els.filter((el) => el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().right > document.documentElement.clientWidth).map((el) => el.className.toString() || el.tagName),
       );
       expect(clipped, "content wider than its frame").toEqual([]);
+      const code = await page.locator("pre.ex-code").evaluateAll((els) =>
+        els.map((el) => ({ wraps: getComputedStyle(el).whiteSpace !== "pre", scrolls: getComputedStyle(el).overflowX === "auto", right: el.getBoundingClientRect().right })),
+      );
+      for (const c of code) expect(c).toEqual({ wraps: false, scrolls: true, right: expect.any(Number) });
+      for (const c of code) expect(c.right).toBeLessThanOrEqual(320);
       const small = await page.locator("main a, main summary, header a, footer a, nav a").evaluateAll((els) =>
         els
           .filter((el) => {
@@ -76,7 +94,65 @@ for (const route of GUIDE_ROUTES) {
       expect(small).toEqual([]);
     });
 
-    test("every Open in Execflow link opens the editor with that code shown, and nothing runs", async ({ page }) => {
+    test("at 1440 px every line of code shows whole, without scrolling the code sideways", async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(route.path);
+      // Lines stay whole (white-space: pre), so on a desktop the code pane is as wide as its longest line.
+      const cut = await page.locator("pre.ex-code").evaluateAll((els) =>
+        els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => `${el.getAttribute("aria-label")}: ${el.scrollWidth} > ${el.clientWidth}`),
+      );
+      expect(cut, "code cut off at the pane's edge").toEqual([]);
+    });
+
+    for (const scheme of ["light", "dark"] as const) {
+      test(`${scheme}: the keyboard reaches every link and code block in order, each with a visible focus ring`, async ({ page, browserName }) => {
+        test.setTimeout(120_000);
+        await openIn(page, route.path, scheme);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+        // Every element the keyboard should reach, numbered in document order. WebKit, like Safari by
+        // default, leaves links out of the Tab order: there Tab is checked on the rest, and each link's
+        // ring by focusing it straight after a key press (which makes the focus keyboard focus).
+        const all = await page.locator("a[href], summary, [tabindex='0']").evaluateAll((els) =>
+          els.filter((el) => el.getClientRects().length > 0).map((el, i) => (el.setAttribute("data-stop", String(i)), el.tagName === "A")),
+        );
+        const tabbed = all.flatMap((isLink, i) => (browserName === "webkit" && isLink ? [] : [i]));
+        expect(tabbed.length).toBeGreaterThan(browserName === "webkit" ? 3 : 10);
+        const ring = () =>
+          page.evaluate(() => {
+            const el = document.activeElement as HTMLElement;
+            if (el === document.body) return null;
+            const s = getComputedStyle(el);
+            return { stop: Number(el.getAttribute("data-stop") ?? -1), tag: `${el.tagName}.${el.className} ${el.getAttribute("href") ?? el.getAttribute("aria-label") ?? ""}`, visible: el.matches(":focus-visible"), style: s.outlineStyle, width: parseFloat(s.outlineWidth) };
+          });
+        const expectRing = (r: NonNullable<Awaited<ReturnType<typeof ring>>>) => {
+          expect(r.visible, r.tag).toBe(true);
+          expect(r.style, r.tag).not.toBe("none");
+          expect(r.width, r.tag).toBeGreaterThanOrEqual(2);
+        };
+        const reached: number[] = [];
+        for (let i = 0; i < tabbed.length + 20 && reached.length < tabbed.length; i++) {
+          await page.keyboard.press("Tab");
+          const r = await ring();
+          // Past the last stop focus leaves the page (body, or the browser's own controls).
+          if (!r || (reached.length && r.stop === reached[reached.length - 1])) break;
+          expectRing(r);
+          if (r.stop >= 0) reached.push(r.stop);
+        }
+        // Every stop, once each, in document order.
+        expect(reached).toEqual(tabbed);
+        if (browserName === "webkit") {
+          for (const i of all.flatMap((isLink, n) => (isLink ? [n] : []))) {
+            await page.keyboard.press("Shift");
+            await page.locator(`[data-stop="${i}"]`).evaluate((el) => (el as HTMLElement).focus());
+            const r = await ring();
+            expect(r?.stop).toBe(i);
+            expectRing(r!);
+          }
+        }
+      });
+    }
+
+    test("every Open in CodeEditor link opens the editor's preview of that code, and nothing runs", async ({ page }) => {
       test.setTimeout(240_000);
       await page.goto(route.path);
       const links = await page.locator("a.ex-open").evaluateAll((els) =>
@@ -116,8 +192,15 @@ test.describe("with the service worker", () => {
     for (const route of GUIDE_ROUTES) {
       await page.goto(route.path);
       expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "page controlled by the service worker").toBe(true);
-      await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| Execflow$/, ""));
+      await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| CodeEditor$/, ""));
       await expect(page.locator("#app")).toHaveCount(0);
     }
+    // A query the precache doesn't ignore (Workbox drops only utm_* and fbclid) misses the precache,
+    // so this one reaches the navigation fallback, and only its denylist keeps the editor out. (The
+    // network answers it, so Firefox leaves that one page uncontrolled; Chromium keeps the controller.)
+    const res = await page.goto("/python?ref=x");
+    expect(res?.fromServiceWorker(), "answered by the network").toBe(false);
+    await expect(page.locator("h1")).toHaveText("Run Python online in your browser");
+    await expect(page.locator("#app")).toHaveCount(0);
   });
 });

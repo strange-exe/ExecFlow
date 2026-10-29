@@ -3,11 +3,11 @@ import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
-import { FILE_URL } from "./src/about/fallback-deny.ts";
+import { NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { makeCodeLink } from "./src/core/code-link.ts";
 import { loadGuideData } from "./src/pages/load.ts";
 import { expandGuide, type GuideData } from "./src/pages/render.ts";
-import { GUIDE_PATH, GUIDE_ROUTES } from "./src/pages/routes.ts";
+import { GUIDE_ROUTES } from "./src/pages/routes.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -293,7 +293,7 @@ function thirdPartyLicenses(): Plugin {
 
 /**
  * The guide pages (src/pages/routes.ts): their examples, outputs and flowcharts are filled in from
- * the repo's captured data (src/pages/render.ts), and each "Open in Execflow" link is made with the
+ * the repo's captured data (src/pages/render.ts), and each "Open in CodeEditor" link is made with the
  * app's own code-link encoder, so a link always opens exactly the code shown beside it.
  */
 function guidePages(): Plugin {
@@ -438,9 +438,8 @@ export default defineConfig(({ mode }) => ({
         // precache. /auth-callback keeps the fallback: it is an app route. A file URL (a name with an
         // extension other than .html, such as media/*.mp4) is a file, never the editor: it goes to the network
         // (FILE_URL ignores the query string, which Workbox tests along with the path).
-        // The guide pages are pages of their own, never the editor (they are precached too, so
-        // this only matters if one is ever missing from the precache).
-        navigateFallbackDenylist: [/^\/api\//, FILE_URL, GUIDE_PATH],
+        // The guide pages are pages of their own, never the editor (src/about/fallback-deny.ts).
+        navigateFallbackDenylist: [...NAVIGATE_DENYLIST],
         // numpy, pandas and their helpers (~7.5 MB, scripts/fetch-pyodide-packages.mjs) are not precached:
         // they download the first time a program imports them, then keep working offline. The folder is
         // versioned, so cached wheels never go stale; Pyodide also checks each one's sha256 (SRI).

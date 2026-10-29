@@ -4,7 +4,8 @@
 // Placeholders in the page source:
 //   <div data-example="ID"></div>          the example as a frame: code, input, output, help, link
 //   <div data-flowchart="ID"></div>        the chart, inline, in the page's colours, with its steps
-//   <span data-capture="ID:FIELD"></span>  one captured line, as text (FIELD: error, first, means, tips)
+//   <span data-capture="ID:FIELD"></span>  one captured line, as text (FIELD: error, first, means, tips,
+//                                          warning1, warning2, ...: a compiler warning from Problems)
 //   <span data-fact="NAME"></span>         a captured fact (packOffer)
 // An unknown ID or field stops the build. Everything inserted is text the app produced or a file
 // in this repo, and it is escaped; the chart is checked for anything active before it is inlined.
@@ -35,7 +36,7 @@ export interface GuideData {
   charts: Record<string, string>;
 }
 
-/** Makes the "Open in Execflow" link for a file (relative: "/#code=1...."). */
+/** Makes the "Open in CodeEditor" link for a file (relative: "/#code=1...."). */
 export type LinkMaker = (name: string, text: string) => Promise<string>;
 
 export const escapeHtml = (text: string): string =>
@@ -90,13 +91,15 @@ async function exampleHtml(id: string, data: GuideData, link: LinkMaker): Promis
     ? `<p class="ex-typed-note">Typed while it ran: ${src.stdin.map((s) => `<kbd class="ex-typed">${escapeHtml(s)}</kbd>`).join(", then ")}</p>`
     : "";
   const help = run.help
-    ? `<div class="ex-help"><p class="ex-help-title">Execflow's explanation</p><p>${escapeHtml(run.help.means)}</p><p>${escapeHtml(run.help.tips)}</p></div>`
+    ? `<div class="ex-help"><p class="ex-help-title">CodeEditor's explanation</p><p>${escapeHtml(run.help.means)}</p><p>${escapeHtml(run.help.tips)}</p></div>`
     : "";
   return [
     `<div class="ex" id="ex-${id}">`,
-    `<div class="ex-bar"><span class="ex-file">${escapeHtml(src.name)}</span><a class="ex-open" href="${escapeHtml(href)}">Open in Execflow<span class="ex-sr"> (${escapeHtml(src.name)})</span></a></div>`,
+    `<div class="ex-bar"><span class="ex-file">${escapeHtml(src.name)}</span><a class="ex-open" href="${escapeHtml(href)}">Open in CodeEditor<span class="ex-sr"> (${escapeHtml(src.name)})</span></a></div>`,
     `<div class="ex-panes">`,
-    `<pre class="ex-code"><code>${code}</code></pre>`,
+    // Lines stay whole (a wrapped Python line reads as two), so the block scrolls sideways on a
+    // phone and is a keyboard stop with a name.
+    `<pre class="ex-code" tabindex="0" role="group" aria-label="Code of ${escapeHtml(src.name)}"><code>${code}</code></pre>`,
     `<div class="ex-run"><p class="ex-label">Output <span class="ex-status" data-status="${escapeHtml(run.status ?? "")}">${words}</span></p>`,
     `<pre class="ex-out">${outputHtml(run, src.stdin)}</pre>${input}${help}</div>`,
     `</div>`,
@@ -178,6 +181,18 @@ function flowchartHtml(id: string, data: GuideData): string {
   ].join("");
 }
 
+/**
+ * The compiler's own words for the run's nth warning (from 1), as the Problems list showed it: a
+ * captured row reads "Warning", the message, then "<file>:<line>:<column>" and the rest.
+ */
+export function warningText(run: CapturedRun, file: string, n: number): string {
+  const rows = run.problems.filter((p) => p.startsWith("Warning"));
+  const row = rows[n - 1];
+  const at = row?.indexOf(`${file}:`) ?? -1;
+  if (!row || !file || at < 0) throw new Error(`guide pages: no warning ${n} in ${file || "the run"}`);
+  return row.slice("Warning".length, at);
+}
+
 function captureText(spec: string, data: GuideData): string {
   const [id, field] = spec.split(":");
   const run = data.captured.examples[id];
@@ -185,6 +200,8 @@ function captureText(spec: string, data: GuideData): string {
   if (field === "error") return escapeHtml(errorLine(run));
   if (field === "first") return escapeHtml(run.output.split("\n")[0]);
   if ((field === "means" || field === "tips") && run.help) return escapeHtml(run.help[field]);
+  const warning = /^warning(\d)$/.exec(field);
+  if (warning) return escapeHtml(warningText(run, data.sources[id]?.name ?? "", Number(warning[1])));
   throw new Error(`guide pages: no field "${field}" for "${id}"`);
 }
 

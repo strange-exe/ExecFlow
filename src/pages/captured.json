@@ -303,6 +303,89 @@
       "runlog": "all_headers.cpp\nFinished\nexit code 0\nbuilt in 4.5 s\nran in 20 ms",
       "help": null,
       "problems": []
+    },
+    "py-indent": {
+      "status": "error",
+      "output": "  File \"hot_day.py\", line 3\n    print(\"A hot day\")\n    ^^^^^\nIndentationError: expected an indented block after 'if' statement on line 2\n",
+      "outputChars": 137,
+      "runlog": "hot_day.py\nExited with code 1\nran in 156 ms\nIndentationError: expected an indented block after 'if' statement on line 2\nhot_day.py, line 3\n\nThe 'if' statement on line 2 needs at least one indented line under it, and this line isn't indented.\n\nIndent the lines that belong to it by 4 spaces. If it has no body yet, write pass there.",
+      "help": {
+        "id": "py-indent-expected",
+        "means": "The 'if' statement on line 2 needs at least one indented line under it, and this line isn't indented.",
+        "tips": "Indent the lines that belong to it by 4 spaces. If it has no body yet, write pass there."
+      },
+      "problems": [
+        "ErrorIndentationError: expected an indented block after 'if' statement on line 2hot_day.py:3:1python IndentationErrorThe 'if' statement on line 2 needs at least one indented line under it, and this line isn't indented.Indent the lines that belong to it by 4 spaces. If it has no body yet, write pass there.",
+        "ErrorIndentationError: expected an indented block after 'if' statement on line 2hot_day.py:3:1python IndentationError"
+      ]
+    },
+    "py-name": {
+      "status": "error",
+      "output": "Traceback (most recent call last):\n  File \"total.py\", line 4, in <module>\n    print(\"The total is\", totl)\n                          ^^^^\nNameError: name 'totl' is not defined. Did you mean: 'total'?\n",
+      "outputChars": 199,
+      "runlog": "total.py\nExited with code 1\nran in 36 ms\nNameError: name 'totl' is not defined. Did you mean: 'total'?\ntotal.py, line 4\n\nPython doesn't know a name totl at this point. It suggests total, a name it does know that is spelled alike.\n\nCheck the spelling and the capital letters. If totl is a new variable, give it a value on a line that runs before this one.",
+      "help": {
+        "id": "py-name-suggest",
+        "means": "Python doesn't know a name totl at this point. It suggests total, a name it does know that is spelled alike.",
+        "tips": "Check the spelling and the capital letters. If totl is a new variable, give it a value on a line that runs before this one."
+      },
+      "problems": [
+        "ErrorNameError: name 'totl' is not defined. Did you mean: 'total'?total.py:4:23python NameErrorPython doesn't know a name totl at this point. It suggests total, a name it does know that is spelled alike.Check the spelling and the capital letters. If totl is a new variable, give it a value on a line that runs before this one."
+      ]
+    },
+    "c-undeclared": {
+      "status": "build-failed",
+      "output": "total.c:8:33: error: use of undeclared identifier 'totl'; did you mean 'total'?\n The program didn't compile: 1 error in total.c.\n",
+      "outputChars": 129,
+      "runlog": "total.c\nBuild failed\nbuilt in 859 ms\nError: use of undeclared identifier 'totl'; did you mean 'total'?\ntotal.c, line 8\n\nThe compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike.\n\nCheck the spelling and the capital letters. A new variable needs a declaration with its type, before this line and in the same { } block or an outer one.",
+      "help": {
+        "id": "c-undeclared-suggest",
+        "means": "The compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike.",
+        "tips": "Check the spelling and the capital letters. A new variable needs a declaration with its type, before this line and in the same { } block or an outer one."
+      },
+      "problems": [
+        "Erroruse of undeclared identifier 'totl'; did you mean 'total'?total.c:8:33clangThe compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike.Check the spelling and the capital letters. A new variable needs a declaration with its type, before this line and in the same { } block or an outer one."
+      ]
+    },
+    "c-amp": {
+      "status": "crashed",
+      "output": "Your age: 17\n The build had 2 warnings: see Problems, or the marks in the code.\n The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range.\n",
+      "outputChars": 200,
+      "runlog": "age.c\nCrashed\nbuilt in 845 ms\nran in 11 ms\n\nThe program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.\n\nCheck each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable.",
+      "help": {
+        "id": "crash-memory",
+        "means": "The program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.",
+        "tips": "Check each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable."
+      },
+      "problems": [
+        "ErrorThe program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index)Whole programruntimeThe program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.Check each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable.",
+        "Warningvariable 'age' is uninitialized when used hereage.c:6:17clang -Wuninitializedage is used before it gets a value, so its value can't be relied on (it may be 0, or anything else).Give it a starting value where it is declared, such as = 0 for a sum or a counter.",
+        "Warningformat specifies type 'int *' but the argument has type 'int'age.c:6:17clang -WformatThis conversion needs an address to store into (type int *), but it was given a value of type int.If this is scanf, put & before the variable's name. A char array read with %s needs no &."
+      ]
+    },
+    "cpp-args": {
+      "status": "build-failed",
+      "output": "greet.cpp:9:18: error: no matching function for call to 'greet'\n The program didn't compile: 1 error in greet.cpp.\n",
+      "outputChars": 115,
+      "runlog": "greet.cpp\nBuild failed\nbuilt in 2.6 s\nError: no matching function for call to 'greet'\ngreet.cpp, line 9\n\nNo version of greet takes the values in this call: it needs 2, and the call gives 1.\n\nGive one value for each parameter, in the order the function lists them.",
+      "help": {
+        "id": "cpp-no-matching-count",
+        "means": "No version of greet takes the values in this call: it needs 2, and the call gives 1.",
+        "tips": "Give one value for each parameter, in the order the function lists them."
+      },
+      "problems": [
+        "Errorno matching function for call to 'greet'greet.cpp:9:18clangNo version of greet takes the values in this call: it needs 2, and the call gives 1.Give one value for each parameter, in the order the function lists them."
+      ]
+    },
+    "cpp-push": {
+      "status": "build-failed",
+      "output": "marks.cpp:7:11: error: no matching member function for call to 'push_back'\n The program didn't compile: 1 error in marks.cpp.\n",
+      "outputChars": 126,
+      "runlog": "marks.cpp\nBuild failed\nbuilt in 3.4 s\nError: no matching member function for call to 'push_back'\nmarks.cpp, line 7",
+      "help": null,
+      "problems": [
+        "Errorno matching member function for call to 'push_back'marks.cpp:7:11clang"
+      ]
     }
   }
 }

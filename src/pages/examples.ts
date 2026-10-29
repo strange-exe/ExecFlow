@@ -2,7 +2,7 @@
 // Each one's code is src/pages/examples/<id>.<ext>, the input typed into it <id>.stdin (when it reads
 // any), and what it printed in the real app is in captured.json, written by the capture run
 // (.claude/verify/pages/build/capture.spec.ts), never by hand. `name` is the file name the example
-// gets in the editor when its "Open in Execflow" link is opened.
+// gets in the editor when its "Open in CodeEditor" link is opened.
 
 export interface Example {
   /** The file name in the editor (and in a Python traceback). */
@@ -22,6 +22,8 @@ export const EXAMPLES: Readonly<Record<string, Example>> = {
   "py-list": { name: "marks.py" },
   "py-function": { name: "primes.py" },
   "py-error": { name: "next_year.py" },
+  "py-indent": { name: "hot_day.py" },
+  "py-name": { name: "total.py" },
   "py-numpy": { name: "heights.py" },
   "py-version": { name: "which_python.py" },
   "py-net": { name: "fetch_page.py" },
@@ -34,6 +36,8 @@ export const EXAMPLES: Readonly<Record<string, Example>> = {
   "c-array": { name: "temps.c" },
   "c-pointer": { name: "swap.c" },
   "c-semicolon": { name: "semicolon.c" },
+  "c-undeclared": { name: "total.c" },
+  "c-amp": { name: "age.c" },
   "c-crash": { name: "crash.c" },
   "c-version": { name: "which_c.c" },
   // /cpp
@@ -41,6 +45,8 @@ export const EXAMPLES: Readonly<Record<string, Example>> = {
   "cpp-vector": { name: "scores.cpp" },
   "cpp-string": { name: "word.cpp" },
   "cpp-std": { name: "hello.cpp" },
+  "cpp-args": { name: "greet.cpp" },
+  "cpp-push": { name: "marks.cpp" },
   "cpp-version": { name: "which_cpp.cpp" },
   "cpp-bits": { name: "all_headers.cpp" },
 };

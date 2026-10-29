@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Run C online in your browser | Execflow</title>
-    <meta name="description" content="Compile and run C in your browser with clang 8: scanf input, arrays and pointers, compiler errors and crashes explained in plain words. One download, then it works offline." />
+    <title>Run C online in your browser | CodeEditor</title>
+    <meta name="description" content="Compile and run C in your browser with clang 8: scanf, arrays and pointers, with compiler errors and crashes explained in plain words. Works offline." />
     <link rel="canonical" href="https://code-editor.abhinesh.codes/c" />
     <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="Execflow" />
+    <meta property="og:site_name" content="CodeEditor" />
     <meta property="og:title" content="Run C online in your browser" />
     <meta property="og:description" content="C compiled and run in your browser with clang 8 (gnu11): scanf, arrays, pointers, and errors explained in plain words." />
     <meta property="og:url" content="https://code-editor.abhinesh.codes/c" />
@@ -26,7 +26,7 @@
   <body class="about guide">
     <a class="about-skip" href="#content">Skip to the content</a>
     <header class="about-head">
-      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />Execflow</a>
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
       <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
     </header>
     <nav class="guide-nav" aria-label="Guides">
@@ -42,7 +42,7 @@
       <section class="guide-hero" aria-labelledby="title">
         <h1 id="title">Run C online in your browser</h1>
         <p class="about-lede">
-          Execflow compiles your C program with clang and runs it inside your browser tab, so it needs no compiler on your
+          CodeEditor compiles your C program with clang and runs it inside your browser tab, so it needs no compiler on your
           computer and no account. <code>scanf</code> waits for you to type, compiler errors point at their line, and the
           common ones, crashes included, come with an explanation in plain words.
         </p>
@@ -62,8 +62,8 @@
         <h2 id="start">Getting started</h2>
         <ol class="guide-list">
           <li>Open the <a href="/">editor</a> and make a file whose name ends in <code>.c</code>.</li>
-          <li>The first time, Output offers the compiler as a one-time download. In Execflow's words: &ldquo;<span data-fact="packOffer"></span>&rdquo;</li>
-          <li>Press <strong>Run</strong>. Execflow compiles, links and runs the program; the run log shows how long the build and the run took.</li>
+          <li>The first time, Output offers the compiler as a one-time download. In CodeEditor's words: &ldquo;<span data-fact="packOffer"></span>&rdquo;</li>
+          <li>Press <strong>Run</strong>. CodeEditor compiles, links and runs the program; the run log shows how long the build and the run took.</li>
           <li>When the program calls <code>scanf</code>, type into the field in Output and press Enter, or put the input in the <strong>Input</strong> box before you run.</li>
         </ol>
       </section>
@@ -71,8 +71,9 @@
       <section aria-labelledby="examples">
         <h2 id="examples">Examples, with what they really printed</h2>
         <p>
-          Every program here was compiled and run in Execflow, and its output is copied exactly, typed input included.
-          <strong>Open in Execflow</strong> loads it into the editor; nothing compiles or runs until you press Run.
+          Every program here was compiled and run in CodeEditor, and its output is copied exactly, typed input included.
+          <strong>Open in CodeEditor</strong> shows the program in CodeEditor as a preview first.
+          <strong>Add to my files</strong> puts it in the editor; nothing compiles or runs until you press Run.
         </p>
 
         <div class="guide-example">
@@ -106,10 +107,31 @@
         <div class="guide-example">
           <h3 id="ex-semicolon">A compiler error: the missing semicolon</h3>
           <p>
-            One missing <code>;</code> at the end of line 4. clang reports it where it noticed, and Execflow adds what
+            One missing <code>;</code> at the end of line 4. clang reports it where it noticed, and CodeEditor adds what
             the message means.
           </p>
           <div data-example="c-semicolon"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-undeclared">A compiler error: a name it doesn't know</h3>
+          <p>
+            Every variable in C is declared with its type before it is used, and the compiler knows it only by that exact
+            spelling. clang suggests the name it does know; CodeEditor explains where a declaration has to be.
+          </p>
+          <div data-example="c-undeclared"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-amp">scanf without &amp;: two warnings, then a crash</h3>
+          <p>
+            <code>scanf("%d", age)</code> hands scanf the value of <code>age</code> instead of its address, so scanf
+            stores the number somewhere it shouldn't. This compiles, because it is only a warning: CodeEditor listed two
+            under Problems, <em>&ldquo;<span data-capture="c-amp:warning1"></span>&rdquo;</em> and
+            <em>&ldquo;<span data-capture="c-amp:warning2"></span>&rdquo;</em>, and the run then crashed as soon as
+            the number was typed.
+          </p>
+          <div data-example="c-amp"></div>
         </div>
 
         <div class="guide-example">
@@ -117,7 +139,7 @@
           <p>
             The array has 5 places, but nothing stops the program from using the number typed in as an index. On your
             own computer this is usually a <em>segmentation fault</em>; here the program is stopped the same way, and
-            Execflow says what usually causes it.
+            CodeEditor says what usually causes it.
           </p>
           <div data-example="c-crash"></div>
         </div>
@@ -158,13 +180,13 @@
       <section class="guide-faq" aria-labelledby="faq">
         <h2 id="faq">Questions</h2>
         <h3>Is this GCC?</h3>
-        <p>No, it is clang 8, the C compiler of the LLVM project. Both follow the C standard; their messages are worded differently, and Execflow explains the common ones in plain words either way.</p>
+        <p>No, it is clang 8, the C compiler of the LLVM project. Both follow the C standard; their messages are worded differently, and CodeEditor explains the common ones in plain words either way.</p>
         <h3>Does it work offline?</h3>
         <p>Yes, once the compiler has been downloaded. The 19.6 MB download happens once per browser, when you first run C or C++; after that, programs compile and run without a connection.</p>
         <h3>Do I need to sign up?</h3>
         <p>No. Your files are kept in your browser. Connecting GitHub, to sync files to your own private repository, is optional.</p>
         <h3>Is my code private?</h3>
-        <p>Your code is compiled and run on your computer. A code link carries the program inside the link, after <code>#code=</code>; browsers never send that part to a server, and opening the link shows the code first and runs nothing. The <a href="/privacy">privacy page</a> explains what Execflow keeps and sends.</p>
+        <p>Your code is compiled and run on your computer. A code link carries the program inside the link, after <code>#code=</code>; browsers never send that part to a server, and opening the link shows the code first and runs nothing. The <a href="/privacy">privacy page</a> explains what CodeEditor keeps and sends.</p>
         <h3>Why does a wrong index sometimes not crash?</h3>
         <p>C doesn't check indexes. A small mistake often writes over another variable instead, and with <code>-O2</code> the compiler can remove code whose result is never used. A crash only happens when the address is outside the program's memory altogether, as in the example above.</p>
       </section>
@@ -175,7 +197,7 @@
           <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: if/else, loops and early returns drawn from your code.</li>
           <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17, with the same compiler.</li>
           <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas.</li>
-          <li><a href="/about">About Execflow</a>: everything the editor does, and what changed lately.</li>
+          <li><a href="/about">About CodeEditor</a>: everything the editor does, and what changed lately.</li>
         </ul>
       </section>
     </main>

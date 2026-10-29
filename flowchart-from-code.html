@@ -3,18 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Turn Python, C or C++ code into a flowchart | Execflow</title>
-    <meta name="description" content="Paste Python, C or C++ and Execflow draws its flowchart in your browser: decisions with Yes and No, loops, input and output, calls. Built by a parser, not AI. Export PNG or SVG." />
+    <title>Turn Python, C or C++ code into a flowchart | CodeEditor</title>
+    <meta name="description" content="Paste Python, C or C++ and CodeEditor draws its flowchart in your browser: decisions, loops, input and output. Made by a parser, not AI. Export PNG or SVG." />
     <link rel="canonical" href="https://code-editor.abhinesh.codes/flowchart-from-code" />
     <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="Execflow" />
+    <meta property="og:site_name" content="CodeEditor" />
     <meta property="og:title" content="Turn Python, C or C++ code into a flowchart" />
-    <meta property="og:description" content="Execflow draws the flowchart of your Python, C or C++ code in the browser, with a parser instead of AI, and exports it as PNG or SVG." />
+    <meta property="og:description" content="CodeEditor draws the flowchart of your Python, C or C++ code in the browser, with a parser instead of AI, and exports it as PNG or SVG." />
     <meta property="og:url" content="https://code-editor.abhinesh.codes/flowchart-from-code" />
     <meta property="og:image" content="https://code-editor.abhinesh.codes/icons/mark-v2-512.png" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Turn Python, C or C++ code into a flowchart" />
-    <meta name="twitter:description" content="Execflow draws the flowchart of your Python, C or C++ code in the browser, with a parser instead of AI, and exports it as PNG or SVG." />
+    <meta name="twitter:description" content="CodeEditor draws the flowchart of your Python, C or C++ code in the browser, with a parser instead of AI, and exports it as PNG or SVG." />
     <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
@@ -26,7 +26,7 @@
   <body class="about guide">
     <a class="about-skip" href="#content">Skip to the content</a>
     <header class="about-head">
-      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />Execflow</a>
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
       <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
     </header>
     <nav class="guide-nav" aria-label="Guides">
@@ -42,9 +42,9 @@
       <section class="guide-hero" aria-labelledby="title">
         <h1 id="title">Turn Python, C or C++ code into a flowchart</h1>
         <p class="about-lede">
-          Write or paste a program in Execflow, open the Flowchart tab, and every decision, loop and early return of the
+          Write or paste a program in CodeEditor, open the Flowchart tab, and every decision, loop and early return of the
           function you pick becomes a box in the standard flowchart shapes. It is drawn in your browser from the code
-          itself, so the chart always matches what the program does.
+          itself, so the chart follows the code's structure, statement by statement.
         </p>
         <div class="about-ctas">
           <a class="about-btn about-btn-primary" href="/">Open the editor</a>
@@ -75,9 +75,11 @@
       <section aria-labelledby="examples">
         <h2 id="examples">Worked examples</h2>
         <p>
-          Each chart below is the one Execflow drew for the code beside it, saved with its own SVG export and shown here
-          in this page's colours. The output under each program is what it printed when it ran in Execflow. Open any of
-          them in the editor to change the code and watch the chart follow.
+          Each chart below is the one CodeEditor drew for the code beside it, saved with its own SVG export and shown here
+          in this page's colours. The output under each program is what it printed when it ran in CodeEditor.
+          <strong>Open in CodeEditor</strong> shows the program in CodeEditor as a preview first.
+          <strong>Add to my files</strong> puts it in the editor, where you can change the code and watch the chart
+          follow; nothing runs until you press Run.
         </p>
 
         <div class="guide-example">
@@ -160,7 +162,7 @@
         </p>
         <p>
           A PNG is drawn at twice the chart's size for sharp printing; a chart too big for the browser to draw at that
-          size is saved smaller, and Execflow says so. An SVG stays sharp at any size and can be opened in drawing
+          size is saved smaller, and CodeEditor says so. An SVG stays sharp at any size and can be opened in drawing
           programs. Every export has a footer line with the file's name and the function it shows. The file is named
           after both, like <code>find-py-find-flowchart.svg</code>.
         </p>
@@ -168,22 +170,22 @@
 
       <section aria-labelledby="limits">
         <h2 id="limits">What is not drawn box by box</h2>
-        <p>Some statements become one box with the note <em>shown as one step</em>, so the chart stays honest about what it leaves out:</p>
+        <p>Some statements become one box with the note <em>shown as one step</em>, so the chart stays honest about what it leaves out. For example:</p>
         <ul class="guide-list">
-          <li>In Python: <code>try</code>, <code>with</code> and <code>match</code> blocks, a function or class defined inside another, and a line that contains a <code>lambda</code>.</li>
-          <li>In C and C++: <code>try</code> blocks, and preprocessor lines such as <code>#ifdef</code> inside a function.</li>
+          <li>In Python: <code>try</code>, <code>with</code> and <code>match</code> blocks, a function or class defined inside another, a line that contains a <code>lambda</code>, and another expression that spans several lines.</li>
+          <li>In C and C++: <code>try</code> blocks (C++), preprocessor lines such as <code>#ifdef</code> inside a function, a statement that spans several lines, and a <code>case</code> label inside a block or loop within its <code>switch</code>.</li>
         </ul>
         <p>
           Definitions are not steps of the code around them: the chart of a Python file's top level skips its
           <code>def</code> blocks, and each function gets a chart of its own. A function with more than 400 boxes, or nested more than 40 levels deep, is too big
-          to draw; Execflow says so and you can pick a smaller function.
+          to draw; CodeEditor says so and you can pick a smaller function.
         </p>
       </section>
 
       <section aria-labelledby="approach">
         <h2 id="approach">How the chart is made, and why it matters</h2>
         <p>
-          Execflow reads your code with a parser (tree-sitter, the same kind of parser code editors use to colour code)
+          CodeEditor reads your code with a parser (tree-sitter, the same kind of parser code editors use to colour code)
           and builds the chart from the program's structure. That has three consequences you can rely on:
         </p>
         <ul class="guide-list">
@@ -217,7 +219,7 @@
           <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas, and what doesn't run.</li>
           <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 8, and what a crash looks like.</li>
           <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
-          <li><a href="/about">About Execflow</a>: everything the editor does, and what changed lately.</li>
+          <li><a href="/about">About CodeEditor</a>: everything the editor does, and what changed lately.</li>
         </ul>
       </section>
     </main>

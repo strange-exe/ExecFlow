@@ -14,10 +14,10 @@ export interface GuideRoute {
 export const SITE = "https://code-editor.abhinesh.codes";
 
 export const GUIDE_ROUTES: readonly GuideRoute[] = [
-  { path: "/flowchart-from-code", file: "flowchart-from-code.html", title: "Turn Python, C or C++ code into a flowchart | Execflow" },
-  { path: "/python", file: "python.html", title: "Run Python online in your browser | Execflow" },
-  { path: "/c", file: "c.html", title: "Run C online in your browser | Execflow" },
-  { path: "/cpp", file: "cpp.html", title: "Run C++ online in your browser | Execflow" },
+  { path: "/flowchart-from-code", file: "flowchart-from-code.html", title: "Turn Python, C or C++ code into a flowchart | CodeEditor" },
+  { path: "/python", file: "python.html", title: "Run Python online in your browser | CodeEditor" },
+  { path: "/c", file: "c.html", title: "Run C online in your browser | CodeEditor" },
+  { path: "/cpp", file: "cpp.html", title: "Run C++ online in your browser | CodeEditor" },
 ];
 
 /** A guide page's path, with or without ".html" or a trailing slash, and with any query string. */

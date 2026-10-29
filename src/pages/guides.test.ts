@@ -1,6 +1,6 @@
 /// <reference types="node" />
 // The guide pages (src/pages/routes.ts) as the build makes them (render.ts, vite.config.ts
-// guidePages): every "Open in Execflow" link decodes, through the app's own code-link reader, to
+// guidePages): every "Open in CodeEditor" link decodes, through the app's own code-link reader, to
 // exactly the code shown beside it; every example and chart comes from the capture run; each page's
 // head says what its route says; and the inlined charts are drawn only in the page's tokens.
 import { readFileSync } from "node:fs";
@@ -9,8 +9,9 @@ import { makeCodeLink, readCodeLink } from "../core/code-link";
 import { printColors } from "../flowchart/export";
 import { EXAMPLES } from "./examples";
 import { loadGuideData } from "./load";
-import { chartSvg, colorTokens, errorLine, escapeHtml, expandGuide, outputHtml, type CapturedRun } from "./render";
+import { chartSvg, colorTokens, errorLine, escapeHtml, expandGuide, outputHtml, warningText, type CapturedRun } from "./render";
 import { GUIDE_PATH, GUIDE_ROUTES, SITE } from "./routes";
+import { NAVIGATE_DENYLIST } from "../about/fallback-deny";
 
 const data = loadGuideData(process.cwd());
 const link = async (name: string, text: string) => {
@@ -27,9 +28,9 @@ const attr = (html: string, re: RegExp) => re.exec(html)?.[1];
 const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
 describe.each(GUIDE_ROUTES)("$path", (route) => {
-  it("every Open in Execflow link opens exactly the code shown beside it, under the example's name", async () => {
+  it("every Open in CodeEditor link opens exactly the code shown beside it, under the example's name", async () => {
     const html = await page(route.file);
-    const blocks = [...html.matchAll(/<div class="ex" id="ex-([\w-]+)">.*?<span class="ex-file">([^<]*)<\/span><a class="ex-open" href="([^"]+)">.*?<pre class="ex-code"><code>(.*?)<\/code><\/pre>/gs)];
+    const blocks = [...html.matchAll(/<div class="ex" id="ex-([\w-]+)">.*?<span class="ex-file">([^<]*)<\/span><a class="ex-open" href="([^"]+)">.*?<pre class="ex-code"[^>]*><code>(.*?)<\/code><\/pre>/gs)];
     expect(blocks.length).toBe((html.match(/class="ex-open"/g) ?? []).length);
     expect(blocks.length).toBeGreaterThanOrEqual(4);
     for (const [, id, file, href, shown] of blocks) {
@@ -37,8 +38,13 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
       const read = await readCodeLink(unescape(href).slice(1));
       expect(read, id).toEqual({ ok: true, file: { name: EXAMPLES[id].name, text: data.sources[id].code } });
       expect(unescape(file)).toBe(EXAMPLES[id].name);
-      // The page shows the same program the link carries (its last newline aside).
-      expect(unescape(shown)).toBe(data.sources[id].code.replace(/\n$/, ""));
+      // The page shows the same program the link carries (its last newline aside), escaped as text:
+      // "#include <stdio.h>" raw in the page would be read as a tag and never shown.
+      expect(shown, id).toBe(escapeHtml(data.sources[id].code.replace(/\n$/, "")));
+    }
+    // A code block keeps its lines whole and scrolls sideways, so it is a named keyboard stop.
+    for (const [, id] of blocks) {
+      expect(html).toContain(`<pre class="ex-code" tabindex="0" role="group" aria-label="Code of ${escapeHtml(EXAMPLES[id].name)}"><code>`);
     }
   });
 
@@ -50,7 +56,10 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
     expect(attr(html, /<meta property="og:url" content="([^"]+)"/)).toBe(url);
     const description = attr(html, /<meta name="description" content="([^"]+)"/)!;
     expect(description.length).toBeGreaterThan(70);
-    expect(description.length).toBeLessThanOrEqual(200);
+    // Long enough to say something, short enough not to be cut off in a results page.
+    expect(description.length).toBeLessThanOrEqual(160);
+    expect(attr(html, /<meta property="og:description" content="([^"]+)"/)!.length).toBeLessThanOrEqual(160);
+    expect(attr(html, /<meta name="twitter:description" content="([^"]+)"/)!.length).toBeLessThanOrEqual(160);
     for (const tag of ["og:title", "og:description", "og:type", "og:site_name"]) expect(html).toMatch(new RegExp(`<meta property="${tag}" content="[^"]+"`));
     for (const tag of ["twitter:card", "twitter:title", "twitter:description"]) expect(html).toMatch(new RegExp(`<meta name="${tag}" content="[^"]+"`));
     expect(html.match(/<h1\b/g)).toHaveLength(1);
@@ -68,6 +77,27 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
     expect([...html.matchAll(/<script\b[^>]*>/g)].map((m) => m[0])).toEqual(['<script src="theme-boot.js">']);
     expect(html).toContain(`aria-current="page"`);
     expect(attr(html, /<a href="([^"]+)" aria-current="page"/)).toBe(route.path);
+  });
+
+  it("names the product CodeEditor everywhere it is seen: title, headings, link text, prose and tags", async () => {
+    const html = await page(route.file);
+    // The rename to Execflow is a later release: until then a student would click through to an
+    // app that calls itself something else.
+    expect(html).not.toMatch(/execflow/i);
+    expect(attr(html, /<title>([^<]*)<\/title>/)).toMatch(/ \| CodeEditor$/);
+    expect(attr(html, /<meta property="og:site_name" content="([^"]+)"/)).toBe("CodeEditor");
+    const opens = html.match(/class="ex-open"/g) ?? [];
+    expect(html.match(/>Open in CodeEditor<span class="ex-sr">/g) ?? []).toHaveLength(opens.length);
+  });
+
+  it("says what Open in CodeEditor really does: a preview first, the editor only after Add to my files", async () => {
+    const html = await page(route.file);
+    const intro = attr(html, /<section aria-labelledby="examples">([\s\S]*?)<div class="guide-example">/)!.replace(/\s+/g, " ");
+    expect(intro).toContain("<strong>Open in CodeEditor</strong> shows");
+    expect(intro).toContain("a preview");
+    expect(intro).toContain("<strong>Add to my files</strong> puts it in the editor");
+    expect(intro).toContain("until you press Run");
+    expect(html).not.toMatch(/puts (it|the program) in the editor without|loads it into the editor/);
   });
 
   it("is ASCII with LF line endings (characters as HTML entities)", () => {
@@ -101,6 +131,14 @@ describe("the pages' examples", () => {
     const failed: CapturedRun = { ...run, status: "crashed", output: "Which? 9\n The program crashed.\n" };
     expect(outputHtml(failed, ["9"])).toBe('Which? <kbd class="ex-typed">9</kbd>\n<span class="ex-note">The program crashed.</span>');
     expect(escapeHtml(`<a href="x">&</a>`)).toBe("&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;");
+  });
+
+  it("a warning is the compiler's message from its Problems row, without the place or the help", () => {
+    const run = data.captured.examples["c-amp"];
+    expect(warningText(run, "age.c", 1)).toBe("variable 'age' is uninitialized when used here");
+    expect(warningText(run, "age.c", 2)).toBe("format specifies type 'int *' but the argument has type 'int'");
+    expect(() => warningText(run, "age.c", 3)).toThrow(/no warning 3/);
+    expect(() => warningText(data.captured.examples["c-semicolon"], "semicolon.c", 1)).toThrow();
   });
 
   it("an error line is the traceback's last exception", () => {
@@ -137,6 +175,45 @@ describe("an inlined flowchart", () => {
     const print = printColors();
     expect(print.info).not.toBe(print.action);
     expect(() => colorTokens({ ...print, info: print.action })).toThrow(/is both/);
+  });
+});
+
+describe("what the pages say matches the app (fact review)", () => {
+  const section = (html: string, id: string) => attr(html, new RegExp(`<section aria-labelledby="${id}">([\\s\\S]*?)</section>`))!;
+
+  it("the flowchart page's list of steps not drawn box by box is a list of examples, right per language", async () => {
+    const limits = section(await page("flowchart-from-code.html"), "limits");
+    expect(limits).toContain("For example:");
+    // C has no try: only C++ does.
+    expect(limits).toContain("<code>try</code> blocks (C++)");
+    expect(limits.match(/spans several lines/g)).toHaveLength(2);
+    expect(limits).toContain("<code>case</code> label inside a block or loop");
+  });
+
+  it("the C++ page says the precompiled header is kept for the last few settings, not for every one", async () => {
+    const html = await page("cpp.html");
+    expect(html).not.toContain("once per standard");
+    expect(html).toContain("kept for the last few compiler settings used");
+  });
+
+  it("the Python page gives the real first download (about 13.5 MB with pyodide.asm.mjs), never 12 MB", async () => {
+    const html = await page("python.html");
+    expect(html).not.toMatch(/\b12 MB/);
+    expect(html.match(/about 13\.5 MB/gi)).toHaveLength(3);
+  });
+
+  it("the Python page says the output limit counts thousands of 1,024 characters", async () => {
+    const html = (await page("python.html")).replace(/\s+/g, " ");
+    expect(html).not.toContain("4,096 thousand characters");
+    expect(html).toContain("counted in thousands of characters of 1,024 each (the default, 512, is the 524,288 above)");
+  });
+});
+
+describe("NAVIGATE_DENYLIST (the service worker's navigateFallbackDenylist)", () => {
+  it("holds GUIDE_PATH, so a guide page the precache misses (/python?ref=x) goes to the network, never the editor", () => {
+    expect(NAVIGATE_DENYLIST).toContain(GUIDE_PATH);
+    expect(NAVIGATE_DENYLIST.some((re) => re.test("/python?ref=x"))).toBe(true);
+    expect(NAVIGATE_DENYLIST.some((re) => re.test("/?ref=x"))).toBe(false);
   });
 });
 
