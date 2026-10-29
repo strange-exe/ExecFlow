@@ -5,8 +5,12 @@
 // Google: https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls
 // Open Graph: https://ogp.me/  Sitemaps: https://www.sitemaps.org/protocol.html
 
-/** The one address the site is published at (Cloudflare Pages, custom domain). */
-export const ORIGIN = "https://code-editor.abhinesh.codes";
+/**
+ * The address the site is published at (Cloudflare Pages, custom domain). Since 0.12.0; the old
+ * address, https://code-editor.abhinesh.codes, still serves the same build while students move
+ * their files (src/ui/address-move.ts), and canonical tags point here from both.
+ */
+export const ORIGIN = "https://execflow.abhinesh.codes";
 
 /** The pages to index, in sitemap order: the path they are served at and the HTML file behind it. */
 export const PAGES = [
@@ -35,7 +39,7 @@ export const HTML_INPUT: Record<string, string> = {
  * page's media; rendered by scripts/make-social-card.mjs).
  */
 export const SOCIAL_CARD = {
-  path: "/media/social-card.2ff605c9.png",
+  path: "/media/social-card.a727144c.png",
   width: 1200,
   height: 630,
   alt: "CodeEditor: write, run and chart Python, C and C++ in your browser.",

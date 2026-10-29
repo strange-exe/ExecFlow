@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://code-editor.abhinesh.codes/sitemap.xml
+Sitemap: https://execflow.abhinesh.codes/sitemap.xml

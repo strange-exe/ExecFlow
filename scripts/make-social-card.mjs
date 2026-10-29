@@ -104,7 +104,7 @@ h1 { font-size: 64px; font-weight: 600; letter-spacing: -0.02em; }
 <div><div class="brand">${mark}<h1>CodeEditor</h1></div>
 <p class="line">Write, run and chart Python, C and C++ in your browser</p></div>
 <div class="motif"><div class="sheet">${lines}</div>${chart}</div>
-<p class="address">code-editor.abhinesh.codes</p>
+<p class="address">execflow.abhinesh.codes</p>
 </div></body></html>`;
 
 const browser = await chromium.launch();

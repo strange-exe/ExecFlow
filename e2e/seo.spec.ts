@@ -8,7 +8,9 @@ import AxeBuilder from "@axe-core/playwright";
 import { GUIDE_ROUTES } from "../src/pages/routes";
 import { expect, openApp, openIn, test, tolerating } from "./helpers";
 
-const ORIGIN = "https://code-editor.abhinesh.codes";
+const ORIGIN = "https://execflow.abhinesh.codes";
+/** The address the site moved from (0.12.0): still named, so search engines tie the two together. */
+const OLD_ORIGIN = "https://code-editor.abhinesh.codes";
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const PAGES = [
   { path: "/", title: "CodeEditor: free online Python, C and C++ compiler" },
@@ -59,6 +61,12 @@ test.describe("search and sharing", () => {
     const data = JSON.parse(blocks[0]);
     expect(data["@graph"].map((n: { "@type": string }) => n["@type"])).toEqual(["WebSite", "WebApplication"]);
     expect(blocks[0]).not.toMatch(/aggregateRating|"review/);
+    const [site, app] = data["@graph"];
+    expect([site["@id"], site.url, app["@id"], app.url]).toEqual([`${ORIGIN}/#website`, `${ORIGIN}/`, `${ORIGIN}/#app`, `${ORIGIN}/`]);
+    expect(site.alternateName).toContain(new URL(OLD_ORIGIN).host);
+    expect(app.image.startsWith(`${ORIGIN}/media/social-card.`)).toBe(true);
+    // The old address appears only as that alternate name, never as an address to follow.
+    expect(blocks[0].split(OLD_ORIGIN)).toHaveLength(1);
     await expect(page.getByRole("heading", { level: 1, name: "CodeEditor" })).toHaveCount(1);
   });
 

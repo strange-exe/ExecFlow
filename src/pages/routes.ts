@@ -11,7 +11,7 @@ export interface GuideRoute {
   title: string;
 }
 
-export const SITE = "https://code-editor.abhinesh.codes";
+export const SITE = "https://execflow.abhinesh.codes";
 
 export const GUIDE_ROUTES: readonly GuideRoute[] = [
   { path: "/flowchart-from-code", file: "flowchart-from-code.html", title: "Turn Python, C or C++ code into a flowchart | CodeEditor" },

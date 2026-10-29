@@ -97,7 +97,7 @@ async function inflate(bytes: Uint8Array, cap: number): Promise<Uint8Array | "to
   return out;
 }
 
-/** The link for `name` holding `text`, opening at `origin` (e.g. "https://code-editor.abhinesh.codes"). */
+/** The link for `name` holding `text`, opening at `origin` (e.g. "https://execflow.abhinesh.codes"). */
 export async function makeCodeLink(origin: string, name: string, text: string): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }> {
   if (!canCompress()) return { ok: false, refusal: { kind: "unsupported" } };
   const checked = checkText(text);
