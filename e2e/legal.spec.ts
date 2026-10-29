@@ -4,7 +4,7 @@
 // editor) once the service worker controls the site. Shots go to LEGAL_SHOTS when set.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, hierarchyShots, openApp, openIn, test } from "./helpers";
 
@@ -112,7 +112,7 @@ test.describe("legal pages", () => {
   });
 });
 
-test("with the service worker in control, /privacy and /terms are the pages, online and offline", async ({ page, context }) => {
+test("with the service worker in control, /privacy, /terms and /licenses.txt are the pages, online and offline", async ({ page, context }) => {
   test.setTimeout(240_000);
   await openApp(page);
   // main.ts registers the service worker once Python is up.
@@ -132,6 +132,19 @@ test("with the service worker in control, /privacy and /terms are the pages, onl
       await page.goto(p.path);
       await expect(page.getByRole("heading", { level: 1 }), `${p.path} ${offline ? "offline" : "online"}`).toHaveText(p.title);
       await expect(page.locator("#app")).toHaveCount(0);
+    }
+    // The licence notice is a file, not an app route: the navigate fallback once answered it with
+    // the editor (About, Terms and Settings link to it). It is precached, so it opens offline too.
+    const res = await page.goto("/licenses.txt");
+    expect(res?.headers()["content-type"], `/licenses.txt ${offline ? "offline" : "online"}`).toMatch(/^text\/plain/);
+    expect(await page.evaluate(() => document.body.innerText.split("\n")[0])).toBe("CodeEditor: licences");
+    await expect(page.locator("#app")).toHaveCount(0);
+    if (!offline) {
+      // Any other file opened on its own (the launch video's poster here, as the video's own link
+      // would be) comes from the network, not as the editor.
+      const poster = /poster="(\/media\/[^"]+\.webp)"/.exec(readFileSync("about.html", "utf8"))![1];
+      const shot = await page.goto(poster);
+      expect(shot?.headers()["content-type"]).toBe("image/webp");
     }
   }
   await context.setOffline(false);

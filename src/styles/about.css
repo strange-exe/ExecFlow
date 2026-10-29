@@ -132,6 +132,7 @@ body.about {
   font-size: 18px;
   line-height: 1.55;
   color: var(--text-secondary);
+  text-wrap: pretty;
 }
 .about-ctas {
   display: flex;
@@ -389,6 +390,10 @@ body.about {
 .about-play:hover {
   background: var(--hover);
 }
+/* display above outranks the hidden attribute's own rule: a file that can't play has no button. */
+.about-play[hidden] {
+  display: none;
+}
 .about-play::before {
   content: "";
   width: 12px;
@@ -396,11 +401,47 @@ body.about {
   background: currentColor;
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
-.about-stage[data-video="playing"] .about-play::before {
+/* The pause bars whenever the button pauses: from play() on (loading), and while the scene runs. */
+.about-stage[data-video="playing"] .about-play::before,
+.about-stage[data-video="loading"] .about-play::before,
+.about-scene[data-scene="running"] .about-play::before {
   clip-path: polygon(0 0, 35% 0, 35% 100%, 0 100%, 0 0, 65% 0, 100% 0, 100% 100%, 65% 100%, 65% 0);
 }
+/* The hero scene's own pause and play, the same button in the scene's corner, only while it moves or
+   is held (the poster has nothing to pause). Paused, it keeps its frame rather than the poster. */
+.about-scene-toggle {
+  display: none;
+  /* Just under the scene's right edge, off the drawing (the square is wider than the shapes and
+     they reach its bottom on phones); above the canvas, which scene.ts appends after it. */
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: calc(100% + var(--s2));
+  z-index: 1;
+}
+/* Room for the button under the scene, from the poster on (so nothing moves when the scene starts),
+   and none where it can never show: still (reduced motion) or unavailable (no WebGL, no code). Under
+   reduced motion it is never kept, so the poster doesn't lose a gap when page.ts marks it still. */
+@media (prefers-reduced-motion: no-preference) {
+  .about-scene:is([data-scene="poster"], [data-scene="loading"], [data-scene="running"], [data-scene="paused"]) {
+    margin-bottom: calc(44px + var(--s3));
+  }
+}
+.about-scene[data-scene="running"] .about-scene-toggle,
+.about-scene[data-scene="paused"] .about-scene-toggle {
+  display: inline-flex;
+}
+.about-scene[data-scene="paused"] .about-canvas {
+  opacity: 1;
+}
+.about-scene[data-scene="paused"] .about-poster {
+  opacity: 0;
+}
+.about-video .about-note {
+  margin-top: var(--s3);
+}
 .about-video .about-note ol {
-  margin: var(--s2) 0 0;
+  margin: var(--s2) 0 var(--s3);
   padding-left: var(--s5);
 }
 .about-video .about-note li + li {

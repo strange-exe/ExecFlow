@@ -4,6 +4,7 @@
 // data goes in as text (textContent / createTextNode), never as markup.
 import { CHANGELOG, KINDS, type Kind } from "./changelog";
 import { BUILT_IN, themePalette } from "../theme/themes";
+import type { SceneControl } from "./scene";
 
 const KIND_WORD: Record<Kind, string> = { added: "Added", changed: "Changed", fixed: "Fixed" };
 
@@ -90,9 +91,25 @@ function renderThemes(): void {
   for (const n of document.querySelectorAll<HTMLElement>("[data-theme-count]")) n.textContent = String(themes.length);
 }
 
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+/** Runs `stop` when the device turns reduced motion on during the visit (the page reads it once otherwise). */
+function whenMotionIsReduced(stop: () => void): void {
+  reducedMotion.addEventListener("change", (e) => {
+    if (e.matches) stop();
+  });
+}
+
+/** The flowchart screenshot in the theme the page shows: theme-boot.js's data-theme follows a saved theme, not only the device. */
+function shot(): void {
+  const dark = document.querySelector<HTMLSourceElement>(".about-shot source");
+  if (dark) dark.media = document.documentElement.dataset.theme === "dark" ? "all" : "not all";
+}
+
 /** Secondary sections settle in as they arrive: they start readable (never from opacity 0) and nothing moves with reduced motion. */
 function reveals(): void {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+  // about.css moves them only under no-preference, so a change mid-visit needs nothing here.
+  if (reducedMotion.matches || !("IntersectionObserver" in window)) return;
   const io = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
@@ -109,18 +126,44 @@ function reveals(): void {
   }
 }
 
-/** The hero scene, after the first paint: the poster stays where WebGL or motion isn't welcome. */
+/**
+ * The hero scene, after the first paint: the poster stays where WebGL or motion isn't welcome. Its
+ * button (shown by about.css only while it runs or is paused) pauses it (WCAG 2.2.2), and the pause
+ * holds until the button plays it again. Reduced motion turned on during the visit stops it for good.
+ */
 function scene(): void {
   const host = document.querySelector<HTMLElement>(".about-scene");
   if (!host) return;
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (reducedMotion.matches) {
     host.dataset.scene = "still";
     return;
   }
+  let control: SceneControl | null = null;
+  let stopped = false;
+  const toggle = host.querySelector<HTMLButtonElement>(".about-scene-toggle");
+  whenMotionIsReduced(() => {
+    stopped = true;
+    // The button goes with the motion: focus on it would fall to the page, so it moves to the hero's
+    // title first (tabindex="-1"), and Tab goes on from there.
+    if (toggle && document.activeElement === toggle) document.querySelector<HTMLElement>("#hero-title")?.focus();
+    if (control) control.stop();
+    else if (host.dataset.scene !== "unavailable") host.dataset.scene = "still";
+  });
+  let held = false;
+  toggle?.addEventListener("click", () => {
+    held = !held;
+    control?.hold(held);
+    toggle.textContent = held ? "Play animation" : "Pause animation";
+  });
   const start = () => {
+    if (stopped) return;
     host.dataset.scene = "loading";
     import("./scene")
-      .then((m) => m.mountScene(host))
+      .then((m) => {
+        // Reduced motion came on while the code was on its way.
+        if (stopped) host.dataset.scene = "still";
+        else control = m.mountScene(host);
+      })
       .catch(() => {
         // The scene's code didn't arrive (offline before it was cached): the poster is the hero.
         host.dataset.scene = "unavailable";
@@ -135,8 +178,9 @@ function scene(): void {
  * screen. Its file is attached only when it first comes into view (some engines fetch a source even
  * with preload="none"). Nothing starts by itself with reduced motion. The button pauses it (WCAG
  * 2.2.2), and a pause by the button holds until the button plays it again. data-video on the stage
- * says the state: idle, playing, paused, still (reduced motion, or a browser that refused to play
- * it) or unplayable (the file can't be decoded here).
+ * says the state: idle, loading (started, no frame yet: the button already offers Pause), playing,
+ * paused, still (reduced motion, now or turned on during the visit, or a browser that refused to
+ * play it) or unplayable (the file can't be decoded here).
  */
 function video(): void {
   const stage = document.querySelector<HTMLElement>(".about-stage");
@@ -145,7 +189,8 @@ function video(): void {
   if (!stage || !player || !button) return;
   const state = (s: string) => {
     stage.dataset.video = s;
-    button.textContent = s === "playing" ? "Pause video" : "Play video";
+    // From play() on, not from the first frame: a click while the file loads pauses it, so say so.
+    button.textContent = s === "playing" || s === "loading" ? "Pause video" : "Play video";
     button.hidden = s === "unplayable";
   };
   let held = false;
@@ -156,10 +201,16 @@ function video(): void {
   };
   const play = () => {
     attach();
-    player.play().catch(() => {
+    player.play().catch((e: unknown) => {
+      // A pause before the first frame rejects the play with AbortError: the pause's state stands.
+      if ((e as { name?: string } | null)?.name === "AbortError") return;
       if (stage.dataset.video !== "unplayable") state("still");
     });
   };
+  player.addEventListener("play", () => {
+    // A file that failed to decode still fires "play" when the page asks again (back in view): it stays unplayable.
+    if (stage.dataset.video !== "playing" && stage.dataset.video !== "unplayable") state("loading");
+  });
   player.addEventListener("playing", () => state("playing"));
   player.addEventListener("pause", () => {
     if (stage.dataset.video !== "unplayable") state("paused");
@@ -174,9 +225,19 @@ function video(): void {
       player.pause();
     }
   });
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let reduced = reducedMotion.matches;
   state(reduced ? "still" : "idle");
   if (reduced) return;
+  whenMotionIsReduced(() => {
+    reduced = true;
+    if (stage.dataset.video === "unplayable") return;
+    if (player.paused) state("still");
+    else {
+      // After the "pause" listener above, which would say paused.
+      player.addEventListener("pause", () => state("still"), { once: true });
+      player.pause();
+    }
+  });
   if (!("IntersectionObserver" in window)) {
     play();
     return;
@@ -184,7 +245,7 @@ function video(): void {
   new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
-        if (e.isIntersecting && !held) play();
+        if (e.isIntersecting && !held && !reduced) play();
         else if (!e.isIntersecting && !player.paused) player.pause();
       }
     },
@@ -194,6 +255,7 @@ function video(): void {
 
 renderChangelog();
 renderThemes();
+shot();
 reveals();
 video();
 if (document.readyState === "complete") scene();

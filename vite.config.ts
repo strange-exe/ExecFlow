@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
+import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
+import { FILE_URL } from "./src/about/fallback-deny.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -380,7 +382,9 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         // The Python runtime is precached so the app works offline after the first visit.
-        globPatterns: ["**/*.{js,mjs,css,html,svg,png,woff2,wasm,zip,json}"],
+        // licenses.txt too: with the service worker in control it is served from here (and offline),
+        // where otherwise the navigate fallback below would answer it with the editor.
+        globPatterns: ["**/*.{js,mjs,css,html,svg,png,woff2,wasm,zip,json,txt}"],
         // The C/C++ pack (~20 MB) is downloaded by the compiler worker into its own cache when first needed.
         // _routes.json is Cloudflare's (which paths run the sign-in function), not the app's.
         // The flowchart's parser files (~4.5 MB) are not precached either: they download the first time
@@ -393,8 +397,10 @@ export default defineConfig(({ mode }) => ({
         dontCacheBustURLsMatching: /^(assets|pyodide\/\d+\.\d+\.\d+-heap\d+)\//,
         navigateFallback: "/index.html",
         // The sign-in relay (functions/api/auth/*) always answers from the network, never from the
-        // precache. /auth-callback keeps the fallback: it is an app route.
-        navigateFallbackDenylist: [/^\/api\//],
+        // precache. /auth-callback keeps the fallback: it is an app route. A file URL (a name with an
+        // extension other than .html, such as media/*.mp4) is a file, never the editor: it goes to the network
+        // (FILE_URL ignores the query string, which Workbox tests along with the path).
+        navigateFallbackDenylist: [/^\/api\//, FILE_URL],
         // numpy, pandas and their helpers (~7.5 MB, scripts/fetch-pyodide-packages.mjs) are not precached:
         // they download the first time a program imports them, then keep working offline. The folder is
         // versioned, so cached wheels never go stale; Pyodide also checks each one's sha256 (SRI).
@@ -406,6 +412,8 @@ export default defineConfig(({ mode }) => ({
               cacheName: "codeeditor-python-packages",
               expiration: { maxEntries: 16 },
               cacheableResponse: { statuses: [200] },
+              // Never the site's fallback page under a file's URL (src/about/sw-cache-guard.ts).
+              plugins: [cacheOnlyTheFile],
             },
           },
           // The flowchart's runtime and grammars: versioned folder, so a cached file never goes stale;
@@ -417,6 +425,7 @@ export default defineConfig(({ mode }) => ({
               cacheName: "codeeditor-flowchart",
               expiration: { maxEntries: 8 },
               cacheableResponse: { statuses: [200] },
+              plugins: [cacheOnlyTheFile],
             },
           },
           // The About page's code and its images, once /about was opened. Both have content-hashed names
@@ -428,6 +437,8 @@ export default defineConfig(({ mode }) => ({
               cacheName: "codeeditor-about",
               expiration: { maxEntries: 24 },
               cacheableResponse: { statuses: [200] },
+              // A missing file's answer (the editor's page, 200 text/html) is passed on, never kept.
+              plugins: [cacheOnlyTheFile],
             },
           },
         ],

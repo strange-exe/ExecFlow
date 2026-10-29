@@ -2,7 +2,8 @@
 // the Flowchart tab draws (Start and End, a step, a decision with a loop back, an output), with a
 // light travelling along its edges and a slight tilt toward the pointer. Loaded after the first paint
 // by page.ts; the poster (/media/about-scene.<hash>.webp, rendered from this same code by renderStill)
-// stays where WebGL is missing or motion isn't welcome. One light direction, one material family,
+// stays where WebGL is missing or motion isn't welcome, and page.ts's button pauses it (WCAG 2.2.2).
+// One light direction, one material family,
 // one camera (DESIGN-REFERENCE 2). The canvas is decorative (aria-hidden): the text beside it says
 // what it shows.
 import {
@@ -172,14 +173,21 @@ function walkAt(t: number): [number, number] {
   return WALK[WALK.length - 1];
 }
 
+/** What page.ts can do with a mounted scene: hold it on its current frame (the Pause button), or stop it for good. */
+export interface SceneControl {
+  hold(held: boolean): void;
+  stop(): void;
+}
+
 /**
  * Mounts the running scene in `host` (an element with data-scene). States: "running" once a frame
- * is drawn, "unavailable" without WebGL; data-frames counts frames drawn (tests read it).
+ * is drawn, "paused" while held on its frame, "still" once stopped (the poster again), "unavailable"
+ * without WebGL; data-frames counts frames drawn (tests read it). Null when it can't run.
  */
-export function mountScene(host: HTMLElement): void {
+export function mountScene(host: HTMLElement): SceneControl | null {
   if (!webglWorks()) {
     host.dataset.scene = "unavailable";
-    return;
+    return null;
   }
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
@@ -191,7 +199,7 @@ export function mountScene(host: HTMLElement): void {
     built = build(canvas, Math.max(1, box().width), Math.max(1, box().height), dpr);
   } catch {
     host.dataset.scene = "unavailable";
-    return;
+    return null;
   }
   host.append(canvas);
   const { renderer, scene, camera, chart, beam } = built;
@@ -206,7 +214,8 @@ export function mountScene(host: HTMLElement): void {
   };
   addEventListener("pointermove", onPointer, { passive: true });
 
-  const start = performance.now();
+  let start = performance.now();
+  let heldAt = 0;
   const frame = () => {
     const t = (performance.now() - start) / 1000;
     tiltX += (aimX - tiltX) * 0.05;
@@ -224,7 +233,10 @@ export function mountScene(host: HTMLElement): void {
 
   let visible = true;
   let onScreen = true;
-  const sync = () => renderer.setAnimationLoop(visible && onScreen ? frame : null);
+  // A pause by the button holds whatever else happens (scrolled back into view, the tab shown again).
+  let held = false;
+  let stopped = false;
+  const sync = () => renderer.setAnimationLoop(visible && onScreen && !held && !stopped ? frame : null);
   const io = new IntersectionObserver(([e]) => {
     onScreen = e.isIntersecting;
     sync();
@@ -243,19 +255,37 @@ export function mountScene(host: HTMLElement): void {
     camera.updateProjectionMatrix();
   });
   ro.observe(host);
-  addEventListener(
-    "pagehide",
-    () => {
-      renderer.setAnimationLoop(null);
-      io.disconnect();
-      ro.disconnect();
-      removeEventListener("pointermove", onPointer);
-      document.removeEventListener("visibilitychange", onVisibility);
-      built.dispose();
-    },
-    { once: true },
-  );
+  const teardown = () => {
+    renderer.setAnimationLoop(null);
+    io.disconnect();
+    ro.disconnect();
+    removeEventListener("pointermove", onPointer);
+    document.removeEventListener("visibilitychange", onVisibility);
+    built.dispose();
+  };
+  addEventListener("pagehide", teardown, { once: true });
   sync();
+  return {
+    hold(h) {
+      if (stopped) return;
+      if (h === held) return;
+      held = h;
+      // The light carries on from where it stopped, not from where it would be by now.
+      if (h) heldAt = performance.now();
+      else start += performance.now() - heldAt;
+      // Before its first frame the scene is still "loading"; the frame that comes says "running".
+      if (frames) host.dataset.scene = h ? "paused" : "running";
+      sync();
+    },
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      host.dataset.scene = "still";
+      removeEventListener("pagehide", teardown);
+      teardown();
+      canvas.remove();
+    },
+  };
 }
 
 /** One still frame at the resting pose, as WebP (the poster, made by a script in the dev server). */
