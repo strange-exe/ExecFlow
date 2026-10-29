@@ -13,6 +13,8 @@ export interface CFamily {
 
 const C_IO = new Set(["printf", "puts", "putchar", "scanf", "gets", "fgets", "getchar"]);
 const CPP_IO = new Set([...C_IO, "getline"]);
+/** A goto's note when its label exists but sits inside a box shown as one step. */
+const FOLDED_LABEL = "label inside a step shown as one";
 
 interface FnDef {
   name: string;
@@ -124,6 +126,8 @@ class CWalker {
   private labels = new Map<string, number>();
   /** Connectors already placed at their label. */
   private placed = new Set<number>();
+  /** Each goto, resolved once the body is read: only then is it known which labels were placed. */
+  private gotos: { step: Extract<Step, { t: "goto" }>; name: string; n: Node }[] = [];
 
   constructor(
     private readonly b: FlowBuilder,
@@ -137,8 +141,9 @@ class CWalker {
     forEachDescendant(
       body,
       (n) => {
-        // Labels are statements: no need to look inside expressions.
-        if (n.type === "expression_statement" || n.type === "declaration" || n.type === "return_statement") return false;
+        // Labels are statements: no need to look inside expressions. Nor inside a mistake: stmt()
+        // draws an ERROR node as nothing, so a label in it is unknown ("no such label"), not folded.
+        if (n.type === "expression_statement" || n.type === "declaration" || n.type === "return_statement" || n.type === "ERROR") return false;
         if (n.type === "labeled_statement") {
           const name = n.childForFieldName("label")?.text;
           if (name && !this.labels.has(name)) this.labels.set(name, this.b.node("connector", name, lineOf(n), lineOf(n)));
@@ -147,7 +152,17 @@ class CWalker {
       },
       Number.POSITIVE_INFINITY,
     );
-    return this.block(body);
+    const step = this.block(body);
+    // A label inside a construct shown as one step (try, #ifdef) is never placed: its goto
+    // carries on with a note instead of linking to a connector that isn't in the chart.
+    for (const { step: g, name, n } of this.gotos) {
+      const known = this.labels.get(name);
+      const placed = known !== undefined && this.placed.has(known);
+      const note = placed ? {} : { note: known === undefined ? "no such label" : FOLDED_LABEL };
+      g.id = this.b.node("connector", name, lineOf(n), endLineOf(n), note);
+      g.target = placed ? known : null;
+    }
+    return step;
   }
 
   private block(n: Node): Step {
@@ -186,10 +201,10 @@ class CWalker {
       case "throw_statement":
         return { t: "end", id: this.b.node("end", withoutSemicolon(n.text), lineOf(n), endLineOf(n)) };
       case "goto_statement": {
-        const name = n.childForFieldName("label")?.text ?? "";
-        const target = this.labels.get(name) ?? null;
-        const id = this.b.node("connector", name, lineOf(n), endLineOf(n), target === null ? { note: "no such label" } : {});
-        return { t: "goto", id, target };
+        // Its connector is made in function(), after the body: box ids follow reading order, not this.
+        const step: Extract<Step, { t: "goto" }> = { t: "goto", id: -1, target: null };
+        this.gotos.push({ step, name: n.childForFieldName("label")?.text ?? "", n });
+        return step;
       }
       case "labeled_statement": {
         const name = n.childForFieldName("label")?.text ?? "";
@@ -202,8 +217,9 @@ class CWalker {
       }
       case "try_statement":
         return this.oneStep(n);
-      case "ERROR":
       case "case_statement":
+        return this.strayCase(n);
+      case "ERROR":
       case "statement_identifier":
       case ";":
         return empty();
@@ -220,6 +236,17 @@ class CWalker {
   /** A construct the chart doesn't open up: one box with its first line and the note. */
   private oneStep(n: Node): Step {
     return this.box("process", withoutSemicolon(firstLine(n.text)), n, { note: ONE_STEP });
+  }
+
+  /**
+   * A case label inside a block or loop in the switch (Duff's device): the jump into it isn't drawn,
+   * so its label is one box with the note, and its statements follow as usual (never dropped).
+   */
+  private strayCase(n: Node): Step {
+    const value = n.childForFieldName("value");
+    const head = this.b.node("process", value ? `case ${value.text.replace(/\s+/g, " ")}` : "default", lineOf(n), value ? endLineOf(value) : lineOf(n), { note: ONE_STEP });
+    const stmts = codeChildren(n).filter((s) => s.id !== value?.id);
+    return { t: "seq", items: [{ t: "node", id: head }, ...stmts.map((s) => this.stmt(s))] };
   }
 
   /** An expression statement or declaration: input/output, a call to this file's function, or a plain step. */

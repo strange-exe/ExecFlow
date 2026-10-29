@@ -136,6 +136,14 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(e.chart("c", source)).toEqual({ type: "too-big", detail: "it took too long to read" });
   });
 
+  test("a parse past the worker's job deadline is too big, though inside the engine's own budget", async () => {
+    const e = engine();
+    await e.prepare("c");
+    const source = `int main(void) {\n${"  x++;\n".repeat(5000)}}\n`;
+    expect(e.chart("c", source, null, performance.now() - 1)).toEqual({ type: "too-big", detail: "it took too long to read" });
+    expect(e.chart("c", source, null, performance.now() + 60_000).type).toBe("charts");
+  });
+
   test("odd input never throws: NUL, lone surrogates, bidi controls", async () => {
     const e = engine();
     await e.prepare("c");

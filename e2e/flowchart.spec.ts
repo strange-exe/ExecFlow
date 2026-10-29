@@ -368,6 +368,63 @@ test.describe("states", () => {
       await page.locator("#fc-retry").click();
       await ready(page);
     });
+
+    test("a timeout after picking a function: Retry charts that function, not the entry point", async ({ page }) => {
+      // While `hang` is on, the flowchart worker is served with a hook that starts a parse and never
+      // ends it for a picked function; the entry point (no pick) still charts.
+      let hang = true;
+      const hook = "\n;{ const real = self.onmessage; self.onmessage = (e) => { if (e.data && e.data.pick) { self.postMessage({ type: 'parsing', id: e.data.id }); for (;;) {} } return real(e); }; }\n";
+      await page.route(
+        "**/assets/w/*.js",
+        afterFetch(async (route) => {
+          const res = await route.fetch();
+          const body = await res.text();
+          const entry = body.includes("web-tree-sitter") && body.includes("onmessage");
+          return route.fulfill({ response: res, body: hang && entry ? body + hook : body });
+        }),
+      );
+      await chartFor(page, "main.c", C_PROGRAM);
+      await ready(page);
+      const picker = page.locator("#fc-picker");
+      await picker.selectOption({ label: "square" });
+      await expect(view(page)).toHaveAttribute("data-state", "timeout", { timeout: 30_000 });
+      hang = false;
+      await page.locator("#fc-retry").click();
+      await ready(page);
+      await expect(page.locator(".fc-stage svg[data-chart]")).toHaveAttribute("data-chart", "square");
+      await expect(picker).toHaveValue("1");
+      await expect(boxes(page).nth(1)).toHaveAttribute("aria-label", "End: return x * x, line 3");
+    });
+
+    test("a picked function that times out again on Retry: the next Retry charts the entry point", async ({ page }) => {
+      // The hook hangs every parse of a picked function for the whole test, so only a draw without a
+      // pick (the entry point) can end. The picker is hidden while timed out: without the fallback,
+      // Retry would ask for the same function forever.
+      const hook = "\n;{ const real = self.onmessage; self.onmessage = (e) => { if (e.data && e.data.pick) { self.postMessage({ type: 'parsing', id: e.data.id }); for (;;) {} } return real(e); }; }\n";
+      await page.route(
+        "**/assets/w/*.js",
+        afterFetch(async (route) => {
+          const res = await route.fetch();
+          const body = await res.text();
+          const entry = body.includes("web-tree-sitter") && body.includes("onmessage");
+          return route.fulfill({ response: res, body: entry ? body + hook : body });
+        }),
+      );
+      await chartFor(page, "main.c", C_PROGRAM);
+      await ready(page);
+      const picker = page.locator("#fc-picker");
+      await picker.selectOption({ label: "square" });
+      await expect(view(page)).toHaveAttribute("data-state", "timeout", { timeout: 30_000 });
+      // The first Retry keeps the pick, so it times out the same way.
+      await page.locator("#fc-retry").click();
+      await expect(page.locator("#fc-retry")).toBeHidden();
+      await expect(view(page)).toHaveAttribute("data-state", "timeout", { timeout: 30_000 });
+      await expect(page.locator("#fc-retry")).toBeVisible();
+      await page.locator("#fc-retry").click();
+      await ready(page);
+      await expect(page.locator(".fc-stage svg[data-chart]")).toHaveAttribute("data-chart", "main");
+      await expect(picker).toHaveValue("0");
+    });
   });
 });
 

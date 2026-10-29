@@ -133,6 +133,14 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   let shown: { id: string; lang: FlowLanguage; file: FlowFile; picked: number; layout: Layout | null } | null = null;
   /** The function shown, by name and occurrence (C++ overloads and Python redefinitions share a name). */
   let chosen: Pick | null = null;
+  /**
+   * The file `chosen` was picked in. Kept apart from `shown`, which a timeout or failure clears: a
+   * Retry, or a redraw after an edit, still charts the function the student picked.
+   */
+  let chosenFile: string | null = null;
+  /** Whether the draw on screen asked for `chosen`, and how the last such draw failed (if it did). */
+  let askedPick = false;
+  let pickFailure: State | null = null;
   let chart: FlowChart | null = null;
   let layout: Layout | null = null;
   let svgEl: SVGSVGElement | null = null;
@@ -143,6 +151,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
 
   function setState(state: State, words = "", canRetry = false) {
     root.dataset.state = state;
+    if (state !== "loading") notePickOutcome(state);
     clearTimeout(wordsTimer);
     const loading = state === "loading";
     skeleton.hidden = !loading;
@@ -158,6 +167,22 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     if (!drawn) say("", "");
     message.hidden = drawn;
     if (!drawn) banner.hidden = true;
+  }
+
+  /**
+   * The picker is hidden in the timeout and failed states, so a picked function that always fails
+   * would trap Retry in a loop. The first Retry (or redraw) keeps the pick; when it fails the same
+   * way, the next draw charts the entry point again.
+   */
+  function notePickOutcome(state: State) {
+    const failed = state === "timeout" || state === "failed";
+    if (!askedPick || !failed) return void (pickFailure = null);
+    if (pickFailure === state) {
+      chosenFile = null;
+      pickFailure = null;
+    } else {
+      pickFailure = state;
+    }
   }
 
   const langName = (lang: FlowLanguage) => languageById(lang).label;
@@ -183,14 +208,17 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     if (!f.text.trim()) return void (forget(), setState("empty", "This file is empty. Write some code to see its flowchart."));
     // A redraw of the chart on screen keeps it until the new one is ready; anything else shows loading.
     if (!(shown && shown.id === f.id && root.dataset.state === "ready")) setState("loading", `Loading the ${langName(lang)} flowchart tools...`);
-    const result = await client.chart(lang, f.text, shown?.id === f.id ? chosen : null);
+    const pick = chosenFile === f.id ? chosen : null;
+    const result = await client.chart(lang, f.text, pick);
     if (my !== token) return; // a newer draw (another file, more typing) owns the view
+    askedPick = pick !== null;
     show(f, lang, result);
   }
 
   /** Nothing to chart: the worker keeps its loaded grammars for the next file. */
   function forget() {
     shown = null;
+    chosenFile = null;
     chart = null;
   }
 
@@ -206,12 +234,13 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
         return setState("timeout", "The flowchart took too long to draw.", true);
       case "load-failed":
         shown = null;
+        askedPick = false; // a missing download says nothing about the picked function
         return setState("failed", `Couldn't load the ${langName(lang)} flowchart tools. Check the connection, then try again.`, true);
       case "failed":
         shown = null;
         return setState("failed", "The flowchart couldn't be drawn.", true);
       case "charts": {
-        const sameFile = shown?.id === f.id;
+        const sameFile = chosenFile === f.id;
         shown = { id: f.id, lang, file: result.file, picked: result.picked, layout: result.layout };
         if (!result.file.charts.length) return setState("no-functions", "No functions in this file yet.");
         // The worker falls back to the entry point when the picked function is gone.
@@ -221,6 +250,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
           focusIndex = 0;
         }
         chosen = now;
+        chosenFile = f.id;
         fillPicker(result.file.charts);
         drawChosen();
       }
@@ -445,6 +475,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     const i = Number(picker.value);
     if (!charts?.[i]) return;
     chosen = pickOf(charts, i);
+    chosenFile = shown!.id;
     fitting = true;
     focusIndex = 0;
     // The worker lays the picked chart out (it can take most of a second); the chart on screen stays until then.

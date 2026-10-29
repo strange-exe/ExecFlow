@@ -8,7 +8,7 @@
 import { FlowEngine, LoadError } from "../flowchart/engine";
 import { FLOWCHART_DIR, MAX_PACK_FILE_BYTES } from "../flowchart/pack";
 import { readCapped } from "../flowchart/read-capped";
-import { LAYOUT_MS } from "../flowchart/layout";
+import { JOB_MS, LAYOUT_MS } from "../flowchart/layout";
 import { layOutPicked } from "../flowchart/picked";
 import { isRequest, type FromFlowchart } from "../flowchart/protocol";
 
@@ -35,9 +35,11 @@ self.onmessage = async (e: MessageEvent<unknown>) => {
     return;
   }
   post({ type: "parsing", id });
+  // One deadline for the parse and the layout, inside the page's clock (which starts now too).
+  const deadline = performance.now() + JOB_MS;
   try {
-    const outcome = engine.chart(language, source, pick);
-    post(outcome.type === "charts" ? { type: "charts", id, ...layOutPicked(outcome.file, pick, performance.now() + LAYOUT_MS) } : { type: "too-big", id, detail: outcome.detail });
+    const outcome = engine.chart(language, source, pick, deadline);
+    post(outcome.type === "charts" ? { type: "charts", id, ...layOutPicked(outcome.file, pick, Math.min(performance.now() + LAYOUT_MS, deadline)) } : { type: "too-big", id, detail: outcome.detail });
   } catch {
     post({ type: "failed", id, message: "the flowchart couldn't be drawn" });
   }

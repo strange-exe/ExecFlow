@@ -8,7 +8,7 @@
 // each step goes in words.
 import type { Layout, LaidBox, LaidEdge, Point } from "./layout";
 import { METRICS } from "./layout";
-import type { FlowChart, FlowEdge, FlowNode } from "./model";
+import type { FlowChart, FlowEdge, FlowNode, Step } from "./model";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -73,8 +73,8 @@ type Styles = Record<"shape" | "bar" | "text" | "note" | "edgeLabel", string> & 
 };
 
 /** A connector's colour: Yes in the success hue, No in danger, the rest the secondary text colour. */
-type EdgeHue = "text-secondary" | "success" | "danger";
-function edgeHue(label: string | undefined): EdgeHue {
+export type EdgeHue = "text-secondary" | "success" | "danger";
+export function edgeHue(label: string | undefined): EdgeHue {
   return label === "Yes" ? "success" : label === "No" ? "danger" : "text-secondary";
 }
 
@@ -222,6 +222,21 @@ export function arrowCorners(edge: LaidEdge): Point[] {
   return [end, { x: back.x + dy * half, y: back.y + dx * half }, { x: back.x - dy * half, y: back.y - dx * half }];
 }
 
+/**
+ * A connector's line as a path (the SVG's and the PNG's): it stops inside the arrowhead, 3 px short
+ * of its base (under the fill), so the head's point stays sharp at the box; the last corner's curve
+ * ends before the head's base.
+ */
+export function edgePath(e: LaidEdge): string {
+  const line = [...e.points];
+  const [end, before] = [line[line.length - 1], line[line.length - 2]];
+  const run = lastLeg(e);
+  const head = arrowLength(e);
+  const cut = head - 3;
+  if (run > head) line[line.length - 1] = { x: end.x - ((end.x - before.x) / run) * cut, y: end.y - ((end.y - before.y) / run) * cut };
+  return roundedPath(line, 8, Math.max(0, run - head));
+}
+
 function arrow(doc: SvgDocument, edge: LaidEdge, STYLE: Styles, interactive: boolean): SVGPolygonElement {
   const style = STYLE.arrow(edgeHue(edge.label));
   return el(doc, "polygon", interactive ? { points: pts(arrowCorners(edge)), style, "data-part": "arrow" } : { points: pts(arrowCorners(edge)), style });
@@ -246,15 +261,7 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   const edges = el(doc, "g", live ? { "data-part": "edges", "aria-hidden": "true" } : {});
   for (const e of layout.edges) {
     const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind } : {});
-    // The line stops inside the arrowhead (3 px short of its base, under the fill), so the head's
-    // point stays sharp at the box; the last corner's curve ends before the head's base.
-    const line = [...e.points];
-    const [end, before] = [line[line.length - 1], line[line.length - 2]];
-    const run = lastLeg(e);
-    const head = arrowLength(e);
-    const cut = head - 3;
-    if (run > head) line[line.length - 1] = { x: end.x - ((end.x - before.x) / run) * cut, y: end.y - ((end.y - before.y) / run) * cut };
-    g.appendChild(el(doc, "path", { d: roundedPath(line, 8, Math.max(0, run - head)), style: STYLE.edge(edgeHue(e.label)) }));
+    g.appendChild(el(doc, "path", { d: edgePath(e), style: STYLE.edge(edgeHue(e.label)) }));
     g.appendChild(arrow(doc, e, STYLE, live));
     if (e.label !== undefined && e.labelAt) {
       const t = el(doc, "text", { x: e.labelAt.x, y: e.labelAt.y, "text-anchor": e.labelAt.anchor, style: STYLE.edgeLabel });
@@ -302,13 +309,39 @@ function next(node: FlowNode, out: FlowEdge[]): string {
   return ` ${out.map((e) => `${e.label ?? "Then"}: step ${e.to + 1}.`).join(" ")}`;
 }
 
+/** The goto connectors in the chart's structure (a goto whose label isn't in the chart has no link edge). */
+function gotoIds(step: Step, out: Set<number>): Set<number> {
+  switch (step.t) {
+    case "goto":
+      out.add(step.id);
+      break;
+    case "seq":
+      step.items.forEach((s) => gotoIds(s, out));
+      break;
+    case "if":
+      gotoIds(step.yes, out);
+      gotoIds(step.no, out);
+      break;
+    case "loop":
+      gotoIds(step.body, out);
+      if (step.update) gotoIds(step.update, out);
+      if (step.orelse) gotoIds(step.orelse, out);
+      break;
+    case "switch":
+      step.cases.forEach((c) => gotoIds(c.body, out));
+      break;
+  }
+  return out;
+}
+
 /** The chart as a text outline in reading order, one entry per box: never the only way to read it. */
 export function stepList(chart: FlowChart): { id: number; text: string }[] {
   const unreachable = new Set(chart.unreachable);
+  const gotos = gotoIds(chart.body, new Set());
   return chart.nodes.map((node) => {
     const out = chart.edges.filter((e) => e.from === node.id);
     let words = kindWords(node);
-    if (node.kind === "connector") words = out.some((e) => e.kind === "link") ? `Go to ${node.text}` : `Label ${node.text}`;
+    if (node.kind === "connector") words = gotos.has(node.id) ? `Go to ${node.text}` : `Label ${node.text}`;
     if (node.note) words += ` (${node.note})`;
     if (unreachable.has(node.id)) words += " (never reached)";
     return { id: node.id, text: `${node.id + 1}. ${words}${next(node, out)}` };

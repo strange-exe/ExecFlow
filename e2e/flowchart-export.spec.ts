@@ -9,7 +9,8 @@ import type { Download, Page, TestInfo } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BRAND_MARK } from "../src/editor/brand-mark";
-import { FOOTER, FOOTER_TEXT, printColors } from "../src/flowchart/export";
+import { FOOTER, FOOTER_TEXT, mixHex, printColors } from "../src/flowchart/export";
+import { CHART_TINT } from "../src/flowchart/render";
 import { expect, importFiles, isNarrow, openFromTree, openIn, test, waitReady } from "./helpers";
 import { decodeRgba, inkOf, off, pngInfo, type RgbaPixels } from "./snippet-helpers";
 
@@ -176,6 +177,12 @@ test.describe("Flowchart export", () => {
       expect([info2.width, info2.height]).toEqual([parsed.width * 2, parsed.height * 2]);
       checkFooter(decodeRgba(png.bytes), chart.height, 2, { bg: PRINT.bg, text: PRINT.text });
       expect(PRINT.bg).toBe("#ffffff");
+      // In colour, as the SVG and the view: a decision is tinted with the warning hue, above its words.
+      const points = (await page.locator(".fc-stage svg g[data-kind=decision] polygon").first().getAttribute("points"))!;
+      const [top, , bottom] = points.split(" ").map((p) => p.split(",").map(Number));
+      const left = Math.round((parsed.width - chart.width) / 2);
+      const tint = decodeRgba(png.bytes).at(Math.floor((left + top[0]) * 2), Math.floor((top[1] + (bottom[1] - top[1]) * 0.25) * 2));
+      expect(off(tint, mixHex(PRINT.warning, PRINT["surface-raised"], CHART_TINT)), "the decision's tint").toBeLessThanOrEqual(2);
     });
   }
 

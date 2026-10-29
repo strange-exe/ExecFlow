@@ -779,8 +779,17 @@ type Budget = { left: number; deadline: number; late: boolean };
  * gives the layout a deadline.
  */
 export const LAYOUT_BUDGET = 200_000;
-/** The worker's deadline for one layout: with the parse, inside the page's 2 s clock on a slow laptop. */
+/**
+ * The worker's deadline for one layout, cut to what is left of the job's (JOB_MS): a parse that
+ * used most of its time leaves the layout only the rest, never a fresh second.
+ */
 export const LAYOUT_MS = 1000;
+/**
+ * One flowchart job's deadline in the worker, from its "parsing" message: the parse and the layout
+ * share it. Inside the page's 2 s clock (client.ts PARSE_TIMEOUT_MS) with room for the reply's
+ * structured clone, so a slow laptop gets the worker's "too big" message, not a stopped worker.
+ */
+export const JOB_MS = 1800;
 /** What a layout spent: search steps per tier (inside the loop, whole chart, greedy, squeezed). */
 export type LayoutStats = { tiers: [number, number, number, number] };
 

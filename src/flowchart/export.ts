@@ -12,7 +12,7 @@ import { PAPER } from "../theme/print-ink";
 import { nameText } from "./labels";
 import { METRICS, type Layout, type Point } from "./layout";
 import type { FlowChart, FlowNode } from "./model";
-import { arrowCorners, CHART_TOKENS, renderChart, type ChartToken, type SvgDocument } from "./render";
+import { arrowCorners, CHART_TINT, CHART_TOKENS, edgeHue, edgePath, kindHue, renderChart, type ChartToken, type SvgDocument } from "./render";
 
 export { CHART_TOKENS };
 
@@ -181,6 +181,17 @@ function poly(ctx: CanvasRenderingContext2D, pts: Point[], close: boolean) {
   if (close) ctx.closePath();
 }
 
+/** Traces one of roundedPath's paths (M, L and Q only): the PNG's connectors bend exactly where the SVG's do. */
+function tracePath(ctx: CanvasRenderingContext2D, d: string) {
+  ctx.beginPath();
+  for (const [, cmd, args] of d.matchAll(/([MLQ])([^MLQ]*)/g)) {
+    const n = args.trim().split(/[\s,]+/).map(Number);
+    if (cmd === "M") ctx.moveTo(n[0], n[1]);
+    else if (cmd === "L") ctx.lineTo(n[0], n[1]);
+    else ctx.quadraticCurveTo(n[0], n[1], n[2], n[3]);
+  }
+}
+
 function drawShape(ctx: CanvasRenderingContext2D, node: FlowNode, b: { x: number; y: number; w: number; h: number }) {
   const { x, y, w, h } = b;
   const cx = x + w / 2;
@@ -206,12 +217,14 @@ function drawShape(ctx: CanvasRenderingContext2D, node: FlowNode, b: { x: number
   ctx.fill();
   ctx.stroke();
   if (node.kind === "call") {
-    ctx.beginPath();
-    ctx.moveTo(x + METRICS.bar, y);
-    ctx.lineTo(x + METRICS.bar, y + h);
-    ctx.moveTo(x + w - METRICS.bar, y);
-    ctx.lineTo(x + w - METRICS.bar, y + h);
-    ctx.stroke();
+    // The side bars, in the hue, at the plain line width (as renderChart's kindBar).
+    ctx.lineWidth = 1.5;
+    for (const bx of [x + METRICS.bar, x + w - METRICS.bar]) {
+      ctx.beginPath();
+      ctx.moveTo(bx, y);
+      ctx.lineTo(bx, y + h);
+      ctx.stroke();
+    }
   }
 }
 
@@ -229,31 +242,40 @@ export function drawExport(ctx: CanvasRenderingContext2D, input: ExportInput, sc
   ctx.fillRect(0, 0, width, height);
   ctx.save();
   ctx.translate(Math.round((width - layout.width) / 2), 0);
-  ctx.lineWidth = 1.5;
   ctx.lineJoin = "round";
-  // Edges, arrowheads and their labels.
-  ctx.strokeStyle = c["border-strong"];
+  ctx.lineCap = "round";
+  // Edges, arrowheads and their labels: the SVG's styles (render.ts styles()), one hue per edge.
   for (const e of layout.edges) {
-    poly(ctx, e.points, false);
+    const hue = c[edgeHue(e.label)];
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = hue;
+    tracePath(ctx, edgePath(e));
     ctx.stroke();
     poly(ctx, arrowCorners(e), true);
-    ctx.fillStyle = c["border-strong"];
+    ctx.fillStyle = hue;
     ctx.fill();
     if (e.label !== undefined && e.labelAt) {
-      ctx.font = `12px ${look.uiFont}`;
-      ctx.fillStyle = c["text-secondary"];
+      ctx.font = `600 12px ${look.uiFont}`;
+      ctx.fillStyle = c.text;
       ctx.textAlign = e.labelAt.anchor === "end" ? "right" : "left";
       ctx.fillText(e.label, e.labelAt.x, e.labelAt.y);
     }
   }
-  // Boxes and their labels.
+  // Boxes and their labels: a kind's hue as the outline over its tint (CHART_TINT), the rest plain.
   const boxes = new Map(layout.boxes.map((b) => [b.id, b]));
   ctx.textAlign = "center";
+  // The SVG's shapes keep the default joins and caps (only its connectors are round), and SVG's
+  // default miter limit of 4 (the canvas's is 10, which would spike a narrow diamond's corner).
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.miterLimit = 4;
   for (const node of chart.nodes) {
     const b = boxes.get(node.id);
     if (!b) continue;
-    ctx.fillStyle = c["surface-raised"];
-    ctx.strokeStyle = c["border-strong"];
+    const hue = kindHue(node.kind);
+    ctx.fillStyle = hue ? mixHex(c[hue], c["surface-raised"], CHART_TINT) : c["surface-raised"];
+    ctx.strokeStyle = hue ? c[hue] : c["border-strong"];
+    ctx.lineWidth = hue ? 1.75 : 1.5;
     drawShape(ctx, node, b);
     const lines = node.note ? [...node.label, node.note] : node.label;
     const first = b.y + b.h / 2 - ((lines.length - 1) * METRICS.lineH) / 2 + METRICS.fontSize * 0.35;

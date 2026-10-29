@@ -137,16 +137,17 @@ export class FlowEngine {
 
   /**
    * Charts the picked function in `source` (null: the entry point) and lists the others by name;
-   * "all" charts every function. Call prepare(language) first.
+   * "all" charts every function. Call prepare(language) first. The parse stops at its own budget
+   * or at `deadline` (performance.now() ms, the worker's job deadline), whichever comes first.
    */
-  chart(language: FlowLanguage, source: string, pick: Pick | null | "all" = "all"): ChartOutcome {
+  chart(language: FlowLanguage, source: string, pick: Pick | null | "all" = "all", deadline = Infinity): ChartOutcome {
     const parser = this.parsers.get(language);
     if (!parser) throw new Error(`the ${language} grammar is not loaded`);
     if (source.length > MAX_FILE_BYTES || UTF8.encode(source).length > MAX_FILE_BYTES) {
       return { type: "too-big", detail: `the file is larger than ${MAX_FILE_BYTES / 1024} KB` };
     }
-    const deadline = performance.now() + this.parseBudgetMs;
-    const tree = parser.parse(source, null, { progressCallback: () => performance.now() > deadline });
+    const stop = Math.min(performance.now() + this.parseBudgetMs, deadline);
+    const tree = parser.parse(source, null, { progressCallback: () => performance.now() > stop });
     if (!tree) {
       parser.reset();
       return { type: "too-big", detail: "it took too long to read" };

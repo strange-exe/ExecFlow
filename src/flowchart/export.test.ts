@@ -4,7 +4,7 @@
 // footer (mark, "Made with CodeEditor", the file and the function); the file-name rule; the scale cap.
 import { describe, expect, it } from "vitest";
 import { BRAND_MARK } from "../editor/brand-mark";
-import { CHART_TOKENS, chooseExportScale, exportFileName, exportSvg, FOOTER_TEXT, mixHex, printColors, type ExportLook } from "./export";
+import { CHART_TOKENS, chooseExportScale, drawExport, exportFileName, exportSvg, FOOTER_TEXT, mixHex, printColors, type ExportLook } from "./export";
 import { layoutChart } from "./layout";
 import type { FlowChart } from "./model";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
@@ -131,6 +131,105 @@ describe("export file names", () => {
       expect([...name].some((c) => c.length === 1 && c.charCodeAt(0) >= 0xd800 && c.charCodeAt(0) <= 0xdfff)).toBe(false);
     }
     expect(exportFileName("a.c", script, "svg").startsWith(`a-c-${String.fromCodePoint(0x1d49c)}`)).toBe(true);
+  });
+});
+
+/** One paint call a fake 2D context saw: what it painted, in which colour and width, and the path it painted. */
+type Op = { op: "fill" | "stroke" | "text"; color: string; width?: number; weight?: string; d?: string };
+
+/** A 2D context that records every paint call (and the path since beginPath) until the chart's restore(). */
+function recordingContext() {
+  const ops: Op[] = [];
+  /** Each stroke's join, with the miter limit when it is "miter" (the canvas default limit is 10). */
+  const joins: string[] = [];
+  let path: string[] = [];
+  let open = true;
+  const ctx = {
+    fillStyle: "",
+    strokeStyle: "",
+    lineWidth: 1,
+    font: "",
+    textAlign: "",
+    lineJoin: "",
+    lineCap: "",
+    miterLimit: 10,
+    setTransform() {},
+    fillRect() {},
+    save() {},
+    translate() {},
+    restore() {
+      open = false;
+    },
+    beginPath() {
+      path = [];
+    },
+    moveTo: (x: number, y: number) => path.push(`M${x},${y}`),
+    lineTo: (x: number, y: number) => path.push(`L${x},${y}`),
+    quadraticCurveTo: (cx: number, cy: number, x: number, y: number) => path.push(`Q${cx},${cy} ${x},${y}`),
+    arcTo() {},
+    arc() {},
+    closePath() {},
+    fill() {
+      if (open) ops.push({ op: "fill", color: ctx.fillStyle });
+    },
+    stroke() {
+      if (open) ops.push({ op: "stroke", color: ctx.strokeStyle, width: ctx.lineWidth, d: path.join(" ") });
+      if (open) joins.push(ctx.lineJoin === "miter" ? `miter ${ctx.miterLimit}` : ctx.lineJoin);
+    },
+    fillText() {
+      // Edge labels only (12 px): box labels are 13 px code, notes 11 px.
+      if (open && / 12px /.test(` ${ctx.font} `)) ops.push({ op: "text", color: ctx.fillStyle, weight: ctx.font.startsWith("600 ") ? "600" : "400" });
+    },
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, ops, joins };
+}
+
+const styleOf = (e: FakeElement) => new Map((e.getAttribute("style") ?? "").split(";").filter(Boolean).map((kv) => kv.split(":") as [string, string]));
+
+/** The same paint calls, read from the SVG export's drawing, in its order. */
+function svgOps(drawing: FakeElement): Op[] {
+  const ops: Op[] = [];
+  for (const e of drawing.all()) {
+    const s = styleOf(e);
+    if (e.tagName === "text") {
+      if (s.get("font-size") === "12px") ops.push({ op: "text", color: s.get("fill")!, weight: s.get("font-weight") ?? "400" });
+      continue;
+    }
+    if (!["path", "polygon", "rect", "circle", "line"].includes(e.tagName)) continue;
+    const fill = s.get("fill");
+    if (fill && fill !== "none") ops.push({ op: "fill", color: fill });
+    const stroke = s.get("stroke");
+    if (stroke && stroke !== "none") ops.push({ op: "stroke", color: stroke, width: Number(s.get("stroke-width")), ...(e.tagName === "path" ? { d: e.getAttribute("d")! } : {}) });
+  }
+  return ops;
+}
+
+describe("flowchart PNG export", () => {
+  test("paints in the SVG's colours: hue tints and outlines, Yes and No connectors and heads, rounded corners, bold edge labels", async () => {
+    const src = ["int sq(int x) { return x * x; }", "int main(void) {", "  int n;", '  scanf("%d", &n);', "  if (n > 0) {", '    printf("%d", sq(n));', "  } else {", "    n = 0;", "  }", "  return 0;", "}", ""].join("\n");
+    const main = ok((await chartFile("c", src)).charts.find((c) => c.name === "main")!);
+    // The chart has every hue: terminators, a decision with Yes and No, input and a call.
+    expect(new Set(main.nodes.map((n) => n.kind))).toEqual(new Set(["start", "end", "decision", "io", "call", "process"]));
+    expect(main.edges.map((e) => e.label).filter(Boolean).sort()).toEqual(["No", "Yes"]);
+    const layout = layoutChart(main);
+    const drawing = (svgOf(main).all().filter((e) => e.tagName === "svg")[1] as FakeElement);
+    const { ctx, ops, joins } = recordingContext();
+    drawExport(ctx, { chart: main, layout, file: "grades.c", look: LOOK }, 2);
+    // Connectors join round; boxes keep the SVG's default miter join and its default limit of 4, so
+    // a narrow diamond corner bevels in the PNG as it does in the SVG.
+    expect(new Set(joins)).toEqual(new Set(["round", "miter 4"]));
+    // Paint for paint in the SVG's order and colours; each connector on the SVG's own path, corner
+    // for corner, stopping under its arrowhead (only the connectors' paths are compared).
+    const want = svgOps(drawing);
+    const got = ops.map((o, i) => (want[i]?.d === undefined ? { ...o, d: undefined } : o));
+    expect(got).toEqual(want.map((o) => ({ ...o, d: o.d })));
+    expect(want.some((o) => o.d?.includes("Q"))).toBe(true);
+    // The colours are really the hues, not the old plain ink.
+    const c = LOOK.colors;
+    expect(ops).toContainEqual({ op: "fill", color: mixHex(c.warning, c["surface-raised"], 14) });
+    expect(ops).toContainEqual(expect.objectContaining({ op: "stroke", color: c.success, width: 1.5 }));
+    expect(ops).toContainEqual(expect.objectContaining({ op: "stroke", color: c.danger, width: 1.5 }));
+    expect(ops).toContainEqual({ op: "text", color: c.text, weight: "600" });
   });
 });
 

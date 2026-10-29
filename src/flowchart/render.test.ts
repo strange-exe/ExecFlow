@@ -176,6 +176,14 @@ describe("flowchart renderer", () => {
     ]);
     const goto = ok((await chartFile("c", fixture("goto.c"))).charts[0]);
     expect(stepList(goto).map((s) => s.text)).toContain("6. Go to again: step 3.");
+    // A goto whose label isn't in the chart is still a goto, never "Label ..." or "step NaN".
+    const body = (code: string) => `int main(void) {\n  int x = 0;\n${code}\n  return x;\n}\n`;
+    const nowhere = ok((await chartFile("c", body("  goto nowhere;"))).charts[0]);
+    expect(stepList(nowhere).map((s) => s.text)).toContain("3. Go to nowhere (no such label). Next: step 4.");
+    const folded = ok((await chartFile("c", body("#ifdef DEBUG\n  L: x++;\n#endif\n  goto L;"))).charts[0]);
+    const words = stepList(folded).map((s) => s.text);
+    expect(words).toContain("4. Go to L (label inside a step shown as one). Next: step 5.");
+    expect(words.join(" ")).not.toContain("NaN");
     const early = ok((await chartFile("c", fixture("early-return.c"))).charts[0]);
     expect(stepList(early).map((s) => s.text)).toEqual([
       "1. Start. Next: step 2.",

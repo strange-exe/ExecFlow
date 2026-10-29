@@ -192,6 +192,56 @@ describe("C edge cases keep the invariants", () => {
     expect(nodesOf(c)).toEqual(["0 start Start", "1 connector nowhere [no such label]", "2 end return 0"]);
   });
 
+  // A label folded into a "shown as one step" box is never drawn: its goto carries on, with a
+  // note, rather than linking to a connector that isn't in the chart.
+  const FOLDED = "label inside a step shown as one";
+
+  test("a goto to a label inside #ifdef carries on, with a note", async () => {
+    const c = await main("  int x = 0;\n#ifdef DEBUG\n  L: x++;\n#endif\n  goto L;\n  return x;");
+    expect(nodesOf(c)).toEqual(["0 start Start", "1 process int x = 0", `2 process #ifdef DEBUG [${ONE_STEP}]`, `3 connector L [${FOLDED}]`, "4 end return x"]);
+    expect(edgesOf(c)).toEqual(["0->1", "1->2", "2->3", "3->4"]);
+  });
+
+  test("a goto to a label inside a C++ try carries on, with a note", async () => {
+    const src = "int main() {\n  int x = 0;\n  try { L: x++; } catch (...) {}\n  goto L;\n  return x;\n}\n";
+    const c = ok((await chartFile("cpp", src)).charts[0]);
+    expectInvariants(c);
+    expect(nodesOf(c)).toEqual(["0 start Start", "1 process int x = 0", `2 process try { L: x++; } catch (...) {} [${ONE_STEP}]`, `3 connector L [${FOLDED}]`, "4 end return x"]);
+    expect(edgesOf(c)).toEqual(["0->1", "1->2", "2->3", "3->4"]);
+  });
+
+  test("a goto to a label lost in a mistake (an ERROR node, drawn as nothing) says there is no such label", async () => {
+    // The parser puts `L: x++;` inside an ERROR node in the block; the goto stays outside it.
+    const file = await chartFile("c", "int main(void) {\n  int x = 0;\n  { do L: x++; while }\n  goto L;\n  return x;\n}\n");
+    expect(file.syntaxError).toBe(3);
+    const c = ok(file.charts[0]);
+    expectInvariants(c);
+    expect(nodesOf(c)).toEqual(["0 start Start", "1 process int x = 0", "2 connector L [no such label]", "3 end return x"]);
+    expect(edgesOf(c)).toEqual(["0->1", "1->2", "2->3"]);
+  });
+
+  test("a case label inside a nested block keeps its statements, and a goto to its label links", async () => {
+    const c = await main("  int a = 1;\n  switch (a) { case 1: { case 2: L: a++; } }\n  goto L;\n  return 0;");
+    expect(nodesOf(c)).toEqual([
+      "0 start Start",
+      "1 process int a = 1",
+      "2 decision a ?",
+      `3 process case 2 [${ONE_STEP}]`,
+      "4 connector L",
+      "5 process a++",
+      "6 connector L",
+      "7 end return 0",
+    ]);
+    expect(edgesOf(c)).toEqual(["0->1", "1->2", "2->3 1", "2->6 default", "3->4", "4->5", "5->6", "6->4 (link)"].sort());
+    expect(c.unreachable).toEqual([7]);
+  });
+
+  test("Duff's device: the case inside the do-while keeps its statement", async () => {
+    const c = await main("  int x = 0;\n  switch (x) { case 0: do { case 1: x++; } while (x < 5); }\n  return x;");
+    expect(nodesOf(c)).toEqual(["0 start Start", "1 process int x = 0", "2 decision x ?", `3 process case 1 [${ONE_STEP}]`, "4 process x++", "5 decision x < 5 ?", "6 end return x"]);
+    expect(edgesOf(c)).toEqual(["0->1", "1->2", "2->3 0", "2->6 default", "3->4", "4->5", "5->3 Yes (back)", "5->6 No"].sort());
+  });
+
   test("a 60-step else-if ladder is not 'nesting' (it reads as one chain)", async () => {
     const ladder = Array.from({ length: 60 }, (_, i) => `${i ? "else " : ""}if (x == ${i}) y = ${i};`).join("\n  ");
     const c = await main(`  int x = 5, y = 0;\n  ${ladder}\n  return y;`);
