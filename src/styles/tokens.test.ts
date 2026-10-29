@@ -23,6 +23,7 @@ const RUNTIME = new Set([
   "--level", // src/ui/tree.ts, a tree row's depth
   "--tail", // src/ui/tree.ts, a conflict copy name's uncut end, in ch
   "--row-h", // app.css, declared on .tree-row
+  "--kind", // about.css, a What's new change tag's hue, declared on each kind's rule
 ]);
 /** The theme picker's preview tiles set their own colours as --tile-* on each tile. */
 const RUNTIME_PREFIX = "--tile-";
@@ -40,9 +41,11 @@ function undefinedVars(text: string): string[] {
 }
 
 // Colour-bearing properties, and what their values may contain besides var(--token): lengths,
-// numbers, line styles and the keywords that name no colour. color-mix() of tokens is allowed.
+// numbers, line styles and the keywords that name no colour. color-mix() of tokens is allowed, and
+// so are gradients of tokens (the What's new current-release border and ground): their function
+// names and "from"/"to" name no colour, and a literal inside one still fails LITERAL below.
 const COLOUR_PROPERTY = /^(color|background(-color)?|border(-(top|right|bottom|left|block|inline)(-(start|end))?)?(-color)?|outline(-color)?|box-shadow|text-shadow|fill|stroke|accent-color|caret-color|text-decoration(-color)?|column-rule(-color)?|scrollbar-color)$/;
-const NOT_A_COLOUR = /var\(\s*--[a-z0-9-]+(\s*,\s*[^()]*)?\)|color-mix\(in srgb,|-?\d*\.?\d+(px|em|rem|%|ch|deg)?|\b(solid|dashed|dotted|double|none|transparent|currentColor|inherit|initial|unset|inset|underline|wavy)\b|[\s,()]/gi;
+const NOT_A_COLOUR = /var\(\s*--[a-z0-9-]+(\s*,\s*[^()]*)?\)|color-mix\(in srgb,|(repeating-)?(linear|radial|conic)-gradient\(|-?\d*\.?\d+(px|em|rem|%|ch|deg)?|\b(solid|dashed|dotted|double|none|transparent|currentColor|inherit|initial|unset|inset|underline|wavy|from|to)\b|[\s,()]/gi;
 const LITERAL = /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/i;
 
 /** Declarations outside tokens.css that carry a raw colour. */
@@ -75,7 +78,7 @@ describe("every var() names a real token", () => {
   });
 
   it("every run-time name on the list is really set by the app", () => {
-    const app = readFileSync(`${DIR}/app.css`, "utf8") + readFileSync("src/ui/layout.ts", "utf8") + readFileSync("src/ui/tree.ts", "utf8");
+    const app = readFileSync(`${DIR}/app.css`, "utf8") + readFileSync(`${DIR}/about.css`, "utf8") + readFileSync("src/ui/layout.ts", "utf8") + readFileSync("src/ui/tree.ts", "utf8");
     for (const name of RUNTIME) expect(app, name).toMatch(new RegExp(`["\`\\s{;]${name}[:"]|${name}: `));
   });
 });
