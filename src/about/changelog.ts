@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.10.0",
+    date: "2026-10-29",
+    title: "New colours, a What's new timeline, and easier Privacy and Terms",
+    items: [
+      { kind: "changed", text: "The Signal look: your code sits on a card inside a soft frame, the console is dark in light mode too, and the syntax colours are easier to tell apart." },
+      { kind: "changed", text: "What's new on the About page is a timeline: each release with its date and what changed, long ones folded, and a list of releases to jump to." },
+      { kind: "changed", text: "Privacy and Terms show where you are in a list of sections, let you copy a link to any section, and print as dark text on paper." },
+    ],
+  },
+  {
     version: "0.9.2",
     date: "2026-10-29",
     title: "Clearing a shared computer clears every tab",

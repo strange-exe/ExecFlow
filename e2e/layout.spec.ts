@@ -202,12 +202,13 @@ test("after a failed run the error jump comes first in the editor head, and it a
   const exception = header.locator("#run-exception");
   await expect(exception).toContainText("ZeroDivisionError: division by zero");
   await expect(exception).toContainText("calc.py, line 2");
-  // In the log, only the last line (the exception) is in the danger colour, at 600.
+  // In the log, only the last line (the exception) is in the danger colour, at 600. The tokens are read
+  // inside the console, which has its own (dark) colours in both schemes.
   const paint = await page.evaluate(() => {
     const probe = (v: string) => {
       const s = document.createElement("span");
       s.style.color = `var(${v})`;
-      document.body.append(s);
+      document.querySelector("#console")!.append(s);
       const c = getComputedStyle(s).color;
       s.remove();
       return c;

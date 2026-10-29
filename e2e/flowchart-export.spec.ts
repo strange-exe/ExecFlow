@@ -195,9 +195,11 @@ test.describe("Flowchart export", () => {
         const s = getComputedStyle(v);
         return { bg: s.getPropertyValue("--bg").trim().toLowerCase(), text: s.getPropertyValue("--text").trim().toLowerCase() };
       });
-      // The scheme is really active: a dark ground in dark, a light one in light.
-      const lum = parseInt(theme.bg.slice(1, 3), 16);
-      expect(scheme === "dark" ? lum < 64 : lum > 192, `the ${scheme} ground ${theme.bg}`).toBe(true);
+      // The scheme is really active: the page's ground is dark in dark, light in light. (The chart sits
+      // on the console, which Signal keeps dark in both schemes, so "Match the editor" matches that.)
+      const pageBg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim().toLowerCase());
+      const lum = parseInt(pageBg.slice(1, 3), 16);
+      expect(scheme === "dark" ? lum < 64 : lum > 192, `the ${scheme} page ground ${pageBg}`).toBe(true);
 
       // Print-safe is the default, in either scheme.
       await page.locator("#fc-export").click();

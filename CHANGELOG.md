@@ -6,6 +6,16 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.10.0] - 2026-10-29
+
+New colours, a What's new timeline, and easier Privacy and Terms
+
+### Changed
+
+- The Signal look: your code sits on a card inside a soft frame, the console is dark in light mode too, and the syntax colours are easier to tell apart.
+- What's new on the About page is a timeline: each release with its date and what changed, long ones folded, and a list of releases to jump to.
+- Privacy and Terms show where you are in a list of sections, let you copy a link to any section, and print as dark text on paper.
+
 ## [0.9.2] - 2026-10-29
 
 Clearing a shared computer clears every tab
