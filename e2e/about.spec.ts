@@ -242,6 +242,18 @@ test.describe("the About page", () => {
       routed = true;
       return route.fulfill({ status: 200, contentType: "video/mp4", body });
     });
+    // Counts the page's play() calls: after a decode error Linux WebKit (CI run on 1bc4da4) leaves
+    // the video paused when asked again, where Chromium and Firefox start it, so "the page asked it
+    // to play" is read from the calls, not from paused.
+    await page.addInitScript(() => {
+      const play = HTMLMediaElement.prototype.play;
+      (window as unknown as { plays: number }).plays = 0;
+      HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+        (window as unknown as { plays: number }).plays++;
+        return play.call(this);
+      };
+    });
+    const plays = () => page.evaluate(() => (window as unknown as { plays: number }).plays);
     await page.goto("/about");
     const stage = page.locator("#launch-video .about-stage");
     const button = stage.locator(".about-play");
@@ -258,8 +270,9 @@ test.describe("the About page", () => {
     // Out of view and back: the page asks it to play again.
     await page.evaluate(() => scrollTo(0, 0));
     await page.waitForTimeout(400);
+    const before = await plays();
     await stage.scrollIntoViewIfNeeded();
-    await expect.poll(() => stage.locator("video").evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+    await expect.poll(plays).toBeGreaterThan(before);
     await page.waitForTimeout(500);
     await expect(stage).toHaveAttribute("data-video", "unplayable");
     await expect(button).toBeHidden();
