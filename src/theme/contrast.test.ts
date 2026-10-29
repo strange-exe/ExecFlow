@@ -3,9 +3,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  ALPHA_OK, CHART_MIXES, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
+  ALPHA_OK, CHART_MIXES, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, luminance, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
 } from "./contrast";
-import { DEEP_FIELD, expandBase, POCKET_THEMES, SIGNAL, SLATE } from "./palettes";
+import { DEEP_FIELD, expandBase, POCKET_THEMES, SIGNAL, SIGNAL_CONSOLE, SLATE } from "./palettes";
 import { BUILT_IN, themePalette } from "./themes";
 
 const failures = (p: Palette) => checkPalette(p).filter((r) => !r.pass).map((r) => `${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)} < ${r.min}`);
@@ -169,6 +169,50 @@ describe("CodeEditor Signal (the default)", () => {
     expect(contrast(SIGNAL.light["on-action"], SIGNAL.light.action)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(SIGNAL.dark["on-action"], SIGNAL.dark.action)).toBeGreaterThanOrEqual(4.5);
   });
+
+  // Workbench Pro (redesign 5, option a, chosen 2026-10-29): the values are the mockup's
+  // (.claude/design/redesign5/a/tokens.md), mapped onto the contract: its frame is --surface (the
+  // chrome), its code card --bg, its raised step --surface-raised, its line --divider, its edge
+  // --border-strong.
+  const LADDER = ["surface", "bg", "surface-raised", "divider", "border-strong", "text", "text-secondary", "text-muted", "terminal-fg"] as const;
+  const pick = (p: Palette) => Object.fromEntries(LADDER.map((v) => [v, p[v]]));
+  it("takes Workbench Pro's surface ladder, edges and text levels", () => {
+    expect(pick(SIGNAL.light)).toEqual({
+      surface: "#eceef2", bg: "#ffffff", "surface-raised": "#ffffff", divider: "#dde1e7", "border-strong": "#7d8490",
+      text: "#16191d", "text-secondary": "#444b56", "text-muted": "#575e69", "terminal-fg": "#16191d",
+    });
+    expect(pick(SIGNAL.dark)).toEqual({
+      surface: "#0b0d10", bg: "#15181d", "surface-raised": "#262b33", divider: "#262b33", "border-strong": "#6f7785",
+      text: "#e8ebef", "text-secondary": "#b9c0ca", "text-muted": "#a3aab5", "terminal-fg": "#e5e8ed",
+    });
+  });
+
+  it.each(SCHEMES)("%s: comments recede from punctuation, 2.2:1 or more apart (before Workbench Pro 1.06 light, 1.02 dark)", (scheme) => {
+    const p = SIGNAL[scheme];
+    expect(contrast(p["syn-comment"], p["syn-punctuation"])).toBeGreaterThanOrEqual(2.2);
+    // Receding: the comment is nearer the code card than punctuation is, and operators are punctuation.
+    expect(luminance(p["syn-comment"]) > luminance(p["syn-punctuation"])).toBe(scheme === "light");
+    expect(p["syn-operator"]).toBe(p["syn-punctuation"]);
+  });
+
+  it("dark: the code card's 1 px edge (--border) stands 1.5:1 or more off the frame (the mockup's ring measured 1.37)", () => {
+    expect(contrast(SIGNAL.dark.border, SIGNAL.dark.surface)).toBeGreaterThanOrEqual(1.5);
+    expect(contrast(SIGNAL.dark.border, SIGNAL.dark.bg)).toBeGreaterThan(1);
+  });
+});
+
+describe("Signal light's console (Workbench Pro: the output panel is dark in both schemes)", () => {
+  it("is Signal dark on the mockup's console grounds for a light page", () => {
+    expect(SIGNAL_CONSOLE).toEqual({ ...SIGNAL.dark, "terminal-bg": "#12151a", "runlog-bg": "#181c22" });
+    expect([SIGNAL.dark["terminal-bg"], SIGNAL.dark["runlog-bg"]]).toEqual(["#0f1115", "#14171c"]);
+  });
+
+  it("passes every pair the UI draws and every distinctness rule, exactly as designed", () => {
+    expect(failures(SIGNAL_CONSOLE)).toEqual([]);
+    expect(readablePalette(SIGNAL_CONSOLE).adjusted).toEqual([]);
+    const { distinct } = checkRules(SIGNAL_CONSOLE, { scheme: "dark", separation: "surface" });
+    expect(distinct.filter((r) => !r.pass).map((r) => `${r.a} vs ${r.b}`)).toEqual([]);
+  });
 });
 
 describe("CodeEditor Slate (a picker theme)", () => {
@@ -224,6 +268,20 @@ describe("tokens.css and the first paint", () => {
     }
   });
 
+  it("paints Signal light's output panel with SIGNAL_CONSOLE in a dark colour scheme, recomputing the colour-derived variables there", () => {
+    const text = block(':root[data-palette="signal"]:not([data-theme="dark"]) .panel {');
+    for (const v of COLOR_VARS) expect(text, `console --${v}`).toContain(`\n  --${v}: ${SIGNAL_CONSOLE[v]};\n`);
+    const declared = [...text.matchAll(/\n {2}--([a-z0-9-]+):/g)].map((m) => m[1]);
+    expect(declared.sort()).toEqual([...COLOR_VARS, "hover", "ring", "shadow-pop"].sort());
+    expect(text).toContain("\n  color-scheme: dark;\n");
+    // A custom property's var() is resolved where it is declared, so the two built from colours on
+    // :root would keep Signal light's ink inside the panel unless declared again here.
+    expect(text).toContain(`\n  --hover: color-mix(in srgb, var(--${UI_MIXES.hover.top}) ${UI_MIXES.hover.pct}%, transparent);\n`);
+    expect(css).toContain("\n  --ring: 2px solid var(--focus);\n");
+    expect(text).toContain("\n  --ring: 2px solid var(--focus);\n");
+    expect(text).toContain("\n  --shadow-pop: none;\n");
+  });
+
   it("e2e/signal.spec.ts checks Signal's own values (its copy, written out so the spec can fail on any build)", () => {
     const spec = readFileSync("e2e/signal.spec.ts", "utf8");
     for (const scheme of SCHEMES) {
@@ -231,6 +289,14 @@ describe("tokens.css and the first paint", () => {
       const pairs = [...line.matchAll(/([a-z-]+): "(#[0-9a-f]{6})"/g)];
       expect(pairs.length, scheme).toBeGreaterThanOrEqual(6);
       for (const [, name, hex] of pairs) expect(hex, `${scheme} ${name}`).toBe(SIGNAL[scheme][name as keyof Palette]);
+    }
+    // Its copy of the output panel's colours: SIGNAL_CONSOLE in light, Signal dark's own in dark.
+    const consoleCopy = /^const CONSOLE = \{\n {2}light: \{([^}]+)\},\n {2}dark: \{([^}]+)\},/m.exec(spec);
+    expect(consoleCopy, "CONSOLE in e2e/signal.spec.ts").not.toBeNull();
+    for (const [i, palette] of [SIGNAL_CONSOLE, SIGNAL.dark].entries()) {
+      const pairs = [...consoleCopy![i + 1].matchAll(/"?([a-z-]+)"?: "(#[0-9a-f]{6})"/g)];
+      expect(pairs.length).toBeGreaterThanOrEqual(3);
+      for (const [, name, hex] of pairs) expect(hex, `console ${i} ${name}`).toBe(palette[name as keyof Palette]);
     }
   });
 

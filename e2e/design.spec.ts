@@ -23,7 +23,7 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
   // And the colours really are that scheme's (CodeEditor Signal, the default: data-palette="signal").
   await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(14, 17, 22)" : "rgb(252, 252, 253)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(21, 24, 29)" : "rgb(255, 255, 255)");
 }
 
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);

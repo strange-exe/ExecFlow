@@ -162,10 +162,10 @@ for (const scheme of ["light", "dark"] as const) {
     for (const chunk of ["tEXt", "iTXt", "zTXt", "eXIf", "tIME"]) expect(info.chunks, `no ${chunk} chunk`).not.toContain(chunk);
     const t = await tokens(page);
     // CodeEditor Signal, the default (src/theme/palettes.ts SIGNAL).
-    expect(t.bg).toBe(scheme === "light" ? "#fcfcfd" : "#0e1116");
-    expect(t["syn-keyword"]).toBe(scheme === "light" ? "#8b2a81" : "#e896dc");
-    expect(t["text-secondary"]).toBe(scheme === "light" ? "#3a4049" : "#b9c0ca");
-    expect(t.border).toBe(scheme === "light" ? "#d6dbe2" : "#252c35");
+    expect(t.bg).toBe(scheme === "light" ? "#ffffff" : "#15181d");
+    expect(t["syn-keyword"]).toBe(scheme === "light" ? "#7a2fc2" : "#c99dff");
+    expect(t["text-secondary"]).toBe(scheme === "light" ? "#444b56" : "#b9c0ca");
+    expect(t.border).toBe(scheme === "light" ? "#d6dbe2" : "#30363f");
     pixelMap(d.bytes, t);
     await expect(app(page)).toHaveAttribute("data-capture", "downloaded");
     await expect(dialog.locator("#snippet-status")).toHaveText("Downloading main-py-lines-2-3.png.");
@@ -367,7 +367,7 @@ test("7: the options change the image: every combination's size, Light in a dark
   await openDialog(page);
   await setOptions(page, "light", false, false);
   const png = await expectDownload(page, "code-lines-2-3.png", [772, 270]);
-  expect(off(decodeRgba(png).at(GROUND, GROUND), "#fcfcfd"), "Light's ground (Signal Light) in a dark theme").toBeLessThanOrEqual(2);
+  expect(off(decodeRgba(png).at(GROUND, GROUND), "#ffffff"), "Light's ground (Signal Light) in a dark theme").toBeLessThanOrEqual(2);
   for (const colors of ["match", "light", "dark"] as const) {
     for (const numbers of [true, false]) {
       for (const name of [true, false]) {
@@ -1097,8 +1097,8 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   expect(off(matched.at(10, 10), matOf(hc)), "Match: this page's background").toBeLessThanOrEqual(2);
   await setOptions(page, "light", true, true);
   const light = decodeRgba(await previewPng(page));
-  expect(off(light.at(GROUND, GROUND), "#fcfcfd"), "Signal Light's ground").toBeLessThanOrEqual(2);
-  expect(off(light.at(10, 10), matOf({ bg: "#fcfcfd", action: "#2f5bea" })), "Signal Light's background").toBeLessThanOrEqual(2);
+  expect(off(light.at(GROUND, GROUND), "#ffffff"), "Signal Light's ground").toBeLessThanOrEqual(2);
+  expect(off(light.at(10, 10), matOf({ bg: "#ffffff", action: "#2f5bea" })), "Signal Light's background").toBeLessThanOrEqual(2);
   await setOptions(page, "match", true, true);
   await page.keyboard.press("Escape");
 

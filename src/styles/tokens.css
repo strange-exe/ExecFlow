@@ -148,29 +148,30 @@
 }
 
 :root[data-palette="signal"] {
-  /* CodeEditor Signal light, the default: slate chrome on --surface, the code on a near-white
-     sheet, one electric blue for the action and location, a teal focus, red for errors only. */
-  --bg: #fcfcfd;
-  --surface: #edf0f3;
+  /* CodeEditor Signal light, the default (Workbench Pro ladder, 2026-10-29): a quiet slate frame on
+     --surface, the code on a white card, one electric blue for the action and location, a teal
+     focus, red for errors only. The output panel is the dark console (the block after the dark one). */
+  --bg: #ffffff;
+  --surface: #eceef2;
   --surface-raised: #ffffff;
-  --terminal-bg: #eff1f4;
-  --terminal-fg: #14171c;
-  --runlog-bg: #e6e9ee;
-  --divider: #d0d6de;
+  --terminal-bg: #f4f5f8;
+  --terminal-fg: #16191d;
+  --runlog-bg: #e9ecf0;
+  --divider: #dde1e7;
   --border: #d6dbe2;
-  --border-strong: #6e7682;
-  --text: #14171c;
-  --text-secondary: #3a4049;
-  --text-muted: #4f5662;
-  --gutter-text: #5d646f;
+  --border-strong: #7d8490;
+  --text: #16191d;
+  --text-secondary: #444b56;
+  --text-muted: #575e69;
+  --gutter-text: #5f6670;
   --action: #2f5bea;
   --action-hover: #2449c4;
   --on-action: #ffffff;
   --control-on: #2f5bea;
   --focus: #0b6e80;
-  --selection: #2f5bea2e;
-  --list-selected: #2f5bea1f;
-  --active-line: #14171c08;
+  --selection: #2f5bea18;
+  --list-selected: #2f5bea17;
+  --active-line: #16191d08;
   --location: #2f5bea;
   --danger: #9d2025;
   --warning: #935100;
@@ -180,68 +181,123 @@
   --call-site: #c4282e;
   --input-echo: #0b6e80;
   --link: #2448c8;
-  --brand: #14171c;
+  --brand: #16191d;
   --on-brand: #ffffff;
-  --syn-keyword: #8b2a81;
-  --syn-string: #1c5e2e;
-  --syn-number: #8f3d0a;
-  --syn-comment: #4f565f;
-  --syn-function: #0d5c68;
-  --syn-type: #5a40a7;
-  --syn-variable: #1f242b;
-  --syn-operator: #4a5563;
-  --syn-macro: #96294e;
-  --syn-punctuation: #4c525c;
-  /* The scrim and the popover shadow tinted to its ink (#14171c), as Deep Field's are to its field. */
-  --scrim: rgb(20 23 28 / 0.45);
-  --shadow-pop: 0 1px 2px rgb(20 23 28 / 0.06), 0 8px 24px rgb(20 23 28 / 0.08);
+  --syn-keyword: #7a2fc2;
+  --syn-string: #0c6c34;
+  --syn-number: #964500;
+  --syn-comment: #565c67;
+  --syn-function: #03648a;
+  --syn-type: #9a3a12;
+  --syn-variable: #16191d;
+  --syn-operator: #1f242b;
+  --syn-macro: #7a2fc2;
+  --syn-punctuation: #1f242b;
+  /* The scrim and the popover shadow tinted to its ink (#16191d), as Deep Field's are to its field. */
+  --scrim: rgb(22 25 29 / 0.45);
+  --shadow-pop: 0 1px 2px rgb(22 25 29 / 0.06), 0 8px 24px rgb(22 25 29 / 0.08);
 }
 
 :root[data-palette="signal"][data-theme="dark"] {
-  /* CodeEditor Signal dark: a near-black sheet in a slate frame; the pale blue Run is the brightest object. */
-  --bg: #0e1116;
-  --surface: #151a21;
-  --surface-raised: #1d232c;
-  --terminal-bg: #050709;
-  --terminal-fg: #e6e9ee;
-  --runlog-bg: #121820;
-  --divider: #2a313b;
-  --border: #252c35;
-  --border-strong: #737d8b;
-  --text: #e8ebf0;
+  /* CodeEditor Signal dark: a near-black frame, the code on a slate card with a 1 px edge 1.60:1 off
+     the frame, the console darker still; the pale blue Run is the brightest object. */
+  --bg: #15181d;
+  --surface: #0b0d10;
+  --surface-raised: #262b33;
+  --terminal-bg: #0f1115;
+  --terminal-fg: #e5e8ed;
+  --runlog-bg: #14171c;
+  --divider: #262b33;
+  --border: #30363f;
+  --border-strong: #6f7785;
+  --text: #e8ebef;
   --text-secondary: #b9c0ca;
   --text-muted: #a3aab5;
-  --gutter-text: #9198a5;
+  --gutter-text: #8c939f;
   --action: #7ea2ff;
   --action-hover: #9ab6ff;
   --on-action: #0b1020;
   --control-on: #7ea2ff;
   --focus: #4fd1df;
-  --selection: #7ea2ff33;
-  --list-selected: #7ea2ff24;
-  --active-line: #e8ebf00a;
+  --selection: #2f5bea20;
+  --list-selected: #7ea2ff1c;
+  --active-line: #e8ebef0a;
   --location: #7ea2ff;
   --danger: #ff7b7b;
   --warning: #f5a35c;
   --success: #6fd08c;
   --info: #5bc6d6;
-  --error-band: #ff5d6640;
+  --error-band: #d42f3a30;
   --call-site: #ff7b7b;
   --input-echo: #4fd1df;
   --link: #9ab6ff;
   --brand: #2a313b;
-  --on-brand: #e8ebf0;
-  --syn-keyword: #e896dc;
-  --syn-string: #8bd79a;
-  --syn-number: #f4a87a;
-  --syn-comment: #abb1ba;
-  --syn-function: #6fd3e0;
-  --syn-type: #bba8ff;
-  --syn-variable: #dce1e8;
-  --syn-operator: #aeb8c6;
-  --syn-macro: #ff9dbb;
-  --syn-punctuation: #acb3bd;
+  --on-brand: #e8ebef;
+  --syn-keyword: #c99dff;
+  --syn-string: #86d6a0;
+  --syn-number: #f5b56e;
+  --syn-comment: #8d95a1;
+  --syn-function: #6cc4f0;
+  --syn-type: #f59b7a;
+  --syn-variable: #e3e6eb;
+  --syn-operator: #dadfe5;
+  --syn-macro: #c99dff;
+  --syn-punctuation: #dadfe5;
   --scrim: rgb(5 7 9 / 0.70);
+  --shadow-pop: none;
+}
+
+/* Signal light's output panel is the dark console card (Workbench Pro: dark in both schemes):
+   palettes.ts SIGNAL_CONSOLE, Signal dark on the mockup's console grounds for a light page, so
+   everything drawn in the panel (log, run-log header, problems, flowchart) uses colours checked
+   against those grounds. A custom property's var() resolves where it is declared, so the two built
+   from colours on :root (--hover, --ring) are declared again here, or they would keep light ink. */
+:root[data-palette="signal"]:not([data-theme="dark"]) .panel {
+  color-scheme: dark;
+  --bg: #15181d;
+  --surface: #0b0d10;
+  --surface-raised: #262b33;
+  --terminal-bg: #12151a;
+  --terminal-fg: #e5e8ed;
+  --runlog-bg: #181c22;
+  --divider: #262b33;
+  --border: #30363f;
+  --border-strong: #6f7785;
+  --text: #e8ebef;
+  --text-secondary: #b9c0ca;
+  --text-muted: #a3aab5;
+  --gutter-text: #8c939f;
+  --action: #7ea2ff;
+  --action-hover: #9ab6ff;
+  --on-action: #0b1020;
+  --control-on: #7ea2ff;
+  --focus: #4fd1df;
+  --selection: #2f5bea20;
+  --list-selected: #7ea2ff1c;
+  --active-line: #e8ebef0a;
+  --location: #7ea2ff;
+  --danger: #ff7b7b;
+  --warning: #f5a35c;
+  --success: #6fd08c;
+  --info: #5bc6d6;
+  --error-band: #d42f3a30;
+  --call-site: #ff7b7b;
+  --input-echo: #4fd1df;
+  --link: #9ab6ff;
+  --brand: #2a313b;
+  --on-brand: #e8ebef;
+  --syn-keyword: #c99dff;
+  --syn-string: #86d6a0;
+  --syn-number: #f5b56e;
+  --syn-comment: #8d95a1;
+  --syn-function: #6cc4f0;
+  --syn-type: #f59b7a;
+  --syn-variable: #e3e6eb;
+  --syn-operator: #dadfe5;
+  --syn-macro: #c99dff;
+  --syn-punctuation: #dadfe5;
+  --hover: color-mix(in srgb, var(--text) 7%, transparent);
+  --ring: 2px solid var(--focus);
   --shadow-pop: none;
 }
 
@@ -354,7 +410,7 @@
    ground (Deep Field dark: #a2914d) in every theme where that step still keeps 3:1 or more on the
    code, the cursor's line and the error band (src/styles/focus-bar.test.ts derives this list from the
    colours and fails when it is wrong). The others keep --focus: Signal light (its teal at 70% is
-   2.98:1 on the cursor's line), Deep Field light (4.62:1 on the error band leaves no room), Slate
+   2.51:1 on the error band), Deep Field light (4.62:1 on the error band leaves no room), Slate
    light and seven light or low-contrast palettes. "Match device" themes step down on their dark
    side only. Custom themes keep --focus: they can't be checked ahead. */
 :root {

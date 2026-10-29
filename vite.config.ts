@@ -367,8 +367,8 @@ export default defineConfig(({ mode }) => ({
         short_name: "CodeEditor",
         description: "Write, run and chart Python, C and C++ in your browser, with nothing to install.",
         // Signal's dark chrome and code ground (the default theme; src/theme/contrast.test.ts keeps them equal).
-        theme_color: "#151a21",
-        background_color: "#0e1116",
+        theme_color: "#0b0d10",
+        background_color: "#15181d",
         display: "standalone",
         start_url: "/",
         // Mark v2, rasterised from public/icons/mark-v2.svg (.claude/design/make-icons.mjs). Relative

@@ -16,8 +16,17 @@ type Scheme = "light" | "dark";
 const SCHEMES: Scheme[] = ["light", "dark"];
 /** The Signal colours these checks read, as designed (src/theme/palettes.ts SIGNAL, kept equal by contrast.test.ts). */
 const SIGNAL = {
-  light: { bg: "#fcfcfd", surface: "#edf0f3", border: "#d6dbe2", divider: "#d0d6de", focus: "#0b6e80", location: "#2f5bea" },
-  dark: { bg: "#0e1116", surface: "#151a21", border: "#252c35", divider: "#2a313b", focus: "#4fd1df", location: "#7ea2ff" },
+  light: { bg: "#ffffff", surface: "#eceef2", border: "#d6dbe2", divider: "#dde1e7", focus: "#0b6e80", location: "#2f5bea" },
+  dark: { bg: "#15181d", surface: "#0b0d10", border: "#30363f", divider: "#262b33", focus: "#4fd1df", location: "#7ea2ff" },
+} as const;
+/**
+ * The output panel's colours (Workbench Pro, 2026-10-29: the console is dark in both schemes): in
+ * light, tokens.css paints the panel with SIGNAL_CONSOLE; in dark it is Signal dark's own. Kept
+ * equal to palettes.ts by contrast.test.ts.
+ */
+const CONSOLE = {
+  light: { "terminal-bg": "#12151a", "terminal-fg": "#e5e8ed", border: "#30363f" },
+  dark: { "terminal-bg": "#0f1115", "terminal-fg": "#e5e8ed", border: "#30363f" },
 } as const;
 
 const bodyBg = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -193,6 +202,8 @@ for (const scheme of SCHEMES) {
     await signalIn(page, scheme);
     const p = SIGNAL[scheme];
     const edge = `1px solid ${rgbOf(p.border)}`;
+    const c = CONSOLE[scheme];
+    const panelEdge = `1px solid ${rgbOf(c.border)}`;
 
     // The empty workspace: the sheet is rounded all round.
     const empty = await styleOf(page, ".editor-area", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-bottom", "border-left", "border-right", "background-color"]);
@@ -223,8 +234,12 @@ for (const scheme of SCHEMES) {
     });
     expect(await styleOf(page, ".center > .panel", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top-width", "border-left", "border-right", "border-bottom"])).toEqual({
       "border-top-left-radius": "0px", "border-top-right-radius": "0px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
-      "border-top-width": "0px", "border-left": edge, "border-right": edge, "border-bottom": edge,
+      "border-top-width": "0px", "border-left": panelEdge, "border-right": panelEdge, "border-bottom": panelEdge,
     });
+    // The panel is the dark console in both schemes (Workbench Pro): its ground, the program's text
+    // and the browser's own controls and scrollbars in it, in the console's colours.
+    expect(await styleOf(page, ".center > .panel", ["background-color", "color-scheme"])).toEqual({ "background-color": rgbOf(c["terminal-bg"]), "color-scheme": "dark" });
+    expect((await styleOf(page, "#panel-output .console", ["color"])).color).toBe(rgbOf(c["terminal-fg"]));
     // 10 px of --surface right of and below the sheet.
     const [center, area, panel] = [await boxOf(page, ".center"), await boxOf(page, ".editor-area"), await boxOf(page, ".center > .panel")];
     expect(Math.round(center.right - area.right)).toBe(10);
@@ -255,7 +270,7 @@ for (const scheme of SCHEMES) {
     // The panel collapsed to its bar keeps the sheet's foot.
     await page.locator(".panel-toggle").click();
     await expect(page.locator(".center")).toHaveAttribute("data-panel", "collapsed");
-    expect(await styleOf(page, ".center > .panel", ["border-bottom-left-radius", "border-bottom"])).toEqual({ "border-bottom-left-radius": "12px", "border-bottom": edge });
+    expect(await styleOf(page, ".center > .panel", ["border-bottom-left-radius", "border-bottom"])).toEqual({ "border-bottom-left-radius": "12px", "border-bottom": panelEdge });
     const collapsed = await boxOf(page, ".center > .panel");
     expect(Math.round(center.bottom - collapsed.bottom)).toBe(10);
   });

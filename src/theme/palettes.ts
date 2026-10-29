@@ -56,31 +56,50 @@ export type { Scheme };
  * values are the guard-checked ones (the design round's tuned.json): every pair passes as designed
  * and every distinctness rule and region step holds (separation "surface"). The four band tokens are
  * translucent (#rrggbbaa) so a selection shows through the cursor line and the error line.
+ * Workbench Pro (redesign 5, option a, chosen 2026-10-29) gave it the mockup's surface ladder (frame
+ * --surface, code card --bg, raised --surface-raised), its edges, text levels, console and syntax
+ * (.claude/design/redesign5/a/tokens.md). Kept from Signal, where the guard's own rules need it: the
+ * teal focus (the mockup's blue focus is the Run colour), the dark pale-blue Run, and a cyan-blue
+ * function colour (the mockup's is 4 degrees from Run; the rule wants 30). Tuned against the
+ * stacked grounds the mockup did not draw (selected text on the error line): lighter selection and
+ * error bands, comment, string, number and gutter a step darker in light, near-ink punctuation, and
+ * text-muted one step from the mockup's (#5c636e light, #9aa2ae dark) so the colours also come back
+ * unmoved from a theme file's derived selected-row grounds (themes.test.ts); the
+ * dark card's edge #30363f stands 1.60:1 off the frame (the mockup's ring 1.37).
  */
 export const SIGNAL: Record<Scheme, Palette> = {
   light: {
-    bg: "#fcfcfd", surface: "#edf0f3", "surface-raised": "#ffffff", "terminal-bg": "#eff1f4", "terminal-fg": "#14171c", "runlog-bg": "#e6e9ee", divider: "#d0d6de", border: "#d6dbe2", "border-strong": "#6e7682",
-    text: "#14171c", "text-secondary": "#3a4049", "text-muted": "#4f5662", "gutter-text": "#5d646f",
+    bg: "#ffffff", surface: "#eceef2", "surface-raised": "#ffffff", "terminal-bg": "#f4f5f8", "terminal-fg": "#16191d", "runlog-bg": "#e9ecf0", divider: "#dde1e7", border: "#d6dbe2", "border-strong": "#7d8490",
+    text: "#16191d", "text-secondary": "#444b56", "text-muted": "#575e69", "gutter-text": "#5f6670",
     action: "#2f5bea", "action-hover": "#2449c4", "on-action": "#ffffff", "control-on": "#2f5bea",
-    focus: "#0b6e80", selection: "#2f5bea2e", "list-selected": "#2f5bea1f", "active-line": "#14171c08", location: "#2f5bea",
+    focus: "#0b6e80", selection: "#2f5bea18", "list-selected": "#2f5bea17", "active-line": "#16191d08", location: "#2f5bea",
     danger: "#9d2025", warning: "#935100", success: "#2d7737", info: "#0e7490",
     "error-band": "#e5484d30", "call-site": "#c4282e", "input-echo": "#0b6e80",
-    link: "#2448c8", brand: "#14171c", "on-brand": "#ffffff",
-    "syn-keyword": "#8b2a81", "syn-string": "#1c5e2e", "syn-number": "#8f3d0a", "syn-comment": "#4f565f", "syn-function": "#0d5c68",
-    "syn-type": "#5a40a7", "syn-variable": "#1f242b", "syn-operator": "#4a5563", "syn-macro": "#96294e", "syn-punctuation": "#4c525c",
+    link: "#2448c8", brand: "#16191d", "on-brand": "#ffffff",
+    "syn-keyword": "#7a2fc2", "syn-string": "#0c6c34", "syn-number": "#964500", "syn-comment": "#565c67", "syn-function": "#03648a",
+    "syn-type": "#9a3a12", "syn-variable": "#16191d", "syn-operator": "#1f242b", "syn-macro": "#7a2fc2", "syn-punctuation": "#1f242b",
   },
   dark: {
-    bg: "#0e1116", surface: "#151a21", "surface-raised": "#1d232c", "terminal-bg": "#050709", "terminal-fg": "#e6e9ee", "runlog-bg": "#121820", divider: "#2a313b", border: "#252c35", "border-strong": "#737d8b",
-    text: "#e8ebf0", "text-secondary": "#b9c0ca", "text-muted": "#a3aab5", "gutter-text": "#9198a5",
+    bg: "#15181d", surface: "#0b0d10", "surface-raised": "#262b33", "terminal-bg": "#0f1115", "terminal-fg": "#e5e8ed", "runlog-bg": "#14171c", divider: "#262b33", border: "#30363f", "border-strong": "#6f7785",
+    text: "#e8ebef", "text-secondary": "#b9c0ca", "text-muted": "#a3aab5", "gutter-text": "#8c939f",
     action: "#7ea2ff", "action-hover": "#9ab6ff", "on-action": "#0b1020", "control-on": "#7ea2ff",
-    focus: "#4fd1df", selection: "#7ea2ff33", "list-selected": "#7ea2ff24", "active-line": "#e8ebf00a", location: "#7ea2ff",
+    focus: "#4fd1df", selection: "#2f5bea20", "list-selected": "#7ea2ff1c", "active-line": "#e8ebef0a", location: "#7ea2ff",
     danger: "#ff7b7b", warning: "#f5a35c", success: "#6fd08c", info: "#5bc6d6",
-    "error-band": "#ff5d6640", "call-site": "#ff7b7b", "input-echo": "#4fd1df",
-    link: "#9ab6ff", brand: "#2a313b", "on-brand": "#e8ebf0",
-    "syn-keyword": "#e896dc", "syn-string": "#8bd79a", "syn-number": "#f4a87a", "syn-comment": "#abb1ba", "syn-function": "#6fd3e0",
-    "syn-type": "#bba8ff", "syn-variable": "#dce1e8", "syn-operator": "#aeb8c6", "syn-macro": "#ff9dbb", "syn-punctuation": "#acb3bd",
+    "error-band": "#d42f3a30", "call-site": "#ff7b7b", "input-echo": "#4fd1df",
+    link: "#9ab6ff", brand: "#2a313b", "on-brand": "#e8ebef",
+    "syn-keyword": "#c99dff", "syn-string": "#86d6a0", "syn-number": "#f5b56e", "syn-comment": "#8d95a1", "syn-function": "#6cc4f0",
+    "syn-type": "#f59b7a", "syn-variable": "#e3e6eb", "syn-operator": "#dadfe5", "syn-macro": "#c99dff", "syn-punctuation": "#dadfe5",
   },
 };
+
+/**
+ * Signal light's output panel (Workbench Pro: the console is a dark card in both schemes). tokens.css
+ * paints the panel with these values under Signal light, so every colour inside it (the log, the
+ * run-log header, problems, the flowchart) is Signal dark's, on the mockup's two console grounds for
+ * a light page. Signal light's own terminal tokens are what a light console would use; no Signal
+ * view paints them.
+ */
+export const SIGNAL_CONSOLE: Palette = { ...SIGNAL.dark, "terminal-bg": "#12151a", "runlog-bg": "#181c22" };
 
 /**
  * CodeEditor Deep Field, light and dark: three 12-step OKLCH scales per mode (sage-stone neutral,

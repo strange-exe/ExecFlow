@@ -208,7 +208,10 @@ export function tokens(page: Page): Promise<Record<string, string>> {
   return page.evaluate(() => {
     const s = getComputedStyle(document.documentElement);
     const names = ["bg", "text", "syn-keyword", "syn-comment", "gutter-text", "danger", "divider", "text-secondary", "border", "surface", "action", "focus"];
-    return Object.fromEntries(names.map((n) => [n, s.getPropertyValue(`--${n}`).trim().toLowerCase()]));
+    // The build's CSS minifier writes #ffffff (Signal light's code card) as #fff; read it as the app
+    // does (core/snippet-dialog.ts checkColors), as #rrggbb.
+    const full = (v: string) => (/^#[0-9a-f]{3}$/.test(v) ? `#${[...v.slice(1)].map((c) => c + c).join("")}` : v);
+    return Object.fromEntries(names.map((n) => [n, full(s.getPropertyValue(`--${n}`).trim().toLowerCase())]));
   });
 }
 
