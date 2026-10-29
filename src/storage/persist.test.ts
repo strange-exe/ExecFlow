@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { openWorkspaceDb, type WorkspaceDb } from "./db";
+import { deleteAllLocalData, openWorkspaceDb, type WorkspaceDb } from "./db";
 import { ASK_AGAIN_AFTER_MS, requestPersistence, shouldAskPersistence, storageStatus, type StorageLike } from "./persist";
 
 function fakeStorage(state: { persisted: boolean; grant: boolean }): StorageLike & { persist: ReturnType<typeof vi.fn> } {
@@ -54,6 +54,14 @@ describe("requestPersistence", () => {
     expect(await shouldAskPersistence(db, { storage })).toBe(false);
     expect(await requestPersistence({ storage: null })).toEqual({ granted: false, asked: false });
     expect(await shouldAskPersistence(db, { storage: null })).toBe(false);
+  });
+
+  it("rejects with StorageError closed once another tab has cleared this computer", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const own = await openWorkspaceDb({ name });
+    await deleteAllLocalData({ name });
+    const storage = fakeStorage({ persisted: false, grant: false });
+    await expect(shouldAskPersistence(own, { storage })).rejects.toMatchObject({ name: "StorageError", code: "closed" });
   });
 
   it("reports a grant", async () => {

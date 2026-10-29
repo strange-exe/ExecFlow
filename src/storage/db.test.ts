@@ -7,8 +7,11 @@ import {
   DB_VERSION,
   deleteAllLocalData,
   inTransaction,
+  isClosedError,
   isVersionError,
   openWorkspaceDb,
+  readRequest,
+  StorageError,
   wsRange,
   type EntryRecord,
 } from "./db";
@@ -131,5 +134,55 @@ describe("deleteAllLocalData", () => {
     // Both connections are closed now: starting a transaction fails.
     expect(() => handled.transaction("meta")).toThrow();
     expect(() => unhandled.transaction("meta")).toThrow();
+  });
+});
+
+describe("a connection another tab closes", () => {
+  /** Starts `run` and reports whether it threw at once, then what its promise settled with. */
+  async function settle(run: () => Promise<unknown>): Promise<{ threw: boolean; error: unknown }> {
+    let promise: Promise<unknown>;
+    try {
+      promise = run();
+    } catch (error) {
+      return { threw: true, error };
+    }
+    return { threw: false, error: await promise.then(() => null, (e: unknown) => e) };
+  }
+
+  it("closes on versionchange (another tab clears this computer), and a later transaction rejects with StorageError closed", async () => {
+    const name = freshName();
+    const db = await openWorkspaceDb({ name });
+    // The other tab's delete only finishes because this connection closed on versionchange.
+    await deleteAllLocalData({ name });
+    expect(() => db.transaction("meta")).toThrow(expect.objectContaining({ name: "InvalidStateError" }));
+    const later = await settle(() => inTransaction(db, ["meta"], "readonly", (tx) => tx.store.get("schema")));
+    expect(later.threw).toBe(false);
+    expect(later.error).toBeInstanceOf(StorageError);
+    expect(later.error).toMatchObject({ code: "closed" });
+    expect(isClosedError(later.error)).toBe(true);
+  });
+
+  it("does the same after an onBlocking handler closes it, and for a newer version opened elsewhere", async () => {
+    const name = freshName();
+    const seen: (number | null)[] = [];
+    const db = await openWorkspaceDb({ name, onBlocking: ({ blockedVersion, close }) => (seen.push(blockedVersion), close()) });
+    const newer = await openDB(name, DB_VERSION + 1);
+    newer.close();
+    expect(seen).toEqual([DB_VERSION + 1]);
+    const later = await settle(() => inTransaction(db, ["meta"], "readwrite", (tx) => tx.store.put({ key: "persist", askedAt: 1, granted: true })));
+    expect(later).toMatchObject({ threw: false, error: { name: "StorageError", code: "closed" } });
+  });
+
+  it("readRequest reports a closed connection the same way and passes every other error through", async () => {
+    const name = freshName();
+    const db = await openWorkspaceDb({ name });
+    expect(await readRequest(db, () => db.get("meta", "schema"))).toMatchObject({ key: "schema" });
+    const other = await settle(() => readRequest(db, () => db.get("nope" as "meta", "x")));
+    expect(other.error).toMatchObject({ name: "NotFoundError" });
+    await deleteAllLocalData({ name });
+    const later = await settle(() => readRequest(db, () => db.get("meta", "schema")));
+    expect(later).toMatchObject({ threw: false, error: { name: "StorageError", code: "closed" } });
+    expect(isClosedError(new StorageError("not-found", "x"))).toBe(false);
+    expect(isClosedError(new DOMException("closing", "InvalidStateError"))).toBe(false);
   });
 });

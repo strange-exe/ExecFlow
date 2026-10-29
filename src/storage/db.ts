@@ -190,7 +190,12 @@ export async function inTransaction<const Names extends StoreName[], Mode extend
   body: (tx: Tx<Names, Mode>) => Promise<T>,
   durability: Durability = "default",
 ): Promise<T> {
-  const tx = db.transaction(stores, mode, { durability });
+  let tx: IDBPTransaction<CodeEditorDB, Names, Mode>;
+  try {
+    tx = db.transaction(stores, mode, { durability });
+  } catch (error) {
+    throw asClosed(error);
+  }
   const done = tx.done;
   done.catch(() => {}); // observed below; this only stops an abort from being reported twice
   try {
@@ -205,6 +210,33 @@ export async function inTransaction<const Names extends StoreName[], Mode extend
     }
     throw error;
   }
+}
+
+/**
+ * Runs one of idb's single-request reads (db.get, db.getAll...), reporting a closed connection as
+ * StorageError "closed" like inTransaction does; every other error passes through unchanged.
+ */
+export async function readRequest<T>(db: WorkspaceDb, read: (db: WorkspaceDb) => Promise<T>): Promise<T> {
+  try {
+    return await read(db);
+  } catch (error) {
+    throw asClosed(error);
+  }
+}
+
+/**
+ * db.transaction() throws InvalidStateError once the connection is closed or closing: after a
+ * versionchange (another tab cleared this computer or opened a newer version, see onBlocking) or
+ * when the browser closed it (onTerminated). Callers get one StorageError they can recognize.
+ */
+function asClosed(error: unknown): unknown {
+  if (typeof error !== "object" || error === null || (error as { name?: unknown }).name !== "InvalidStateError") return error;
+  return new StorageError("closed", "CodeEditor's storage was closed in this tab (another tab cleared it or opened a newer version). Reload the page to continue.");
+}
+
+/** A storage call failed because this tab's connection was closed (see asClosed): reload, don't retry. */
+export function isClosedError(error: unknown): boolean {
+  return error instanceof StorageError && error.code === "closed";
 }
 
 /**
@@ -245,7 +277,9 @@ export type StorageErrorCode =
   | "corrupt"
   | "read-only"
   /** A compare-and-set save found different text stored (saveFile `expect`). */
-  | "changed";
+  | "changed"
+  /** This tab's connection was closed (versionchange from another tab, or the browser): reload. */
+  | "closed";
 
 /** A refused storage operation. `message` is one plain sentence fit for the UI. */
 export class StorageError extends Error {

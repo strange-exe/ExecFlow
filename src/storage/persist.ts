@@ -6,7 +6,7 @@
 // Call requestPersistence() from a user gesture (Firefox shows a prompt; Chromium and Safari
 // decide silently from engagement). After a refusal, don't ask again for 30 days.
 
-import type { WorkspaceDb } from "./db";
+import { readRequest, type WorkspaceDb } from "./db";
 
 export type StorageLike = Pick<StorageManager, "persisted" | "persist" | "estimate">;
 
@@ -60,7 +60,7 @@ export async function shouldAskPersistence(
   const storage = options.storage === undefined ? defaultStorage() : options.storage;
   if (!storage) return false;
   if (await storage.persisted().catch(() => false)) return false;
-  const last = await db.get("meta", "persist");
+  const last = await readRequest(db, (d) => d.get("meta", "persist"));
   if (last?.key === "persist" && !last.granted && (options.now ?? Date.now)() - last.askedAt < ASK_AGAIN_AFTER_MS) return false;
   return true;
 }

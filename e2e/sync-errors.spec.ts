@@ -15,7 +15,7 @@ import { GitHubError, type GitHubErrorKind } from "../src/sync/github";
 import { explainError } from "../src/sync/repo-check";
 import { validateTokenShape } from "../src/sync/token-store";
 import { branchProblem, ownerProblem, repoProblem } from "../src/ui/sync-form";
-import { expect, hostNetwork, openApp, test } from "./helpers";
+import { afterFetch, expect, hostNetwork, openApp, test } from "./helpers";
 import { answer, EMPTY_REPO, fillConnect, githubNoise, openConnect, routeGitHub, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -337,7 +337,7 @@ test.describe("the network", () => {
       await page.waitForLoadState("networkidle");
       // A Wi-Fi drop leaves the local server reachable; the browser's offline state doesn't, so
       // the app's own files come through Playwright (outside the browser) until it's back.
-      await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, async (route) => route.fulfill({ response: await route.fetch() }));
+      await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, afterFetch(async (route) => route.fulfill({ response: await route.fetch() })));
       await page.evaluate(() => {
         const w = window as unknown as { __heard: string[] };
         w.__heard = [];

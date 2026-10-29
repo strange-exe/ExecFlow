@@ -516,7 +516,5 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
   };
 }
 
-export type FakeGitHub = ReturnType<typeof createFakeGitHub>;
-
 /** Exact bytes of a text file, as sync stores it. */
 export const fileBytes = (text: string, eol: Eol = "\n", bom = false) => encodeFileBytes(text, eol, bom);

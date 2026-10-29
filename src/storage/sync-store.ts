@@ -10,7 +10,7 @@
 //     the remote version for the base and overwriting it.
 
 import { encodeFileBytes, gitBlobSha, textBlobSha, type Eol } from "../core/bytes";
-import type { BaseEntry, LocalFileState, OpaquePut, RemoteMeta, SyncCommit, SyncSnapshot, SyncStore, WsPath } from "../core/types";
+import type { BaseEntry, LocalFileState, RemoteMeta, SyncCommit, SyncSnapshot, SyncStore, WsPath } from "../core/types";
 import { emitChange, inTransaction, StorageError, wsRange, type BaseRecord, type EntryRecord, type WorkspaceDb } from "./db";
 import {
   assertLf,
@@ -25,9 +25,6 @@ import {
   validateRemote,
   type StoreOptions,
 } from "./internal";
-
-/** A pulled file kept by blob id only (core OpaquePut). `size` (from the GitHub tree) is shown in the file tree. */
-export type OpaqueWrite = OpaquePut;
 
 /** Core SyncCommit, which now carries `opaque` itself. */
 export type SyncStoreCommit = SyncCommit;

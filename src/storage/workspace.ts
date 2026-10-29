@@ -15,6 +15,7 @@ import {
   belowRange,
   emitChange,
   inTransaction,
+  readRequest,
   StorageError,
   wsRange,
   type ChangeListener,
@@ -207,11 +208,11 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
 
   const store: WorkspaceStore = {
     async listWorkspaces() {
-      return db.getAll("workspaces");
+      return readRequest(db, (d) => d.getAll("workspaces"));
     },
 
     async getWorkspace(ws) {
-      return (await db.get("workspaces", ws)) ?? null;
+      return (await readRequest(db, (d) => d.get("workspaces", ws))) ?? null;
     },
 
     async ensureWorkspace(name) {
@@ -240,11 +241,12 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
     },
 
     async loadTree(ws) {
-      return (await db.getAll("entries", wsRange(ws))).map(toMeta);
+      return (await readRequest(db, (d) => d.getAll("entries", wsRange(ws)))).map(toMeta);
     },
 
     async getEntry(ws, path) {
-      const entry = await db.get("entries", [ws, cleanPath(path)]);
+      const p = cleanPath(path);
+      const entry = await readRequest(db, (d) => d.get("entries", [ws, p]));
       return entry ? toMeta(entry) : null;
     },
 
@@ -646,11 +648,11 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
     },
 
     async getUiState(ws) {
-      const rec = await db.get("workspaces", ws);
+      const rec = await readRequest(db, (d) => d.get("workspaces", ws));
       if (!rec) throw missingWorkspace(ws);
       if (!rec.ui.args) return rec.ui;
       // Only files that exist: a sync that removed a file doesn't go through mapUi.
-      const files = new Set((await db.getAllKeys("entries", wsRange(ws))).map((k) => k[1]));
+      const files = new Set((await readRequest(db, (d) => d.getAllKeys("entries", wsRange(ws)))).map((k) => k[1]));
       const args = Object.fromEntries(Object.entries(cleanArgs(rec.ui.args)).filter(([path]) => files.has(path)));
       return { ...rec.ui, args };
     },

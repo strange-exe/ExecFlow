@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encodeFileBytes, gitBlobSha, type Eol } from "../core/bytes";
-import { openWorkspaceDb, StorageError, type ChangeEvent, type WorkspaceDb } from "./db";
+import { deleteAllLocalData, openWorkspaceDb, StorageError, type ChangeEvent, type WorkspaceDb } from "./db";
 import { createSyncStore } from "./sync-store";
 import { createWorkspaceStore, DEFAULT_LIMITS, MAX_FILES, MAX_WORKSPACE_BYTES, type WorkspaceStore } from "./workspace";
 
@@ -541,6 +541,30 @@ describe("export", () => {
 });
 
 describe("events, guards and state", () => {
+  it("after another tab clears this computer, every read and write rejects with StorageError closed (no raw InvalidStateError)", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const own = await openWorkspaceDb({ name });
+    const s = createWorkspaceStore(own);
+    const id = (await s.ensureWorkspace("Default")).id;
+    await s.createFile(id, "a.c", "1\n");
+    // The other tab deletes the database: this connection closes on versionchange (openWorkspaceDb's default).
+    await deleteAllLocalData({ name });
+    const calls: [string, () => Promise<unknown>][] = [
+      ["listWorkspaces", () => s.listWorkspaces()],
+      ["getWorkspace", () => s.getWorkspace(id)],
+      ["loadTree", () => s.loadTree(id)],
+      ["getEntry", () => s.getEntry(id, "a.c")],
+      ["readFile", () => s.readFile(id, "a.c")],
+      ["getUiState", () => s.getUiState(id)],
+      ["workspaceStats", () => s.workspaceStats(id)],
+      ["saveFile", () => s.saveFile(id, "a.c", "2\n")],
+      ["ensureWorkspace", () => s.ensureWorkspace("Default")],
+    ];
+    const results: string[] = [];
+    for (const [label, call] of calls) results.push(`${label}:${await outcome(call())}`);
+    expect(results).toEqual(calls.map(([label]) => `${label}:closed`));
+  });
+
   it("onChange fires after each committed write, never for a failed one", async () => {
     const events: ChangeEvent[] = [];
     const off = store.onChange((e) => events.push(e));
