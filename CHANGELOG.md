@@ -6,7 +6,34 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
-## [0.8.0] - 2026-10-27
+## [0.9.0] - 2026-10-29
+
+Enter picks the top suggestion, and fixes across the app
+
+### Added
+
+- Settings: "Enter accepts the top suggestion" can be turned off, so nothing is picked until you press Down or Up.
+- The About page's 3D scene has a Pause button, and stops if you turn on reduced motion.
+
+### Changed
+
+- Enter accepts the top suggestion, with no arrow key needed. If the top suggestion is just the word you typed, Enter makes a new line.
+- Capture snippet previews update faster.
+
+### Fixed
+
+- Picking the main suggestion after typing int or void writes the rest of main, instead of a second type.
+- Flowcharts: a goto into a block shown as one step, and statements under a case inside a nested block, are drawn instead of dropped. PNG and Copy image now look like the chart on screen.
+- Flowcharts: Retry after a slow chart draws the function you picked, not the first one.
+- Code links: Windows line endings are accepted, a long name that is already taken still gets a free one, and a failed Add keeps the dialog open.
+- Settings: clearing a number field keeps its value instead of dropping to the smallest.
+- The launch video's button reads Pause while the video starts and goes away if the video can't play, and Licences opens the licence file even with the app installed.
+- Flowcharts: if a picked function times out again on Retry, the next Retry charts the program's entry point.
+- Adding an example in a read-only tab, or when storage is full, says why instead of failing quietly.
+- Screen readers announce Cmd, not Ctrl, for shortcuts on a Mac.
+- Signing out with a second tab open no longer leaves an error in that tab.
+
+## [0.8.0] - 2026-10-28
 
 Code links
 
@@ -16,6 +43,14 @@ Code links
 - Opening a code link shows the code first. It's added to your files only when you choose, and it never runs by itself.
 - Copy a code link with a title ("Open main.py in CodeEditor") for documents and mail, or show it as a QR code to scan from a screen.
 
+### Changed
+
+- Share link starts with the code link, so sharing works without GitHub. A file too long for a link says so.
+
+### Fixed
+
+- The Share dialog no longer leaves a gap under the code link while it's being made.
+
 ## [0.7.0] - 2026-10-27
 
 A calmer workspace, a new Settings, and an About page
@@ -23,18 +58,21 @@ A calmer workspace, a new Settings, and an About page
 ### Added
 
 - The version number in Settings, and a one-time What's new note after an update.
-- An About page: what CodeEditor does, and this list of changes.
+- An About page: what CodeEditor does, a 20-second video, and this list of changes.
 
 ### Changed
 
 - A calmer workspace: a full-height side bar with quick actions, quieter tabs, and a command field in the top bar.
-- Settings is now a two-pane dialog with sections, switches and a font-size stepper.
-- Files your program writes are saved to your files by themselves, with a line in Output instead of a question. A program never writes over your code.
+- Settings is now grouped into sections, with switches and + and - buttons for the font size.
+- Selected text is see-through in every theme, so your code's colours still show.
+- Files your program writes are now saved to your files automatically, with a line in Output instead of a question. A program never writes over your code.
 - Flowcharts in colour: start and end, decisions, input and output, and calls each have their own, and Yes and No branches are green and red, on connectors with rounded corners.
+- The Privacy page now says the site uses Cloudflare Web Analytics to count visits.
 
 ### Fixed
 
-- Flowchart arrows meet their boxes cleanly: a loop's line back, an if's Yes branch and a switch case's fall-through join the line above the arrowhead, not its side.
+- Flowchart arrows meet their boxes cleanly, with no line joining an arrow from the side.
+- The About page opens correctly after an update, even offline, and never shows an old picture or video.
 
 ## [0.6.2] - 2026-10-27
 
@@ -51,10 +89,10 @@ Privacy, terms and a sturdier flowchart
 ### Added
 
 - Privacy and Terms pages, linked from Settings, and every open-source licence at /licenses.txt.
-- If part of the app fails to load, the page says so and offers Reload instead of loading forever.
 
 ### Fixed
 
+- If part of the app fails to load, the page now says so and offers Reload, instead of loading forever.
 - A function with hundreds of break and continue lines no longer freezes the page: the chart says it is too big.
 - Functions that share a name (C++ overloads) can each be picked in the Flowchart.
 - Flowchart images keep non-English function names in their file names.
@@ -65,7 +103,7 @@ Flowcharts
 
 ### Added
 
-- A Flowchart tab that draws how your C, C++ or Python code runs, with click-to-line and a step list.
+- A Flowchart tab that draws how your C, C++ or Python code runs. Click a box to jump to its line, or read the steps as a list; it works on phones and full screen.
 - Export a flowchart as a PNG or SVG image.
 
 ### Changed
@@ -85,10 +123,24 @@ The app icon follows Signal
 
 The Signal look
 
+### Added
+
+- Python's first start shows its one-time download as it happens.
+- When a run stops at the time or output limit, Output says which limit and what to do.
+- A new file says before it's made when it won't run.
+
 ### Changed
 
-- Signal is the new default theme, with the Geist typeface.
+- Signal, a new default look with the Geist typeface.
 - Runs, output, the file list, sync and dialogs restyled to match the new look.
+- A C or C++ crash is explained in one plain sentence.
+- The Shortcuts list opens with Ctrl+/ only, so typing ? never opens it.
+- Connecting GitHub can make a new private repository, and "Remember on this device" starts off.
+- Sync warns in the top bar until you open a conflict copy, and an edit shows as unsynced at once.
+
+### Fixed
+
+- On short windows (a phone held sideways, 400% zoom) the page scrolls and nothing covers your code.
 
 ## [0.4.1] - 2026-10-24
 
@@ -117,7 +169,7 @@ Buttons change colour cleanly
 
 ### Fixed
 
-- A button's colour and its label now change together.
+- Buttons no longer flash a hard-to-read colour when they change.
 
 ## [0.3.0] - 2026-10-23
 
@@ -136,7 +188,7 @@ Safari fixes
 
 ### Fixed
 
-- Problems that showed up only in Safari and other WebKit browsers.
+- Fixes for Safari: Capture snippet images are the right width, and the file path above the editor no longer flickers.
 
 ## [0.2.0] - 2026-10-23
 
