@@ -90,7 +90,7 @@ export function createNotice(options: { returnFocus?: () => HTMLElement | null }
     glyph.replaceChildren(safe ? icon(ICONS[tone]) : "");
     text.textContent = safe;
     const href = safe && options.link ? linkHref(options.link.href) : null;
-    if (href && options.link) text.append(" ", h("a", { class: "notice-link", href }, shown(options.link.label)));
+    if (href && options.link) text.append(" ", h("a", { class: "notice-link text-btn", href }, shown(options.link.label)));
     handler = safe ? (options.action?.run ?? null) : null;
     action.hidden = !safe || !options.action;
     action.textContent = safe ? shown(options.action?.label ?? "") : "";
