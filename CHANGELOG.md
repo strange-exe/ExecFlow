@@ -6,6 +6,15 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.9.2] - 2026-10-29
+
+Clearing a shared computer clears every tab
+
+### Fixed
+
+- Sign out and clear this computer now also empties CodeEditor in the browser's other open tabs, and ends their GitHub sign-in.
+- A GitHub sign-in renewing itself at the moment you sign out can no longer be saved again afterwards.
+
 ## [0.9.1] - 2026-10-29
 
 Opens in Brave and with ad blockers

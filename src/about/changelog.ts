@@ -20,6 +20,15 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.9.2",
+    date: "2026-10-29",
+    title: "Clearing a shared computer clears every tab",
+    items: [
+      { kind: "fixed", text: "Sign out and clear this computer now also empties CodeEditor in the browser's other open tabs, and ends their GitHub sign-in." },
+      { kind: "fixed", text: "A GitHub sign-in renewing itself at the moment you sign out can no longer be saved again afterwards." },
+    ],
+  },
+  {
     version: "0.9.1",
     date: "2026-10-29",
     title: "Opens in Brave and with ad blockers",
