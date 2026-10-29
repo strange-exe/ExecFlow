@@ -11,14 +11,19 @@ on:
 permissions:
   contents: read
 
+# A pull request's newer push cancels its older run. Every push to main deploys, so each one keeps
+# its own run and result (its own group: one shared group would still cancel a waiting run).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     name: Types, unit tests, build
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to 26.04 from 2026-10-19 (actions/runner-images#14748), with another
+    # WebKit build and other apt fonts than the Linux-only tolerances were measured on. Move both
+    # jobs in one commit, after a green run there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       # Nothing here reads git history, so the default shallow checkout is enough.
@@ -31,12 +36,14 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      # What the prebuild downloads: the numpy/pandas wheels and the C/C++ pack, every file SHA-256
-      # checked by its script. Restored after npm ci, which empties node_modules/.
+      # What the prebuild downloads: the numpy/pandas wheels, the C/C++ pack and the flowchart's
+      # parser files, every file SHA-256 checked by its script. The key hashes the files that pin
+      # them (src/flowchart/pack.ts holds the grammar pins). Restored after npm ci, which empties
+      # node_modules/.
       - uses: actions/cache@v6
         with:
           path: node_modules/.cache/
-          key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'scripts/fetch-*.mjs') }}
+          key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'src/flowchart/pack.ts', 'scripts/fetch-*.mjs') }}
 
       - name: Typecheck
         run: npm run typecheck
@@ -63,11 +70,12 @@ jobs:
     name: End-to-end (${{ matrix.label || matrix.browser }})
     # A commit that doesn't build never takes the runners, and the check job has filled the cache.
     needs: check
-    runs-on: ubuntu-latest
-    # On the runners (one worker) Chromium and Firefox take 25 to 31 minutes; WebKit took 46 on
-    # 2026-10-27 and then passed the 60-minute limit (run 40546811002). Split by file
-    # (https://playwright.dev/docs/test-sharding) into two it took 59 and 29 (run 40566760719: the
-    # files slow only on Linux WebKit fell in one half), so it runs as three shards.
+    runs-on: ubuntu-24.04 # pinned with the check job (above)
+    # On the runners (one worker) the Chromium and Firefox test steps take 25 to 34 minutes. WebKit's
+    # took 46.5 unsharded (run 40535415597), close to the 60-minute limit, so it runs split by file
+    # (https://playwright.dev/docs/test-sharding) into three shards. The 60-minute WebKit jobs of runs
+    # 40546811002 and 40566760719 (shard 1/2) were install stalls (41.0 and 38.6 minutes in the
+    # browser install step), not slow tests: the install step has its own time limit below.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -102,18 +110,31 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: node_modules/.cache/
-          key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'scripts/fetch-*.mjs') }}
+          key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'src/flowchart/pack.ts', 'scripts/fetch-*.mjs') }}
 
+      # A stalled install (apt or the browser download) once took 41 minutes of the job's 60. Each
+      # try gets 5 minutes and a stall is tried once more. Measured in the 5 green main runs of
+      # 2026-10-23 to 10-26 (GitHub API step times): 13 of 15 installs took 18 to 58 s; the other
+      # two took 564 s (firefox) and 1085 s (webkit), stalls these limits now cut short. A try
+      # stopped mid-apt can leave dpkg half-configured, so the next try finishes that first.
       - name: Install ${{ matrix.browser }}
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        timeout-minutes: 12
+        run: |
+          for try in 1 2; do
+            if [ "$try" -gt 1 ]; then sudo dpkg --configure -a || true; fi
+            timeout --kill-after=30s 5m npx playwright install --with-deps ${{ matrix.browser }} && exit 0
+            echo "::warning::Install ${{ matrix.browser }}: try $try failed or stalled"
+          done
+          exit 1
 
       # Playwright's webServer runs `npm run build` and serves the production build with the
       # deployed site's headers; with CI set it uses one worker and the github reporter.
       - name: End-to-end tests
         run: npx playwright test --project=${{ matrix.browser }} ${{ matrix.extra }}
 
+      # Also when the job is cancelled (the time limit): tests that failed before it keep their traces.
       - name: Keep failure details
-        if: failure()
+        if: ${{ !success() }}
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.browser }}-${{ strategy.job-index }}

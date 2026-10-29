@@ -17,11 +17,12 @@ export async function hostNetwork(context: BrowserContext, state: "offline" | "o
  * tolerated in WebKit only.
  */
 const WEBKIT_RECOVERED_WORKER_BLOCK = [
-  /^Refused to load '[^']+\/assets\/(?:w\/)?[\w-]+\.js' worker because of Cross-Origin-Embedder-Policy\.$/,
+  /^Refused to load '[^']+\/assets\/w\/[\w-]+\.js' worker because of Cross-Origin-Embedder-Policy\.$/,
   /^Worker load was blocked by Cross-Origin-Embedder-Policy$/,
   /^Failed to load resource: Worker load was blocked by Cross-Origin-Embedder-Policy$/,
-  // Not end-anchored: WebKit's text can carry trailing whitespace, which a bare `$` rejects.
-  /\/assets\/(?:w\/)?[\w-]+\.js due to access control checks/,
+  // Not end-anchored: WebKit's text can carry trailing whitespace, which a bare `$` rejects. Worker
+  // bundles only (assets/w/): a blocked main-thread chunk is a real failure.
+  /\/assets\/w\/[\w-]+\.js due to access control checks/,
   /\/pyodide\/[\d.]+-heap\d+\/pyodide\.mjs due to access control checks/,
   // A reload or a navigation while the app is still registering its service worker cancels the sw.js download,
   // and WebKit logs the cancelled request this way (Pocket Run CI, 2026-10-12 to 10-15). Harmless:
@@ -36,8 +37,8 @@ const WEBKIT_RECOVERED_WORKER_BLOCK = [
  */
 const FIREFOX_CANCELLED_FONT = /^\[JavaScript Error: "downloadable font: download failed \(.*\): status=2152398850 source: \S+\.woff2"\]$/;
 
-/** How each engine words a request it cancelled (not one that failed). */
-const CANCELLED = /^(net::ERR_ABORTED|NS_BINDING_ABORTED|Load request cancelled)$/;
+/** How each engine words a request it cancelled (not one that failed). Exported for fixture-watch.spec.ts. */
+export const CANCELLED =/^(net::ERR_ABORTED|NS_BINDING_ABORTED|Load request cancelled)$/;
 
 /**
  * WebKit: a navigation while the Python worker is still downloading Pyodide cancels those fetches
@@ -65,8 +66,9 @@ const FIREFOX_CANCELLED_WORKER_LOG = /^\[JavaScript Error: "NS_BINDING_ABORTED: 
 const FIREFOX_CANCELLED_PYODIDE = /^request failed: http:\/\/127\.0\.0\.1:\d+\/pyodide\/[\d.]+-heap\d+\/[\w.-]+ NS_BINDING_ABORTED$/;
 
 /**
- * Fails any test whose page logs a console error, throws an uncaught exception, or has a request
- * fail or answer with status >= 400. A goto or reload starts a new document and the browser cancels
+ * Fails any test one of whose pages (every tab of the test's context, watchContext below) logs a
+ * console error, throws an uncaught exception, or has a request fail or answer with status >= 400.
+ * A goto or reload starts a new document and the browser cancels
  * the old one's downloads (a lazy chunk, a font, the Python runtime): such a cancellation is not a
  * failure of the app. So a cancelled request is excused only when a main-frame navigation began
  * after the request started and at most 2 s after it was cancelled (engines report the cancel
@@ -95,10 +97,18 @@ export const test = base.extend<{ consoleErrors: string[]; tolerate: RegExp[] }>
       for (const type of ["online", "offline"]) addEventListener(type, (e) => { if (e.isTrusted) e.stopImmediatePropagation(); }, true);
     });
     const real = browserSetOffline.get(context)!;
+    let calls = 0;
     context.setOffline = async (offline: boolean) => {
-      // A later document (a reload while offline) starts in this state: the last init script
-      // registered runs last.
-      await context.addInitScript((o) => void ((globalThis as { __testOffline?: boolean }).__testOffline = o), offline);
+      // A later document (a reload while offline) starts in this state. Playwright leaves the order
+      // of several init scripts undefined, so each carries its call's number and only the newest
+      // call's state is kept, whatever order they run in.
+      await context.addInitScript(([o, seq]) => {
+        const g = globalThis as { __testOffline?: boolean; __testOfflineSeq?: number };
+        if ((g.__testOfflineSeq ?? -1) < seq) {
+          g.__testOfflineSeq = seq;
+          g.__testOffline = o;
+        }
+      }, [offline, ++calls] as const);
       await real(offline);
       // Pages open now, once the network really is in that state.
       const tell = (o: boolean) => {
@@ -112,72 +122,119 @@ export const test = base.extend<{ consoleErrors: string[]; tolerate: RegExp[] }>
     await use(context);
   },
   consoleErrors: [
-    async ({ page, tolerate }, use, testInfo) => {
-      const errors: string[] = [];
-      const engine = testInfo.project.name;
-      const tolerated = (text: string) =>
-        tolerate.some((re) => re.test(text)) ||
-        (engine === "webkit" && WEBKIT_RECOVERED_WORKER_BLOCK.some((re) => re.test(text))) ||
-        (engine === "firefox" && FIREFOX_CANCELLED_FONT.test(text));
-      /** Messages a navigation can explain: checked against the navigations once the test ends. */
-      const ifNavigated: { text: string; at: number }[] = [];
-      const record = (text: string) => {
-        if (tolerated(text)) return;
-        if (
-          (engine === "webkit" && WEBKIT_CANCELLED_WORKER_LOAD.some((re) => re.test(text))) ||
-          (engine === "firefox" && FIREFOX_CANCELLED_WORKER_LOG.test(text))
-        )
-          ifNavigated.push({ text, at: Date.now() });
-        else errors.push(text);
-      };
-      page.on("console", (m) => { if (m.type() === "error") record(m.text()); });
-      // WebKit also reports the blocked worker load as a page error (no stack; Playwright splits
-      // "Cannot load http://..." at the colon into name and message), so the same list applies.
-      page.on("pageerror", (e) => { if (!tolerated(e.message) && !tolerated(`${e.name}:${e.message}`)) record(e.message); });
-      const navigations: number[] = [];
-      const startedAt = new WeakMap<Request, number>();
-      const cancelled: { text: string; started: number; failed: number }[] = [];
-      const startsDocument = (r: Request) => {
-        try {
-          return r.isNavigationRequest() && r.frame() === page.mainFrame();
-        } catch {
-          return false; // a request without a frame (service worker) never starts a document
-        }
-      };
-      page.on("request", (r) => {
-        startedAt.set(r, Date.now());
-        if (startsDocument(r)) navigations.push(Date.now());
-      });
-      page.on("framenavigated", (f) => { if (f === page.mainFrame()) navigations.push(Date.now()); });
-      page.on("requestfailed", (r) => {
-        const reason = (r.failure()?.errorText ?? "").trim();
-        const text = `request failed: ${r.url()} ${reason}`;
-        if (tolerated(text)) return;
-        if (engine === "firefox" && FIREFOX_CANCELLED_PYODIDE.test(text)) return void ifNavigated.push({ text, at: Date.now() });
-        // A request whose start wasn't seen needs a navigation within 2 s either side of the cancel.
-        if (CANCELLED.test(reason)) cancelled.push({ text, started: startedAt.get(r) ?? Date.now() - 2000, failed: Date.now() });
-        else errors.push(text);
-      });
-      page.on("response", (r) => {
-        const text = `HTTP ${r.status()}: ${r.url()}`;
-        if (r.status() >= 400 && !tolerated(text)) errors.push(text);
-      });
-      await use(errors);
-      for (const c of cancelled) {
-        if (navigations.some((t) => t >= c.started && t <= c.failed + 2000)) continue;
-        // The timings say why no navigation explains it (ms from the first navigation).
-        const zero = navigations[0] ?? c.started;
-        errors.push(`${c.text} (started ${c.started - zero}, failed ${c.failed - zero}, navigations ${navigations.map((t) => t - zero).join(" ")})`);
-      }
-      for (const m of ifNavigated) {
-        if (!navigations.some((t) => t >= m.at - 2000 && t <= m.at + 2000)) errors.push(m.text);
-      }
-      expect(errors, "console errors and failed requests").toEqual([]);
+    async ({ context, page, tolerate }, use, testInfo) => {
+      void page; // the default page exists before the watch starts, so it is one of context.pages()
+      const watch = watchContext(context, testInfo.project.name, tolerate);
+      await use(watch.errors);
+      expect(watch.settle(), "console errors and failed requests").toEqual([]);
     },
     { auto: true },
   ],
 });
 export { expect };
+
+/**
+ * The fixture's checks for every page of `context`, open now or opened later (a second tab, a
+ * popup). The fixture watches the test's own context; a test that makes another context
+ * (browser.newContext) watches it with this and checks `settle()` before closing it. `engine` is
+ * the project name (testInfo.project.name), `tolerate` what that test declares.
+ */
+export function watchContext(context: BrowserContext, engine: string, tolerate: RegExp[] = []) {
+  const errors: string[] = [];
+  const settlers: (() => void)[] = [];
+  const seen = new WeakSet<Page>();
+  const add = (p: Page) => {
+    if (seen.has(p)) return;
+    seen.add(p);
+    settlers.push(watchPage(p, engine, tolerate, errors));
+  };
+  for (const p of context.pages()) add(p);
+  context.on("page", add);
+  return {
+    /** What has been recorded so far; the navigation checks are only added by settle(). */
+    errors,
+    /** Adds what no navigation explains, once the pages are done, and returns every error. */
+    settle() {
+      context.off("page", add);
+      for (const s of settlers.splice(0)) s();
+      return errors;
+    },
+  };
+}
+
+/**
+ * Watches one page: its console errors, uncaught exceptions, failed requests and status >= 400.
+ * Navigations are this page's own, so one tab's reload never excuses another tab's cancellation.
+ * Returns the end-of-test check of what only a navigation can explain.
+ */
+function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: string[]) {
+  const tolerated = (text: string) =>
+    tolerate.some((re) => re.test(text)) ||
+    (engine === "webkit" && WEBKIT_RECOVERED_WORKER_BLOCK.some((re) => re.test(text))) ||
+    (engine === "firefox" && FIREFOX_CANCELLED_FONT.test(text));
+  /** Messages a navigation can explain: checked against the navigations once the test ends. */
+  const ifNavigated: { text: string; at: number }[] = [];
+  const record = (text: string) => {
+    if (tolerated(text)) return;
+    if (
+      (engine === "webkit" && WEBKIT_CANCELLED_WORKER_LOAD.some((re) => re.test(text))) ||
+      (engine === "firefox" && FIREFOX_CANCELLED_WORKER_LOG.test(text))
+    )
+      ifNavigated.push({ text, at: Date.now() });
+    else errors.push(text);
+  };
+  page.on("console", (m) => { if (m.type() === "error") record(m.text()); });
+  // WebKit also reports the blocked worker load as a page error (no stack; Playwright splits
+  // "Cannot load http://..." at the colon into name and message), so the same list applies.
+  page.on("pageerror", (e) => { if (!tolerated(e.message) && !tolerated(`${e.name}:${e.message}`)) record(e.message); });
+  // Only a new document counts, marked when its navigation request starts: a same-document change
+  // (pushState, a new hash, the app's replaceState) sends none. Not DOMContentLoaded: the first
+  // document's fires after the requests its parser found had started, so it would excuse their
+  // cancellation with no navigation at all. Late Firefox and WebKit lines are covered by the 2 s
+  // window either side in ifNavigated.
+  const navigations: number[] = [];
+  const startedAt = new WeakMap<Request, number>();
+  const cancelled: { text: string; started: number; failed: number }[] = [];
+  const startsDocument = (r: Request) => {
+    try {
+      return r.isNavigationRequest() && r.frame() === page.mainFrame();
+    } catch {
+      return false; // a request without a frame (service worker) never starts a document
+    }
+  };
+  page.on("request", (r) => {
+    startedAt.set(r, Date.now());
+    if (startsDocument(r)) navigations.push(Date.now());
+  });
+  // A tab the test closes ends its document as a navigation does, so what it still had in flight
+  // may be cancelled. None of the three engines reported such a cancellation when measured
+  // (2026-10-28: a held route, a delayed route and a half-read 10 MB download), so this is a guard.
+  page.once("close", () => navigations.push(Date.now()));
+  page.on("requestfailed", (r) => {
+    const reason = (r.failure()?.errorText ?? "").trim();
+    const text = `request failed: ${r.url()} ${reason}`;
+    if (tolerated(text)) return;
+    if (engine === "firefox" && FIREFOX_CANCELLED_PYODIDE.test(text)) return void ifNavigated.push({ text, at: Date.now() });
+    // A request whose start wasn't seen needs a navigation within 2 s either side of the cancel.
+    if (CANCELLED.test(reason)) cancelled.push({ text, started: startedAt.get(r) ?? Date.now() - 2000, failed: Date.now() });
+    else errors.push(text);
+  });
+  page.on("response", (r) => {
+    const text = `HTTP ${r.status()}: ${r.url()}`;
+    if (r.status() >= 400 && !tolerated(text)) errors.push(text);
+  });
+  return () => {
+    for (const c of cancelled) {
+      if (navigations.some((t) => t >= c.started && t <= c.failed + 2000)) continue;
+      // The timings say why no navigation explains it (ms from the first navigation).
+      const zero = navigations[0] ?? c.started;
+      errors.push(`${c.text} (started ${c.started - zero}, failed ${c.failed - zero}, navigations ${navigations.map((t) => t - zero).join(" ")})`);
+    }
+    for (const m of ifNavigated) {
+      if (!navigations.some((t) => t >= m.at - 2000 && t <= m.at + 2000)) errors.push(m.text);
+    }
+  };
+}
 
 /**
  * Options for test.use() that tolerate these messages. Playwright reads an array given to test.use()
