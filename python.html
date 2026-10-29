@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Run Python online in your browser | Execflow</title>
+    <meta name="description" content="Run Python 3.14 in your browser with nothing to install: input() waits for you to type, numpy and pandas load on first import, and errors come with a plain-language explanation." />
+    <link rel="canonical" href="https://code-editor.abhinesh.codes/python" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Execflow" />
+    <meta property="og:title" content="Run Python online in your browser" />
+    <meta property="og:description" content="Python 3.14 in your browser through Pyodide: input(), numpy and pandas, plain-language error help, no sign-up." />
+    <meta property="og:url" content="https://code-editor.abhinesh.codes/python" />
+    <meta property="og:image" content="https://code-editor.abhinesh.codes/icons/mark-v2-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Run Python online in your browser" />
+    <meta name="twitter:description" content="Python 3.14 in your browser through Pyodide: input(), numpy and pandas, plain-language error help, no sign-up." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/guide.css" />
+  </head>
+  <body class="about guide">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />Execflow</a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+    <nav class="guide-nav" aria-label="Guides">
+      <ul>
+        <li><a href="/flowchart-from-code">Flowchart from code</a></li>
+        <li><a href="/python" aria-current="page">Run Python</a></li>
+        <li><a href="/c">Run C</a></li>
+        <li><a href="/cpp">Run C++</a></li>
+      </ul>
+    </nav>
+
+    <main id="content">
+      <section class="guide-hero" aria-labelledby="title">
+        <h1 id="title">Run Python online in your browser</h1>
+        <p class="about-lede">
+          Execflow runs real Python, the CPython interpreter compiled to WebAssembly, inside your browser tab. There is
+          nothing to install and no account to make. A program that calls <code>input()</code> waits for you to type,
+          and when it fails, the error comes with an explanation in plain words.
+        </p>
+        <div class="about-ctas">
+          <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          <a class="about-btn about-btn-ghost" href="#examples">See the examples</a>
+        </div>
+        <dl class="guide-facts">
+          <div><dt>Python</dt><dd>3.14.2</dd></div>
+          <div><dt>Runtime</dt><dd>Pyodide 314.0.7</dd></div>
+          <div><dt>First start</dt><dd>About 12 MB, once</dd></div>
+          <div><dt>Account</dt><dd>None needed</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="start">
+        <h2 id="start">Your first program</h2>
+        <ol class="guide-list">
+          <li>Open the <a href="/">editor</a> and make a file whose name ends in <code>.py</code>.</li>
+          <li>Write your program and press <strong>Run</strong>. The first run in a browser downloads Python; after that it starts from the browser's copy.</li>
+          <li>When the program calls <code>input()</code>, a field appears in Output beside the prompt: type your answer and press Enter. You can also type the lines into the <strong>Input</strong> box before you run.</li>
+          <li>If it stops with an error, the line is marked in the code and the explanation sits under the error. The <strong>Flowchart</strong> tab draws how the program runs; the <a href="/flowchart-from-code">flowchart guide</a> explains it.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="examples">
+        <h2 id="examples">Examples, with what they really printed</h2>
+        <p>
+          Each program below was run in Execflow, and the output is copied from it exactly, including what was typed.
+          <strong>Open in Execflow</strong> puts the program in the editor, where you can change it and run it; nothing
+          runs until you press Run.
+        </p>
+
+        <div class="guide-example">
+          <h3 id="ex-input">Asking for input</h3>
+          <p>
+            <code>input()</code> shows its prompt and waits. What you type comes back as text, so a number has to go
+            through <code>int()</code> before you can add to it.
+          </p>
+          <div data-example="py-input"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-list">A list and a loop</h3>
+          <p>
+            <code>enumerate</code> gives each item a number as the loop walks the list; <code>max</code>,
+            <code>sum</code> and <code>len</code> work on the whole list at once. Dividing with <code>/</code> always
+            gives a float, which is why the average is <code>78.8</code>.
+          </p>
+          <div data-example="py-list"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-function">A function</h3>
+          <p>
+            <code>is_prime</code> returns as soon as it finds a divisor, and only checks up to the square root of
+            <code>n</code>. The list comprehension on the last lines keeps the numbers below 30 for which it returns
+            <code>True</code>.
+          </p>
+          <div data-example="py-function"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-error">An error, explained</h3>
+          <p>
+            A mistake almost every beginner makes: <code>input()</code> returns text, and <code>+</code> can't join text
+            to a number. Python's message is correct but terse; under it, Execflow says what it means for this line and
+            how to fix it.
+          </p>
+          <div data-example="py-error"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-numpy">numpy</h3>
+          <p>
+            The first time a program says <code>import numpy</code>, Execflow downloads numpy and then runs the program;
+            later runs use the copy kept in your browser. A boolean mask like <code>heights &gt; 155</code> picks the
+            values where it is true.
+          </p>
+          <div data-example="py-numpy"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-version">Which Python is this?</h3>
+          <p>
+            The same check you would run on your own computer. The platform is <code>emscripten</code>, the toolchain
+            that compiles Python to WebAssembly, not your operating system.
+          </p>
+          <div data-example="py-version"></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="loads">
+        <h2 id="loads">What loads, and when</h2>
+        <ul class="guide-list">
+          <li><strong>Python itself</strong> (Pyodide 314.0.7: the interpreter and the standard library, about 12 MB) downloads the first time Execflow starts Python, and the site's service worker keeps it, so later visits start without downloading it again.</li>
+          <li><strong>numpy 2.4.6 and pandas 3.0.2</strong>, with what pandas needs (python-dateutil, pytz and six), download only when a program imports them, then stay in the browser. numpy is about 3 MB and pandas about 4.2 MB.</li>
+          <li>Execflow sees these imports in the program's own lines (<code>import numpy</code>, <code>from pandas import ...</code>). An import made through <code>importlib</code> or <code>__import__</code> can't be seen ahead of time, and fails with a note saying so.</li>
+          <li>A Python program can use up to 512 MB of memory.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="not">
+        <h2 id="not">What doesn't run</h2>
+        <p>Execflow runs your program in a locked-down worker inside the page. That is what keeps it safe to run code from anyone, and it rules out a few things. These are the errors you get, copied from real runs:</p>
+        <h3 id="not-net">The internet</h3>
+        <p>The worker running your program has no network access, so <code>urllib</code>, sockets and similar code can't reach a website:</p>
+        <p class="guide-quote"><span data-capture="py-net:error"></span></p>
+        <h3 id="not-threads">Threads</h3>
+        <p>This Python can't start threads, so <code>threading</code> fails when a thread starts:</p>
+        <p class="guide-quote"><span data-capture="py-thread:error"></span></p>
+        <h3 id="not-pip">Installing packages</h3>
+        <p>There is no <code>pip</code>. Besides the standard library, programs can import numpy, pandas, dateutil, pytz and six. Anything else, such as <code>requests</code>, fails, and the explanation says why:</p>
+        <p class="guide-quote"><span data-capture="py-pip:error"></span></p>
+        <p class="guide-quote"><span data-capture="py-pip:means"></span></p>
+        <h3 id="not-gui">Windows and graphics</h3>
+        <p>There is no screen for a program to open a window on, and <code>tkinter</code> is not part of this Python:</p>
+        <p class="guide-quote"><span data-capture="py-tkinter:error"></span></p>
+      </section>
+
+      <section aria-labelledby="limits">
+        <h2 id="limits">Time and output limits</h2>
+        <p>
+          A run stops after 15 seconds, or when it has printed 524,288 characters, so a loop that never ends can't freeze
+          the page. Time spent waiting for your input doesn't count. Both limits can be changed in Settings: the time
+          from 1 to 120 seconds, and the output from 16 to 4,096 thousand characters.
+        </p>
+        <p>This loop never ends, because nothing changes <code>count</code>:</p>
+        <pre class="guide-quote"><code>count = 0
+while count &lt; 10:
+    print("Counting...")</code></pre>
+        <p>It hit the output limit in under a second, and Execflow explained:</p>
+        <p class="guide-quote"><span data-capture="py-forever:means"></span></p>
+      </section>
+
+      <section class="guide-faq" aria-labelledby="faq">
+        <h2 id="faq">Questions</h2>
+        <h3>Is it real Python, or a subset?</h3>
+        <p>It is CPython 3.14.2, the reference Python interpreter, compiled to WebAssembly by the Pyodide project, with its standard library. What differs is the machine around it: no network, no threads and no windows, as above.</p>
+        <h3>Does it work offline?</h3>
+        <p>Yes, after the first visit. The editor and Python are kept by the site's service worker, so they open and run without a connection, including programs that wait for input. numpy and pandas work offline once a program has imported them.</p>
+        <h3>Do I need to sign up?</h3>
+        <p>No. There are no accounts. Your files are kept in your browser; you can also connect your own GitHub account to sync them to a private repository.</p>
+        <h3>Is my code sent to a server to run?</h3>
+        <p>No. It runs in your browser. When you share a program as a code link, the code travels inside the link, after the <code>#code=</code> mark. Browsers never send that part of an address to a server, so the link works without the code being stored anywhere. Read the <a href="/privacy">privacy page</a> for everything Execflow keeps and sends.</p>
+        <h3>Why is the first run slower?</h3>
+        <p>The first run in a browser downloads Python (about 12 MB). Later runs start from the browser's copy. The first import of numpy or pandas downloads that package the same way.</p>
+      </section>
+
+      <section aria-labelledby="more">
+        <h2 id="more">More guides</h2>
+        <ul class="guide-more">
+          <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: how loops, decisions and returns are drawn, and exporting PNG or SVG.</li>
+          <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 8, and what a crash looks like.</li>
+          <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
+          <li><a href="/about">About Execflow</a>: everything the editor does, and what changed lately.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/code-editor">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>

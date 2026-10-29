@@ -4,6 +4,10 @@ import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
 import { FILE_URL } from "./src/about/fallback-deny.ts";
+import { makeCodeLink } from "./src/core/code-link.ts";
+import { loadGuideData } from "./src/pages/load.ts";
+import { expandGuide, type GuideData } from "./src/pages/render.ts";
+import { GUIDE_PATH, GUIDE_ROUTES } from "./src/pages/routes.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -287,6 +291,32 @@ function thirdPartyLicenses(): Plugin {
   };
 }
 
+/**
+ * The guide pages (src/pages/routes.ts): their examples, outputs and flowcharts are filled in from
+ * the repo's captured data (src/pages/render.ts), and each "Open in Execflow" link is made with the
+ * app's own code-link encoder, so a link always opens exactly the code shown beside it.
+ */
+function guidePages(): Plugin {
+  const files = new Set(GUIDE_ROUTES.map((r) => r.file));
+  let data: GuideData | undefined;
+  const link = async (name: string, text: string) => {
+    const made = await makeCodeLink("", name, text);
+    if (!made.ok) throw new Error(`guide pages: no code link for ${name} (${made.refusal.kind})`);
+    return made.url;
+  };
+  return {
+    name: "code-editor:guide-pages",
+    transformIndexHtml: {
+      order: "pre",
+      async handler(html, ctx) {
+        if (!files.has(ctx.filename.replace(/\\/g, "/").split("/").pop() ?? "")) return html;
+        data ??= loadGuideData(process.cwd());
+        return expandGuide(html, data, link);
+      },
+    },
+  };
+}
+
 /** `vite preview` sends the same security headers as Cloudflare, per path (cache rules left out). */
 function previewHeaders(): Plugin {
   return {
@@ -335,8 +365,15 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     rolldownOptions: {
       // The editor, and the Privacy and Terms pages (served at /privacy and /terms: Cloudflare Pages
-      // drops the .html; the service worker's precache matches the same clean URLs).
-      input: { index: "index.html", privacy: "privacy.html", terms: "terms.html", about: "about.html" },
+      // drops the .html; the service worker's precache matches the same clean URLs). The guide
+      // pages likewise (/python, /c, /cpp, /flowchart-from-code: src/pages/routes.ts).
+      input: {
+        index: "index.html",
+        privacy: "privacy.html",
+        terms: "terms.html",
+        about: "about.html",
+        ...Object.fromEntries(GUIDE_ROUTES.map((r) => [r.file.replace(/\.html$/, ""), r.file])),
+      },
       output: {
         ...hashedNames,
         // Oxc minifier: drop leftover console.* calls (and debugger statements, its default).
@@ -358,6 +395,7 @@ export default defineConfig(({ mode }) => ({
     pagesHeaders(),
     collectPackages(),
     thirdPartyLicenses(),
+    guidePages(),
     previewHeaders(),
     VitePWA({
       // An editor can hold unsaved text, so updates wait for the user instead of reloading tabs.
@@ -400,7 +438,9 @@ export default defineConfig(({ mode }) => ({
         // precache. /auth-callback keeps the fallback: it is an app route. A file URL (a name with an
         // extension other than .html, such as media/*.mp4) is a file, never the editor: it goes to the network
         // (FILE_URL ignores the query string, which Workbox tests along with the path).
-        navigateFallbackDenylist: [/^\/api\//, FILE_URL],
+        // The guide pages are pages of their own, never the editor (they are precached too, so
+        // this only matters if one is ever missing from the precache).
+        navigateFallbackDenylist: [/^\/api\//, FILE_URL, GUIDE_PATH],
         // numpy, pandas and their helpers (~7.5 MB, scripts/fetch-pyodide-packages.mjs) are not precached:
         // they download the first time a program imports them, then keep working offline. The folder is
         // versioned, so cached wheels never go stale; Pyodide also checks each one's sha256 (SRI).
