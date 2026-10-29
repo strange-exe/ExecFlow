@@ -17,7 +17,7 @@ import { ariaMod, h, isMac, isTyping, listNames, plural, shown } from "./dom";
 import { noEditor, type Editors } from "./editors";
 import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
-import { moveRole } from "../core/move-protocol";
+import { MOVE_PATH, moveRole } from "../core/move-protocol";
 import { exportZip, pickFiles, workspaceZip } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
 import { createLayout, NARROW } from "./layout";
@@ -2384,6 +2384,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
     );
   }
-  takeCodeLink();
-  window.addEventListener("hashchange", takeCodeLink);
+  // /move runs without cross-origin isolation (vite.config.ts "/move"), so another site that opened
+  // it can keep a handle to the tab and change its fragment: there code links are never taken.
+  if (location.pathname === MOVE_PATH) root.dataset.codeLinks = "off";
+  else {
+    takeCodeLink();
+    window.addEventListener("hashchange", takeCodeLink);
+  }
 }

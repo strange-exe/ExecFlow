@@ -21,7 +21,7 @@ export interface Release {
 export const CHANGELOG: readonly Release[] = [
   {
     version: "0.12.0",
-    date: "2026-10-29",
+    date: "2026-10-30",
     title: "A new address: execflow.abhinesh.codes",
     items: [
       { kind: "added", text: "A Move my files button at the old address that copies your files to the new one, after you say yes there. They stay at the old address too." },

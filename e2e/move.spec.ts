@@ -5,6 +5,7 @@
 // postMessage; each side takes messages only from the other's exact origin AND window.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { deflateRawSync } from "node:zlib";
 import type { Page } from "@playwright/test";
 import { writeZip } from "../src/storage/zip";
 import type { WsPath } from "../src/core/types";
@@ -124,6 +125,8 @@ test.describe("moving files", () => {
     expect(new URL(popup.url()).hash).toBe("");
     await dialog.getByRole("button", { name: "Add files" }).click();
     await expect(popup.locator("#app")).toHaveAttribute("data-move", "done");
+    // The move is over: the new tab lets go of the old one (no reverse tabnabbing later).
+    expect(await popup.evaluate(() => window.opener === null)).toBe(true);
     await expect(popup.locator(".notice")).toContainText(`Added 3 files from ${new URL(OLD).host}.`);
     await expectFiles(popup);
     await expect(page.locator("#app")).toHaveAttribute("data-move", "done");
@@ -143,6 +146,7 @@ test.describe("moving files", () => {
     await waitReady(popup);
     await popup.getByRole("alertdialog").getByRole("button", { name: "Not now" }).click();
     await expect(popup.locator("#app")).toHaveAttribute("data-move", "refused-declined");
+    expect(await popup.evaluate(() => window.opener === null)).toBe(true);
     await expect(popup.locator(".tree [role=treeitem]")).toHaveCount(0);
     await expect(page.locator("#app")).toHaveAttribute("data-move", "refused-declined");
     await expect(page.locator(".notice")).toContainText("Nothing was moved");
@@ -161,6 +165,22 @@ test.describe("moving files", () => {
     await page.locator(".notice").getByRole("button", { name: "Download .zip" }).click();
     expect((await download).suggestedFilename()).toMatch(/\.zip$/);
   });
+});
+
+test("/move runs without isolation, so it offers no code links; / still does", async ({ page }) => {
+  const link = `#code=1.${deflateRawSync(JSON.stringify({ n: "hello.py", t: "print(1)\n" })).toString("base64url")}`;
+  await openApp(page, `${NEW}/${link}`);
+  const shown = Date.now();
+  await expect(page.locator("dialog#code-link")).toHaveAttribute("data-state", "ready");
+  // How long / took to offer it once the editor was ready: /move gets several times that to (not) do it.
+  const offerMs = Date.now() - shown;
+  await openApp(page, `${NEW}/move${link}`);
+  // The editor decided (its last start-up step), and the link was left alone: still in the address
+  // bar, no dialog. On / the same link left the address bar as soon as it was taken.
+  await expect(page.locator("#app")).toHaveAttribute("data-code-links", "off");
+  await page.waitForTimeout(Math.max(1500, offerMs * 4));
+  await expect(page.locator("dialog#code-link[open]")).toHaveCount(0);
+  expect(new URL(page.url()).hash).toBe(link);
 });
 
 test.describe("a third origin", () => {

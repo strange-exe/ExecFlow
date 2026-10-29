@@ -160,7 +160,13 @@ function takeMove(app: MoveApp, from: string): void {
       }),
     onState: (s) => (app.root.dataset.move = s),
     onIgnored: (n) => (app.root.dataset.moveIgnored = String(n)),
-  }).then((result: ReceiveResult) => {
+  })
+    // However it ended, this tab lets go of the old one: the student may keep working here, and a
+    // site visited later in this tab must not be able to navigate the old tab (reverse tabnabbing).
+    .finally(() => {
+      window.opener = null;
+    })
+    .then((result: ReceiveResult) => {
     app.root.dataset.move = result.kind === "refused" ? `refused-${result.reason}` : result.kind;
     switch (result.kind) {
       case "done":
