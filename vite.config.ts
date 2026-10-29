@@ -315,7 +315,9 @@ function site(): Plugin {
       },
     },
     generateBundle() {
-      const dates = pageDates((file) => readFileSync(file, "utf8"), CHANGELOG[0].date);
+      const released = CHANGELOG[0].date;
+      // The guide pages (src/pages/routes.ts) are rebuilt with each release, like the editor.
+      const dates = [...pageDates((file) => readFileSync(file, "utf8"), released), ...GUIDE_ROUTES.map((r) => ({ path: r.path, lastmod: released }))];
       this.emitFile({ type: "asset", fileName: "sitemap.xml", source: sitemapXml(dates) });
     },
     configurePreviewServer(server) {

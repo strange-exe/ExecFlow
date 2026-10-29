@@ -116,7 +116,8 @@ describe("the build (vite.config.ts) uses these", () => {
   const config = read("vite.config.ts");
 
   it("builds every page and 404.html, adds the head tags, writes the sitemap, and copies Pages' 404s and rewrites into vite preview", () => {
-    expect(config).toContain("input: HTML_INPUT,");
+    // The guide pages (src/pages/routes.ts) are built beside these, so the input spreads HTML_INPUT.
+    expect(config).toContain("...HTML_INPUT,");
     expect(config).toContain("withHeadTags(");
     expect(config).toContain('fileName: "sitemap.xml"');
     expect(config).toContain("pagesFile(");
@@ -157,10 +158,16 @@ describe("the sitemap", () => {
     expect(dates.find((d) => d.path === "/terms")?.lastmod).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  // The 0.10.0 Privacy/Terms redesign moved the date into a <time datetime> element (it was a
+  // "legal-date" paragraph when the sitemap was written), so the line is read in that form.
   it("lastUpdated reads the legal pages' date line, and stops the build without one", () => {
-    expect(lastUpdated('<p class="legal-date">Last updated 7 March 2026</p>')).toBe("2026-03-07");
+    const line = (iso: string, shown: string) => `<p class="legal-updated"><svg></svg>\n  <span>Last updated</span> <time datetime="${iso}">${shown}</time>\n</p>`;
+    expect(lastUpdated(line("2026-03-07", "7 March 2026"))).toBe("2026-03-07");
     expect(() => lastUpdated("<p>no date</p>")).toThrow(/Last updated/);
-    expect(() => lastUpdated('<p class="legal-date">Last updated 7 Smarch 2026</p>')).toThrow(/Smarch/);
+    expect(() => lastUpdated(line("2026-03-07", "7 Smarch 2026"))).toThrow(/Smarch/);
+    expect(() => lastUpdated(line("2026-03-08", "7 March 2026"))).toThrow(/datetime is 2026-03-08/);
+    expect(lastUpdated(read("privacy.html"))).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(lastUpdated(read("terms.html"))).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

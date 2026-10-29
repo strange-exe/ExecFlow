@@ -5,6 +5,7 @@
 // return path still opens the editor. The CSP holds with the JSON-LD block (the console watch fails
 // any test with a CSP error).
 import AxeBuilder from "@axe-core/playwright";
+import { GUIDE_ROUTES } from "../src/pages/routes";
 import { expect, openApp, openIn, test, tolerating } from "./helpers";
 
 const ORIGIN = "https://code-editor.abhinesh.codes";
@@ -99,14 +100,14 @@ test.describe("search and sharing", () => {
     });
   }
 
-  test("robots.txt names the sitemap, and sitemap.xml lists the four pages", async ({ request }) => {
+  test("robots.txt names the sitemap, and sitemap.xml lists the four pages and the four guides", async ({ request }) => {
     const robots = await (await request.get("/robots.txt")).text();
     expect(robots).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
     const res = await request.get("/sitemap.xml");
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toMatch(/xml/);
     const locs = [...(await res.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    expect(locs).toEqual(PAGES.map((p) => ORIGIN + p.path));
+    expect(locs).toEqual([...PAGES, ...GUIDE_ROUTES].map((p) => ORIGIN + p.path));
   });
 
   test("GitHub's sign-in return path still opens the editor", async ({ page }) => {

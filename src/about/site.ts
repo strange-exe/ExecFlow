@@ -110,13 +110,19 @@ export function servedPath(path: string): string | null {
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/** A legal page's "Last updated 28 October 2026" line as 2026-10-28. A page without one stops the build. */
+/**
+ * A legal page's "Last updated" line (`<span>Last updated</span> <time datetime="2026-10-28">28 October
+ * 2026</time>`) as 2026-10-28. The date a reader sees and the machine-readable one must agree; a page
+ * without the line, or with two dates that differ, stops the build.
+ */
 export function lastUpdated(html: string): string {
-  const m = /class="legal-date">Last updated (\d{1,2}) ([A-Za-z]+) (\d{4})</.exec(html);
-  if (!m) throw new Error('No "Last updated <day> <month> <year>" line (class="legal-date") for the sitemap.');
-  const month = MONTHS.indexOf(m[2]) + 1;
-  if (!month) throw new Error(`Unknown month in "Last updated": ${m[2]}`);
-  return `${m[3]}-${String(month).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  const m = /<span>Last updated<\/span>\s*<time datetime="(\d{4}-\d{2}-\d{2})">(\d{1,2}) ([A-Za-z]+) (\d{4})<\/time>/.exec(html);
+  if (!m) throw new Error('No "Last updated <time datetime=...>day month year</time>" line for the sitemap.');
+  const month = MONTHS.indexOf(m[3]) + 1;
+  if (!month) throw new Error(`Unknown month in "Last updated": ${m[3]}`);
+  const shown = `${m[4]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  if (shown !== m[1]) throw new Error(`"Last updated" says ${m[2]} ${m[3]} ${m[4]} but its datetime is ${m[1]}`);
+  return shown;
 }
 
 /**
