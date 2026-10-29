@@ -4,9 +4,13 @@ import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
-import { APP_ROUTE, FILE_URL } from "./src/about/fallback-deny.ts";
+import { APP_ROUTE, NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
 import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
+import { makeCodeLink } from "./src/core/code-link.ts";
+import { loadGuideData } from "./src/pages/load.ts";
+import { expandGuide, type GuideData } from "./src/pages/render.ts";
+import { GUIDE_ROUTES } from "./src/pages/routes.ts";
 
 const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version;
 /** Pyodide's folder under /pyodide/: version plus Python's memory cap (scripts/copy-pyodide.mjs builds it). */
@@ -335,6 +339,32 @@ function site(): Plugin {
   };
 }
 
+/**
+ * The guide pages (src/pages/routes.ts): their examples, outputs and flowcharts are filled in from
+ * the repo's captured data (src/pages/render.ts), and each "Open in CodeEditor" link is made with the
+ * app's own code-link encoder, so a link always opens exactly the code shown beside it.
+ */
+function guidePages(): Plugin {
+  const files = new Set(GUIDE_ROUTES.map((r) => r.file));
+  let data: GuideData | undefined;
+  const link = async (name: string, text: string) => {
+    const made = await makeCodeLink("", name, text);
+    if (!made.ok) throw new Error(`guide pages: no code link for ${name} (${made.refusal.kind})`);
+    return made.url;
+  };
+  return {
+    name: "code-editor:guide-pages",
+    transformIndexHtml: {
+      order: "pre",
+      async handler(html, ctx) {
+        if (!files.has(ctx.filename.replace(/\\/g, "/").split("/").pop() ?? "")) return html;
+        data ??= loadGuideData(process.cwd());
+        return expandGuide(html, data, link);
+      },
+    },
+  };
+}
+
 /** `vite preview` sends the same security headers as Cloudflare, per path (cache rules left out). */
 function previewHeaders(): Plugin {
   return {
@@ -384,7 +414,11 @@ export default defineConfig(({ mode }) => ({
     rolldownOptions: {
       // The editor, About, Privacy and Terms (served at /about, /privacy and /terms: Cloudflare Pages
       // drops the .html; the service worker's precache matches the same clean URLs), and 404.html.
-      input: HTML_INPUT,
+      // The guide pages likewise (/python, /c, /cpp, /flowchart-from-code: src/pages/routes.ts).
+      input: {
+        ...HTML_INPUT,
+        ...Object.fromEntries(GUIDE_ROUTES.map((r) => [r.file.replace(/\.html$/, ""), r.file])),
+      },
       output: {
         ...hashedNames,
         // Oxc minifier: drop leftover console.* calls (and debugger statements, its default).
@@ -406,6 +440,7 @@ export default defineConfig(({ mode }) => ({
     pagesHeaders(),
     collectPackages(),
     thirdPartyLicenses(),
+    guidePages(),
     previewHeaders(),
     site(),
     VitePWA({
@@ -452,8 +487,9 @@ export default defineConfig(({ mode }) => ({
         // network, never from the precache. A file URL (a name with an extension other than .html, such
         // as media/*.mp4) is a file, never the editor: it goes to the network (FILE_URL ignores the
         // query string, which Workbox tests along with the path). Workbox applies both lists.
+        // The guide pages are pages of their own, never the editor (src/about/fallback-deny.ts).
         navigateFallbackAllowlist: [APP_ROUTE],
-        navigateFallbackDenylist: [/^\/api\//, FILE_URL],
+        navigateFallbackDenylist: [...NAVIGATE_DENYLIST],
         // numpy, pandas and their helpers (~7.5 MB, scripts/fetch-pyodide-packages.mjs) are not precached:
         // they download the first time a program imports them, then keep working offline. The folder is
         // versioned, so cached wheels never go stale; Pyodide also checks each one's sha256 (SRI).

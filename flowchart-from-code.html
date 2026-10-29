@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Turn Python, C or C++ code into a flowchart | CodeEditor</title>
+    <meta name="description" content="Paste Python, C or C++ and CodeEditor draws its flowchart in your browser: decisions, loops, input and output. Made by a parser, not AI. Export PNG or SVG." />
+    <link rel="canonical" href="https://code-editor.abhinesh.codes/flowchart-from-code" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="CodeEditor" />
+    <meta property="og:title" content="Turn Python, C or C++ code into a flowchart" />
+    <meta property="og:description" content="CodeEditor draws the flowchart of your Python, C or C++ code in the browser, with a parser instead of AI, and exports it as PNG or SVG." />
+    <meta property="og:url" content="https://code-editor.abhinesh.codes/flowchart-from-code" />
+    <meta property="og:image" content="https://code-editor.abhinesh.codes/icons/mark-v2-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Turn Python, C or C++ code into a flowchart" />
+    <meta name="twitter:description" content="CodeEditor draws the flowchart of your Python, C or C++ code in the browser, with a parser instead of AI, and exports it as PNG or SVG." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/guide.css" />
+  </head>
+  <body class="about guide">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+    <nav class="guide-nav" aria-label="Guides">
+      <ul>
+        <li><a href="/flowchart-from-code" aria-current="page">Flowchart from code</a></li>
+        <li><a href="/python">Run Python</a></li>
+        <li><a href="/c">Run C</a></li>
+        <li><a href="/cpp">Run C++</a></li>
+      </ul>
+    </nav>
+
+    <main id="content">
+      <section class="guide-hero" aria-labelledby="title">
+        <h1 id="title">Turn Python, C or C++ code into a flowchart</h1>
+        <p class="about-lede">
+          Write or paste a program in CodeEditor, open the Flowchart tab, and every decision, loop and early return of the
+          function you pick becomes a box in the standard flowchart shapes. It is drawn in your browser from the code
+          itself, so the chart follows the code's structure, statement by statement.
+        </p>
+        <div class="about-ctas">
+          <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          <a class="about-btn about-btn-ghost" href="#examples">See four worked examples</a>
+        </div>
+        <dl class="guide-facts">
+          <div><dt>Languages</dt><dd>Python, C and C++</dd></div>
+          <div><dt>How it is drawn</dt><dd>A parser in your browser, no AI</dd></div>
+          <div><dt>Export</dt><dd>PNG or SVG</dd></div>
+          <div><dt>Account</dt><dd>None needed</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="how">
+        <h2 id="how">From code to chart in four steps</h2>
+        <ol class="guide-list">
+          <li>Open the <a href="/">editor</a> and create a file ending in <code>.py</code>, <code>.c</code> or <code>.cpp</code>, or paste your code into one.</li>
+          <li>Open the <strong>Flowchart</strong> tab next to Output. The chart of the program's entry point appears: <code>main</code> in C and C++, and in Python the file's top level, called <em>Program</em>.</li>
+          <li>Pick another function from the <strong>Function</strong> menu: each function, and in Python each method, has a chart of its own.</li>
+          <li>Click a box to jump to its lines in the code, or open <strong>Steps as text</strong> to read the same chart as a numbered list. <strong>Export</strong> saves it as a PNG or an SVG.</li>
+        </ol>
+        <p>
+          The chart follows the code as you type. You don't need to run the program first, and the program doesn't need
+          to be finished: the parser draws what it can read.
+        </p>
+      </section>
+
+      <section aria-labelledby="examples">
+        <h2 id="examples">Worked examples</h2>
+        <p>
+          Each chart below is the one CodeEditor drew for the code beside it, saved with its own SVG export and shown here
+          in this page's colours. The output under each program is what it printed when it ran in CodeEditor.
+          <strong>Open in CodeEditor</strong> shows the program in CodeEditor as a preview first.
+          <strong>Add to my files</strong> puts it in the editor, where you can change the code and watch the chart
+          follow; nothing runs until you press Run.
+        </p>
+
+        <div class="guide-example">
+          <h3 id="ex-loop">A loop: adding up 1 to 5</h3>
+          <div class="fc-pair">
+            <div data-example="fc-loop"></div>
+            <div data-flowchart="fc-loop"></div>
+          </div>
+          <p>
+            A <code>for</code> loop is drawn as a decision: <em>is there another value of <code>n</code>?</em> The Yes
+            arrow goes into the loop's body and back up to the decision; the No arrow leaves the loop for the
+            <code>print</code>, which is drawn as input or output. Python's <code>range(1, 6)</code> stops before 6, which
+            is why the total is 15.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-ifelse">If and else: pass or fail</h3>
+          <div class="fc-pair">
+            <div data-example="fc-ifelse"></div>
+            <div data-flowchart="fc-ifelse"></div>
+          </div>
+          <p>
+            The diamond asks the <code>if</code> condition. Yes leads to the first <code>printf</code>, No to the
+            <code>else</code> branch, and both meet again before <code>return 0</code>, the End. <code>scanf</code> is
+            input, so it gets the same slanted shape as <code>printf</code>.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-return">A function with an early return</h3>
+          <div class="fc-pair">
+            <div data-example="fc-return"></div>
+            <div data-flowchart="fc-return"></div>
+          </div>
+          <p>
+            This is the chart of the function <code>find</code>, picked from the Function menu. It has two ends: the
+            <code>return i</code> inside the loop leaves as soon as the item is found, and <code>return -1</code> runs
+            only when the loop has checked every item. Charts like this make an early return easy to see, where in the
+            code it is one indented line.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-nested">Nested loops: a multiplication table</h3>
+          <div class="fc-pair">
+            <div data-example="fc-nested"></div>
+            <div data-flowchart="fc-nested"></div>
+          </div>
+          <p>
+            The inner loop is a second decision inside the first one's Yes branch. A C or C++ <code>for</code> loop is
+            drawn in its three parts: the start (<code>int col = 1</code>), the test (the diamond) and the update
+            (<code>col++</code>) after the body. When the inner test says No, the program prints the line break, moves
+            to the next row and goes back to the outer test.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="shapes">
+        <h2 id="shapes">What each shape means</h2>
+        <p>The shapes are the standard flowchart symbols of ISO 5807. Each kind also has its own colour, but the shape and the words always say what it is.</p>
+        <ul class="guide-list">
+          <li><strong>Rounded ends (terminators):</strong> Start, and every End. A <code>return</code>, <code>raise</code> or <code>throw</code> is an End that shows its code, like <em>End: return -1</em>.</li>
+          <li><strong>Diamonds (decisions):</strong> an <code>if</code>, <code>elif</code>, <code>while</code>, <code>for</code> or <code>do</code> test, with its arrows labelled <strong>Yes</strong> and <strong>No</strong>. A C or C++ <code>switch</code> fans out into one column per case, each labelled with its case.</li>
+          <li><strong>Slanted boxes (input or output):</strong> <code>print</code> and <code>input</code> in Python; <code>printf</code>, <code>scanf</code>, <code>puts</code>, <code>putchar</code>, <code>gets</code>, <code>fgets</code> and <code>getchar</code> in C; those and <code>getline</code>, <code>std::cout</code> and <code>std::cin</code> in C++.</li>
+          <li><strong>Boxes with side bars (calls):</strong> a call to one of your own functions, which has a chart of its own.</li>
+          <li><strong>Rectangles (steps):</strong> everything else. Up to three simple statements in a row share one box, so a chart stays readable.</li>
+          <li><strong>Small circles (connectors):</strong> where a loop with no test comes back to, and both ends of a C <code>goto</code>, named after its label.</li>
+        </ul>
+        <p>A box the program can never reach, such as code after a <code>return</code>, is marked <em>never reached</em>.</p>
+      </section>
+
+      <section aria-labelledby="export">
+        <h2 id="export">Export as PNG or SVG</h2>
+        <p>
+          The <strong>Export</strong> button in the Flowchart tab offers <strong>Download PNG</strong> and
+          <strong>Download SVG</strong>, and <strong>Copy image</strong> in browsers that can copy images. Under them you
+          choose the colours: <strong>Print-safe light</strong>, dark ink on white (the default, good for printing and
+          for documents), or <strong>Match the editor</strong>, the colours of your theme.
+        </p>
+        <p>
+          A PNG is drawn at twice the chart's size for sharp printing; a chart too big for the browser to draw at that
+          size is saved smaller, and CodeEditor says so. An SVG stays sharp at any size and can be opened in drawing
+          programs. Every export has a footer line with the file's name and the function it shows. The file is named
+          after both, like <code>find-py-find-flowchart.svg</code>.
+        </p>
+      </section>
+
+      <section aria-labelledby="limits">
+        <h2 id="limits">What is not drawn box by box</h2>
+        <p>Some statements become one box with the note <em>shown as one step</em>, so the chart stays honest about what it leaves out. For example:</p>
+        <ul class="guide-list">
+          <li>In Python: <code>try</code>, <code>with</code> and <code>match</code> blocks, a function or class defined inside another, a line that contains a <code>lambda</code>, and another expression that spans several lines.</li>
+          <li>In C and C++: <code>try</code> blocks (C++), preprocessor lines such as <code>#ifdef</code> inside a function, a statement that spans several lines, and a <code>case</code> label inside a block or loop within its <code>switch</code>.</li>
+        </ul>
+        <p>
+          Definitions are not steps of the code around them: the chart of a Python file's top level skips its
+          <code>def</code> blocks, and each function gets a chart of its own. A function with more than 400 boxes, or nested more than 40 levels deep, is too big
+          to draw; CodeEditor says so and you can pick a smaller function.
+        </p>
+      </section>
+
+      <section aria-labelledby="approach">
+        <h2 id="approach">How the chart is made, and why it matters</h2>
+        <p>
+          CodeEditor reads your code with a parser (tree-sitter, the same kind of parser code editors use to colour code)
+          and builds the chart from the program's structure. That has three consequences you can rely on:
+        </p>
+        <ul class="guide-list">
+          <li><strong>The same code always gives the same chart.</strong> There is no AI model guessing at it, so there is nothing to double-check against the code: every box is a statement of it, and clicking the box shows which.</li>
+          <li><strong>Your code stays on your computer.</strong> The chart is drawn by a worker in your browser. The only thing it downloads is the parser for the language, from this site, the first time you open a chart: about 0.7 MB for Python, 0.8 MB for C and 3.6 MB for C++. After that it is kept in the browser, so later charts don't download it again.</li>
+          <li><strong>No daily limit, no sign-up.</strong> Draw as many charts as you like. The only limit is the size of one function's chart, above.</li>
+        </ul>
+        <p>
+          What the parser can't do is explain intent: the boxes show the code's own text, not a summary in words. If you
+          need a chart in plain language for a report, export the SVG and edit the labels in a drawing program.
+        </p>
+      </section>
+
+      <section class="guide-faq" aria-labelledby="faq">
+        <h2 id="faq">Questions</h2>
+        <h3>Does the code have to run without errors?</h3>
+        <p>No. The chart comes from reading the code, not from running it. A program with a mistake still gets a chart, with a note above it such as <em>Line 4 has a mistake, so this part of the chart may be incomplete.</em> and a button that goes to that line. Running it is one click away, in the same window.</p>
+        <h3>Can I draw a flowchart of one function?</h3>
+        <p>Yes, that is how it works: every function has its own chart, picked from the Function menu. Calls to your other functions are boxes with side bars, so the chart of <code>main</code> stays short.</p>
+        <h3>Does it work offline?</h3>
+        <p>After your first visit the editor opens without a connection, and Python runs offline too. A language's flowchart parser is downloaded the first time you open a chart in that language, and kept in the browser after that.</p>
+        <h3>Is my code sent anywhere?</h3>
+        <p>Not to draw a chart. Files are kept in your browser unless you connect GitHub or share one. A shared code link carries the code after the <code>#</code> in the address, a part browsers never send to a server. The <a href="/privacy">privacy page</a> has the details.</p>
+        <h3>What reads the code?</h3>
+        <p>tree-sitter's grammars for Python, C and C++ (versions 0.25.0, 0.24.1 and 0.23.4), run by web-tree-sitter 0.27.1 in your browser. They are open source; the <a href="/licenses.txt">licences page</a> lists them.</p>
+      </section>
+
+      <section aria-labelledby="more">
+        <h2 id="more">More guides</h2>
+        <ul class="guide-more">
+          <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas, and what doesn't run.</li>
+          <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 8, and what a crash looks like.</li>
+          <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
+          <li><a href="/about">About CodeEditor</a>: everything the editor does, and what changed lately.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/code-editor">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>

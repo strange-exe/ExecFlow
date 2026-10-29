@@ -1,0 +1,400 @@
+/* The guide pages (flowchart-from-code.html, python.html, c.html, cpp.html): the About page's look
+   (header, buttons, type, tokens, footer) for reading and examples. Reading order: 1. the headline
+   and its lede, 2. the key facts, 3. the examples (code, then what it printed), 4. the limits and
+   the FAQ. No script but theme-boot.js, which paints the saved light or dark theme. */
+@import "./about.css";
+
+/* The guide list under the header: where you are, and the other three. */
+.guide-nav {
+  width: 100%;
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 0 var(--s4);
+}
+.guide-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s5);
+  margin: 0;
+  padding: 0 0 var(--s2);
+  list-style: none;
+  border-bottom: 1px solid var(--divider);
+}
+.guide-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: var(--fs-2);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.guide-nav a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.guide-nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: var(--w-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--action);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+/* ---------------------------------------------------------------- hero: the task, then the facts */
+.guide .guide-hero {
+  padding-top: var(--s6);
+  padding-bottom: var(--s5);
+}
+.guide h1 {
+  max-width: 20ch;
+  font-size: clamp(32px, 4.6vw, 52px);
+}
+.guide .about-lede {
+  max-width: 58ch;
+}
+.guide-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 0;
+  margin: var(--s6) 0 0;
+  border-top: 1px solid var(--divider);
+}
+.guide-facts > div {
+  padding: var(--s3) var(--s4) var(--s3) 0;
+  border-bottom: 1px solid var(--divider);
+}
+.guide-facts dt {
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--text-muted);
+}
+.guide-facts dd {
+  margin: var(--s1) 0 0;
+  font-weight: var(--w-strong);
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- sections and prose */
+.guide main > section:not(.guide-hero) {
+  padding-top: var(--s5);
+  padding-bottom: var(--s5);
+}
+.guide h3 {
+  margin: var(--s5) 0 var(--s2);
+  font-size: 19px;
+  line-height: 1.35;
+  font-weight: var(--w-strong);
+}
+.guide main ul.guide-list,
+.guide main ol.guide-list {
+  max-width: 68ch;
+  margin: 0 0 var(--s3);
+  padding-left: var(--s5);
+  color: var(--text-secondary);
+}
+.guide-list li + li {
+  margin-top: var(--s2);
+}
+.guide main strong {
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+.guide main code {
+  font-family: var(--font-code);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+/* One captured line from the app (an error message, the download offer), set in the mono. */
+.guide-quote {
+  max-width: 68ch;
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface);
+  font-family: var(--font-code);
+  font-size: var(--fs-2);
+  line-height: 1.6;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- an example: code, then its run */
+.guide-example {
+  margin: var(--s5) 0 var(--s6);
+}
+.guide-example > h3 {
+  margin-top: 0;
+}
+.ex {
+  margin-top: var(--s3);
+  border-radius: var(--r-dialog);
+  background: var(--surface);
+  /* A real border: an inset shadow would be painted over by the panes' own grounds. */
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.ex-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s4);
+  padding: var(--s2) var(--s2) var(--s2) var(--s4);
+  border-bottom: 1px solid var(--divider);
+}
+.ex-file {
+  font-family: var(--font-code);
+  font-size: var(--fs-2);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.guide .ex-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-control);
+  /* The About page's ghost button: the page's one primary action stays "Open the editor". */
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-size: var(--fs-2);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.guide .ex-open:hover {
+  background: var(--hover);
+}
+/* The file name in the link's name (screen readers), not shown: the bar already shows it. */
+.ex-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ex-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.ex-code,
+.ex-out {
+  margin: 0;
+  padding: var(--s4);
+  font-family: var(--font-code);
+  font-size: var(--fs-2);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+/* Code keeps its lines whole (a wrapped Python line reads as a new one): on a phone the block
+   scrolls sideways, and it is a keyboard stop (render.ts gives it tabindex and a name). */
+.ex-code {
+  background: var(--bg);
+  color: var(--text);
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+/* Inside the frame (.ex clips what overflows), so the ring isn't cut off. */
+.guide .ex-code:focus-visible {
+  outline-offset: -3px;
+  border-radius: 0;
+}
+.ex-run {
+  display: flex;
+  flex-direction: column;
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
+  border-top: 1px solid var(--divider);
+}
+.guide main .ex-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin: 0;
+  padding: var(--s3) var(--s4) 0;
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  font-weight: var(--w-strong);
+  color: var(--terminal-fg);
+}
+.ex-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: var(--w-label);
+}
+.ex-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.ex-status:not([data-status="ok"])::before {
+  background: var(--danger);
+}
+.ex-out {
+  flex: 1;
+  color: var(--terminal-fg);
+}
+/* What was typed: its own colour, and bold, so colour isn't the only sign. */
+.ex-typed {
+  font-family: var(--font-code);
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--input-echo);
+}
+.guide main .ex-typed-note {
+  margin: 0;
+  padding: 0 var(--s4) var(--s3);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  color: var(--terminal-fg);
+  max-width: none;
+}
+/* A line the app adds after a failed run, apart from the program's own output. */
+.ex-note {
+  font-style: italic;
+}
+.ex-help {
+  margin: 0 var(--s4) var(--s4);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-control);
+  border-left: 3px solid var(--action);
+  background: var(--surface);
+  color: var(--text);
+}
+.guide main .ex-help p {
+  margin: 0 0 var(--s2);
+  color: var(--text);
+  font-size: var(--fs-1);
+  line-height: var(--lh-prose);
+}
+.guide main .ex-help p:last-child {
+  margin-bottom: 0;
+}
+.guide main .ex-help .ex-help-title {
+  font-weight: var(--w-strong);
+  font-size: var(--fs-2);
+  color: var(--text-secondary);
+}
+@media (min-width: 900px) {
+  /* The code keeps its lines whole: its pane is as wide as its longest line (up to 70%), so on a
+     desktop no line hides past the edge; the output wraps in the rest. */
+  .ex-panes {
+    grid-template-columns: fit-content(70%) minmax(0, 1fr);
+  }
+  .ex-run {
+    border-top: 0;
+    border-left: 1px solid var(--divider);
+  }
+}
+
+/* ---------------------------------------------------------------- a flowchart, inline */
+.fc-figure {
+  margin: var(--s4) 0 0;
+}
+.fc-frame {
+  display: flex;
+  justify-content: center;
+  padding: var(--s4);
+  border-radius: var(--r-dialog);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.fc-chart {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.fc-steps {
+  margin-top: var(--s2);
+}
+.fc-steps summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+  font-weight: var(--w-label);
+  color: var(--text);
+}
+.fc-steps summary::-webkit-details-marker {
+  display: none;
+}
+/* The disclosure's chevron (the native marker goes with display: inline-flex): right, then down. */
+.fc-steps summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin: 0 2px 0 var(--s1);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+.fc-steps[open] summary::before {
+  transform: rotate(45deg);
+}
+.fc-steps ol {
+  margin: 0 0 var(--s3);
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-code);
+  font-size: var(--fs-2);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+/* Chart beside its code from 900 px: read the code, then follow the boxes. */
+.fc-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .fc-pair {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--s5);
+  }
+  .fc-pair .ex-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fc-pair .ex-run {
+    border-left: 0;
+    border-top: 1px solid var(--divider);
+  }
+}
+
+/* ---------------------------------------------------------------- FAQ and the other guides */
+.guide-faq h3 {
+  padding-top: var(--s4);
+  border-top: 1px solid var(--divider);
+}
+.guide-faq h3:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.guide-more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: 68ch;
+}
+.guide-more li {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--divider);
+  color: var(--text-secondary);
+}
+.guide-more a {
+  font-weight: var(--w-strong);
+}

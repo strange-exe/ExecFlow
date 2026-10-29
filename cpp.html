@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Run C++ online in your browser | CodeEditor</title>
+    <meta name="description" content="Compile and run C++17 in your browser with clang 8 and libc++: cin, vector, string and sort, with compiler errors explained in plain words." />
+    <link rel="canonical" href="https://code-editor.abhinesh.codes/cpp" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="CodeEditor" />
+    <meta property="og:title" content="Run C++ online in your browser" />
+    <meta property="og:description" content="C++17 compiled and run in your browser with clang 8 and libc++: cin, vector, string, and errors explained in plain words." />
+    <meta property="og:url" content="https://code-editor.abhinesh.codes/cpp" />
+    <meta property="og:image" content="https://code-editor.abhinesh.codes/icons/mark-v2-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Run C++ online in your browser" />
+    <meta name="twitter:description" content="C++17 compiled and run in your browser with clang 8 and libc++: cin, vector, string, and errors explained in plain words." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/guide.css" />
+  </head>
+  <body class="about guide">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+    <nav class="guide-nav" aria-label="Guides">
+      <ul>
+        <li><a href="/flowchart-from-code">Flowchart from code</a></li>
+        <li><a href="/python">Run Python</a></li>
+        <li><a href="/c">Run C</a></li>
+        <li><a href="/cpp" aria-current="page">Run C++</a></li>
+      </ul>
+    </nav>
+
+    <main id="content">
+      <section class="guide-hero" aria-labelledby="title">
+        <h1 id="title">Run C++ online in your browser</h1>
+        <p class="about-lede">
+          CodeEditor builds your C++ program with clang and the libc++ standard library, then runs it in your browser tab.
+          <code>std::cin</code> waits for you to type, <code>vector</code>, <code>string</code> and the algorithms are
+          there, and the errors students meet most are explained in plain words.
+        </p>
+        <div class="about-ctas">
+          <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          <a class="about-btn about-btn-ghost" href="#examples">See the examples</a>
+        </div>
+        <dl class="guide-facts">
+          <div><dt>C++ standard</dt><dd>C++17 by default</dd></div>
+          <div><dt>Compiler</dt><dd>clang 8.0.1, libc++ 8</dd></div>
+          <div><dt>Download</dt><dd>19.6 MB, once (shared with C)</dd></div>
+          <div><dt>Account</dt><dd>None needed</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="start">
+        <h2 id="start">Getting started</h2>
+        <ol class="guide-list">
+          <li>Open the <a href="/">editor</a> and make a file whose name ends in <code>.cpp</code>.</li>
+          <li>The first time, Output offers the compiler as a one-time download, the same one C uses. In CodeEditor's words: &ldquo;<span data-fact="packOffer"></span>&rdquo;</li>
+          <li>Press <strong>Run</strong>. CodeEditor builds the program and runs it; the run log shows how long each took.</li>
+          <li>When the program reads <code>std::cin</code>, type into the field in Output and press Enter, or put the input in the <strong>Input</strong> box before you run.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="examples">
+        <h2 id="examples">Examples, with what they really printed</h2>
+        <p>
+          Each program was built and run in CodeEditor, and the output is copied from that run, typed input included.
+          <strong>Open in CodeEditor</strong> shows the program in CodeEditor as a preview first.
+          <strong>Add to my files</strong> puts it in the editor; nothing is built or run until you press Run.
+        </p>
+
+        <div class="guide-example">
+          <h3 id="ex-cin">Input with cin and getline</h3>
+          <p>
+            <code>std::cin &gt;&gt; year</code> reads one word or number; a name with a space in it needs
+            <code>std::getline</code>, which reads the whole line. Read the line first: after <code>cin &gt;&gt;</code>,
+            the end of that line is still waiting, and a <code>getline</code> straight after it would read an empty line.
+          </p>
+          <div data-example="cpp-cin"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-vector">vector and sort</h3>
+          <p>
+            A <code>std::vector</code> grows as you <code>push_back</code>; <code>std::sort</code> from
+            <code>&lt;algorithm&gt;</code> puts it in order, so the best score ends up at the <code>back()</code>. The
+            range-based <code>for</code> walks every element without an index.
+          </p>
+          <div data-example="cpp-vector"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-string">Working with string</h3>
+          <p>
+            A <code>std::string</code> knows its length, can be built backwards from its reverse iterators, and
+            <code>find</code> returns <code>std::string::npos</code> when a character isn't there.
+          </p>
+          <div data-example="cpp-string"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-std">The error everyone meets once: cout without std::</h3>
+          <p>
+            <code>cout</code> and <code>endl</code> live in the <code>std</code> namespace. clang even suggests the
+            fix; CodeEditor says why it is needed and the two ways to write it.
+          </p>
+          <div data-example="cpp-std"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-args">no matching function: the wrong number of values</h3>
+          <p>
+            <code>greet</code> takes a name and an age, and the call gives only the name. clang's message says no
+            version of the function fits; CodeEditor counts the parameters for you.
+          </p>
+          <div data-example="cpp-args"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-push">A template error: push_back with the wrong type</h3>
+          <p>
+            A <code>std::vector&lt;int&gt;</code> holds whole numbers, and <code>"85"</code> in quotes is text. Errors
+            from templates like <code>vector</code> are the hardest to read. For this one CodeEditor has no explanation of
+            its own yet: it shows clang's message and marks the line.
+          </p>
+          <div data-example="cpp-push"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="ex-version">Which C++ is this?</h3>
+          <p><code>__cplusplus</code> is 201703 for C++17, the default. Settings can change it.</p>
+          <div data-example="cpp-version"></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="compiler">
+        <h2 id="compiler">The compiler, the library and the standard</h2>
+        <ul class="guide-list">
+          <li><strong>clang 8.0.1</strong> with <strong>libc++ 8</strong>, LLVM's C++ standard library, compiled to WebAssembly and run in a worker in your page. Your code is never sent to a server to be built.</li>
+          <li><strong>The defaults:</strong> <code>-std=c++17 -O2 -Wall</code>.</li>
+          <li><strong>In Settings</strong> you can choose c++11, c++14, c++17 or c++2a (clang 8's name for what became C++20, which was still being written when clang 8 was released), the optimisation level, and <code>-Wextra</code>.</li>
+          <li><strong>Build time:</strong> building a C++ program takes a few seconds, longer than a C one; the run itself is quick. The compiler download is the same one C uses, so installing one installs both.</li>
+          <li><strong>Memory:</strong> a program can use up to 256 MB.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="limits">
+        <h2 id="limits">Limits</h2>
+        <p>
+          A program stops after 15 seconds of running, or once it has printed 524,288 characters; waiting for input
+          doesn't count, and Settings changes both. Programs read the keyboard and print text: there is no network and
+          no window to open.
+        </p>
+      </section>
+
+      <section class="guide-faq" aria-labelledby="faq">
+        <h2 id="faq">Questions</h2>
+        <h3>Does it work offline?</h3>
+        <p>Yes, after the one-time 19.6 MB compiler download: from then on, C++ programs build and run without a connection.</p>
+        <h3>Does <code>#include &lt;bits/stdc++.h&gt;</code> work?</h3>
+        <p>Yes. The header belongs to GCC's library, not to libc++, but students use it so often that CodeEditor ships its own version, which includes 41 standard headers, from <code>&lt;algorithm&gt;</code> to <code>&lt;vector&gt;</code>. A program starting with it printed:</p>
+        <p class="guide-quote"><span data-capture="cpp-bits:first"></span></p>
+        <p>It is precompiled the first time it is used, and kept for the last few compiler settings used, so later builds that include it are faster. Code meant for other compilers is still better off including the headers it uses.</p>
+        <h3>Do I need to sign up?</h3>
+        <p>No. Files stay in your browser, and syncing them to your own private GitHub repository is optional.</p>
+        <h3>How do I share a program?</h3>
+        <p>Share it as a code link: the code travels inside the link, after <code>#code=</code>, a part of the address browsers never send to a server. Whoever opens it sees the code first, and nothing runs until they press Run. More on the <a href="/privacy">privacy page</a>.</p>
+      </section>
+
+      <section aria-labelledby="more">
+        <h2 id="more">More guides</h2>
+        <ul class="guide-more">
+          <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers, and what a crash looks like.</li>
+          <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: nested loops and early returns, drawn from your code.</li>
+          <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas.</li>
+          <li><a href="/about">About CodeEditor</a>: everything the editor does, and what changed lately.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/code-editor">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>
