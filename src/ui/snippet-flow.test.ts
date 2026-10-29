@@ -680,23 +680,27 @@ describe("imageColors (4.3)", () => {
 });
 
 describe("the frame budget (5.2)", () => {
-  // The table's measures (head, footer, first row) and its viewports; cap and frame cap from the formula.
-  // Round 3: side by side from 900 px wide unless compact; stacked, the preview takes at most 45% of
-  // the window's height (its frame's 18 px of padding and border included).
+  // The table's measures (head, footer, first row: from the Colours section's top to its first
+  // swatch chip's bottom) and its viewports; cap and frame cap from the formula. Redesign 6
+  // (.claude/design/redesign6/snippet/design.md): side by side from 900 px wide unless compact, in a
+  // dialog of at most 820 px that leaves 48 px of the window; below 900 px a full-screen sheet (no
+  // border). Stacked, the preview takes at most 45% of the window's height (its frame's 18 px of
+  // padding and border included), under the stage column's 12 px top and inside the stage panel's
+  // 1 px border and 12 px padding.
   it.each([
-    ["1440 x 900", 900, true, 52.6, 113, 56, 478.4, false, 387, "side"],
-    ["1280 x 800 coarse", 800, true, 68, 129, 72, 431, false, 342, "side"],
-    ["1093 x 504", 504, true, 52.6, 113, 56, 190.4, false, 190.4, "side"],
-    // Wide and short: stacked it would be compact (the options would sit under the stage), side by side the stage has 170 px.
-    ["1093 x 400", 400, true, 52.6, 113, 56, 86.4, false, 86.4, "side"],
-    ["1093 x 300", 300, true, 52.6, 113, 56, -13.6, true, 116, "stack"],
-    ["600 x 900", 900, false, 52.6, 113, 56, 478.4, false, 387, "stack"],
-    ["390 x 844", 844, false, 81, 129, 72, 418, false, 362, "stack"],
-    ["320 x 640", 640, false, 81, 181, 72, 214, false, 214, "stack"],
-    ["683 x 330", 330, false, 68, 129, 72, -31, true, 131, "stack"],
-    ["844 x 390 coarse", 390, false, 68, 129, 72, 29, true, 161, "stack"],
-    ["455 x 213", 213, false, 68, 129, 72, -148, true, 96, "stack"],
-    ["320 x 256", 256, false, 81, 181, 72, -170, true, 96, "stack"],
+    ["1440 x 900", 900, true, 57, 64, 138, 503, false, 387, "side"],
+    ["1280 x 800 coarse", 800, true, 64, 69, 146, 415, false, 342, "side"],
+    ["1093 x 504", 504, true, 57, 64, 138, 139, false, 139, "side"],
+    // Wide and short: stacked it would be compact (the options would sit under the stage), side by side the stage has 153 px.
+    ["1093 x 400", 400, true, 57, 64, 138, 35, false, 35, "side"],
+    ["1093 x 300", 300, true, 57, 64, 138, -65, true, 108, "stack"],
+    ["600 x 900", 900, false, 64, 132, 138, 510, false, 387, "stack"],
+    ["390 x 844", 844, false, 64, 132, 138, 454, false, 362, "stack"],
+    ["320 x 640", 640, false, 90, 132, 154, 208, false, 208, "stack"],
+    ["683 x 330", 330, false, 64, 132, 138, -60, true, 147, "stack"],
+    ["844 x 390 coarse", 390, false, 64, 132, 146, -8, true, 177, "stack"],
+    ["455 x 213", 213, false, 64, 132, 138, -177, true, 96, "stack"],
+    ["320 x 256", 256, false, 90, 132, 154, -176, true, 110, "stack"],
   ] as [string, number, boolean, number, number, number, number, boolean, number, string][])("%s", (_, innerHeight, wide, head, footer, firstRow, cap, compact, frameCap, layout) => {
     const b = frameBudget({ innerHeight, wide, head, footer, notes: [], firstRow });
     expect(b.cap).toBeCloseTo(cap, 9);
@@ -705,10 +709,28 @@ describe("the frame budget (5.2)", () => {
     expect(b.layout).toBe(layout);
   });
 
-  it("each note takes its height plus 8", () => {
-    const plain = frameBudget({ innerHeight: 900, wide: false, head: 52.6, footer: 113, notes: [], firstRow: 56 });
-    const noted = frameBudget({ innerHeight: 900, wide: false, head: 52.6, footer: 113, notes: [18, 36], firstRow: 56 });
+  it("each note (the stage bar too) takes its height plus 8, stacked and side by side", () => {
+    const plain = frameBudget({ innerHeight: 900, wide: false, head: 64, footer: 132, notes: [], firstRow: 138 });
+    const noted = frameBudget({ innerHeight: 900, wide: false, head: 64, footer: 132, notes: [18, 36], firstRow: 138 });
     expect(plain.cap - noted.cap).toBeCloseTo(18 + 8 + 36 + 8, 9);
+    // Side by side the stage's room shrinks by the same: 1093 x 400 has 153 px for the frame's content
+    // without notes, so a 28 px bar and a 16 px note (60 with their gaps) leave 93: compact.
+    expect(frameBudget({ innerHeight: 400, wide: true, head: 57, footer: 64, notes: [], firstRow: 138 }).layout).toBe("side");
+    const tight = frameBudget({ innerHeight: 400, wide: true, head: 57, footer: 64, notes: [28, 16], firstRow: 138 });
+    expect(tight.compact).toBe(true);
+    expect(tight.layout).toBe("stack");
+  });
+
+  it("the sheet below 900 px is the whole window with no border; a wide dialog keeps 48 px of it and a 2 px border", () => {
+    const m = { innerHeight: 700, head: 64, footer: 132, notes: [], firstRow: 138 };
+    const sheet = frameBudget({ ...m, wide: false });
+    // Wide, too short for side by side: stacked in a dialog of 700 - 48 px with its 2 px border.
+    const boxed = frameBudget({ ...m, wide: true, footer: 450 });
+    expect(sheet.cap).toBeCloseTo(700 - (64 + 132 + 12 + 26 + 138) - 18, 9);
+    expect(boxed.compact).toBe(true);
+    expect(boxed.cap).toBeCloseTo(652 - (2 + 64 + 450 + 12 + 26 + 138) - 18, 9);
+    // The wide dialog never grows past 820 px.
+    expect(frameBudget({ ...m, innerHeight: 2000, wide: true }).cap).toBeCloseTo(820 - (2 + 64 + 132 + 12 + 26 + 138) - 18, 9);
   });
 });
 

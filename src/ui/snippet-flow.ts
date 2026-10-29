@@ -508,19 +508,25 @@ export type SnippetLayout = "side" | "stack";
 
 /**
  * The frame's room in the dialog, measured once per opening and on resize. Compact: the dialog
- * itself becomes the one scroller (very short or zoomed windows, at any width). Otherwise round 3:
- * side by side from 900 px wide (the stage fills the dialog's height, its size set by CSS), or
- * stacked with the preview at most 45% of the window's height and the first options row in view.
+ * itself becomes the one scroller (very short or zoomed windows, at any width). Otherwise (redesign
+ * 6, snippet-image.css): side by side from 900 px wide (the stage fills the dialog's height, its
+ * size set by CSS), or stacked with the preview at most 45% of the window's height and the first
+ * Colours chip in view. From 900 px the dialog is at most 820 px tall and leaves 24 px of the
+ * window on each side, inside its 1 px border; below that it is a full-screen sheet with no border.
  */
 export function frameBudget(m: BudgetMeasures): { cap: number; compact: boolean; frameCap: number; layout: SnippetLayout } {
-  const dialogMax = Math.min(760, m.innerHeight - 32);
+  const border = m.wide ? 2 : 0;
+  const dialogMax = m.wide ? Math.min(820, m.innerHeight - 48) : m.innerHeight;
+  // The stage bar and the notes: each its height and the 8 px gap before it.
   const notes = m.notes.reduce((sum, h) => sum + h + 8, 0);
-  const fixed = 2 + m.head + m.footer + 24 + 16 + notes + m.firstRow;
+  // Stacked: the stage column's 12 px top, the stage panel's border and padding (2 + 2 x 12), the
+  // bar and notes, then the options down to the first chip's bottom.
+  const fixed = border + m.head + m.footer + 12 + 26 + notes + m.firstRow;
   // 18: the frame's padding (2 x 8) and border (2 x 1).
   const cap = dialogMax - fixed - 18;
   // Side by side the options don't sit under the stage: the stage has the body's height less the
-  // rows under it (the body's 12 px foot), and needs 96 px of it.
-  const side = dialogMax - 2 - m.head - m.footer - 12 - notes - 18;
+  // stage column's padding (2 x 16), the panel's 26 and the bar and notes, and needs 96 px of it.
+  const side = dialogMax - border - m.head - m.footer - 32 - 26 - notes - 18;
   const compact = m.wide ? side < 96 : cap < 96;
   const frameCap = compact ? Math.max(96, Math.round(dialogMax / 2) - 18) : Math.min(Math.round(0.45 * m.innerHeight) - 18, cap);
   return { cap, compact, frameCap, layout: m.wide && !compact ? "side" : "stack" };

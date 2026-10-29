@@ -521,9 +521,9 @@ for (const key of ["Enter", "Space"] as const) {
     await expect(dialogOf(page).locator("#snippet-status")).toHaveText("");
     if (key === "Space") return;
 
-    // Tab: close, frame, Actual size, the Colours group, Line numbers, File name, the credit line,
-    // Highlight lines, the Background, Frame and Scale groups (round 3's order), Download, Copy;
-    // never outside the dialog.
+    // Tab: close, Actual size (redesign 6: in the stage's top bar, above the frame), frame, the
+    // Colours group, Line numbers, File name, the credit line, Highlight lines, the Background, Frame
+    // and Scale groups (round 3's order), Download, Copy; never outside the dialog.
     await dialogOf(page).getByRole("button", { name: "Close" }).focus();
     const seen: string[] = [];
     for (let i = 0; i < 24; i++) {
@@ -545,7 +545,7 @@ for (const key of ["Enter", "Space"] as const) {
     for (const s of ["dialog-body", "options-column"]) if (seen.includes(s)) test.info().annotations.push({ type: "10 scroller", description: `${test.info().project.name}: the scrolling ${s} is a Tab stop` });
     const cycle = seen.filter((s) => s !== "body" && s !== "snippet-dialog" && s !== "dialog-body" && s !== "options-column");
     const order = [
-      "Close", "snippet-frame", "snippet-actual", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-mark", "snippet-highlight",
+      "Close", "snippet-actual", "snippet-frame", "snippet-colors-match", "snippet-numbers", "snippet-name", "snippet-mark", "snippet-highlight",
       "snippet-background-medium", "snippet-frame-plain", "snippet-scale-2", "Download (.png)", ...((await canCopy(page)) ? ["Copy image"] : []),
     ];
     expect(cycle.slice(0, order.length)).toEqual(order);
@@ -939,10 +939,11 @@ test("17: a tall preview is a named, focusable image, whole in Fit; at Actual si
 
 test("17 (ring): the frame's focus ring shows on all four sides, inside the body that scrolls it", async ({ page }) => {
   await openDialog(page);
-  // By keyboard, so the ring is the :focus-visible one: from Actual size (round 3: between the frame
-  // and the Colours group), Shift+Tab.
+  // By keyboard, so the ring is the :focus-visible one: from Actual size (redesign 6: in the stage's
+  // top bar, right before the frame), Tab. (Shift+Tab from the Colours group stops on the options
+  // rail in Firefox when it scrolls: the browser's own stop, test 10.)
   await dialogOf(page).locator("#snippet-actual").focus();
-  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
   const frame = dialogOf(page).locator("#snippet-frame");
   await expect(frame).toBeFocused();
   const g = await frame.evaluate((f) => {
@@ -2012,8 +2013,9 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 600, height: 900 }, { w
     const footer = await box(actions);
     const bodyBefore = await box(body);
     const s = await box(status);
-    // The footer is 480 px or wider at 1440 and 600 (its container query): the status shares the row.
-    const wide = vp.width >= 600;
+    // Redesign 6: from 900 px one row (the size, the status, the buttons); below it the full-screen
+    // sheet stacks the status (none while empty), the size, then Download and Copy side by side.
+    const wide = vp.width >= 900;
     if (wide) {
       // One row: the status beside the buttons, its two reserved lines no taller than the row needs.
       expect(s.y, "the status starts in the buttons' row").toBeGreaterThanOrEqual(footer.y);
@@ -2022,8 +2024,17 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 600, height: 900 }, { w
       if (vp.width === 1440) expect(footer.height, "rule, 12, a 40 px row, 24").toBeLessThanOrEqual(78);
     } else {
       expect(s.height, "the empty status takes no room on a narrow footer").toBe(0);
-      // Round 3: rule, 12, the PNG's size (16 and 4) above the buttons, the 44 px buttons, 24.
+      // Redesign 6: 12, the PNG's size (16 and 8) above the buttons, the 44 px buttons, 12.
       expect(footer.height).toBeLessThanOrEqual(101);
+      // Download and Copy side by side, each half the row, 44 px tall.
+      if (await canCopy(page)) {
+        const copy = await box(copyButton(page));
+        expect(Math.abs(copy.y - download.y), "Download and Copy share a row").toBeLessThanOrEqual(0.5);
+        expect(copy.x, "Copy right of Download").toBeGreaterThan(download.x + download.width - 0.5);
+        expect(Math.abs(copy.width - download.width), "the two halves").toBeLessThanOrEqual(1);
+        expect(copy.height).toBeGreaterThanOrEqual(44);
+      }
+      expect(download.height).toBeGreaterThanOrEqual(44);
       const sizeBox = await box(dialogOf(page).locator("#snippet-size"));
       expect(sizeBox.y + sizeBox.height, "the size sits just above Download").toBeLessThanOrEqual(download.y + 0.5);
       expect(sizeBox.x + sizeBox.width, "right-aligned with the buttons").toBeGreaterThan(download.x);
@@ -2138,10 +2149,12 @@ for (const scheme of ["light", "dark"] as const) {
     await previewReady(page);
     const dialog = dialogOf(page);
     await expect(dialog).toHaveAttribute("data-layout", "side");
-    // Wider than round 2's 680, inside the 16 px gutters; the options a column of 320 to 360 px to the right of the stage.
+    // Redesign 6: 1200 px wide at most, inside 24 px gutters; the options a 360 px rail to the right of the stage.
     const d = await box(dialog);
     expect(d.width).toBeGreaterThan(1000);
-    expect(d.width).toBeLessThanOrEqual(1120 + 0.5);
+    expect(d.width).toBeLessThanOrEqual(1200 + 0.5);
+    expect(d.x).toBeGreaterThanOrEqual(24 - 0.5);
+    expect(d.y).toBeGreaterThanOrEqual(24 - 0.5);
     const stage = await box(dialog.locator("#snippet-frame"));
     const options = await box(dialog.locator(".snippet-options"));
     expect(options.x, "the options are right of the stage").toBeGreaterThanOrEqual(stage.x + stage.width - 0.5);
@@ -2333,6 +2346,34 @@ for (const scheme of ["light", "dark"] as const) {
       return { focusVisible: i.matches(":focus-visible"), outline: s.outlineStyle, width: parseFloat(s.outlineWidth) };
     });
     expect(ring.focusVisible && ring.outline !== "none" && ring.width >= 2, JSON.stringify(ring)).toBe(true);
+    // Each label fits inside its segment's padding, the bold chosen one too, and no segment's width
+    // moves when the choice (and so the bold label) moves.
+    const fit = (legend: string) =>
+      dialog.getByRole("group", { name: legend }).evaluate((fs) =>
+        [...fs.querySelectorAll<HTMLElement>(".snippet-segment > label")].map((label) => {
+          const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT, {
+            acceptNode: (n) => (n.parentElement?.closest(".visually-hidden") || !n.textContent?.trim() ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+          });
+          const range = document.createRange();
+          range.selectNodeContents(walker.nextNode()!);
+          const t = range.getBoundingClientRect();
+          const l = label.getBoundingClientRect();
+          const s = getComputedStyle(label);
+          const left = l.left + parseFloat(s.paddingLeft);
+          const right = l.right - parseFloat(s.paddingRight);
+          return { text: range.toString(), width: Math.round(l.width * 10) / 10, inside: t.left >= left - 0.5 && t.right <= right + 0.5, t: [t.left, t.right], box: [left, right] };
+        }));
+    for (const g of SEGMENTS) {
+      let widths: number[] | null = null;
+      for (const [value] of g.items) {
+        await dialog.locator(`#snippet-${g.id}-${value}`).check();
+        const segs = await fit(g.legend);
+        for (const s of segs) expect(s.inside, `${g.legend} with ${value} chosen: ${JSON.stringify(s)}`).toBe(true);
+        const w = segs.map((s) => s.width);
+        if (widths) expect(w, `${g.legend}: the widths stay when ${value} is chosen`).toEqual(widths);
+        widths = w;
+      }
+    }
   });
 }
 
@@ -2383,6 +2424,217 @@ for (const scheme of ["light", "dark"] as const) {
     }
   });
 }
+
+// ---------------------------------------------------------------- 46: redesign 6 (.claude/design/redesign6/snippet/design.md)
+
+for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`46: redesign 6 at ${vp.width} x ${vp.height}: the stage panel and its bar, swatch chips, switches, segmented rows, the footer's order, the Esc hint`, async ({ page }) => {
+    await page.setViewportSize(vp);
+    await openWith(page);
+    await selectFixtureLines(page);
+    const phone = vp.width < 900;
+    if (phone) await page.locator(".drawer-toggle").click();
+    await openFromFileMenu(page, ITEM);
+    await previewReady(page);
+    const dialog = dialogOf(page);
+    await expect(dialog).toHaveAttribute("data-layout", phone ? "stack" : "side");
+
+    // The stage: a sunken panel of its own ground holding the frame and its bar; the bar (Actual
+    // size) above the frame side by side, under the image on phones.
+    const panel = dialog.locator(".snippet-panel");
+    await expect(panel.locator("#snippet-frame")).toHaveCount(1);
+    await expect(panel.locator(".snippet-stagebar #snippet-actual")).toHaveCount(1);
+    const frame = await box(dialog.locator("#snippet-frame"));
+    const actual = await box(dialog.locator("#snippet-actual"));
+    if (phone) expect(actual.y, "Actual size under the image").toBeGreaterThanOrEqual(frame.y + frame.height - 0.5);
+    else expect(actual.y + actual.height, "Actual size above the image").toBeLessThanOrEqual(frame.y + 0.5);
+    // The Tab order is the drawn order (WCAG 2.4.3): Actual size, then the frame side by side; the
+    // frame, then Actual size under it on phones.
+    const [first, second] = phone ? ["#snippet-frame", "#snippet-actual"] : ["#snippet-actual", "#snippet-frame"];
+    await dialog.locator(first).focus();
+    await page.keyboard.press("Tab");
+    await expect(dialog.locator(second), "Tab goes on to what is drawn next").toBeFocused();
+    const [stageGround, dialogGround] = await panel.evaluate((p) => [getComputedStyle(p).backgroundColor, getComputedStyle(p.closest("dialog")!).backgroundColor]);
+    expect(stageGround, "the stage has a ground of its own").not.toBe(dialogGround);
+
+    // The head: an Esc keycap hint, hidden from assistive technology (the button keeps its title); not on phones.
+    const hint = dialog.locator(".snippet-esc");
+    await expect(hint).toHaveAttribute("aria-hidden", "true");
+    await expect(hint.locator(".keycap")).toHaveText("Esc");
+    if (phone) await expect(hint).toBeHidden();
+    else await expect(hint).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Close" })).toHaveAttribute("title", "Close (Esc)");
+
+    // Colours: three chips, each a native radio over its whole chip, a swatch hidden from AT and its
+    // name; the selected chip has the tick and the strong weight (never colour alone).
+    const chips = dialog.locator(".snippet-chip");
+    await expect(chips).toHaveCount(3);
+    const chipState = () =>
+      chips.evaluateAll((cs) =>
+        cs.map((c) => ({
+          tick: getComputedStyle(c.querySelector(".snippet-tick")!).display !== "none",
+          weight: Number(getComputedStyle(c.querySelector("label")!).fontWeight),
+          swatchHidden: c.querySelector(".snippet-swatch")?.getAttribute("aria-hidden"),
+          card: getComputedStyle(c.querySelector(".snippet-mini")!).backgroundColor,
+        })),
+      );
+    let state = await chipState();
+    expect(state.map((s) => s.tick)).toEqual([true, false, false]);
+    expect(state[0].weight).toBeGreaterThan(state[1].weight);
+    expect(state.every((s) => s.swatchHidden === "true")).toBe(true);
+    // Each swatch is a picture of its choice: Light's card and Dark's card differ.
+    expect(state[1].card).not.toBe(state[2].card);
+    for (let i = 0; i < 3; i++) {
+      const c = await box(chips.nth(i));
+      const r = await box(chips.nth(i).locator("input"));
+      expect(Math.abs(r.width - c.width) + Math.abs(r.height - c.height), "the radio covers its chip").toBeLessThanOrEqual(1);
+      expect(c.height).toBeGreaterThanOrEqual(44);
+    }
+    // A press on a chip's swatch chooses it.
+    const swatch = await box(chips.nth(1).locator(".snippet-swatch"));
+    await page.mouse.click(swatch.x + swatch.width / 2, swatch.y + swatch.height / 2);
+    await expect(dialog.locator("#snippet-colors-light")).toBeChecked();
+    await previewReady(page, "light numbers name");
+    state = await chipState();
+    expect(state.map((s) => s.tick)).toEqual([false, true, false]);
+
+    // Show: switches over native checkboxes; the whole row is the target, the track hidden from AT.
+    for (const id of ["snippet-numbers", "snippet-name", "snippet-mark"]) {
+      const input = dialog.locator(`#${id}`);
+      await expect(input).toHaveAttribute("type", "checkbox");
+      const row = input.locator("..");
+      await expect(row.locator(".snippet-track")).toHaveAttribute("aria-hidden", "true");
+      const rb = await box(row);
+      const ib = await box(input);
+      expect(Math.abs(rb.width - ib.width) + Math.abs(rb.height - ib.height), `${id}: the checkbox covers its row`).toBeLessThanOrEqual(1);
+      expect(rb.height).toBeGreaterThanOrEqual(phone ? 44 : 36);
+    }
+    // A press on the track (the row's far end) turns the switch off; the knob moves.
+    const knobAt = () => dialog.locator("#snippet-numbers").locator("..").locator(".snippet-track").evaluate((t) => getComputedStyle(t, "::after").transform);
+    const on = await knobAt();
+    const numbersRow = await box(dialog.locator("#snippet-numbers").locator(".."));
+    await page.mouse.click(numbersRow.x + numbersRow.width - 8, numbersRow.y + numbersRow.height / 2);
+    await expect(dialog.locator("#snippet-numbers")).not.toBeChecked();
+    await previewReady(page, "light no-numbers name");
+    // The knob slides for --dur: polled until it rests at the start.
+    await expect.poll(knobAt, { message: "the knob's place shows the state" }).not.toBe(on);
+    await expect.poll(knobAt).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+
+    // Background, Frame and Scale: the legend left of its track side by side, above it on phones.
+    for (const name of ["Background", "Frame", "Scale"]) {
+      const group = dialog.getByRole("group", { name });
+      const legend = await box(group.locator("legend"));
+      const track = await box(group.locator(".snippet-segments"));
+      if (phone) expect(legend.y + legend.height, `${name}: legend above`).toBeLessThanOrEqual(track.y + 0.5);
+      else {
+        expect(legend.x + legend.width, `${name}: legend left`).toBeLessThanOrEqual(track.x + 0.5);
+        expect(Math.abs(legend.y + legend.height / 2 - (track.y + track.height / 2)), `${name}: one row`).toBeLessThanOrEqual(2);
+      }
+    }
+
+    // The rail: 360 px side by side.
+    if (!phone) expect((await box(dialog.locator(".snippet-options"))).width).toBeCloseTo(360, 0);
+
+    // The footer: the PNG's size (its tag hidden from AT), the status, then Download and the one filled Copy image.
+    await expect(dialog.locator(".snippet-size-tag")).toHaveText("PNG");
+    await expect(dialog.locator(".snippet-size-tag")).toHaveAttribute("aria-hidden", "true");
+    await expect(dialog.locator("#snippet-size")).toHaveText(/^\d+ x \d+ px$/);
+    const size = await box(dialog.locator(".snippet-size"));
+    const download = await box(downloadButton(page));
+    if (phone) expect(size.y + size.height, "the size above the buttons").toBeLessThanOrEqual(download.y + 0.5);
+    else {
+      const status = await box(dialog.locator("#snippet-status"));
+      expect(size.x + size.width, "the size first").toBeLessThanOrEqual(status.x + 0.5);
+      expect(status.x + status.width, "the status before the buttons").toBeLessThanOrEqual(download.x + 0.5);
+    }
+    if (await canCopy(page)) {
+      const fills = await dialog.locator(".snippet-actions .btn").evaluateAll((bs) => bs.map((b) => getComputedStyle(b).backgroundColor));
+      const action = await page.evaluate(() => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--action)";
+        document.querySelector("dialog#snippet-dialog")!.append(probe);
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+      });
+      expect(fills.filter((f) => f === action), "one filled button").toHaveLength(1);
+      expect(fills.at(-1), "Copy image is the filled one").toBe(action);
+    }
+
+    if (phone) {
+      // The full-screen sheet.
+      const d = await box(dialog);
+      expect([d.x, d.y, d.width, d.height].map((v) => Math.round(v))).toEqual([0, 0, 390, 844]);
+    }
+    expect(await page.evaluate(() => {
+      const dlg = document.querySelector("#snippet-dialog")!;
+      return document.documentElement.scrollWidth <= document.documentElement.clientWidth && dlg.scrollWidth <= dlg.clientWidth;
+    }), "no sideways scroll").toBe(true);
+  });
+}
+
+test("46 (b): a resize across 900 px moves Actual size to where it is drawn in the Tab order, and focus stays on it", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page);
+  await selectFixtureLines(page);
+  await openFromFileMenu(page, ITEM);
+  await previewReady(page);
+  const dialog = dialogOf(page);
+  await expect(dialog).toHaveAttribute("data-layout", "side");
+  const order = () => dialog.locator(".snippet-panel").evaluate((p) => [...p.querySelectorAll("#snippet-actual, #snippet-frame")].map((e) => e.id));
+  expect(await order()).toEqual(["snippet-actual", "snippet-frame"]);
+  await dialog.locator("#snippet-actual").focus();
+  await page.setViewportSize({ width: 800, height: 900 });
+  await expect(dialog).toHaveAttribute("data-layout", "stack");
+  await expect.poll(order, { message: "stacked: the frame, then Actual size under it" }).toEqual(["snippet-frame", "snippet-actual"]);
+  await expect(dialog.locator("#snippet-actual"), "focus stays on Actual size").toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(dialog).toHaveAttribute("data-layout", "side");
+  await expect.poll(order, { message: "side by side: Actual size, then the frame" }).toEqual(["snippet-actual", "snippet-frame"]);
+  await expect(dialog.locator("#snippet-actual"), "focus stays on Actual size").toBeFocused();
+});
+
+// ---------------------------------------------------------------- 47: forced colours (Windows High Contrast)
+
+test.describe("47: forced colours (Chromium)", () => {
+  test.skip(({ browserName }) => browserName !== "chromium", "Playwright emulates forced colours in Chromium only");
+  test("47: keyboard focus on a chosen segment or Colours chip looks different from the choice, and every swatch keeps an edge", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openWith(page);
+    await selectFixtureLines(page);
+    await page.emulateMedia({ forcedColors: "active" });
+    expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches), "forced colours emulated").toBe(true);
+    await openFromFileMenu(page, ITEM);
+    await previewReady(page);
+    const dialog = dialogOf(page);
+    const outline = (sel: string) =>
+      dialog.locator(sel).evaluate((el) => {
+        const s = getComputedStyle(el);
+        return `${s.outlineStyle} ${s.outlineWidth} ${s.outlineOffset}`;
+      });
+    const segOf = (id: string) => `.snippet-segment:has(> #${id})`;
+    const swatchOf = (id: string) => `.snippet-chip:has(> #${id}) .snippet-swatch`;
+    // Unfocused: the chosen segment and chip carry the selection outline; every swatch has an edge.
+    await dialog.locator("#snippet-highlight").focus();
+    const chosenSeg = await outline(segOf("snippet-background-medium"));
+    const chosenSwatch = await outline(swatchOf("snippet-colors-match"));
+    expect(chosenSeg).not.toMatch(/^none/);
+    for (const id of ["snippet-colors-light", "snippet-colors-dark"]) {
+      expect(await outline(swatchOf(id)), `${id}: an unchosen swatch keeps an edge`).not.toMatch(/^none/);
+    }
+    // Keyboard focus (Tab from Highlight lines reaches the chosen Background segment) changes the look.
+    await page.keyboard.press("Tab");
+    await expect(dialog.locator("#snippet-background-medium")).toBeFocused();
+    expect(await outline(segOf("snippet-background-medium")), "focused segment differs from chosen").not.toBe(chosenSeg);
+    // The chosen Frame segment, unfocused, still shows only the choice.
+    expect(await outline(segOf("snippet-frame-plain"))).toBe(chosenSeg);
+    // Colours: Shift+Tab from Line numbers reaches the chosen chip.
+    await dialog.locator("#snippet-numbers").focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.locator("#snippet-colors-match")).toBeFocused();
+    expect(await outline(swatchOf("snippet-colors-match")), "focused chip differs from chosen").not.toBe(chosenSwatch);
+  });
+});
 
 test.describe("the file menu fits a short coarse window (Chromium)", () => {
   test.skip(({ browserName }) => browserName !== "chromium", "Playwright emulates pointer: coarse in Chromium only");
