@@ -6,6 +6,14 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.9.1] - 2026-10-29
+
+Opens in Brave and with ad blockers
+
+### Fixed
+
+- With Brave or an ad blocker, the site no longer says it couldn't start: a blocked visit counter isn't part of the app.
+
 ## [0.9.0] - 2026-10-29
 
 Enter picks the top suggestion, and fixes across the app
