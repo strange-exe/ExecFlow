@@ -6,7 +6,9 @@
 import type { Page } from "@playwright/test";
 import { expect, importFiles, openApp, openFromTree, test } from "./helpers";
 
-test.use({ serviceWorkers: "block", viewport: { width: 1440, height: 900 } });
+// Under 1100 px the console docks under the code (Workbench Pro), where this rule applies; beside
+// the code it runs the full height already (the last desktop test).
+test.use({ serviceWorkers: "block", viewport: { width: 1000, height: 900 } });
 test.setTimeout(90_000);
 
 const PROGRAM = "int main(void) {\n    int n = 3;\n    if (n > 2) n = 2;\n    return n;\n}\n";
@@ -108,18 +110,19 @@ test("a size the student sets afterwards is theirs, until it is below the thresh
   expect(await remembered(page)).toBe(dragged);
 });
 
-// 530, not 560, since the 0.7.0 shell: the desktop status bar's 28 px went to the rows, so a 560 px
-// window now has room for the full 55 percent and no longer reaches the 220 px floor.
-for (const height of [400, 530]) {
+// Workbench Pro's 56 px top bar and 8 px gutter left a 400 px (short) window 342 px of rows, too few
+// to grow at all (35 percent is already all the 220 px floor allows), so the two heights that reach
+// the floor between 35 and 55 percent are 450 and 560 now.
+for (const height of [450, 560]) {
   test(`a ${height} px window grows the panel only as far as leaves the editor its 220 px`, async ({ page }) => {
-    await page.setViewportSize({ width: 1200, height });
+    await page.setViewportSize({ width: 1000, height });
     await start(page);
     await open(page, "output");
     await expect(splitter(page)).toHaveAttribute("aria-valuenow", "35");
     const rows = await page.evaluate(() => document.getElementById("editor-area")!.getBoundingClientRect().height + document.getElementById("panel")!.getBoundingClientRect().height);
     const editorBefore = (await page.locator("#editor-area").boundingBox())!.height;
-    // 400 px is a short window (the page scrolls, the main area keeps 360 px; app.css): about 350 px
-    // of rows, so the panel grows only to 36 percent. 530 px grows it further, still under 55.
+    // 450 px leaves about 376 px of rows, so the panel grows only to 41 percent; 560 px grows it
+    // further, still under 55.
     const want = Math.floor(((rows - 220) / rows) * 100);
     const expected = want > 35 ? Math.min(55, want) : 35;
     expect(expected, `rows ${rows}`).toBeGreaterThan(35);
@@ -131,6 +134,20 @@ for (const height of [400, 530]) {
     await expect(page.locator("#editor-area .cm-content")).toBeVisible();
   });
 }
+
+test("beside the code (1100 px and wider) the Flowchart tab changes no size: the console runs the full height", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await start(page);
+  await open(page, "output");
+  const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
+  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  await open(page, "flowchart");
+  await expect(page.locator("#panel-flowchart")).toBeVisible();
+  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  expect(await remembered(page)).toBeNull();
+  const [code, con] = [(await page.locator("#editor-area").boundingBox())!, (await page.locator("#panel").boundingBox())!];
+  expect(Math.abs(con.height - code.height)).toBeLessThan(2);
+});
 
 test("phones: the Flowchart view changes no panel size", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

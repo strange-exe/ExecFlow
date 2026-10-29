@@ -196,7 +196,7 @@ test("fonts: Geist and JetBrains Mono load at every weight used and the weights 
 });
 
 for (const scheme of SCHEMES) {
-  test(`desktop ${scheme}: the editor and the panel are one sheet on --bg, 12 px corners and a 1 px edge, set 10 px into the --surface frame`, async ({ page }) => {
+  test(`desktop ${scheme}: the code card on --bg and the console card, each with 12 px corners and a 1 px edge, an 8 px gutter apart, set 10 px into the --surface frame`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openApp(page);
     await signalIn(page, scheme);
@@ -217,9 +217,9 @@ for (const scheme of SCHEMES) {
     expect((await run(page)).status).toBe("error");
     await openFromTree(page, "calc.py");
 
-    // The frame: the main area and the editor column on --surface; no line under the top bar. Since
-    // the 0.7.0 shell there is no status bar on desktop (its facts are in the panel bar and the
-    // sidebar's foot), so nothing is drawn over the sheet's foot either.
+    // The frame: the main area and the work column on --surface; no line under the top bar. There
+    // is no status bar on desktop (its facts are in the code card's foot, the rail and the
+    // sidebar's foot), so nothing is drawn over the cards' feet either.
     expect((await styleOf(page, ".main", ["background-color"]))["background-color"]).toBe(rgbOf(p.surface));
     expect(await styleOf(page, ".center", ["background-color", "padding-right", "padding-bottom", "padding-left", "padding-top"])).toEqual({
       "background-color": rgbOf(p.surface), "padding-right": "10px", "padding-bottom": "10px", "padding-left": "0px", "padding-top": "0px",
@@ -227,26 +227,29 @@ for (const scheme of SCHEMES) {
     expect((await styleOf(page, ".topbar", ["border-bottom-width"]))["border-bottom-width"]).toBe("0px");
     await expect(page.locator(".statusbar")).toBeHidden();
 
-    // The sheet: top corners on the editor area, bottom corners on the panel, one 1 px edge round both.
-    expect(await styleOf(page, ".editor-area", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-left", "border-right", "border-bottom-width", "background-color"])).toEqual({
-      "border-top-left-radius": "12px", "border-top-right-radius": "12px", "border-bottom-left-radius": "0px", "border-bottom-right-radius": "0px",
-      "border-top": edge, "border-left": edge, "border-right": edge, "border-bottom-width": "0px", "background-color": rgbOf(p.bg),
+    // Two cards, each rounded all round with a 1 px edge of its own.
+    expect(await styleOf(page, ".editor-area", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-left", "border-right", "border-bottom", "background-color"])).toEqual({
+      "border-top-left-radius": "12px", "border-top-right-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
+      "border-top": edge, "border-left": edge, "border-right": edge, "border-bottom": edge, "background-color": rgbOf(p.bg),
     });
-    expect(await styleOf(page, ".center > .panel", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top-width", "border-left", "border-right", "border-bottom"])).toEqual({
-      "border-top-left-radius": "0px", "border-top-right-radius": "0px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
-      "border-top-width": "0px", "border-left": panelEdge, "border-right": panelEdge, "border-bottom": panelEdge,
+    expect(await styleOf(page, ".center > .panel", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-left", "border-right", "border-bottom"])).toEqual({
+      "border-top-left-radius": "12px", "border-top-right-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
+      "border-top": panelEdge, "border-left": panelEdge, "border-right": panelEdge, "border-bottom": panelEdge,
     });
     // The panel is the dark console in both schemes (Workbench Pro): its ground, the program's text
     // and the browser's own controls and scrollbars in it, in the console's colours.
     expect(await styleOf(page, ".center > .panel", ["background-color", "color-scheme"])).toEqual({ "background-color": rgbOf(c["terminal-bg"]), "color-scheme": "dark" });
     expect((await styleOf(page, "#panel-output .console", ["color"])).color).toBe(rgbOf(c["terminal-fg"]));
-    // 10 px of --surface right of and below the sheet.
+    // 10 px of --surface right of and below the cards; side by side at 1440 px, 8 px apart (the
+    // x-axis splitter is the gutter), sharing their top and bottom edges.
     const [center, area, panel] = [await boxOf(page, ".center"), await boxOf(page, ".editor-area"), await boxOf(page, ".center > .panel")];
-    expect(Math.round(center.right - area.right)).toBe(10);
     expect(Math.round(center.right - panel.right)).toBe(10);
     expect(Math.round(center.bottom - panel.bottom)).toBe(10);
+    expect(Math.round(center.bottom - area.bottom)).toBe(10);
+    expect(Math.round(panel.left - area.right)).toBe(8);
     expect(Math.round(area.left - center.left)).toBe(0);
     expect(Math.round(area.top - center.top)).toBe(0);
+    expect(Math.round(panel.top - center.top)).toBe(0);
 
     // The editor head sits on the code's ground with a --border line under it.
     expect(await styleOf(page, ".editor-head", ["background-color", "border-bottom"])).toEqual({ "background-color": rgbOf(p.bg), "border-bottom": edge });
@@ -254,9 +257,9 @@ for (const scheme of SCHEMES) {
     // The file list | editor splitter shows no line, but stays a keyboard-operable separator with its focus ring.
     const splitter = page.getByRole("separator", { name: "Resize the file list" });
     expect((await styleOf(page, ".main > .splitter", ["background-color"]))["background-color"]).toBe("rgba(0, 0, 0, 0)");
-    // Reached with Tab, so every engine draws its keyboard focus (:focus-visible). Since the 0.7.0
-    // shell the sidebar's foot (sync, Shortcuts, Settings) follows the tree; Settings is its last stop.
-    await page.locator("#settings-button").focus();
+    // Reached with Tab, so every engine draws its keyboard focus (:focus-visible). The sidebar's foot
+    // (sync, About) follows the tree; About is its last stop (Workbench Pro).
+    await page.locator("#about-link").focus();
     await page.keyboard.press("Tab");
     await expect(splitter).toBeFocused();
     const width = Number(await splitter.getAttribute("aria-valuenow"));
@@ -267,34 +270,38 @@ for (const scheme of SCHEMES) {
     await page.keyboard.press("ArrowLeft");
     await expect(splitter).toHaveAttribute("aria-valuenow", String(width));
 
-    // The panel collapsed to its bar keeps the sheet's foot.
+    // The console hidden to its head docks under a full-width code card, a card of its own.
     await page.locator(".panel-toggle").click();
     await expect(page.locator(".center")).toHaveAttribute("data-panel", "collapsed");
-    expect(await styleOf(page, ".center > .panel", ["border-bottom-left-radius", "border-bottom"])).toEqual({ "border-bottom-left-radius": "12px", "border-bottom": panelEdge });
-    const collapsed = await boxOf(page, ".center > .panel");
+    expect(await styleOf(page, ".center > .panel", ["border-top-left-radius", "border-bottom-left-radius", "border-bottom"])).toEqual({ "border-top-left-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom": panelEdge });
+    const [collapsed, wide] = [await boxOf(page, ".center > .panel"), await boxOf(page, ".editor-area")];
     expect(Math.round(center.bottom - collapsed.bottom)).toBe(10);
+    expect(Math.round(collapsed.top - wide.bottom), "the gutter above it").toBe(8);
+    expect(Math.round(center.right - wide.right), "the code card takes the width").toBe(10);
   });
 }
 
-test("desktop bars: top bar 48, editor head 44, Files head 36, panel bar 40, no status bar, rows 28, icon buttons 30, Run 32; every target 24 or more", async ({ page }) => {
+test("desktop bars: top bar 56, editor head 44, Files head 36, console head 44, no status bar, rows 32, rail buttons 60 wide, Run 32; every target 24 or more", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
   await importFiles(page, [{ name: "main.py", text: MAIN }, { name: "calc.py", text: CALC }]);
   await openFromTree(page, "main.py");
   const h = async (sel: string) => Math.round((await boxOf(page, sel)).height);
-  // 0.7.0 shell (.claude/tasks/v07-shell.md): the sidebar's top row is the workspace switcher, as
-  // tall as the top bar (--h-topbar); the "Files" label under the quick actions is a 36 px row
-  // (app.css .sidebar-head), no longer level with the editor head; tree rows are 28 (--h-row, spec
-  // "28 px rows"); the status bar is gone on desktop.
-  expect(await h(".topbar")).toBe(48);
-  expect(await h(".ws-switcher")).toBe(48);
+  // Workbench Pro (S2, tokens.md "Bars"): the sidebar's top row is the workspace switcher, as tall
+  // as the 56 px top bar (--h-topbar); the "Files" heading is a 36 px row (app.css .sidebar-head);
+  // the console's head is 44 like the code card's; tree rows are 32 (--h-row); the status bar is
+  // gone on desktop; the rail's buttons are 60 px wide, at least 48 tall (an icon over its word).
+  expect(await h(".topbar")).toBe(56);
+  expect(await h(".ws-switcher")).toBe(56);
   expect(await h(".editor-head")).toBe(44);
   expect(await h(".sidebar-head")).toBe(36);
-  expect(await h(".panel-bar")).toBe(40);
+  expect(await h(".panel-bar")).toBe(44);
   await expect(page.locator(".statusbar")).toBeHidden();
-  expect(await h(".tree-row")).toBe(28);
+  expect(await h(".tree-row")).toBe(32);
   expect(await h("#run-button")).toBe(32);
-  expect(await h("#settings-button")).toBe(30);
+  const settings = await boxOf(page, "#settings-button");
+  expect(Math.round(settings.width)).toBe(60);
+  expect(Math.round(settings.height)).toBeGreaterThanOrEqual(48);
   // WCAG 2.2 SC 2.5.8: every visible control on the page is 24 x 24 CSS px or more.
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("button, [role=tab], [role=separator], input, select, a[href]")]
@@ -322,7 +329,10 @@ for (const scheme of SCHEMES) {
     const h = async (sel: string) => Math.round((await boxOf(page, sel)).height);
     expect(await h(".topbar")).toBe(48);
     expect(await h("#run-button")).toBe(44);
-    expect(await h(".view-switch")).toBe(44);
+    // The bottom view bar: 52 px items in 4 + 8 px of padding, ending the screen (Workbench Pro).
+    expect(await h(".view-switch")).toBe(52);
+    expect(await h(".view-bar")).toBe(64);
+    expect(Math.round((await boxOf(page, ".view-bar")).bottom)).toBe(844);
     // The status bar's top edge: light draws a 2 px rule in the location blue, dark the 1 px divider.
     expect((await styleOf(page, ".statusbar", ["box-shadow"]))["box-shadow"]).toBe(scheme === "light" ? `${rgbOf(p.location)} 0px 2px 0px 0px inset` : `${rgbOf(p.divider)} 0px 1px 0px 0px inset`);
     expect(await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?Geist"?,/);

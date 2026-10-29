@@ -50,11 +50,13 @@ for (const vp of viewports) {
 
       const narrow = vp.width < 900;
 
-      // 1. Empty workspace: the starters lead (reading order 4). Nothing competes with them: no
-      // Run (there is nothing to run) and no output panel (layout v2; v1 showed an inert Run).
-      await expect(page.getByRole("heading", { name: "Create your first file" })).toBeInViewport();
+      // 1. Empty workspace: New file leads (reading order 4, Workbench Pro item 7), the starters
+      // under it. Nothing competes with it: Run is shown disabled (there is nothing to run), and
+      // there is no console.
+      await expect(page.getByRole("heading", { name: "Write your first program" })).toBeInViewport();
+      await expect(page.locator("#empty-new-file")).toBeInViewport();
       await expect(page.locator('.starter[data-language="python"]')).toBeInViewport();
-      await expect(page.locator("#run-button")).toBeHidden();
+      await expect(page.locator("#run-button")).toHaveAttribute("aria-disabled", "true");
       await expect(page.locator("#panel")).toBeHidden();
       expect(await noOverflow(page), "no horizontal scroll (empty)").toBe(true);
       await page.screenshot({ path: `${dir}/empty-${vp.name}-${scheme}.png`, animations: "disabled" });
@@ -72,14 +74,17 @@ for (const vp of viewports) {
       expect(await noOverflow(page), "no horizontal scroll (editing)").toBe(true);
       const editorBox = (await page.locator("#editor-panel").boundingBox())!;
       if (narrow) {
-        // No tab strip: the code starts under the top bar (48) and the view switch (44).
-        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(92);
+        // No tab strip, and the view switch is at the bottom (Workbench Pro): the code starts
+        // right under the top bar (48).
+        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(48);
       } else {
         // Before the first run the panel is its bar: collapsed, its body hidden, the code tall.
         await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "false");
         await expect(page.locator("#panel-output")).toBeHidden();
         await expect(page.locator("#panel-problems")).toBeHidden();
-        expect(editorBox.height, "code height before the first run").toBeGreaterThanOrEqual(700);
+        // 674 px at 1440 x 900 in Workbench Pro (its 56 px top bar, the card's foot and the
+        // console's head with its tool row under the code); 759 before.
+        expect(editorBox.height, "code height before the first run").toBeGreaterThanOrEqual(660);
       }
       await page.screenshot({ path: `${dir}/editor-${vp.name}-${scheme}.png`, animations: "disabled" });
       await axe(page, "editor");
@@ -159,12 +164,16 @@ test("no horizontal scroll at 320 px, and the primary controls are 44 px on a ph
   await openApp(page);
   expect(await noOverflow(page)).toBe(true);
   await page.locator('.starter[data-language="cpp"]').click();
-  // Run shows once a file is open (layout v2: none on the empty workspace).
+  // Run is enabled once a file is open (shown disabled on the empty workspace).
   await expectActive(page, "main.cpp");
+  await expect(page.locator("#run-button")).not.toHaveAttribute("aria-disabled", "true");
   expect(await noOverflow(page)).toBe(true);
-  for (const sel of ["#run-button", "#settings-button", ".drawer-toggle", "#view-code", "#view-output", "#view-problems"]) {
-    const box = await page.locator(sel).boundingBox();
-    expect(box!.height, sel).toBeGreaterThanOrEqual(44);
+  // The top bar's controls are 44 px; the bottom view bar's items 52 (Workbench Pro, item 8).
+  for (const sel of ["#run-button", "#settings-button"]) expect((await page.locator(sel).boundingBox())!.height, sel).toBeGreaterThanOrEqual(44);
+  for (const sel of [".drawer-toggle", "#view-code", "#view-output", "#view-problems", "#view-flowchart"]) {
+    const box = (await page.locator(sel).boundingBox())!;
+    expect(box.height, sel).toBeGreaterThanOrEqual(52);
+    expect(box.width, sel).toBeGreaterThanOrEqual(44);
   }
 });
 
@@ -599,22 +608,43 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(side).toHaveAttribute("aria-valuenow", "264");
   await page.keyboard.press("Home");
   await expect(side).toHaveAttribute("aria-valuenow", "200");
-  const panel = page.getByRole("separator", { name: "Resize the output panel" });
-  await panel.focus();
-  // Nothing has run, so the panel is its bar: the first key only opens it, to the height the
-  // splitter names (review B, 2026-10-18: one key did both); the next one resizes it.
-  await expect(panel).toHaveAttribute("aria-valuetext", /^Collapsed/);
+  // Two splitters size the console: the y-axis one while it is docked under the code (its head
+  // only, or below 1100 px), the x-axis one beside the code; only the one in use is shown.
+  const rows = page.locator('[role=separator][aria-orientation="horizontal"]');
+  const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
+  await expect(rows).toHaveAccessibleName("Resize the output panel");
+  await expect(cols).toBeHidden();
+  await expect(cols).toHaveAttribute("aria-label", "Resize the output panel");
+  await rows.focus();
+  // Nothing has run, so the console is its head: the first key only opens it, to the size the
+  // splitter names (review B, 2026-10-18: one key did both). At 1440 px it opens beside the code.
+  await expect(rows).toHaveAttribute("aria-valuetext", /^Collapsed/);
+  await expect(cols).toHaveAttribute("aria-valuetext", /^Collapsed/);
   await page.keyboard.press("ArrowUp");
   await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
-  await expect(panel).toHaveAttribute("aria-valuenow", "35");
-  await page.keyboard.press("ArrowUp");
-  await expect(panel).toHaveAttribute("aria-valuenow", "40");
+  await expect(rows).toBeHidden();
+  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  await cols.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(cols).toHaveAttribute("aria-valuenow", "48");
   await page.reload();
   await waitReady(page);
   await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "200");
-  await expect(page.getByRole("separator", { name: "Resize the output panel" })).toHaveAttribute("aria-valuenow", "40");
+  await expect(cols).toHaveAttribute("aria-valuenow", "48");
   const width = await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width);
   expect(Math.round(width)).toBe(200);
+  // Under 1100 px the y-axis splitter sizes the docked console, and keeps its own size.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(rows).toHaveAttribute("aria-valuenow", "35");
+  await rows.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("ArrowUp");
+  await expect(rows).toHaveAttribute("aria-valuenow", "40");
+  await page.reload();
+  await waitReady(page);
+  await expect(rows).toHaveAttribute("aria-valuenow", "40");
+  await expect(cols).toHaveAttribute("aria-valuenow", "48");
 });
 
 // A phone-wide window allows the file list 200 px at most; its refresh used to overwrite the
@@ -656,18 +686,30 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
   await withAFile(page);
-  const panel = page.getByRole("separator", { name: "Resize the output panel" });
+  // At 1440 px the console sits beside the code: Maximise widens it, with the x-axis splitter.
+  const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
+  const rows = page.locator('[role=separator][aria-orientation="horizontal"]');
   const maximise = page.getByRole("button", { name: "Maximise the panel" });
   await expect(maximise).toHaveAttribute("aria-pressed", "false");
-  await expect(panel).toHaveAttribute("aria-valuenow", "35");
+  await expect(cols).toHaveAttribute("aria-valuenow", "46");
   await maximise.click();
-  await expect(panel).toHaveAttribute("aria-valuenow", "80");
+  await expect(cols).toHaveAttribute("aria-valuenow", "80");
   await expect(maximise).toHaveAttribute("aria-pressed", "true");
   // Maximising a collapsed panel opens it.
   await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
   await maximise.click();
-  await expect(panel).toHaveAttribute("aria-valuenow", "35");
+  await expect(cols).toHaveAttribute("aria-valuenow", "46");
   await expect(maximise).toHaveAttribute("aria-pressed", "false");
+  // Under 1100 px it makes the docked console taller, with the y-axis one.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(rows).toHaveAttribute("aria-valuenow", "35");
+  await maximise.click();
+  await expect(rows).toHaveAttribute("aria-valuenow", "80");
+  await expect(maximise).toHaveAttribute("aria-pressed", "true");
+  await maximise.click();
+  await expect(rows).toHaveAttribute("aria-valuenow", "35");
+  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  await page.setViewportSize({ width: 1440, height: 900 });
   const side = page.getByRole("separator", { name: "Resize the file list" });
   await expect(side).toHaveAttribute("aria-valuenow", "248");
   await page.locator("#file-actions").click();

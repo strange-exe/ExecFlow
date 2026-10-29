@@ -1,10 +1,12 @@
 import type { Page } from "@playwright/test";
 import { expect, importFiles, openApp, openFromTree, setCode, showFiles, test, treeItem } from "./helpers";
 
-// The 0.7.0 shell, direction B "Calm" (.claude/design/DESIGN.md, "Shell direction for 0.7.0"): a
-// full-height sidebar (workspace, quick actions, the tree, a foot with sync and Settings), a top bar
-// over the editor column only (breadcrumb, "Search or run a command", Capture, Run), the editor and
-// its panel on one sheet, the status bar's facts in the panel bar and the sidebar foot.
+// The Workbench Pro shell (S2, .claude/design/redesign5/a/design.md; built on 0.7.0's direction B):
+// a full-height activity rail (Files, Search, Flowchart, New file; Shortcuts and Settings at its
+// foot) and sidebar (workspace, the tree, a foot with sync and About), a top bar over the work
+// column only (breadcrumb from the workspace, "Search or run a command", the runtime state,
+// Capture, Run with its key), the code card and the console card, the language and Ln/Col in the
+// code card's foot. e2e/workbench-shell.spec.ts has the side-by-side console and the phone's view bar.
 test.use({ serviceWorkers: "block" });
 
 const box = async (page: Page, sel: string) => (await page.locator(sel).boundingBox())!;
@@ -40,46 +42,64 @@ test.describe("desktop", () => {
   test.skip(({ viewport }) => (viewport?.width ?? 1280) < 900, "desktop layout");
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1440, height: 900 }));
 
-  test("the sidebar runs the window's full height: workspace, quick actions, the tree, and a foot with sync and Settings", async ({ page }) => {
+  test("the rail and the sidebar run the window's full height: the rail's actions, then the workspace, the tree, and a foot with sync and About", async ({ page }) => {
     await withFiles(page);
+    const rail = await box(page, ".rail");
+    expect(Math.round(rail.y)).toBe(0);
+    expect(Math.round(rail.y + rail.height), "the rail ends at the window's foot").toBe(900);
     const side = await box(page, "#sidebar");
     expect(Math.round(side.y), "the sidebar starts at the top of the window").toBe(0);
     expect(Math.round(side.y + side.height), "and ends at its foot").toBe(900);
+    expect(side.x, "the sidebar is right of the rail").toBeGreaterThanOrEqual(rail.x + rail.width - 1);
     const sidebar = page.locator("#sidebar");
     // The workspace at the top: its name, and where it lives.
     await expect(sidebar.locator(".ws-switcher #ws-name")).toHaveText("Workspace");
     await expect(sidebar.locator(".ws-switcher .ws-owner")).toHaveText("On this computer");
-    // Quick actions with their real keys.
-    const quick = sidebar.locator(".quick-actions");
-    await expect(quick.getByRole("button", { name: /^Search/ })).toBeVisible();
-    await expect(quick.getByRole("button", { name: /^Flowchart/ })).toBeVisible();
-    await expect(quick.getByRole("button", { name: /^New file/ })).toBeVisible();
-    await expect(quick.locator(".keycap").first()).toHaveText("Ctrl P");
-    // The foot: the sync status and Settings, at the sidebar's bottom edge.
+    // The rail's actions, Search with its real key (announced, not drawn).
+    const r = page.locator(".rail");
+    await expect(r.getByRole("button", { name: /^Search/ })).toHaveAttribute("aria-keyshortcuts", "Control+P");
+    await expect(r.getByRole("button", { name: /^Flowchart/ })).toBeVisible();
+    await expect(r.getByRole("button", { name: /^New file/ })).toBeVisible();
+    // Shortcuts and Settings at the rail's foot, its last two buttons, at the window's foot.
+    await expect(page.locator(".rail-foot #shortcuts-button")).toBeVisible();
+    await expect(page.locator(".rail-foot #settings-button")).toBeVisible();
+    const settings = await box(page, "#settings-button");
+    expect(900 - (settings.y + settings.height)).toBeLessThan(24);
+    // The foot: the sync status and About, at the sidebar's bottom edge.
     await expect(sidebar.locator(".sidebar-foot #sync-status")).toBeVisible();
-    await expect(sidebar.locator(".sidebar-foot #settings-button")).toBeVisible();
+    await expect(sidebar.locator(".sidebar-foot a#about-link[href='/about']")).toBeVisible();
     const foot = await box(page, ".sidebar-foot");
     expect(Math.round(foot.y + foot.height)).toBe(900);
-    // The tree sits between the quick actions and the foot.
+    // The tree sits between the Files heading and the foot.
     const tree = await box(page, ".tree-host");
-    expect(tree.y).toBeGreaterThan((await box(page, ".quick-actions")).y);
+    expect(tree.y).toBeGreaterThan((await box(page, ".sidebar-head")).y);
     expect(tree.y + tree.height).toBeLessThanOrEqual(foot.y + 1);
   });
 
-  test("the top bar is over the editor column only: breadcrumb, the command field, Capture, then Run", async ({ page }) => {
+  test("the top bar is over the work column only: the breadcrumb from the workspace, the command field, the runtime state, Capture, then Run with its key", async ({ page }) => {
     await withFiles(page);
     const side = await box(page, "#sidebar");
     const top = await box(page, ".topbar");
     expect(top.x, "the top bar starts right of the sidebar").toBeGreaterThanOrEqual(side.x + side.width - 1);
+    expect(Math.round(top.height), "56 px tall").toBe(56);
+    await expect(page.locator(".topbar .crumb")).toHaveText(/^Workspace\s*\/\s*main\.c$/);
     const field = page.locator(".topbar #palette-button");
     await expect(field).toContainText("Search or run a command");
     await expect(field.locator(".keycap")).toHaveText("Ctrl P");
     await expect(field).toHaveAccessibleName(/^Search or run a command/);
+    // The field sits in the middle of the bar (within 15% of its width).
+    const f = await box(page, "#palette-button");
+    expect(Math.abs(f.x + f.width / 2 - (top.x + top.width / 2))).toBeLessThan(top.width * 0.15);
     await expect(page.locator(".topbar #run-button")).toBeVisible();
+    await expect(page.locator(".topbar #run-button .run-key")).toHaveText(/^Ctrl /);
+    await expect(page.locator(".topbar #run-button")).toHaveAccessibleName("Run");
     await expect(page.locator(".topbar #snippet-button")).toContainText("Capture");
-    // Capture comes before Run, and Run ends the bar.
+    await expect(page.locator(".topbar #status-runtime")).toBeVisible();
+    // The runtime state, then Capture, then Run, which ends the bar.
+    const runtime = await box(page, "#status-runtime");
     const capture = await box(page, "#snippet-button");
     const run = await box(page, "#run-button");
+    expect(runtime.x).toBeLessThan(capture.x);
     expect(capture.x).toBeLessThan(run.x);
     expect(top.x + top.width - (run.x + run.width)).toBeLessThan(24);
     // The command field opens the palette, and Escape gives focus back to it.
@@ -110,9 +130,9 @@ test.describe("desktop", () => {
     expect(await run.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^(transparent|rgba\(0, 0, 0, 0\))$/);
   });
 
-  test("quick actions: Search opens the palette, Flowchart opens its tab, New file starts a name in the tree", async ({ page }) => {
+  test("the rail's actions: Search opens the palette, Flowchart opens its tab, New file starts a name in the tree", async ({ page }) => {
     await withFiles(page);
-    const quick = page.locator(".quick-actions");
+    const quick = page.locator(".rail");
     await quick.getByRole("button", { name: /^Search/ }).click();
     await expect(page.locator("dialog#palette")).toBeVisible();
     await page.keyboard.press("Escape");
@@ -124,22 +144,26 @@ test.describe("desktop", () => {
     await page.keyboard.press("Escape");
   });
 
-  test("the status bar's facts: language and Ln/Col in the panel bar, notices in the sidebar foot, Shortcuts there too", async ({ page }) => {
+  test("the status bar's facts: language and Ln/Col in the code card's foot, notices in the sidebar foot, Shortcuts in the rail", async ({ page }) => {
     await withFiles(page);
     await expect(page.locator(".statusbar")).toBeHidden();
-    await expect(page.locator(".panel-bar #status-lang")).toHaveText("C");
-    await expect(page.locator(".panel-bar #status-pos")).toHaveText(/^Ln \d+, Col \d+$/);
+    await expect(page.locator(".editor-foot #status-lang")).toHaveText("C");
+    await expect(page.locator(".editor-foot #status-pos")).toHaveText(/^Ln \d+, Col \d+$/);
+    // The foot ends the code card.
+    const foot = await box(page, ".editor-foot");
+    const card = await box(page, "#editor-area");
+    expect(Math.abs(foot.y + foot.height - (card.y + card.height))).toBeLessThan(2);
     // A notice (the import's) shows in the sidebar foot, in its live region.
     await expect(page.locator(".sidebar-foot .notice-host .notice")).toBeAttached();
     await importFiles(page, [{ name: "more.py", text: "print(2)\n" }]);
     await expect(page.locator(".sidebar-foot .notice-host")).toContainText("Imported");
     await expect(page.locator(".sidebar-foot .notice-host")).toBeInViewport();
-    await expect(page.locator(".sidebar-foot #shortcuts-button")).toBeVisible();
+    await expect(page.locator(".rail-foot #shortcuts-button")).toBeVisible();
     await page.locator("#shortcuts-button").click();
     await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
   });
 
-  test("tree rows are 28 px, and each file's type is a text badge, not a colour", async ({ page }) => {
+  test("tree rows are 32 px, and each file's type is a text badge, not a colour", async ({ page }) => {
     await withFiles(page);
     const badge = (path: string) => treeItem(page, path).locator(":scope > .tree-row .tree-type");
     await expect(badge("main.c")).toHaveText("C");
@@ -150,7 +174,7 @@ test.describe("desktop", () => {
     // The badge is decoration beside a name that already says the extension.
     await expect(badge("main.c")).toHaveAttribute("aria-hidden", "true");
     const row = await box(page, '.tree [data-path="main.c"] > .tree-row');
-    expect(Math.round(row.height)).toBe(28);
+    expect(Math.round(row.height)).toBe(32);
   });
 
   test("the chosen tree row is lifted and ringed, with a location edge that keeps 3:1, on a folder too", async ({ page }) => {
@@ -217,11 +241,13 @@ test.describe("phones and zoom", () => {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, `no horizontal scroll at ${size.width} x ${size.height}`).toBeLessThanOrEqual(0);
       await expect(page.locator("#run-button")).toBeInViewport();
-      await expect(page.locator(".drawer-toggle")).toBeVisible();
+      await expect(page.locator(".view-bar .drawer-toggle")).toBeVisible();
+      await expect(page.locator(".view-bar")).toBeInViewport();
       await showFiles(page);
-      // The drawer has the workspace and the quick actions too.
+      // The drawer has the workspace and the tree with its actions (the rail's are in the top bar,
+      // the view bar and the tree's head here).
       await expect(page.locator("#sidebar .ws-switcher")).toBeInViewport();
-      await expect(page.locator("#sidebar .quick-actions")).toBeInViewport();
+      await expect(page.locator("#sidebar #new-file")).toBeInViewport();
       await page.locator(".drawer-toggle").click();
     }
   });

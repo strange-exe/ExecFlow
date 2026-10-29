@@ -286,7 +286,10 @@ for (const scheme of ["light", "dark"] as const) {
     const connect = empty.getByRole("button", { name: "Connect GitHub" });
     const importBtn = empty.getByRole("button", { name: "Import files" });
     const edge = (l: Locator) => l.evaluate((e) => `${getComputedStyle(e).borderTopWidth} ${getComputedStyle(e).borderTopStyle} ${getComputedStyle(e).borderTopColor}`);
-    expect(await edge(connect), "Connect GitHub is an outline button like Import").toBe(await edge(importBtn));
+    // Workbench Pro: both are rows of one ruled list (one look), under the one filled New file.
+    expect(await edge(connect), "Connect GitHub looks like Import files").toBe(await edge(importBtn));
+    await expect(empty.locator("ul.empty-options > li > button")).toHaveCount(4);
+    await expect(empty.locator(".btn.primary")).toHaveCount(1);
 
     // Examples: the lede in the secondary tier, the language titles at 500.
     await page.locator("#empty-examples").click();
@@ -314,9 +317,9 @@ for (const scheme of ["light", "dark"] as const) {
     await page.keyboard.press("Escape");
 
     // Chrome text on its own line heights. The command field is tier 2 (--fs-2 / --lh-2: 13 / 18 px);
-    // the sidebar's "Files" label is tier 3 since the 0.7.0 shell (--fs-hint / --lh-hint: 12 / 16 px,
-    // app.css .region-title), under the workspace and the quick actions.
-    expect(await page.locator(".region-title").first().evaluate((e) => `${getComputedStyle(e).fontSize} / ${getComputedStyle(e).lineHeight}`)).toBe("12px / 16px");
+    // the sidebar's "Files" heading is tier 2 too in Workbench Pro (--fs-2 / --lh-2: 13 / 18 px at
+    // 600, app.css .region-title, the mockup's side-head), under the workspace.
+    expect(await page.locator(".region-title").first().evaluate((e) => `${getComputedStyle(e).fontSize} / ${getComputedStyle(e).lineHeight}`)).toBe("13px / 18px");
     expect(await page.locator("#palette-button").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("18px");
   });
 }

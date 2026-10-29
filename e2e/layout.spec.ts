@@ -38,7 +38,9 @@ const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
 
 test("the panel is its bar until the first run, Ctrl+` opens it, and Run opens it to the remembered height", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // Under 1100 px the console docks under the code (Workbench Pro); beside it, the share is a width
+  // (e2e/workbench-shell.spec.ts).
+  await page.setViewportSize({ width: 1000, height: 900 });
   await openApp(page);
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");
@@ -48,10 +50,13 @@ test("the panel is its bar until the first run, Ctrl+` opens it, and Run opens i
   await expect(page.locator("#panel-output")).toBeHidden();
   await expect(page.locator("#panel-problems")).toBeHidden();
   await expect(page.locator("#panel-flowchart")).toBeHidden();
-  // Its 40 px bar, plus the 1 px foot of the editor's sheet (desktop, since the Signal round).
-  expect((await box(page, "#panel")).height, "the collapsed panel is its 40 px bar and the sheet's edge").toBe(41);
-  expect((await box(page, "#panel .panel-bar")).height).toBe(40);
-  expect((await box(page, "#editor-panel")).height, "the code takes the height").toBeGreaterThanOrEqual(700);
+  // Its 44 px head and the Output tab's tool row (Input is given before a first run), inside the
+  // card's 1 px edge.
+  const collapsedHeight = async () => Math.round((await box(page, "#panel .panel-bar")).height + (await box(page, "#panel .panel-actions")).height + 2);
+  expect((await box(page, "#panel .panel-bar")).height).toBe(44);
+  await expect(page.locator("#input-toggle")).toBeVisible();
+  expect(Math.round((await box(page, "#panel")).height), "the collapsed panel is its head and tool row").toBe(await collapsedHeight());
+  expect((await box(page, "#editor-panel")).height, "the code takes the height").toBeGreaterThanOrEqual(600);
 
   // Ctrl+` opens it and moves the focus in (nothing printed yet: to the Output tab).
   await page.locator(".cm-content").click();
@@ -69,14 +74,14 @@ test("the panel is its bar until the first run, Ctrl+` opens it, and Run opens i
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#panel-output")).toBeHidden();
-  expect((await box(page, "#panel")).height).toBe(41);
+  expect(Math.round((await box(page, "#panel")).height)).toBe(await collapsedHeight());
 
-  // Run opens it at the remembered height (45% of the column), and the program's state shows.
+  // Run opens it at the remembered height (45% of the two cards' rows), and the program's state shows.
   await page.locator("#run-button").click();
   await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 45_000 });
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(splitter).toHaveAttribute("aria-valuenow", "45");
-  const share = (await box(page, "#panel")).height / ((await box(page, ".center")).height - 1);
+  const share = (await box(page, "#panel")).height / ((await box(page, "#panel")).height + (await box(page, "#editor-area")).height);
   expect(Math.abs(share - 0.45), `panel share ${share}`).toBeLessThan(0.01);
   await page.locator("#live-input-field").fill("Ada");
   await page.locator("#live-input-field").press("Enter");
@@ -257,12 +262,12 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");
   const crumb = page.locator(".topbar .crumb");
-  // Since the 0.7.0 shell the workspace heads the sidebar (its switcher, with the app's mark), not
-  // the breadcrumb, which starts at the top folder.
+  // Workbench Pro: the breadcrumb starts with the workspace's name (the one heading the sidebar),
+  // then the folders and the file; the app's mark heads the rail.
   // The "/" between segments is decorative (aria-hidden): compare each segment's own words.
-  await expect(crumb.locator("li > .crumb-text")).toHaveText(["main.py"]);
+  await expect(crumb.locator("li > .crumb-text")).toHaveText(["Workspace", "main.py"]);
   await expect(page.locator("#sidebar .ws-switcher #ws-name")).toHaveText("Workspace");
-  await expect(page.locator("#sidebar .ws-switcher svg.brand-mark")).toBeVisible();
+  await expect(page.locator(".rail > .rail-mark > svg.brand-mark")).toBeVisible();
   // A deep path, made in place (a name with folders makes them).
   const folders = ["course-materials", "semester-two", "week-eleven", "lab-practice", "exercises"];
   const file = "finding_the_largest_value_in_a_list.py";
@@ -273,8 +278,8 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   await name.fill(deep);
   await name.press("Enter");
   await expectActive(page, deep);
-  await expect(crumb.locator("li > .crumb-text")).toHaveText([...folders, file]);
-  await expect(crumb.locator(".crumb-sep")).toHaveCount(folders.length);
+  await expect(crumb.locator("li > .crumb-text")).toHaveText(["Workspace", ...folders, file]);
+  await expect(crumb.locator(".crumb-sep")).toHaveCount(folders.length + 1);
   for (const sep of await crumb.locator(".crumb-sep").all()) await expect(sep).toHaveAttribute("aria-hidden", "true");
   await expect(crumb).toHaveAttribute("title", deep);
 
@@ -297,18 +302,20 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   // The sync status is in the sidebar's foot now; the breadcrumb gives way to the command field.
   expect(crumbBox.x + crumbBox.width, "the breadcrumb ends before the command field").toBeLessThanOrEqual((await box(page, "#palette-button")).x);
 
-  // A phone shows the file's name only, after Files. The change of width redraws nothing in the
+  // A phone shows the file's name only, after the app's mark. The change of width redraws nothing in the
   // crumb when its path is the same: a rebuild between two reads left this test on a removed node
   // (Linux WebKit, CI 2026-10-23). The same node, marked before, is still there after.
   await crumb.locator(".crumb-file").evaluate((el) => el.setAttribute("data-probe", "kept"));
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".drawer-toggle")).toBeVisible();
+  await expect(page.locator(".view-bar .drawer-toggle")).toBeVisible();
   await page.waitForTimeout(500);
   await expect(crumb.locator(".crumb-file"), "the crumb kept its nodes").toHaveAttribute("data-probe", "kept");
   await expect(crumb.locator(".crumb-file")).toBeVisible();
   await expect(crumb.locator(".crumb-dir")).toHaveCount(folders.length);
   for (const dir of await crumb.locator(".crumb-dir").all()) await expect(dir).toBeHidden();
-  expect((await box(page, ".topbar .crumb-file")).x).toBeGreaterThan((await box(page, ".drawer-toggle")).x);
+  await expect(crumb.locator(".crumb-root")).toBeHidden();
+  const markBox = await box(page, ".topbar .brand-mark");
+  expect((await box(page, ".topbar .crumb-file")).x).toBeGreaterThanOrEqual(markBox.x + markBox.width);
   expect(await noOverflow(page)).toBe(true);
 });
 
@@ -332,14 +339,14 @@ test("notices speak from the sidebar's foot: kept rendered while empty, dismisse
   await expect(notice).toHaveAttribute("data-empty", "false");
   await expect(notice).toContainText("Imported 2 files.");
   await openFromTree(page, "main.py");
-  // On screen, inside the sidebar, over the sync status and Shortcuts; the foot keeps to the
-  // window's bottom edge (the tree gives up the room).
+  // On screen, inside the sidebar, over the sync status and About (Shortcuts is in the rail since
+  // Workbench Pro); the foot keeps to the window's bottom edge (the tree gives up the room).
   await expect(notice).toBeInViewport();
-  const [side, words, syncBox, shortcuts, foot] = [await box(page, "#sidebar"), await box(page, ".notice-text"), await box(page, "#sync-status"), await box(page, "#shortcuts-button"), await box(page, ".sidebar-foot")];
+  const [side, words, syncBox, about, foot] = [await box(page, "#sidebar"), await box(page, ".notice-text"), await box(page, "#sync-status"), await box(page, "#about-link"), await box(page, ".sidebar-foot")];
   expect(words.x).toBeGreaterThanOrEqual(side.x);
   expect(words.x + words.width).toBeLessThanOrEqual(side.x + side.width);
   expect(words.y + words.height).toBeLessThanOrEqual(syncBox.y);
-  expect(words.y + words.height).toBeLessThanOrEqual(shortcuts.y);
+  expect(words.y + words.height).toBeLessThanOrEqual(about.y);
   expect(Math.round(foot.y + foot.height)).toBe(900);
   // From the keyboard (WebKit does not focus a button on click): the dismiss button that had the
   // focus goes with the notice, and the focus is back in the code.
@@ -458,23 +465,23 @@ test.describe("phones", () => {
     await importFiles(page, FILES);
     await openFromTree(page, "main.py");
     await openFromTree(page, "calc.py");
-    // No tab list of files on screen; the top bar has Files and the file's name at its start, and
-    // Search, sync, Run and Settings at its end (0.7.0 shell: .topbar-start / .topbar-end).
+    // No tab list of files on screen; the top bar has the app's mark and the file's name at its
+    // start, and Search, sync, Run and Settings at its end (Workbench Pro: Files is in the view bar).
     await expect(page.getByRole("tablist", { name: "Open files" })).toBeHidden();
-    await expect(page.locator(".topbar svg.brand-mark")).toHaveCount(0);
+    await expect(page.locator(".topbar .topbar-start > svg.brand-mark")).toBeVisible();
+    await expect(page.locator(".topbar .drawer-toggle")).toHaveCount(0);
     await expect(page.locator(".topbar .crumb-file")).toHaveText("calc.py");
     const ends = await page.locator(".topbar .topbar-end").evaluate((el) => [...el.children].filter((c) => c.getClientRects().length > 0).map((c) => c.id || c.className));
     expect(ends).toEqual(["palette-button", "sync-slot", "run-button", "settings-button"]);
     await expect(page.locator(".topbar #run-button")).toBeVisible();
-    expect(Math.round((await box(page, "#editor-panel")).y), "chrome above the code").toBe(92);
+    expect(Math.round((await box(page, "#editor-panel")).y), "chrome above the code: the top bar only").toBe(48);
 
     // The drawer marks every file open in a tab, with an icon and a description. Its head carries
-    // the workspace with the app's mark (none in the phone top bar; the drawer shows it).
+    // the workspace (the app's mark is in the top bar).
     await showFiles(page);
     const brand = page.locator("#sidebar .ws-switcher");
     await expect(brand).toBeVisible();
     await expect(brand.locator("#ws-name")).toHaveText("Workspace");
-    await expect(brand.locator("svg.brand-mark")).toBeVisible();
     expect(await noOverflow(page)).toBe(true);
     for (const path of ["main.py", "calc.py"]) {
       await expect(treeItem(page, path).locator(":scope > .tree-row [data-open]")).toBeVisible();
@@ -639,9 +646,11 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]] as const
     await expect(stop).toHaveAccessibleName("Stop");
     await expect(app).toHaveAttribute("data-run", "idle", { timeout: 30_000 });
     await expect(page.locator("#receipt")).toHaveAttribute("data-status", "ok");
-    // Nothing runs and nothing is left: the empty workspace leads, with no Run (layout v2).
+    // Nothing runs and nothing is left: the empty workspace leads, and Run is back, disabled
+    // (Workbench Pro item 7: named Run again, not Stop).
     await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
-    await expect(stop).toBeHidden();
+    await expect(stop).toHaveAttribute("aria-disabled", "true");
+    await expect(stop).toHaveAccessibleName("Run");
   });
 }
 
@@ -757,7 +766,9 @@ test("the Input toggle opens its box with the caret in it; Escape closes it and 
 });
 
 test("the panel's splitter says when the panel is collapsed, and its first key only opens the panel", async ({ page }) => {
-  await page.setViewportSize(DESKTOP);
+  // Under 1100 px, where the console docks under the code (the x-axis splitter beside it does the
+  // same: e2e/design.spec.ts "splitters are separators").
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");

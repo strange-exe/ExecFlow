@@ -578,7 +578,9 @@ for (const scheme of ["light", "dark"] as const) {
  */
 test("in forced colours the selected tab and panel tab, the open file, the error marks and the splitter's focus still show", async ({ page }, info) => {
   test.setTimeout(120_000);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // Under 1100 px (Workbench Pro): the console docks under the code, so the splitter checked below
+  // is the y-axis one, with the code's rows above it (the x-axis one draws its ring by the same rule).
+  await page.setViewportSize({ width: 1000, height: 800 });
   await page.goto("/");
   await page.emulateMedia({ colorScheme: "dark", forcedColors: "active" });
   await page.reload();
@@ -652,8 +654,10 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   measure("open file in the tree", lead(await rect('.tree [aria-current="true"] > .tree-row')), lead(await rect('.tree [data-path="calc.py"] > .tree-row')), px);
   const jump = await rect("#error-jump");
   measure("error jump", lead(jump), lead(jump, -8), px);
-  const header = await rect("#runlog");
-  measure("failed run's header", lead(header), lead(header, 4), px);
+  // Workbench Pro: a failed run's header has no band or bar (item 4); its error chip's 1 px edge is
+  // the mark, a border that forced colours keep.
+  const chip = await rect("#run-exception");
+  measure("failed run's error chip", lead(chip), lead(chip, 6), px);
   // 1 px inside the cell: in Linux WebKit its box reaches over the gutters' own edge line, which
   // counted as ink in the cell above (CI 2026-10-23: strongest pixel at the edge, 46,66,58).
   const inset = (r: Box): Box => ({ x: r.x + 1, y: r.y + 1, width: r.width - 2, height: r.height - 2 });
@@ -678,7 +682,7 @@ test("in forced colours the selected tab and panel tab, the open file, the error
   await page.keyboard.press("Tab");
   await expect(page.getByRole("separator", { name: "Resize the output panel" })).toBeFocused();
   // Past the gutter (its edge is a line of its own), over the empty end of the code.
-  const splitter = await rect(".center > .splitter");
+  const splitter = await rect(".center > .splitter.horizontal");
   const gutters = await rect(".cm-editor .cm-gutters");
   // The two whole pixel rows above the splitter's own: its box can start on a half pixel (the
   // editor's share of the column is a fraction), and then its line is drawn in the row it starts in.
@@ -776,7 +780,9 @@ test("in forced colours the menus' separators still show", async ({ page, browse
  * log was taller than the panel), and it stays clear of the stderr bar.
  */
 test("the output log's focus ring is drawn whole, clear of the stderr bar", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // The console docked under the code (under 1100 px), so the traceback outgrows its scroller:
+  // beside the code at 1440 x 900 it runs the full height and the whole log fits.
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openThemed(page, "light");
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");

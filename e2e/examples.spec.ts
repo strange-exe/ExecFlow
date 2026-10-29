@@ -22,7 +22,8 @@ async function choose(page: Page, name: string) {
 test("the empty workspace offers the examples; one is added, opened and focused, and Escape returns to the opener", async ({ page }) => {
   await openApp(page);
   const link = page.locator("#empty-examples");
-  await expect(link).toHaveAccessibleName("New from example...");
+  // A row of the empty workspace's ruled list (Workbench Pro): its words, then what it does.
+  await expect(link).toHaveAccessibleName("New from example Pick a short program to run and change");
   await link.click();
   await expect(dialog(page)).toHaveAttribute("data-state", "ready");
   await expect(dialog(page)).toHaveAccessibleName("New from example");

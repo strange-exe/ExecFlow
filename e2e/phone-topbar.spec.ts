@@ -33,7 +33,8 @@ for (const width of [320, 360, 390, 430]) {
       // No control lies over another (at 320 px with a long name, the 44 px sync button spilled 18 px
       // under Run, because its slot could shrink to nothing: the lead's screenshot review, 2026-10-25).
       const overlaps = await page.evaluate(() => {
-        const ids = [".topbar .drawer-toggle", ".topbar .crumb-file", "#palette-button", "#sync-status", "#run-button", "#settings-button"];
+        // Workbench Pro: the mark leads the bar; Files moved to the bottom view bar.
+        const ids = [".topbar .brand-mark", ".topbar .crumb-file", "#palette-button", "#sync-status", "#run-button", "#settings-button"];
         const boxes = ids.map((s) => [s, document.querySelector(s)?.getBoundingClientRect()] as const).filter(([, r]) => r && r.width > 0);
         const out: string[] = [];
         for (let i = 0; i < boxes.length; i++)

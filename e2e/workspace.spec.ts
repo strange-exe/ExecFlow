@@ -9,7 +9,7 @@ const activeTab = (page: import("@playwright/test").Page) => page.locator('.tabs
 test("a first visit offers starters, and one becomes a saved, open file", async ({ page }) => {
   await openApp(page);
   await expect(page.locator('[data-empty="workspace"]')).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Create your first file" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Write your first program" })).toBeVisible();
   await page.locator('.starter[data-language="python"]').click();
   await expect(treeItem(page, "main.py")).toHaveAttribute("aria-current", "true");
   await expect(activeTab(page)).toHaveAttribute("title", "main.py");
