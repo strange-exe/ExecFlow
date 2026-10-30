@@ -13,15 +13,25 @@
 // have exactly the two string fields, the name must be one valid file name, and the text passes the
 // checks every imported file passes (no control or text-direction characters). Pure but for the
 // browser's compression streams.
-import { normalizePath, PathError } from "./paths";
+//
+// Format 2 (0.18.0, owner's picks 2026-10-30) carries a folder: several files under one folder name,
+//   #code=2.<base64url(deflate-raw(UTF-8 JSON {"d": folder, "f": [{"n": path, "t": text}, ...]}))>
+// within the same length and size caps, at most MAX_LINK_FILES files. The folder name is one name;
+// each path is relative to it, at most MAX_LINK_DEPTH deep, and two files may not land on one file
+// (names compared as storage compares them) or a file sit where another file's folder is.
+import { foldKey, normalizePath, PathError } from "./paths";
 import { checkText } from "./safety";
 
 export const CODE_LINK_MARK = "#code=";
 const VERSION = "1.";
+const FOLDER_VERSION = "2.";
 /** The longest link made or read (RFC 9110's recommended minimum URI support). */
 export const MAX_LINK_CHARS = 8000;
 /** The most a link's content may inflate to (far above what MAX_LINK_CHARS can hold of real code). */
 export const MAX_INFLATED_BYTES = 256 * 1024;
+/** The most files a folder link holds, and how deep its paths go (folders inside the shared one). */
+export const MAX_LINK_FILES = 50;
+export const MAX_LINK_DEPTH = 8;
 const FORMAT = "deflate-raw";
 
 export interface SharedFile {
@@ -29,13 +39,22 @@ export interface SharedFile {
   text: string;
 }
 
+/** A folder from a link: its name, and its files with paths relative to it. */
+export interface SharedFolder {
+  name: string;
+  files: SharedFile[];
+}
+
 export type MakeRefusal =
   | { kind: "unsupported" }
   | { kind: "not-text"; reason: string }
   /** `chars`: the link's length, null when the file is too big to try. */
-  | { kind: "too-long"; chars: number | null };
+  | { kind: "too-long"; chars: number | null }
+  /** Folder links: no files, or more than MAX_LINK_FILES. */
+  | { kind: "empty" }
+  | { kind: "too-many" };
 
-export type ReadRefusal = { kind: "unsupported" } | { kind: "damaged" } | { kind: "too-big" } | { kind: "bad-name"; reason: string } | { kind: "not-text"; reason: string };
+export type ReadRefusal = { kind: "unsupported" } | { kind: "damaged" } | { kind: "too-big" } | { kind: "too-many" } | { kind: "bad-name"; reason: string } | { kind: "not-text"; reason: string };
 
 /** Whether this browser has the compression streams code links need. */
 export function canCompress(): boolean {
@@ -110,19 +129,44 @@ export async function makeCodeLink(origin: string, name: string, text: string): 
   return { ok: true, url };
 }
 
+/**
+ * The link for a folder named `folder` holding `files` (paths relative to it), opening at `origin`.
+ * The caller passes workspace files, so their paths are already valid; the reader checks them anyway.
+ */
+export async function makeFolderLink(origin: string, folder: string, files: readonly SharedFile[]): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }> {
+  if (!files.length) return { ok: false, refusal: { kind: "empty" } };
+  if (files.length > MAX_LINK_FILES) return { ok: false, refusal: { kind: "too-many" } };
+  if (!canCompress()) return { ok: false, refusal: { kind: "unsupported" } };
+  for (const f of files) {
+    const checked = checkText(f.text);
+    if (!checked.ok) return { ok: false, refusal: { kind: "not-text", reason: `${f.name}: ${checked.reason}` } };
+  }
+  const json = new TextEncoder().encode(JSON.stringify({ d: folder, f: files.map((f) => ({ n: f.name, t: f.text })) }));
+  if (json.length > MAX_INFLATED_BYTES) return { ok: false, refusal: { kind: "too-long", chars: null } };
+  const url = `${origin}/${CODE_LINK_MARK}${FOLDER_VERSION}${toBase64Url(await deflate(json))}`;
+  if (url.length > MAX_LINK_CHARS) return { ok: false, refusal: { kind: "too-long", chars: url.length } };
+  return { ok: true, url };
+}
+
 /** Whether `hash` (location.hash) is a code link, of any version. */
 export function isCodeLink(hash: string): boolean {
   return hash.startsWith(CODE_LINK_MARK);
 }
 
-/** The file a code link's fragment (location.hash) carries, or why it can't be opened. */
-export async function readCodeLink(hash: string): Promise<{ ok: true; file: SharedFile } | { ok: false; refusal: ReadRefusal }> {
-  const fail = (refusal: ReadRefusal) => ({ ok: false as const, refusal });
+type Fail = { ok: false; refusal: ReadRefusal };
+const fail = (refusal: ReadRefusal): Fail => ({ ok: false, refusal });
+/** An object with exactly these keys (JSON.parse makes own, plain-data keys, "__proto__" included). */
+const isRecord = (value: unknown, keys: string): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).sort().join(",") === keys;
+
+/** The file (format 1) or folder (format 2) a code link's fragment (location.hash) carries, or why it can't be opened. */
+export async function readCodeLink(hash: string): Promise<{ ok: true; file: SharedFile } | { ok: true; folder: SharedFolder } | Fail> {
   if (!isCodeLink(hash) || hash.length > MAX_LINK_CHARS) return fail({ kind: hash.length > MAX_LINK_CHARS ? "too-big" : "damaged" });
   const body = hash.slice(CODE_LINK_MARK.length);
-  if (!body.startsWith(VERSION)) return fail({ kind: "damaged" });
+  const version = body.startsWith(VERSION) ? VERSION : body.startsWith(FOLDER_VERSION) ? FOLDER_VERSION : null;
+  if (!version) return fail({ kind: "damaged" });
   if (!canCompress()) return fail({ kind: "unsupported" });
-  const packed = fromBase64Url(body.slice(VERSION.length));
+  const packed = fromBase64Url(body.slice(version.length));
   if (!packed) return fail({ kind: "damaged" });
   const inflated = await inflate(packed, MAX_INFLATED_BYTES);
   if (inflated === "too-big") return fail({ kind: "too-big" });
@@ -133,10 +177,9 @@ export async function readCodeLink(hash: string): Promise<{ ok: true; file: Shar
   } catch {
     return fail({ kind: "damaged" });
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return fail({ kind: "damaged" });
+  if (version === FOLDER_VERSION) return readFolder(parsed);
   const record = parsed as Record<string, unknown>;
-  const keys = Object.keys(record).sort().join(",");
-  if (keys !== "n,t" || typeof record.n !== "string" || typeof record.t !== "string") return fail({ kind: "damaged" });
+  if (!isRecord(parsed, "n,t") || typeof record.n !== "string" || typeof record.t !== "string") return fail({ kind: "damaged" });
   let name: string;
   try {
     name = normalizePath(record.n);
@@ -150,6 +193,44 @@ export async function readCodeLink(hash: string): Promise<{ ok: true; file: Shar
   const lf = toLf(record.t);
   if (!lf.ok) return fail({ kind: "not-text", reason: lf.reason });
   return { ok: true, file: { name, text: lf.text } };
+}
+
+/** A folder link's JSON, checked: its shape, the folder's name, every path and every text. */
+function readFolder(parsed: unknown): { ok: true; folder: SharedFolder } | Fail {
+  if (!isRecord(parsed, "d,f") || typeof parsed.d !== "string" || !Array.isArray(parsed.f) || !parsed.f.length) return fail({ kind: "damaged" });
+  if (parsed.f.length > MAX_LINK_FILES) return fail({ kind: "too-many" });
+  const entries = parsed.f as unknown[];
+  if (!entries.every((e) => isRecord(e, "n,t") && typeof e.n === "string" && typeof e.t === "string")) return fail({ kind: "damaged" });
+  let folder: string;
+  const files: SharedFile[] = [];
+  try {
+    folder = normalizePath(parsed.d);
+    if (folder.includes("/")) return fail({ kind: "bad-name", reason: "the folder's name is a path, not one name" });
+    const taken = new Set<string>();
+    for (const e of entries as { n: string; t: string }[]) {
+      const name = normalizePath(e.n);
+      if (name.split("/").length > MAX_LINK_DEPTH) return fail({ kind: "bad-name", reason: `${name} is in folders nested more than ${MAX_LINK_DEPTH} deep` });
+      if (taken.has(foldKey(name))) return fail({ kind: "bad-name", reason: `two files would both be ${name}` });
+      taken.add(foldKey(name));
+      const checked = checkText(e.t);
+      if (!checked.ok) return fail({ kind: "not-text", reason: `${name}: ${checked.reason}` });
+      const lf = toLf(e.t);
+      if (!lf.ok) return fail({ kind: "not-text", reason: `${name}: ${lf.reason}` });
+      files.push({ name, text: lf.text });
+    }
+    // A file where another file's folder is (src, and src/a.c) can't both be stored.
+    for (const f of files) {
+      const parts = f.name.split("/");
+      for (let i = 1; i < parts.length; i++) {
+        const dir = parts.slice(0, i).join("/");
+        if (taken.has(foldKey(dir))) return fail({ kind: "bad-name", reason: `${dir} is both a file and a folder` });
+      }
+    }
+  } catch (e) {
+    if (!(e instanceof PathError)) throw e;
+    return fail({ kind: "bad-name", reason: e.message });
+  }
+  return { ok: true, folder: { name: folder, files } };
 }
 
 /**
@@ -175,6 +256,8 @@ export function readRefusalText(refusal: ReadRefusal): string {
       return "This code link is damaged or incomplete (it may have been cut off when it was sent), so nothing was opened. Ask for the link again.";
     case "too-big":
       return "This code link holds more than a code link can, so nothing was opened. Ask for the file another way.";
+    case "too-many":
+      return `This code link holds more than ${MAX_LINK_FILES} files, more than a code link may, so nothing was opened. Ask for the files as a .zip.`;
     case "bad-name":
       return `This code link's file name can't be used (${refusal.reason}), so nothing was opened.`;
     case "not-text":

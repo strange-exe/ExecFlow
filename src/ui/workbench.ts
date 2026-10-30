@@ -3,7 +3,7 @@
 // layout.ts and the component modules; this file decides what happens.
 import type { EditorState } from "@codemirror/state";
 import { detectLanguage, isHeader, LANGUAGES, type LanguageId } from "../core/languages";
-import { conflictName, foldKey, isInside, nameOf, parentOf } from "../core/paths";
+import { conflictName, foldKey, isInside, joinPath, nameOf, parentOf } from "../core/paths";
 import type { EntryMeta, RunResult, RunStatus, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
 import type { EditorManager, FileId, Problem } from "../editor/editor-manager";
 import { toLineCol } from "../editor/positions";
@@ -330,6 +330,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     { label: "Import files", icon: "upload-simple", separatorBefore: true, run: () => void importFrom(false, targetDir()) },
     { label: "Import a folder", icon: "folder-plus", run: () => void importFrom(true, targetDir()) },
     { label: "Export workspace (.zip)", icon: "download-simple", run: () => void exportWorkspace() },
+    { label: "Choose files to download or share...", icon: "list-checks", run: () => void chooseFiles(moreButton) },
     { label: "Save as PDF...", icon: "printer", run: () => openPrint(moreButton) },
     ...snippet.menuItems(),
     ...widthItems(),
@@ -950,6 +951,28 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       else notice.show(`Saved ${zip ? `${plural(count, "file")} as ${name}` : name}.${leftOut}`, { tone: "success" });
     } catch (e) {
       notice.show(`The download didn't work: ${errorText(e)}`);
+    }
+  }
+
+  /** "Choose files to download or share..." (choose-files-dialog.ts, a lazy chunk). */
+  let chooseChunk: Promise<typeof import("./choose-files-dialog")> | null = null;
+  async function chooseFiles(opener: HTMLElement | null) {
+    await saves.flushAll();
+    try {
+      const m = await (chooseChunk ??= import("./choose-files-dialog").catch((e: unknown) => {
+        chooseChunk = null;
+        throw e;
+      }));
+      await m.openChooseFiles({
+        files: () => store.loadRunFiles(ws, ""),
+        readOnly: entries.filter((e) => e.kind === "file" && e.opaque).map((e) => e.path),
+        initial: tree.selectedNode()?.path ?? null,
+        workspace: record.name,
+        download: (picks) => downloadPaths(picks),
+        origin: location.origin,
+      }, opener);
+    } catch (e) {
+      notice.show(`Choose files couldn't open: ${errorText(e)}`);
     }
   }
 
@@ -2024,6 +2047,30 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     return null;
   }
 
+  /**
+   * A folder from a code link (format 2), added as a new folder at the top: every name and byte goes
+   * through importFiles, as a folder import does. Files it refuses are named in a notice; none added
+   * is a refusal the dialog shows.
+   */
+  async function addFolder(folder: WsPath, files: readonly { name: string; text: string }[]): Promise<AddRefusal | null> {
+    if (!canWrite()) return { message: readOnlyText(), readOnly: true };
+    const enc = new TextEncoder();
+    let result: Awaited<ReturnType<typeof store.importFiles>>;
+    try {
+      result = await store.importFiles(ws, "", files.map((f) => ({ name: joinPath(folder, f.name), bytes: enc.encode(f.text) })));
+    } catch (e) {
+      return { message: storageMessage(e) };
+    }
+    if (!result.added.length) return { message: `The folder wasn't added: ${result.refused[0]?.reason ?? "nothing in it could be stored"}.` };
+    await refreshTree();
+    tree.reveal(result.added[0]);
+    const first = result.added.find((p) => detectLanguage(p)) ?? result.added[0];
+    await openFile(first, { focus: true });
+    if (result.refused.length) notice.show(`Added ${folder} with ${plural(result.added.length, "file")}. Left out ${listNames(result.refused.map((r) => r.name))}: ${result.refused[0].reason}.`, { tone: "info" });
+    announcer.say(`Added the folder ${folder} with ${plural(result.added.length, "file")}, and opened ${nameOf(first)}.`);
+    return null;
+  }
+
   let paletteChunk: Promise<typeof import("./palette")> | null = null;
   const loadPalette = () => (paletteChunk ??= import("./palette").catch((e: unknown) => {
     paletteChunk = null;
@@ -2080,6 +2127,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         const path = fileOf(editors.activeId)?.path;
         if (path && parentOf(path) !== "") void downloadPaths([parentOf(path)]);
       },
+      chooseFiles: (opener) => void chooseFiles(opener),
       capture: (opener) => snippet.open(opener, opener.closest(".cm-editor") ? "context" : "head-key"),
       fileList: () => {
         L.openDrawer();
@@ -2424,7 +2472,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         // The code leaves the address bar: a reload doesn't offer it again, and a bookmark doesn't keep it.
         // A read-only tab can't add it, so there it stays, to copy into the editing tab.
         if (location.hash === hash && canWrite()) history.replaceState(history.state, "", location.pathname + location.search);
-        return m.openCodeLink(hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), notice });
+        return m.openCodeLink(hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), addFolder, notice });
       },
       () => {
         codeLinkChunk = null;

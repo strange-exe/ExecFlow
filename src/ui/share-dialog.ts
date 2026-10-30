@@ -299,6 +299,8 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     const instead = state.kind === "connected" ? "Share it as a secret gist instead." : "Connect GitHub to share it as a secret gist, or export it.";
     if (refusal.kind === "unsupported") return "This browser can't make code links. Use a current Chrome, Edge, Firefox or Safari.";
     if (refusal.kind === "not-text") return `${name} can't go in a link: ${refusal.reason}.`;
+    // "empty" and "too-many" are folder links' (makeFolderLink); one file never gets them.
+    if (refusal.kind !== "too-long") return `${name} can't go in a link. ${instead}`;
     const size = refusal.chars === null ? "" : ` (it would be ${refusal.chars.toLocaleString("en")} characters)`;
     return `${name} is too long for a code link${size}: a link holds at most 8,000 characters, so chat apps keep it whole. ${instead}`;
   };

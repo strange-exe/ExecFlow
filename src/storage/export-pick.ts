@@ -30,6 +30,40 @@ export function zipBase(picks: readonly string[]): string {
   return base;
 }
 
+/**
+ * The fewest picks that cover the ticked files: a folder all of whose files are ticked stands for
+ * them (so its .zip unpacks as that folder), else each ticked file. `all` is every file there is;
+ * the workspace itself ("") is never a pick, its folders and files are.
+ */
+export function coverPicks(ticked: readonly string[], all: readonly string[]): string[] {
+  const on = new Set(ticked);
+  const full = (dir: string) => all.every((p) => !isInside(p, dir) || on.has(p));
+  const picks = new Set<string>();
+  for (const path of ticked) {
+    // The outermost folder of this file that is fully ticked, or the file itself.
+    const parts = path.split("/");
+    let pick = path;
+    for (let i = 1; i < parts.length; i++) {
+      const dir = parts.slice(0, i).join("/");
+      if (full(dir)) {
+        pick = dir;
+        break;
+      }
+    }
+    picks.add(pick);
+  }
+  return [...picks].sort();
+}
+
+/** What a folder link carries for these picks: one folder's name and the files relative to it. */
+export function linkFolder(picks: readonly string[], files: readonly { path: string; text: string }[]): { name: string; files: { name: string; text: string }[] } {
+  const covered = files.filter((f) => picks.some((p) => isInside(f.path, p)));
+  // One folder picked: the link is that folder. Otherwise the folder holding the pick, or "shared".
+  const isFolder = picks.length === 1 && covered.some((f) => f.path !== picks[0]);
+  const base = isFolder ? picks[0] : zipBase(picks);
+  return { name: base ? nameOf(base) : "shared", files: covered.map((f) => ({ name: under(f.path, base), text: f.text })) };
+}
+
 /** The .zip's file name: the one folder picked, the folder holding the pick, or the workspace's name. */
 export function zipName(picks: readonly string[], workspace: string): string {
   const base = zipBase(picks);

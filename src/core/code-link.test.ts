@@ -3,7 +3,7 @@
 // a deflate bomb, the wrong shape, a bad name, Trojan Source text) is refused with its reason.
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { MAX_INFLATED_BYTES, MAX_LINK_CHARS, isCodeLink, makeCodeLink, readCodeLink, readRefusalText } from "./code-link";
+import { MAX_INFLATED_BYTES, MAX_LINK_CHARS, MAX_LINK_FILES, isCodeLink, makeCodeLink, makeFolderLink, readCodeLink, readRefusalText } from "./code-link";
 
 const ORIGIN = "https://execflow.abhinesh.codes";
 const hashOf = (url: string) => url.slice(url.indexOf("#"));
@@ -134,8 +134,91 @@ describe("reading a hostile or damaged link", () => {
   });
 
   it("every refusal has a sentence", () => {
-    for (const r of [{ kind: "unsupported" }, { kind: "damaged" }, { kind: "too-big" }, { kind: "bad-name", reason: "r" }, { kind: "not-text", reason: "r" }] as const) {
+    for (const r of [{ kind: "unsupported" }, { kind: "damaged" }, { kind: "too-big" }, { kind: "too-many" }, { kind: "bad-name", reason: "r" }, { kind: "not-text", reason: "r" }] as const) {
       expect(readRefusalText(r)).toMatch(/^This .+\.$/);
     }
+  });
+});
+
+// Folder links (format 2, 0.18.0, owner's picks 2026-10-30): several files under one folder name, the
+// same 8,000-character limit, every path and text checked as a file import checks them.
+const forge2 = (value: unknown) => `#code=2.${deflateRawSync(JSON.stringify(value)).toString("base64url")}`;
+const LAB = [
+  { name: "main.c", text: '#include <stdio.h>\n#include "util.h"\nint main(void) { printf("%d\\n", twice(21)); }\n' },
+  { name: "util.h", text: "#pragma once\nint twice(int x);\n" },
+  { name: "src/util.c", text: '#include "../util.h"\nint twice(int x) { return 2 * x; }\n' },
+  { name: "data/in.txt", text: "" },
+];
+
+describe("a folder in a code link", () => {
+  it("comes back with its name and every file exactly as it went in", async () => {
+    const made = await makeFolderLink(ORIGIN, "lab1", LAB);
+    if (!made.ok) throw new Error(`not made: ${made.refusal.kind}`);
+    expect(made.url.startsWith(`${ORIGIN}/#code=2.`)).toBe(true);
+    expect(await readCodeLink(hashOf(made.url))).toEqual({ ok: true, folder: { name: "lab1", files: LAB } });
+  });
+
+  it("is refused when it can't fit, with the link's length; when it is empty; and past the most files", async () => {
+    let seed = 11;
+    const noise = (n: number) => Array.from({ length: n }, () => String.fromCharCode(33 + ((seed = (seed * 48271) % 2147483647) % 90))).join("");
+    const big = await makeFolderLink(ORIGIN, "big", [{ name: "a.txt", text: noise(5000) }, { name: "b.txt", text: noise(5000) }]);
+    expect(big.ok).toBe(false);
+    if (!big.ok && big.refusal.kind === "too-long") expect(big.refusal.chars).toBeGreaterThan(MAX_LINK_CHARS);
+    else throw new Error("expected too-long");
+    expect(await makeFolderLink(ORIGIN, "none", [])).toEqual({ ok: false, refusal: { kind: "empty" } });
+    const many = Array.from({ length: MAX_LINK_FILES + 1 }, (_, i) => ({ name: `f${i}.txt`, text: "" }));
+    expect(await makeFolderLink(ORIGIN, "many", many)).toEqual({ ok: false, refusal: { kind: "too-many" } });
+    expect((await makeFolderLink(ORIGIN, "bidi", [{ name: "a.c", text: String.fromCodePoint(0x202e) }])).ok).toBe(false);
+  });
+
+  it.each([
+    ["an extra field", { d: "lab", f: [{ n: "a.c", t: "" }], run: true }],
+    ["files that aren't a list", { d: "lab", f: { n: "a.c", t: "" } }],
+    ["no files", { d: "lab", f: [] }],
+    ["a file with an extra field", { d: "lab", f: [{ n: "a.c", t: "", x: 1 }] }],
+    ["a number for text", { d: "lab", f: [{ n: "a.c", t: 1 }] }],
+  ])("%s: damaged, nothing opened", async (_, value) => {
+    expect(await readCodeLink(forge2(value))).toEqual({ ok: false, refusal: { kind: "damaged" } });
+  });
+
+  it("more files than a link may hold are refused", async () => {
+    const f = Array.from({ length: MAX_LINK_FILES + 1 }, (_, i) => ({ n: `f${i}.c`, t: "" }));
+    expect(await readCodeLink(forge2({ d: "lab", f }))).toEqual({ ok: false, refusal: { kind: "too-many" } });
+  });
+
+  it.each([
+    ["a folder name with a slash", "a/b", "x.c"],
+    ["a folder name that climbs", "..", "x.c"],
+    ["a path that climbs out", "lab", "../escape.c"],
+    ["a path that climbs inside", "lab", "src/../../x.c"],
+    ["an absolute path", "lab", "/etc/passwd"],
+    ["a Windows device name", "lab", "con.c"],
+    ["a text-direction character", "lab", `a${String.fromCodePoint(0x202e)}.c`],
+    ["a path nested too deep", "lab", `${"d/".repeat(9)}x.c`],
+  ])("%s is refused", async (_, d, n) => {
+    const read = await readCodeLink(forge2({ d, f: [{ n, t: "" }] }));
+    expect(read).toMatchObject({ ok: false, refusal: { kind: "bad-name" } });
+  });
+
+  it("two files that would land on one file, or a file where a folder is, are refused", async () => {
+    for (const f of [
+      [{ n: "Main.c", t: "" }, { n: "main.c", t: "" }],
+      [{ n: "src", t: "" }, { n: "src/a.c", t: "" }],
+    ]) expect(await readCodeLink(forge2({ d: "lab", f }))).toMatchObject({ ok: false, refusal: { kind: "bad-name" } });
+  });
+
+  it("each file's text is checked, and Windows line endings come back as LF", async () => {
+    const CR = String.fromCharCode(13);
+    expect(await readCodeLink(forge2({ d: "lab", f: [{ n: "a.c", t: `x${CR}\ny${CR}\n` }] }))).toEqual({ ok: true, folder: { name: "lab", files: [{ name: "a.c", text: "x\ny\n" }] } });
+    const bad = await readCodeLink(forge2({ d: "lab", f: [{ n: "ok.c", t: "" }, { n: "b.c", t: `a${String.fromCharCode(0)}` }] }));
+    expect(bad).toMatchObject({ ok: false, refusal: { kind: "not-text", reason: expect.stringMatching(/^b\.c: /) } });
+  });
+
+  it('"__proto__" and other object-like names are ordinary names', async () => {
+    const files = [{ name: "__proto__/remove.h", text: "" }, { name: "constructor.c", text: "" }];
+    const made = await makeFolderLink(ORIGIN, "__proto__", files);
+    if (!made.ok) throw new Error(made.refusal.kind);
+    expect(await readCodeLink(hashOf(made.url))).toEqual({ ok: true, folder: { name: "__proto__", files } });
+    expect(({} as Record<string, unknown>).remove).toBeUndefined();
   });
 });

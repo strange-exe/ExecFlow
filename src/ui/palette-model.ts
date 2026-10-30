@@ -139,6 +139,8 @@ export interface PaletteApi {
     /** The open file, downloaded as itself; or its folder, as a .zip (0.18.0). */
     download(): void;
     downloadFolder(): void;
+    /** "Choose files to download or share..." (choose-files-dialog.ts). */
+    chooseFiles(opener: HTMLElement): void;
     capture(opener: HTMLElement): void;
     fileList(): void;
     output(): void;
@@ -246,6 +248,7 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
   add("import-files", "Files", "Import files", () => api.act.importFiles(), undefined, "upload open add");
   add("import-folder", "Files", "Import a folder", () => api.act.importFolder(), undefined, "upload directory");
   add("export", "Files", "Export workspace (.zip)", () => api.act.exportZip(), undefined, "download backup zip");
+  add("choose-files", "Files", "Choose files to download or share...", (o) => api.act.chooseFiles(o), undefined, "download zip share link folder several select tick");
   add("save-pdf", "Files", "Save as PDF...", (o) => api.act.savePdf(o), undefined, "print printer export paper document");
   add("file-list", "Files", "Go to the file list", () => api.act.fileList(), k.fileList, "tree explorer sidebar");
   for (const item of api.widthItems()) add(`width-${item.label}`, "Files", item.label, () => item.run(), undefined, "sidebar size");

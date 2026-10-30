@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickExport, zipBase, zipName } from "./export-pick";
+import { coverPicks, linkFolder, pickExport, zipBase, zipName } from "./export-pick";
 import type { ExportData } from "./workspace";
 
 const file = (path: string, text: string) => ({ path, bytes: new TextEncoder().encode(text), mtime: 0 });
@@ -41,6 +41,22 @@ describe("what a pick of files and folders covers", () => {
     const d = pickExport(DATA, ["a/b/lab"], zipBase(["a/b/lab"]));
     expect(paths(d)).toEqual(["lab/main.py"]);
     expect(pickExport(DATA, ["lab1/main.c", "lab1/data/in.txt"], "lab1").files.map((f) => f.path)).toEqual(["main.c", "data/in.txt"]);
+  });
+
+  it("ticked files become the fewest picks: a folder with every file ticked is the folder", () => {
+    const all = ["lab1/main.c", "lab1/util.h", "lab1/data/in.txt", "lab10/main.c", "notes.txt"];
+    expect(coverPicks(["lab1/main.c", "lab1/util.h", "lab1/data/in.txt"], all)).toEqual(["lab1"]);
+    expect(coverPicks(["lab1/data/in.txt", "lab1/main.c"], all)).toEqual(["lab1/data", "lab1/main.c"]);
+    expect(coverPicks(["lab1/main.c", "lab1/util.h", "lab1/data/in.txt", "notes.txt"], all)).toEqual(["lab1", "notes.txt"]);
+    expect(coverPicks(all, all)).toEqual(["lab1", "lab10", "notes.txt"]); // never "" (the whole workspace is its folders and files)
+    expect(coverPicks([], all)).toEqual([]);
+  });
+
+  it("a link carries one folder: the one picked, or the folder holding the pick, or one named shared", () => {
+    const files = [{ path: "lab1/main.c", text: "m" }, { path: "lab1/data/in.txt", text: "d" }, { path: "notes.txt", text: "n" }];
+    expect(linkFolder(["lab1"], files)).toEqual({ name: "lab1", files: [{ name: "main.c", text: "m" }, { name: "data/in.txt", text: "d" }] });
+    expect(linkFolder(["lab1/main.c", "lab1/data"], files)).toEqual({ name: "lab1", files: [{ name: "main.c", text: "m" }, { name: "data/in.txt", text: "d" }] });
+    expect(linkFolder(["lab1", "notes.txt"], files)).toEqual({ name: "shared", files: [{ name: "lab1/main.c", text: "m" }, { name: "lab1/data/in.txt", text: "d" }, { name: "notes.txt", text: "n" }] });
   });
 
   it("names the zip after the one folder picked, the folder holding the pick, or the workspace", () => {

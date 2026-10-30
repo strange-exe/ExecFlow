@@ -8,7 +8,7 @@
 // add that fails (a read-only tab, storage refusing it) says why inside the dialog and keeps the
 // shared file there, so Add can be pressed again.
 import { detectLanguage } from "../core/languages";
-import { readCodeLink, readRefusalText } from "../core/code-link";
+import { readCodeLink, readRefusalText, type SharedFile, type SharedFolder } from "../core/code-link";
 import { dialogShell, openModal } from "./dialogs";
 import { h, plural, shown } from "./dom";
 import { freeName } from "./examples";
@@ -29,16 +29,19 @@ export interface CodeLinkDeps {
    * read-only tab adds nothing). It shows no notice: the dialog says why.
    */
   add(path: string, text: string): Promise<AddRefusal | null>;
+  /** Adds a folder link's files as a new folder `folder` at the root, and opens one: as add. */
+  addFolder(folder: string, files: readonly SharedFile[]): Promise<AddRefusal | null>;
   readonly notice: Pick<Notice, "show">;
 }
 
-/** Reads `hash` (a #code= fragment) and offers its file; a link that can't be opened says why. */
+/** Reads `hash` (a #code= fragment) and offers its file or folder; a link that can't be opened says why. */
 export async function openCodeLink(hash: string, deps: CodeLinkDeps): Promise<void> {
   const read = await readCodeLink(hash);
   if (!read.ok) return void deps.notice.show(readRefusalText(read.refusal), { tone: "error" });
   if (document.querySelector("dialog[open], .menu")) {
     return void deps.notice.show("A code link arrived while a dialog was open, so it wasn't opened. Close the dialog, then open the link again.", { tone: "info" });
   }
+  if ("folder" in read) return openFolder(read.folder, deps);
   const { name, text } = read.file;
   const lines = text === "" ? 0 : text.replace(/\n$/, "").split("\n").length;
   const language = detectLanguage(name)?.label;
@@ -88,6 +91,74 @@ export async function openCodeLink(hash: string, deps: CodeLinkDeps): Promise<vo
     // Closed while it was adding: the sentence still reaches the student.
     if (!dialog.open) return void deps.notice.show(refusal.message, { tone: refusal.readOnly ? "info" : "error" });
     // Kept open with the code: the student can press Add again, or Not now.
+    dialog.dataset.state = "refused";
+    result.dataset.tone = refusal.readOnly ? "warning" : "error";
+    result.replaceChildren(icon(refusal.readOnly ? "warning" : "warning-circle", "result-icon"), h("span", null, shown(refusal.message)));
+  });
+  dialog.addEventListener("close", () => dialog.remove(), { once: true });
+  openModal(dialog, add, null);
+  dialog.dataset.state = "ready";
+}
+
+/**
+ * A folder link (format 2, 0.18.0): the files are listed and each can be read before anything is
+ * added; Add makes a new folder at the top (lab1, or lab1-2 when that name is taken; owner's pick
+ * 2026-10-30), never mixing with files already there. Same states and Add rules as one file.
+ */
+function openFolder(folder: SharedFolder, deps: CodeLinkDeps): void {
+  const { dialog, body } = dialogShell("code-link", `Open the folder ${shown(folder.name)}?`, { wide: true });
+  dialog.classList.add("code-link");
+  const about = h("p", { class: "field-note", id: "code-link-about" });
+  const target = (): string => {
+    const free = freeName(folder.name, deps.taken);
+    about.textContent = `${plural(folder.files.length, "file")}, added as a new folder at the top of your files.${free === folder.name ? "" : ` You already have something named ${shown(folder.name)}, so this one is added as ${shown(free)}.`}`;
+    return free;
+  };
+  target();
+  // Which file the preview shows: a native select, the same on a phone as with a keyboard.
+  const picker = h("select", { id: "code-link-file" }, ...folder.files.map((f, i) => h("option", { value: String(i) }, shown(f.name))));
+  const code = h("code");
+  const preview = h("pre", { class: "code-link-preview", id: "code-link-preview", tabindex: "0" }, code);
+  const show = () => {
+    const f = folder.files[Number(picker.value)];
+    const lines = f.text === "" ? 0 : f.text.replace(/\n$/, "").split("\n").length;
+    code.textContent = f.text === "" ? "" : shown(f.text);
+    preview.toggleAttribute("data-empty", f.text === "");
+    preview.setAttribute("aria-label", `The code in ${shown(f.name)}, ${plural(lines, "line")}`);
+  };
+  picker.addEventListener("change", show);
+  show();
+  const result = h("p", { class: "result-line", id: "code-link-result", role: "status" });
+  body.append(
+    h("p", { id: "code-link-lede" }, "Someone shared this folder with you in a link. It isn't in your files yet, and nothing in it runs until you press Run."),
+    about,
+    h("div", { class: "code-link-file" }, h("label", { for: "code-link-file" }, "Show the code in"), picker),
+    preview,
+    result,
+  );
+  dialog.setAttribute("aria-describedby", "code-link-lede code-link-about");
+  const cancel = h("button", { type: "button", class: "btn", id: "code-link-cancel" }, "Not now");
+  const add = h("button", { type: "button", class: "btn primary", id: "code-link-add" }, "Add to my files");
+  dialog.append(h("div", { class: "dialog-actions" }, cancel, add));
+  cancel.addEventListener("click", () => dialog.close());
+  let adding = false;
+  add.addEventListener("click", async (e) => {
+    if (e.detail > 1 || adding) return;
+    adding = true;
+    dialog.setAttribute("aria-busy", "true");
+    dialog.dataset.state = "adding";
+    result.replaceChildren();
+    delete result.dataset.tone;
+    let refusal: AddRefusal | null;
+    try {
+      refusal = await deps.addFolder(target(), folder.files);
+    } catch (error) {
+      refusal = { message: `The folder wasn't added: ${error instanceof Error ? error.message : String(error)}` };
+    }
+    adding = false;
+    dialog.removeAttribute("aria-busy");
+    if (!refusal) return void dialog.close();
+    if (!dialog.open) return void deps.notice.show(refusal.message, { tone: refusal.readOnly ? "info" : "error" });
     dialog.dataset.state = "refused";
     result.dataset.tone = refusal.readOnly ? "warning" : "error";
     result.replaceChildren(icon(refusal.readOnly ? "warning" : "warning-circle", "result-icon"), h("span", null, shown(refusal.message)));
