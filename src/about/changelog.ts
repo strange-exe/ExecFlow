@@ -1,4 +1,4 @@
-// CodeEditor's releases, newest first: the one source for CHANGELOG.md (scripts/write-changelog.mjs
+// ExecFlow's releases (named CodeEditor until 0.16.0, as the older entries say), newest first: the one source for CHANGELOG.md (scripts/write-changelog.mjs
 // writes it; a unit test keeps the two equal) and for the About page's "What's new". Every push to
 // main deployed the site; pushes that shipped no change to the app (tests, CI) are not versions.
 // Up to 0.8.0, later pushes on a release's day were listed under that release. From 0.8.1 on, every
@@ -19,6 +19,16 @@ export interface Release {
 }
 
 export const CHANGELOG: readonly Release[] = [
+  {
+    version: "0.16.0",
+    date: "2026-10-30",
+    title: "CodeEditor is now ExecFlow",
+    items: [
+      { kind: "changed", text: "The editor has a new name, ExecFlow: you write code, run it, and see how it flows. Your files, settings and GitHub sync stay just as they were." },
+      { kind: "added", text: "A new wordmark beside the mark at the top of every page: Exec in the code font, Flow in the blue of the Run button." },
+      { kind: "changed", text: "The link preview picture shown when you share the site carries the new name." },
+    ],
+  },
   {
     version: "0.15.0",
     date: "2026-10-30",
@@ -278,7 +288,7 @@ export function changelogMarkdown(releases: readonly Release[] = CHANGELOG): str
   const out = [
     "# Changelog",
     "",
-    "Every change to CodeEditor that reached the site, newest first. The format is based on",
+    "Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newest first. The format is based on",
     "[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow",
     "[Semantic Versioning](https://semver.org/spec/v2.0.0.html).",
     "",
