@@ -6,6 +6,20 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.15.0] - 2026-10-30
+
+Every theme on show in Settings
+
+### Added
+
+- Search the themes by name, or show only light or only dark ones. The search and the filter stay at the top while you scroll the themes.
+
+### Changed
+
+- Settings opens on the colour themes: 45 themes in 22 families, each with a small preview of code in its own colours, and its light and dark forms side by side.
+- Six themes lead under Start here; the rest follow A to Z, and themes you loaded from a file come last.
+- A theme applies the moment you choose it, with the mouse or the arrow keys, and Settings opens on the one you use.
+
 ## [0.14.0] - 2026-10-30
 
 A flowchart that fits, with a key to its shapes
