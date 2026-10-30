@@ -52,11 +52,11 @@ describe("what a pick of files and folders covers", () => {
     expect(coverPicks([], all)).toEqual([]);
   });
 
-  it("a link carries one folder: the one picked, or the folder holding the pick, or one named shared", () => {
+  it("a link carries one folder: the one picked, or the folder holding the pick, or one named shared-files", () => {
     const files = [{ path: "lab1/main.c", text: "m" }, { path: "lab1/data/in.txt", text: "d" }, { path: "notes.txt", text: "n" }];
     expect(linkFolder(["lab1"], files)).toEqual({ name: "lab1", files: [{ name: "main.c", text: "m" }, { name: "data/in.txt", text: "d" }] });
     expect(linkFolder(["lab1/main.c", "lab1/data"], files)).toEqual({ name: "lab1", files: [{ name: "main.c", text: "m" }, { name: "data/in.txt", text: "d" }] });
-    expect(linkFolder(["lab1", "notes.txt"], files)).toEqual({ name: "shared", files: [{ name: "lab1/main.c", text: "m" }, { name: "lab1/data/in.txt", text: "d" }, { name: "notes.txt", text: "n" }] });
+    expect(linkFolder(["lab1", "notes.txt"], files)).toEqual({ name: "shared-files", files: [{ name: "lab1/main.c", text: "m" }, { name: "lab1/data/in.txt", text: "d" }, { name: "notes.txt", text: "n" }] });
   });
 
   it("names the zip after the one folder picked, the folder holding the pick, or the workspace", () => {

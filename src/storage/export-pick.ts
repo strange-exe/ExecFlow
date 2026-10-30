@@ -58,10 +58,11 @@ export function coverPicks(ticked: readonly string[], all: readonly string[]): s
 /** What a folder link carries for these picks: one folder's name and the files relative to it. */
 export function linkFolder(picks: readonly string[], files: readonly { path: string; text: string }[]): { name: string; files: { name: string; text: string }[] } {
   const covered = files.filter((f) => picks.some((p) => isInside(f.path, p)));
-  // One folder picked: the link is that folder. Otherwise the folder holding the pick, or "shared".
+  // One folder picked: the link is that folder. Otherwise the folder holding the pick, or one named
+  // "shared-files" (it reads as a name in "Open the folder shared-files?", where "shared" didn't).
   const isFolder = picks.length === 1 && covered.some((f) => f.path !== picks[0]);
   const base = isFolder ? picks[0] : zipBase(picks);
-  return { name: base ? nameOf(base) : "shared", files: covered.map((f) => ({ name: under(f.path, base), text: f.text })) };
+  return { name: base ? nameOf(base) : "shared-files", files: covered.map((f) => ({ name: under(f.path, base), text: f.text })) };
 }
 
 /** The .zip's file name: the one folder picked, the folder holding the pick, or the workspace's name. */
