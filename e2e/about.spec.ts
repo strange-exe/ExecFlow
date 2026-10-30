@@ -719,20 +719,20 @@ test("with the service worker in control, /about works offline after one visit, 
   await expect(page.locator(".about-scene")).toHaveAttribute("data-scene", /^(running|unavailable|still)$/, { timeout: 30_000 });
   // Every About chunk the page loaded, not just one: the scene and three.js are separate files, and
   // the cache stores each after its response is passed on, so one could still be missing (Firefox on
-  // CI, run 40843953981: the offline reload failed on the second chunk).
-  if ((await page.locator(".about-scene").getAttribute("data-scene")) !== "still") {
-    await expect
-      .poll(
-        () =>
-          page.evaluate(async () => {
-            const loaded = performance.getEntriesByType("resource").map((e) => new URL(e.name).pathname).filter((p) => p.startsWith("/assets/a/"));
-            const cached = new Set((await (await caches.open("codeeditor-about")).keys()).map((r) => new URL(r.url).pathname));
-            return loaded.length > 0 && loaded.every((p) => cached.has(p)) ? "all" : `${loaded.filter((p) => !cached.has(p)).length} of ${loaded.length} missing`;
-          }),
-        { timeout: 15_000 },
-      )
-      .toBe("all");
-  }
+  // CI, run 40843953981: the offline reload failed on the second chunk). Also when the scene stays
+  // still: the About page's own code is under /assets/a/ too, and skipping this wait then let the
+  // offline reload miss it (Firefox on CI, 0.13.0: "A ServiceWorker intercepted the request").
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const loaded = performance.getEntriesByType("resource").map((e) => new URL(e.name).pathname).filter((p) => p.startsWith("/assets/a/"));
+          const cached = new Set((await (await caches.open("codeeditor-about")).keys()).map((r) => new URL(r.url).pathname));
+          return loaded.every((p) => cached.has(p)) ? "all" : `${loaded.filter((p) => !cached.has(p)).length} of ${loaded.length} missing`;
+        }),
+      { timeout: 15_000 },
+    )
+    .toBe("all");
   await page.waitForLoadState("networkidle");
   await context.setOffline(true);
   await page.reload();
