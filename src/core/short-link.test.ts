@@ -42,7 +42,7 @@ function site() {
       // The browser adds these to a same-origin request.
       const request = new Request(url, { ...init, headers: { ...headers, Origin: ORIGIN, "Sec-Fetch-Site": "same-origin" }, body: init.body ? body : undefined });
       if (url.pathname === "/api/links") return createLink(request, env, { random: (b) => void crypto.getRandomValues(b), now: () => Date.UTC(2026, 9, 30), counter: null });
-      if (url.pathname.startsWith("/api/links/")) return readLink(request, env, decodeURIComponent(url.pathname.slice("/api/links/".length)));
+      if (url.pathname.startsWith("/api/links/")) return readLink(request, env, decodeURIComponent(url.pathname.slice("/api/links/".length)), { now: () => Date.UTC(2026, 9, 30), counter: null });
       return new Response("not here", { status: 404 });
     },
   };
@@ -187,6 +187,12 @@ describe("opening refuses what isn't a whole, untouched link", () => {
     // A fetch that fails while the browser says it is online: the site couldn't be reached.
     const flaky: ShortDeps = { online: () => true, fetch: async () => Promise.reject(new TypeError("Failed to fetch")) };
     expect(await openShortLink(id, hash, flaky)).toEqual({ ok: false, refusal: { kind: "unavailable" } });
+  });
+
+  it("a network that opened too many links this hour (429) is told so, and nothing is opened", async () => {
+    const deps: ShortDeps = { online: () => true, fetch: async () => new Response(JSON.stringify({ error: "rate_limited" }), { status: 429, headers: { "Retry-After": "600" } }) };
+    expect(await openShortLink("Ab3dEf9hIj", `#${"A".repeat(43)}`, deps)).toEqual({ ok: false, refusal: { kind: "busy" } });
+    expect(shortReadRefusalText({ kind: "busy" })).toBe("This network has opened a lot of short links in the last hour, so ExecFlow is pausing them. Try again within the hour.");
   });
 
   it("an answer bigger than any link is cut off unread (damaged)", async () => {

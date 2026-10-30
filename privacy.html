@@ -186,8 +186,9 @@
                   days as you choose; then they are deleted. The key that unlocks them is the part of the link after the
                   <code>#</code>, which never reaches the server, so ExecFlow can't read your code. Anyone who has the full link
                   can read it until it expires, and it can't be deleted sooner. To limit misuse, the server counts the short
-                  links made from each network for an hour, by a scrambled (hashed) form of its IP address that is never stored
-                  with the link.
+                  links made and opened from each network for an hour, by a scrambled (hashed) form of its IP address (for a
+                  newer IPv6 address, of its first half, which names the network) that is never stored with the link. It also
+                  counts how many short links are made each day in all, which identifies no one.
                 </li>
                 <li>
                   When a code link or a short link opens, ExecFlow takes the part after the <code>#</code> out of the address bar

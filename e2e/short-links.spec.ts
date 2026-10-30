@@ -485,6 +485,16 @@ test.describe("a short link that can't be opened says why and opens nothing", ()
     await expectRefused(page, site, `/s/${id}${hash}`, shortReadRefusalText({ kind: "offline" }), false);
   });
 
+  test.describe("this network opened too many links this hour", () => {
+    test.use(tolerating(/^HTTP 429: http:[/][/]127[.]0[.]0[.]1:[0-9]+[/]api[/]links[/][0-9A-Za-z]{10}$/, /^Failed to load resource: the server responded with a status of 429/));
+    test("says so (429)", async ({ page }) => {
+      const site = await serveLinks(page);
+      const { id, hash } = await realLink(site);
+      site.answer(429);
+      await expectRefused(page, site, `/s/${id}${hash}`, shortReadRefusalText({ kind: "busy" }), true);
+    });
+  });
+
   test.describe("the server can't be reached", () => {
     // Each engine's own words for the refused connection (Chromium: the console line).
     test.use(tolerating(/^Failed to load resource: net::ERR_CONNECTION_REFUSED$/, /^request failed: http:[/][/]127[.]0[.]0[.]1:[0-9]+[/]api[/]links[/][0-9A-Za-z]{10} /));
@@ -531,7 +541,9 @@ test.describe("the opener's code can't load", () => {
       return route.fulfill({ response: res, body });
     });
     await openApp(page, `/s/${id}${hash}`);
-    await expect(notice(page)).toContainText("The short link couldn't open. Check the connection, then reload the page.");
+    // The key left the address at once, so a reload wouldn't bring the link back: the notice says to open it again.
+    await expect(notice(page)).toContainText("The short link couldn't open. Check the connection, then open the link again.");
     await expect(page.locator("dialog#code-link")).toHaveCount(0);
+    expect(page.url()).toBe(`${ORIGIN}/`);
   });
 });

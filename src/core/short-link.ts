@@ -33,7 +33,7 @@ export interface ShortDeps {
 }
 
 export type ShortMakeRefusal = MakeRefusal | { kind: "offline" } | { kind: "busy" } | { kind: "unavailable" } | { kind: "not-set-up" } | { kind: "failed" };
-export type ShortReadRefusal = ReadRefusal | { kind: "gone" } | { kind: "offline" } | { kind: "unavailable" };
+export type ShortReadRefusal = ReadRefusal | { kind: "gone" } | { kind: "offline" } | { kind: "busy" } | { kind: "unavailable" };
 
 const isB64UrlChar = (c: number) => (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x2d || c === 0x5f;
 
@@ -155,6 +155,7 @@ export async function openShortLink(id: string, hash: string, deps: ShortDeps): 
     return refuse({ kind: error === "not_configured" ? "unavailable" : "gone" });
   }
   if (res.status === 400) return refuse({ kind: "damaged" });
+  if (res.status === 429) return refuse({ kind: "busy" });
   if (res.status !== 200) return refuse({ kind: "unavailable" });
   let stored: Uint8Array | null;
   try {
@@ -210,6 +211,8 @@ export function shortReadRefusalText(refusal: ShortReadRefusal): string {
       return "This short link has expired or doesn't exist, so nothing was opened. Short links are kept for 1, 30 or 90 days: ask for a new link.";
     case "offline":
       return "This short link needs a connection to open, and this device is offline. Connect, then open the link again.";
+    case "busy":
+      return "This network has opened a lot of short links in the last hour, so ExecFlow is pausing them. Try again within the hour.";
     case "unavailable":
       return "ExecFlow couldn't fetch this short link right now, so nothing was opened. Try again in a moment.";
     default:

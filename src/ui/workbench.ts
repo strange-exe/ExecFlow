@@ -2531,7 +2531,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
       () => {
         codeLinkChunk = null;
-        notice.show(`The ${link.kind === "short" ? "short" : "code"} link couldn't open. Check the connection, then reload the page.`);
+        // The link already left the address, so a reload wouldn't bring it back: it is opened again from where it came.
+        notice.show(`The ${link.kind === "short" ? "short" : "code"} link couldn't open. Check the connection, then open the link again.`);
       },
     );
   }

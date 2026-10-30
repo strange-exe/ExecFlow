@@ -53,7 +53,7 @@ export function linksSite(origin: string): LinksSite {
     const res =
       path === "/api/links"
         ? await createLink(request, env, { random: (b) => void crypto.getRandomValues(b), now: () => Date.now(), counter: null })
-        : await readLink(request, env, decodeURIComponent(path.slice("/api/links/".length)));
+        : await readLink(request, env, decodeURIComponent(path.slice("/api/links/".length)), { now: () => Date.now(), counter: null });
     await route.fulfill({ status: res.status, headers: Object.fromEntries(res.headers), body: Buffer.from(await res.arrayBuffer()) });
   }
 
