@@ -1,6 +1,8 @@
 // Bringing files in (a file picker or a whole folder) and taking the workspace out (a .zip). Files
 // are read here, in this tab, and go through storage importFiles, which checks every name and byte.
+import { nameOf } from "../core/paths";
 import { MAX_FILE_BYTES } from "../core/safety";
+import { pickExport, zipBase, zipName } from "../storage/export-pick";
 import type { WorkspaceStore } from "../storage/workspace";
 import { downloadBlob, h } from "./dom";
 
@@ -90,6 +92,29 @@ export async function workspaceZip(store: WorkspaceStore, ws: string): Promise<{
   const { writeZip } = await import("../storage/zip");
   const bytes = await writeZip(data.files, data.dirs);
   return { blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/zip" }), count: data.files.length, skipped: data.skipped };
+}
+
+/**
+ * Downloads part of the workspace (0.18.0): one file as itself, bytes exactly as saved; a folder, or
+ * several picks, as a .zip that unpacks to one folder (export-pick.ts). Read-only GitHub files are
+ * left out and named, as in the export; `count` is 0 when nothing could be downloaded.
+ */
+export async function downloadPicked(store: WorkspaceStore, ws: string, picks: readonly string[], workspace: string): Promise<{ count: number; skipped: string[]; name: string; zip: boolean }> {
+  const data = await store.loadExport(ws);
+  const only = picks.length === 1 ? data.files.find((f) => f.path === picks[0]) : undefined;
+  if (only) {
+    const name = nameOf(only.path);
+    downloadBlob(name, new Blob([only.bytes as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }));
+    return { count: 1, skipped: [], name, zip: false };
+  }
+  const part = pickExport(data, picks, zipBase(picks));
+  const name = zipName(picks, workspace);
+  // Empty folders alone make no download: there is nothing in them to save.
+  if (!part.files.length) return { count: 0, skipped: part.skipped, name, zip: true };
+  const { writeZip } = await import("../storage/zip");
+  const bytes = await writeZip(part.files, part.dirs);
+  downloadBlob(name, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/zip" }));
+  return { count: part.files.length, skipped: part.skipped, name, zip: true };
 }
 
 /** Saves every file and empty folder as a .zip (opaque GitHub files are left out and named). */

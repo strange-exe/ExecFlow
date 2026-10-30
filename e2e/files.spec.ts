@@ -1,9 +1,9 @@
 // Importing a real project folder, and the export round trip (from the functional review, 2026-10-17).
-import { crc32, inflateRawSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Page } from "@playwright/test";
 import { expect, expectActive, importFiles, openApp, openFromTree, setCode, test, treeItem, watchContext } from "./helpers";
+import { readZip } from "./zip-read";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -15,39 +15,6 @@ function writeTree(root: string, files: Record<string, Buffer | string>) {
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, data);
   }
-}
-
-/** A small, independent .zip reader (stored and deflated entries), checking every CRC. */
-function readZip(zip: Buffer): { files: Map<string, Buffer>; dirs: string[] } {
-  let eocd = zip.length - 22;
-  while (eocd >= 0 && zip.readUInt32LE(eocd) !== 0x06054b50) eocd--;
-  if (eocd < 0) throw new Error("no end of central directory");
-  const count = zip.readUInt16LE(eocd + 10);
-  let at = zip.readUInt32LE(eocd + 16);
-  const files = new Map<string, Buffer>();
-  const dirs: string[] = [];
-  for (let i = 0; i < count; i++) {
-    if (zip.readUInt32LE(at) !== 0x02014b50) throw new Error("bad central directory entry");
-    const method = zip.readUInt16LE(at + 10);
-    const crc = zip.readUInt32LE(at + 16);
-    const size = zip.readUInt32LE(at + 20); // compressed size
-    const nameLen = zip.readUInt16LE(at + 28);
-    const extraLen = zip.readUInt16LE(at + 30);
-    const commentLen = zip.readUInt16LE(at + 32);
-    const local = zip.readUInt32LE(at + 42);
-    const name = zip.subarray(at + 46, at + 46 + nameLen).toString("utf8");
-    at += 46 + nameLen + extraLen + commentLen;
-    if (name.endsWith("/")) {
-      dirs.push(name.slice(0, -1));
-      continue;
-    }
-    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
-    const raw = zip.subarray(start, start + size);
-    const data = method === 0 ? Buffer.from(raw) : inflateRawSync(raw);
-    if (crc32(data) >>> 0 !== crc) throw new Error(`CRC mismatch for ${name}`);
-    files.set(name, data);
-  }
-  return { files, dirs };
 }
 
 /** Every path the workspace stores (files and folders), read from IndexedDB. */

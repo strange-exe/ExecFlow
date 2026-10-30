@@ -18,7 +18,7 @@ import { noEditor, type Editors } from "./editors";
 import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
 import { MOVE_PATH, moveRole } from "../core/move-protocol";
-import { exportZip, pickFiles, workspaceZip } from "./import-export";
+import { downloadPicked, exportZip, pickFiles, workspaceZip } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
 import { createLayout, NARROW, WIDE } from "./layout";
 import type { Splitter } from "./splitter";
@@ -366,6 +366,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     }
     // Share link (.claude/design/batch5/share-link.md): any file, a read-only one too (the repository link works for it).
     if (node?.kind === "file") items.push({ label: "Share link...", icon: "link-simple", run: () => sync.share(node.path, focused()) });
+    // Download (0.18.0): a file as itself, a folder as a .zip; a read-only GitHub file has no bytes here.
+    if (node?.kind === "file" && !node.opaque) items.push({ label: "Download", icon: "download-simple", run: () => void downloadPaths([node.path]) });
+    if (node?.kind === "dir") items.push({ label: "Download as .zip", icon: "download-simple", run: () => void downloadPaths([node.path]) });
     items.push(
       { label: "New file", icon: "file-plus", separatorBefore: true, run: () => startCreate("file", dir) },
       { label: "New folder", icon: "folder-plus", run: () => startCreate("dir", dir) },
@@ -934,6 +937,19 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (first) {
       tree.reveal(first);
       if (detectLanguage(first)) await openFile(first);
+    }
+  }
+
+  /** Downloads a file as itself, or a folder or several picks as a .zip (0.18.0). */
+  async function downloadPaths(picks: readonly WsPath[]) {
+    await saves.flushAll();
+    try {
+      const { count, skipped, name, zip } = await downloadPicked(store, ws, picks, record.name);
+      const leftOut = skipped.length ? ` Left out ${listNames(skipped.map(nameOf))}: read-only files from GitHub are only stored there.` : "";
+      if (!count) notice.show(skipped.length ? `Nothing to download.${leftOut}` : "Nothing to download: there are no files in it.", { tone: "info" });
+      else notice.show(`Saved ${zip ? `${plural(count, "file")} as ${name}` : name}.${leftOut}`, { tone: "success" });
+    } catch (e) {
+      notice.show(`The download didn't work: ${errorText(e)}`);
     }
   }
 
@@ -2055,6 +2071,14 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       share: (opener) => {
         const path = fileOf(editors.activeId)?.path;
         if (path) sync.share(path, opener);
+      },
+      download: () => {
+        const path = fileOf(editors.activeId)?.path;
+        if (path) void downloadPaths([path]);
+      },
+      downloadFolder: () => {
+        const path = fileOf(editors.activeId)?.path;
+        if (path && parentOf(path) !== "") void downloadPaths([parentOf(path)]);
       },
       capture: (opener) => snippet.open(opener, opener.closest(".cm-editor") ? "context" : "head-key"),
       fileList: () => {
