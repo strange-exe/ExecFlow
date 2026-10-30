@@ -1,5 +1,7 @@
 // Entry point. public/theme-boot.js already painted the saved theme before this module loaded;
 // applyTheme() re-applies it with full validation and "match device" keeps following the system.
+// First of all: a short link's key and a code link's code leave the address (src/ui/link-fragment.ts).
+import "./ui/link-fragment";
 import "./styles/app.css";
 import { registerSW } from "virtual:pwa-register";
 import { state as pythonState, onState as onPythonState } from "./runner/python-runner";

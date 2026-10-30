@@ -178,8 +178,8 @@ test.describe("an add that fails keeps the shared file in the dialog", () => {
     await expect(second.locator("#code-link-result")).toHaveAttribute("data-tone", "warning");
     await expect(second.locator("#code-link-result")).toContainText("read-only");
     await expect(preview(second)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
-    // The link stays in this tab's address bar, to open in the editing tab.
-    expect(new URL(second.url()).hash).toBe(hash);
+    // The code left this tab's address bar too, before any other script ran (e2e/link-fragment.spec.ts).
+    expect(new URL(second.url()).hash).toBe("");
     await page.evaluate((h) => (location.hash = h), hash);
     await expect(dialog(page)).toHaveAttribute("data-state", "ready");
     await page.locator("#code-link-add").click();

@@ -189,6 +189,12 @@
                   links made from each network for an hour, by a scrambled (hashed) form of its IP address that is never stored
                   with the link.
                 </li>
+                <li>
+                  When a code link or a short link opens, ExecFlow takes the part after the <code>#</code> out of the address bar
+                  before anything else on the page runs, including the analytics script described under <a href="#hosting">Hosting</a>,
+                  so a reload or a bookmark doesn't keep it. Your browser's own history can still list the full link: on a shared
+                  computer, delete it there.
+                </li>
                 <li>A <strong>link to the file in your repository</strong> uploads nothing new. Only people who can see the repository can open it.</li>
                 <li>
                   A <strong>secret gist</strong> puts a copy of one file on your GitHub account. Anyone who has the link can read it,
@@ -207,7 +213,7 @@
               <p>
                 ExecFlow also uses <strong>Cloudflare Web Analytics</strong>, which Cloudflare adds to each page. When a page
                 loads and when you leave it, a small Cloudflare script reports to Cloudflare, through this site's address, how long the page took to load and
-                which page it was (without anything after a "?" in the address). Cloudflare says it
+                which page it was (without anything after a "?" or a "#" in the address). Cloudflare says it
                 <a href="https://developers.cloudflare.com/web-analytics/about/">doesn't collect visitors' personal data</a>.
                 It never sees your code, your files or what you type. ExecFlow's own code adds no other tracking or
                 advertising, and sets no cookies.

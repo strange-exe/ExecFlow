@@ -37,6 +37,8 @@ import { paletteKey } from "./palette-keys";
 import { createSnippetCapture } from "./snippet-image";
 import { mountSync, type SyncHooks } from "./sync-entry";
 import { TabStrip } from "./tabs";
+import type { CodeLinkDeps } from "./code-link-dialog";
+import { onLinkFragment, type LinkFragment } from "./link-fragment";
 import type { ChartHost, FlowchartView } from "./flowchart-view";
 import { FileTree } from "./tree";
 import { starterText, type TreeNode } from "./tree-model";
@@ -2512,52 +2514,29 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     );
   }
 
-  // Code links (src/core/code-link.ts): a page opened with #code= offers that file, and so does one
-  // pasted into this tab's address bar later (only the fragment changes, so the page doesn't reload).
+  // Code links (#code=, src/core/code-link.ts) and short links (/s/<id>#<key>, src/core/short-link.ts):
+  // the page opened at such an address offers what it holds, and so does a code link pasted into this
+  // tab's address bar later (only the fragment changes, so the page doesn't reload). link-fragment.ts
+  // took the link out of the address before anything else ran, in every tab (a reload or a bookmark
+  // keeps neither the code nor the key), and hands it over here from memory.
   let codeLinkChunk: Promise<typeof import("./code-link-dialog")> | null = null;
-  function takeCodeLink() {
-    const hash = location.hash;
-    if (!hash.startsWith("#code=") || wiped) return;
+  function openLink(link: LinkFragment) {
+    if (wiped) return;
     codeLinkChunk ??= import("./code-link-dialog");
     codeLinkChunk.then(
       (m) => {
         if (wiped) return;
-        // The code leaves the address bar: a reload doesn't offer it again, and a bookmark doesn't keep it.
-        // A read-only tab can't add it, so there it stays, to copy into the editing tab.
-        if (location.hash === hash && canWrite()) history.replaceState(history.state, "", location.pathname + location.search);
-        return m.openCodeLink(hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), addFolder, notice });
+        const deps: CodeLinkDeps = { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), addFolder, notice };
+        return link.kind === "short" ? m.openShortCodeLink(link.pathname, link.hash, deps) : m.openCodeLink(link.hash, deps);
       },
       () => {
         codeLinkChunk = null;
-        notice.show("The code link couldn't open. Check the connection, then reload the page.");
-      },
-    );
-  }
-  // A short link (/s/<id>#<key>, src/core/short-link.ts): the page opened at that address offers what
-  // it holds once fetched and decrypted. The address goes back to / at once in a tab that can add it
-  // (the key leaves the address bar, so a reload or a bookmark doesn't keep it), as a code link's does.
-  function takeShortLink() {
-    const { pathname, hash } = location;
-    if (!pathname.startsWith("/s/") || wiped) return;
-    codeLinkChunk ??= import("./code-link-dialog");
-    codeLinkChunk.then(
-      (m) => {
-        if (wiped) return;
-        if (location.pathname === pathname && canWrite()) history.replaceState(history.state, "", `/${location.search}`);
-        return m.openShortCodeLink(pathname, hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), addFolder, notice });
-      },
-      () => {
-        codeLinkChunk = null;
-        notice.show("The short link couldn't open. Check the connection, then reload the page.");
+        notice.show(`The ${link.kind === "short" ? "short" : "code"} link couldn't open. Check the connection, then reload the page.`);
       },
     );
   }
   // /move runs without cross-origin isolation (vite.config.ts "/move"), so another site that opened
   // it can keep a handle to the tab and change its fragment: there code links are never taken.
   if (location.pathname === MOVE_PATH) root.dataset.codeLinks = "off";
-  else {
-    takeShortLink();
-    takeCodeLink();
-    window.addEventListener("hashchange", takeCodeLink);
-  }
+  else onLinkFragment(openLink);
 }
