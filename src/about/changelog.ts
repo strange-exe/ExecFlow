@@ -20,6 +20,17 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.14.0",
+    date: "2026-10-30",
+    title: "A flowchart that fits, with a key to its shapes",
+    items: [
+      { kind: "changed", text: "The flowchart opens fitted whole in its panel, so you see from Start to the end without scrolling. A very long one stays readable and scrolls down." },
+      { kind: "changed", text: "Its controls sit in one bar: the function, zoom out, zoom in, Fit, Steps as text, Export and Full screen." },
+      { kind: "added", text: "A key under the flowchart names each shape it uses: start and end, step, input or output, decision, function call, and label." },
+      { kind: "fixed", text: "On medium-width screens, a C or C++ file waiting for its one-time download no longer pushes the Run button out of the window." },
+    ],
+  },
+  {
     version: "0.13.0",
     date: "2026-10-30",
     title: "A new editor layout",
