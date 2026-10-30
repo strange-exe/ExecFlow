@@ -36,14 +36,14 @@ for (const route of GUIDE_ROUTES) {
         await expect(page).toHaveTitle(route.title);
         await expect(page.locator("h1")).toHaveCount(1);
         await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| ExecFlow$/, ""));
-        // The product is ExecFlow in everything the page shows or says (the rename to Execflow is a
-        // later release): the tab title, all text (closed answers too), accessible names, link previews.
+        // The product is ExecFlow in everything the page shows or says (renamed from CodeEditor in
+        // 0.16.0): the tab title, all text (closed answers too), accessible names, link previews.
         const shownText = await page.evaluate(() =>
           [document.title, document.body.textContent, ...[...document.querySelectorAll("[aria-label], [title], [alt], meta[content]")].map((el) => `${el.getAttribute("aria-label")} ${el.getAttribute("title")} ${el.getAttribute("alt")} ${el.getAttribute("content")}`)].join("\n"),
         );
         expect(shownText).toContain("ExecFlow");
-        // Since 0.12.0 the site's address (canonical, og:url, og:image) carries the new name; only it may.
-        expect(shownText.replaceAll("https://execflow.abhinesh.codes/", "").match(/execflow/gi), "the name Execflow on the page").toBeNull();
+        // The old name is gone ("code editor" in lowercase is the common noun).
+        expect(shownText.match(/CodeEditor|Code Editor/g), "the old name CodeEditor on the page").toBeNull();
         await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${SITE}${route.path}`);
         // The page is its own, not the editor's shell.
         await expect(page.locator("#app")).toHaveCount(0);

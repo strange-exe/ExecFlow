@@ -25,8 +25,9 @@ export const CHANGELOG: readonly Release[] = [
     title: "CodeEditor is now ExecFlow",
     items: [
       { kind: "changed", text: "The editor has a new name, ExecFlow: you write code, run it, and see how it flows. Your files, settings and GitHub sync stay just as they were." },
-      { kind: "added", text: "A new wordmark beside the mark at the top of every page: Exec in the code font, Flow in the blue of the Run button." },
-      { kind: "changed", text: "The link preview picture shown when you share the site carries the new name." },
+      { kind: "added", text: "A new wordmark beside the mark at the top of every page: Exec in the code font, Flow in blue." },
+      { kind: "changed", text: "The link preview picture shown when you share the site, and the 20-second video on the About page, carry the new name." },
+      { kind: "added", text: "Settings shows the wordmark beside the version, at the foot." },
     ],
   },
   {

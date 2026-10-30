@@ -4,6 +4,7 @@
    its panel are one sheet set into the chrome's frame (Signal's layout, for every theme: the
    section "desktop: the editor as a sheet"). Components use the tokens in tokens.css only. */
 @import "./tokens.css";
+@import "./wordmark.css";
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }

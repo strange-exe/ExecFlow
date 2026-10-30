@@ -1,5 +1,5 @@
 // The ExecFlow wordmark (0.16.0, owner's pick "C. Code + flow", 2026-10-30): beside the mark in every
-// page header, "Exec" in the code font and "Flow" in the UI font and the action colour. The link
+// page header, "Exec" in the code font and "Flow" in the UI font and the link colour. The link
 // still reads as one word, and both halves keep 4.5:1 on the header's ground, light and dark.
 // (404.html carries the same markup; its own spec, seo.spec.ts, covers its real 404 status.)
 import { expect, openIn, test } from "./helpers";
@@ -39,23 +39,23 @@ for (const scheme of ["light", "dark"] as const) {
           }
         }
         const probe = document.createElement("span");
-        probe.style.color = "var(--action)";
+        probe.style.color = "var(--link)";
         a.append(probe);
-        const action = getComputedStyle(probe).color;
+        const link = getComputedStyle(probe).color;
         probe.remove();
         const exec = css(".wm-exec");
         const flow = css(".wm-flow");
         return {
           execFont: exec.fontFamily,
           flowFont: flow.fontFamily,
-          flowIsAction: flow.color === action,
+          flowIsLink: flow.color === link,
           execRatio: ratio(exec.color, ground),
           flowRatio: ratio(flow.color, ground),
         };
       });
       expect(look.execFont, `${path}: Exec in the code font`).toMatch(/^"?JetBrains Mono/);
       expect(look.flowFont, `${path}: Flow in the UI font`).toMatch(/^"?Geist/);
-      expect(look.flowIsAction, `${path}: Flow in --action`).toBe(true);
+      expect(look.flowIsLink, `${path}: Flow in --link`).toBe(true);
       expect(look.execRatio, `${path}: Exec contrast`).toBeGreaterThanOrEqual(4.5);
       expect(look.flowRatio, `${path}: Flow contrast`).toBeGreaterThanOrEqual(4.5);
     }

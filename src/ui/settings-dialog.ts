@@ -311,7 +311,9 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   // ---------------------------------------------------------------- the foot
   // The legal pages open in a new tab, so nothing typed here is left behind. Then the version (the
   // build injects it) and the About page's list of changes.
-  const version = h("p", { class: "field-note settings-version", id: "settings-version" }, `ExecFlow ${__APP_VERSION__}. `, legalLink("/about#changelog", "What's new"));
+  // The name is the wordmark (wordmark.css): its two halves inline, so the line still reads "ExecFlow 0.16.0".
+  const wordmark = h("span", { class: "wordmark" }, h("span", { class: "wm-exec" }, "Exec"), h("span", { class: "wm-flow" }, "Flow"));
+  const version = h("p", { class: "field-note settings-version", id: "settings-version" }, wordmark, ` ${__APP_VERSION__}. `, legalLink("/about#changelog", "What's new"));
   const foot = h(
     "div",
     { class: "settings-foot" },

@@ -1,5 +1,7 @@
 /* The ExecFlow wordmark (owner's pick "C. Code + flow", 2026-10-30): "Exec" in the code font, the
-   code that runs; "Flow" in the UI font and the action colour, the flowchart you then see. Drawn
+   code that runs; "Flow" in the UI font and the link blue, the flowchart you then see. --link, not
+   --action: every theme keeps --link at 4.5:1 as text, while --action is a fill (7 of the 45 themes
+   painted "Flow" under 4.5:1 with it, a11y.spec palette audit). Drawn
    only in brand spots (the page headers beside the mark); in sentences the name is plain text. The
    two halves sit with no space between them and stay inline, so the link's accessible name is
    "ExecFlow": as flex items (inline-flex) each half became its own box and the name "Exec Flow". */
@@ -13,7 +15,7 @@
   letter-spacing: -0.02em;
 }
 .wm-flow {
-  color: var(--action);
+  color: var(--link);
   font-family: var(--font-ui);
   font-weight: 700;
 }

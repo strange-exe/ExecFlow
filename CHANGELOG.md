@@ -12,12 +12,13 @@ CodeEditor is now ExecFlow
 
 ### Added
 
-- A new wordmark beside the mark at the top of every page: Exec in the code font, Flow in the blue of the Run button.
+- A new wordmark beside the mark at the top of every page: Exec in the code font, Flow in blue.
+- Settings shows the wordmark beside the version, at the foot.
 
 ### Changed
 
 - The editor has a new name, ExecFlow: you write code, run it, and see how it flows. Your files, settings and GitHub sync stay just as they were.
-- The link preview picture shown when you share the site carries the new name.
+- The link preview picture shown when you share the site, and the 20-second video on the About page, carry the new name.
 
 ## [0.15.0] - 2026-10-30
 
