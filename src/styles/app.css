@@ -227,6 +227,15 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 @media (min-width: 900px) and (max-width: 1099px) {
   .topbar .capture-label { display: none; }
   .topbar .capture-btn { padding: 0 var(--s2); }
+  /* The runtime state is its icon here too: "C/C++ needs a one-time download" pushed Run 146 px off
+     a 900 px window. Its words stay its text (read out) and its tooltip (workbench.ts). */
+  .topbar .runtime > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* From 1100 px its words give way before the field and Run do: at most 20 characters, then an
+   ellipsis (the bar's end is sized to its content, so the full words widened the page by 7 px at
+   1100). From 1440 px there is room for them all. */
+@media (min-width: 1100px) and (max-width: 1439px) {
+  .topbar .runtime > span { max-width: 20ch; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* ------------------------------------------------------------------ Run, Stop */

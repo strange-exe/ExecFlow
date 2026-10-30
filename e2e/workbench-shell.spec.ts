@@ -160,6 +160,28 @@ test.describe("desktop", () => {
   });
 });
 
+// Found in S3's review shots: with a C file open before the compiler's one-time download, the
+// runtime's words ("C/C++ needs a one-time download") kept the top bar's end at its full width, so
+// the page scrolled sideways (146 px at 900, 7 px at 1100) and Run was cut off at the right edge.
+test.describe("the top bar with a long runtime state", () => {
+  for (const width of [900, 1000, 1099, 1100, 1279, 1280, 1366, 1440]) {
+    test(`${width} px: the page never scrolls sideways and Run stays whole; the words stay in the name`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await openApp(page);
+      await importFiles(page, [{ name: "main.c", text: "int main(void) {\n    return 0;\n}\n" }]);
+      await openFromTree(page, "main.c");
+      const runtime = page.locator(".topbar #status-runtime");
+      await expect(runtime).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
+      await expect(runtime).toContainText("C/C++ needs a one-time download");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+      const run = await box(page, "#run-button");
+      expect(run.x + run.width, "Run inside the window").toBeLessThanOrEqual(width + 0.5);
+      // Shortened on screen, the full words are still its text and its tooltip.
+      await expect(runtime).toHaveAttribute("title", "C/C++ needs a one-time download");
+    });
+  }
+});
+
 test.describe("an empty workspace", () => {
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1440, height: 900 }));
 
