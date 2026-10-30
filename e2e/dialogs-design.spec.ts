@@ -10,7 +10,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { contrast as ratio, over } from "../src/theme/contrast";
 import { BUILT_IN, themePalette } from "../src/theme/themes";
-import { expect, importFiles, openApp, openFromTree, run, setCode, showFiles, showPanel, showView, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, openThemePicker, run, setCode, showFiles, showPanel, showView, test, treeItem } from "./helpers";
 import { openConnect, routeGitHub, routeSignIn } from "./sync-fake";
 
 /** GitHub and the sign-in relay are the fakes (e2e/sync-fake.ts): Connect opens on Sign in with GitHub. */
@@ -305,10 +305,15 @@ for (const scheme of ["light", "dark"] as const) {
     const settings = page.getByRole("dialog", { name: "Settings" });
     await expect(settings).toBeVisible();
     for (const h of await settings.locator(".section-title").all()) expect(await h.evaluate((e) => getComputedStyle(e).fontWeight)).toBe("500");
-    const tag = settings.locator(".tag").first();
+    // The Default tag is in the theme picker over Settings since Workbench Pro S4.
+    const picker = await openThemePicker(page);
+    const tag = picker.locator(".tag").first();
     expect(await tag.evaluate((e) => getComputedStyle(e).borderTopWidth)).toBe("0px");
     expect(await color(tag)).toBe(secondary);
     await page.keyboard.press("Escape");
+    await expect(picker).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(settings).toBeHidden();
 
     // The delete confirmation's question is body text.
     await importFiles(page, [{ name: "main.py", text: MAIN }]);
