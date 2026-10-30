@@ -16,6 +16,7 @@ import { loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
 import { unless } from "./keyword-completion";
 import { loadLibrary } from "./library-data";
+import "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);

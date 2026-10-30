@@ -56,7 +56,7 @@ function runAgain(view: EditorView, entry: Waiting): void {
   if (waiting.get(view) !== entry) return;
   waiting.delete(view);
   const { state } = view;
-  // (A file that turned read-only meanwhile has no sources left: language-support.ts writable().)
+  // (A file that turned read-only meanwhile has no sources left: language-sources.ts writable().)
   if (state.doc !== entry.doc || state.selection.main.head !== entry.head || !view.hasFocus) return;
   startCompletion(view);
 }

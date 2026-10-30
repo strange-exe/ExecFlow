@@ -13,6 +13,7 @@ import { EditorManager, type EditorHooks, type EditorManagerOptions } from "./ed
 import { workspaceIndex } from "./completion-context";
 import { headlessHost } from "./host";
 import { indexIn } from "./workspace-index";
+import "./test-languages";
 
 function setup(options: Omit<EditorManagerOptions, "host"> = {}) {
   const events: string[] = [];

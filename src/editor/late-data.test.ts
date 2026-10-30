@@ -16,6 +16,7 @@ import { cLibrarySource, pythonMemberSource } from "./library-completion";
 import { libraryStatus } from "./library-data";
 import { cOwnSource } from "./own-completion";
 import { indexIn, type Scheduler } from "./workspace-index";
+import "./test-languages";
 
 const soon: Scheduler = (slice) => void setTimeout(() => slice(() => true), 0);
 

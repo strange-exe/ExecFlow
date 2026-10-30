@@ -6,6 +6,7 @@ import { detectLanguage, isHeader, LANGUAGES, type LanguageId } from "../core/la
 import { conflictName, foldKey, isInside, joinPath, nameOf, parentOf } from "../core/paths";
 import type { EntryMeta, RunResult, RunStatus, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
 import type { EditorManager, FileId, Problem } from "../editor/editor-manager";
+import { languageForPath, loadLanguage } from "../editor/language-support";
 import { toLineCol } from "../editor/positions";
 import { deleteAllLocalData, isClosedError, isVersionError, openWorkspaceDb, StorageError, type UiState, type WorkspaceDb, type WorkspaceRecord } from "../storage/db";
 import { createTabCoordinator, relayChanges, type ReadOnlyReason, type TabCoordinator } from "../storage/tabs";
@@ -619,6 +620,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       if (open.includes(file)) open.splice(open.indexOf(file), 1);
       renderTabs();
     };
+    // The file's grammar is a chunk of its own (editor/language-support.ts): fetched with the
+    // editor's, and waited for with the text, so the file opens highlighted. If it can't load, the
+    // file opens as plain text and the editor adds the grammar when a later try gets it.
+    const grammar = loadLanguage(languageForPath(file.path)).catch(() => {});
     let ed: EditorManager;
     try {
       ed = await loadEditor();
@@ -628,7 +633,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (!ed.has(id)) {
       let text: string;
       try {
-        text = await store.readFile(ws, file.path);
+        [text] = await Promise.all([store.readFile(ws, file.path), grammar]);
       } catch (e) {
         return drop(`${nameOf(file.path)} couldn't be opened: ${errorText(e)}`);
       }

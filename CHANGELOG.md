@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.18.1] - 2026-10-31
+
+The editor arrives in smaller pieces
+
+### Changed
+
+- The colours, folding and suggestions for Python, and for C and C++, now load as their own small downloads with the first file of that language, so the editor's main download is about a third smaller. Files open looking and working as before.
+
 ## [0.18.0] - 2026-10-30
 
 Download and share a few files, or a whole folder

@@ -6,13 +6,14 @@
 // preprocessor lines, after `.`, `->` and `::` in C/C++, in import statements and after a dot in
 // Python.
 //
-// This file is in the editor chunk (language-support.ts imports it), so keywords and snippets are
+// The language chunks (python-support.ts, c-support.ts) import this file, so keywords and snippets are
 // offered even when the completion chunk (completion-code.ts: library and own names) can't load,
 // as C and C++ keywords were before Tier 1 (Python then also had lang-python's built-in and local
 // names, now the completion chunk's). It imports nothing from that chunk (completion-chunk.test.ts
 // checks); the completion chunk imports the guards, the import-statement reader and the ranking helper from
-// here. Python's built-in names are library-completion.ts's: with them here the editor chunk passed
-// its 200 kB gzip budget (research doc section 3). Every instance is built once.
+// here (so it is a small common chunk of both). Python's built-in names are library-completion.ts's:
+// with them here the editor chunk, which held this file until 0.18.1, passed its 200 kB gzip budget
+// (research doc section 3). Every instance is built once.
 
 import {
   completeFromList, snippet, snippetCompletion, type Completion, type CompletionSource,

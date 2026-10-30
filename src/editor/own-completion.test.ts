@@ -12,6 +12,7 @@ import { fileConf, fileExtensions } from "./extensions";
 import { loadLibrary } from "./library-data";
 import { headerClosure, namesReady } from "./own-completion";
 import { indexIn, type Scheduler } from "./workspace-index";
+import "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);

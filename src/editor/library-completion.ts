@@ -7,10 +7,10 @@
 // - C and C++: header names on `#include <` and `#include "` lines, library functions and macros
 //   (detail: the prototype or value; info: our own one line naming the header), and std:: names in
 //   C++ (grouped by header). Common names rank first among equal matches (BEGINNER). Keywords and
-//   snippets are keyword-completion.ts's, in the editor chunk; Python's built-in names are here.
+//   snippets are keyword-completion.ts's, with the language chunks; Python's built-in names are here.
 // This file is in the completion chunk (completion-code.ts), which the editor chunk loads with
-// import() (completion-loader.ts). language-support.ts puts each source in a file's own language
-// data, inside writable(), so a read-only file has none. Nothing here offers a word inside a string
+// import() (completion-loader.ts). The language chunks (python-support.ts, c-support.ts) put each
+// source in a file's own language data, inside writable(), so a read-only file has none. Nothing here offers a word inside a string
 // or a comment. Every list is filtered by CodeMirror's matcher; sources return validFor, so typing
 // inside a word refilters without a new query, except for a list built while data it needs was
 // missing (late-data.ts: the next key asks again, and the query runs again once the data is there).
@@ -132,7 +132,7 @@ export const BEGINNER: Readonly<Record<"pyModules" | "cHeaders" | "cNames" | "cp
 // (pythonImportContext, what an import statement wants at the cursor, is keyword-completion.ts's.)
 
 // lang-python 6.2.1's built-in names, copied as it lists them (its arrays aren't exported), without
-// False, None and True (keywords: keyword-completion.ts, in the editor chunk).
+// False, None and True (keywords: keyword-completion.ts, with the language chunks).
 const PYTHON_CONSTANTS = [
   "__annotations__", "__builtins__", "__debug__", "__doc__", "__import__", "__name__", "__loader__", "__package__",
   "__spec__",
@@ -658,7 +658,7 @@ export function includeSource(lang: CLang): CompletionSource {
 
 /**
  * Library functions and macros for a word being typed (or Ctrl-Space), leaving out the words in
- * `keywords`. language-support.ts adds the keyword guard (no names after `.`, `->` or `::`, on
+ * `keywords`. c-support.ts adds the keyword guard (no names after `.`, `->` or `::`, on
  * preprocessor lines, in strings and comments).
  */
 export function cLibrarySource(lang: CLang, keywords: readonly string[] = []): CompletionSource {
@@ -821,7 +821,7 @@ function usingStdOptions(lib: CLibrary, std: string): readonly Completion[] {
 
 /**
  * std names without the prefix, for a word being typed (or Ctrl-Space) where the file's own
- * `using namespace std;` is in scope (usingStdAt). language-support.ts adds the keyword guard (no
+ * `using namespace std;` is in scope (usingStdAt). c-support.ts adds the keyword guard (no
  * names after `.`, `->` or `::`, on preprocessor lines, in strings and comments). Without one in
  * scope it answers null (keyword-completion.ts unless says why).
  */

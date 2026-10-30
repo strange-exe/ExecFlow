@@ -21,6 +21,7 @@ import {
 import { IndexSlot, libraryContext, workspaceIndex, type LibraryContext } from "./completion-context";
 import { loadCompletionCode } from "./completion-loader";
 import { viewHost, type EditorHost, type HostFactory } from "./host";
+import { languageForPath, languageLoaded, loadLanguage } from "./language-support";
 import { clampPos } from "./positions";
 import { RUN_CHANNEL } from "./run-marks";
 import type { Scheduler } from "./workspace-index";
@@ -294,6 +295,7 @@ export class EditorManager {
     this.evict(id);
     if (activate) this.activate(id);
     if (applied) this.hooks.onDiagnosticsChange?.();
+    this.needLanguage(path);
     return true;
   }
 
@@ -356,6 +358,7 @@ export class EditorManager {
     this.pending.delete(path);
     this.apply(id, { effects: fileConf.reconfigure(fileExtensions(path)) });
     if (diagnosticCount(this.stateOf(s)) > 0) this.hooks.onDiagnosticsChange?.(); // Problems rows show the path
+    this.needLanguage(path);
     return true;
   }
 
@@ -626,6 +629,24 @@ export class EditorManager {
   private liveDoc(path: WsPath): Text | null {
     for (const s of this.sessions.values()) if (s.path === path) return this.stateOf(s).doc;
     return null;
+  }
+
+  /**
+   * A file opened before its language's chunk (language-support.ts) is plain text: once the chunk
+   * is here, every open file of that language gets its grammar and completion. A failed load leaves
+   * them plain; the next file of the language that opens tries again.
+   */
+  private needLanguage(path: WsPath): void {
+    const lang = languageForPath(path);
+    if (languageLoaded(lang)) return;
+    loadLanguage(lang).then(
+      () => {
+        for (const s of this.sessions.values()) {
+          if (languageForPath(s.path) === lang) this.apply(s.id, { effects: fileConf.reconfigure(fileExtensions(s.path)) });
+        }
+      },
+      () => {},
+    );
   }
 
   private extensionsFor(id: FileId, path: WsPath, readOnly: boolean): Extension {

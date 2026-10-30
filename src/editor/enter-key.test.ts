@@ -21,6 +21,7 @@ import {
   type EditorPrefs,
 } from "./extensions";
 import { loadLibrary } from "./library-data";
+import "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);

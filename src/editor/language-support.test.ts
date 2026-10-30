@@ -8,6 +8,7 @@ import { fileConf, fileExtensions } from "./extensions";
 import { C_KEYWORDS, CPP_KEYWORDS, PYTHON_KEYWORDS, PYTHON_WORDS } from "./keyword-completion";
 import { languageForPath, languageSupport } from "./language-support";
 import { loadLibrary } from "./library-data";
+import "./test-languages";
 
 // With the completion code and the library data loaded, as in the app once a file has been shown:
 // the header names on #include lines and the library functions are there too

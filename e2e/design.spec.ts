@@ -239,6 +239,10 @@ test("the suggestion code is a chunk of its own, apart from the first visit and 
   expect(suggestions.length, "chunks with the suggestion code").toBe(1);
   expect(suggestions[0].url, "the suggestion code is not in the editor chunk").not.toBe(editorChunk.url);
   expect(editorChunk.gzip, `the editor chunk ${editorChunk.url}, gzip`).toBeLessThanOrEqual(200 * 1024);
+  // 0.18.1: the grammars are chunks of their own (src/editor/language-support.ts), leaving room for
+  // the next editor feature. The editor chunk was 194,865 bytes gzip with them and 130,619 without
+  // (measured 2026-10-30); 160 KB fails if they come back.
+  expect(editorChunk.gzip, `the largest chunk ${editorChunk.url}, gzip, leaves room under the budget`).toBeLessThanOrEqual(160 * 1024);
 });
 
 test("reduced motion turns transitions off", async ({ page }) => {

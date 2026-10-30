@@ -15,6 +15,7 @@ import {
   prefsConf, prefsExtension, READ_ONLY, TOOLTIP_EDGE,
 } from "./extensions";
 import { CHROME_SPEC, highlightStyle } from "./highlight";
+import "./test-languages";
 
 /**
  * The theme layer's colour variables (src/theme/contrast.ts COLOR_VARS) plus the non-colour tokens

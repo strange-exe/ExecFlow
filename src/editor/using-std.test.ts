@@ -13,6 +13,7 @@ import { libraryContext } from "./completion-context";
 import { loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
 import { loadLibrary } from "./library-data";
+import "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);

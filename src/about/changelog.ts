@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.18.1",
+    date: "2026-10-31",
+    title: "The editor arrives in smaller pieces",
+    items: [
+      { kind: "changed", text: "The colours, folding and suggestions for Python, and for C and C++, now load as their own small downloads with the first file of that language, so the editor's main download is about a third smaller. Files open looking and working as before." },
+    ],
+  },
+  {
     version: "0.18.0",
     date: "2026-10-30",
     title: "Download and share a few files, or a whole folder",

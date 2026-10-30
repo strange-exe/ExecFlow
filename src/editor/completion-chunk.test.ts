@@ -49,6 +49,18 @@ function staticImports(id: string, text: string): string[] {
   return out;
 }
 
+/** The packages `text` imports statically for their values ("@codemirror/lang-cpp"). */
+function packageImports(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/^\s*(import|export)\s+(type\s+)?([^;]*?)\s*from\s*"([^".][^"]*)"|^\s*import\s+"([^".][^"]*)"/gm)) {
+    if (m[2]) continue;
+    const names = m[3] ?? "";
+    if (/^\{[\s\S]*\}$/.test(names) && names.slice(1, -1).split(",").every((n) => /^\s*(type\s+\S|$)/.test(n))) continue;
+    out.push(m[4] ?? m[5]);
+  }
+  return out;
+}
+
 function closure(entry: string): Set<string> {
   const seen = new Set<string>();
   const todo = [entry];
@@ -73,6 +85,12 @@ const COMPLETION_ONLY = [
   "editor/workspace-index.ts",
 ];
 
+/** The language chunks' entries (language-support.ts loads them with import()). */
+const LANGUAGE_CHUNKS = ["editor/python-support.ts", "editor/c-support.ts"];
+
+/** The grammar packages: the language chunks', never the editor chunk's. */
+const GRAMMARS = ["@codemirror/lang-python", "@codemirror/lang-cpp", "@lezer/python", "@lezer/cpp"];
+
 describe("the editor chunk and the completion chunk", () => {
   it("finds the modules (the glob and the resolver work)", () => {
     expect(Object.keys(sources)).toContain(EDITOR);
@@ -86,12 +104,38 @@ describe("the editor chunk and the completion chunk", () => {
     expect(COMPLETION_ONLY.filter((id) => editor.has(id))).toEqual([]);
   });
 
-  it("keywords and snippets are in the editor chunk, and reach none of the completion code", () => {
-    expect(closure(EDITOR)).toContain("editor/keyword-completion.ts");
+  it("keywords and snippets come with the language chunks, and reach none of the completion code", () => {
     const reached = closure("editor/keyword-completion.ts");
     expect(COMPLETION_ONLY.filter((id) => reached.has(id))).toEqual([]);
-    // language-support.ts places them itself, not through the completion chunk (lazySource).
-    expect(staticImports("editor/language-support.ts", sources["editor/language-support.ts"])).toContain("editor/keyword-completion.ts");
+    // The language chunks place them themselves, not through the completion chunk (lazySource).
+    for (const id of LANGUAGE_CHUNKS) expect(staticImports(id, sources[id]), id).toContain("editor/keyword-completion.ts");
+  });
+
+  it("the grammars and the language chunks are not in the editor chunk (0.18.1: it was 195 of its 200 kB gzip)", () => {
+    const editor = closure(EDITOR);
+    expect([...LANGUAGE_CHUNKS, "editor/language-sources.ts", "editor/keyword-completion.ts"].filter((id) => editor.has(id))).toEqual([]);
+    const grammars = [...editor].flatMap((id) => packageImports(sources[id]).filter((p) => GRAMMARS.includes(p)).map((p) => `${id}: ${p}`));
+    expect(grammars).toEqual([]);
+  });
+
+  it("the language chunks are loaded with import(), from language-support.ts only", () => {
+    const loaders = Object.keys(sources).filter((id) => /import\(\s*"\.\/(python|c)-support"\s*\)/.test(sources[id]));
+    expect(loaders).toEqual(["editor/language-support.ts"]);
+    for (const id of LANGUAGE_CHUNKS) {
+      const importers = Object.keys(sources).filter((other) => staticImports(other, sources[other]).includes(id));
+      expect(importers, id).toEqual([]);
+    }
+  });
+
+  it("language-support.ts imports no CodeMirror code, so the shell can start a language's load with the editor's", () => {
+    const text = sources["editor/language-support.ts"];
+    expect(packageImports(text)).toEqual([]);
+    expect(staticImports("editor/language-support.ts", text).every((id) => id.startsWith("core/"))).toBe(true);
+  });
+
+  it("packageImports sees value imports of packages and skips type-only ones", () => {
+    expect(packageImports('import type { A } from "@lezer/cpp";\nimport { type B } from "@codemirror/lang-cpp";')).toEqual([]);
+    expect(packageImports('import { cpp } from "@codemirror/lang-cpp";\nimport { x } from "./y";')).toEqual(["@codemirror/lang-cpp"]);
   });
 
   it("the completion code is loaded with import() from the editor chunk, in one place", () => {
@@ -111,8 +155,9 @@ describe("the editor chunk and the completion chunk", () => {
     // Everything the completion code reaches is the editor's or its own.
     const completion = closure("editor/completion-code.ts");
     const editor = closure(EDITOR);
+    // (keyword-completion.ts is shared with the language chunks: a common chunk of its own.)
     const own = [...completion].filter((id) => !editor.has(id) && !id.startsWith("core/") && !id.startsWith("runner/"));
-    expect(own.sort()).toEqual([...COMPLETION_ONLY].sort());
+    expect(own.sort()).toEqual([...COMPLETION_ONLY, "editor/keyword-completion.ts"].sort());
   });
 
   it("type-only imports don't count, value imports and re-exports do", () => {

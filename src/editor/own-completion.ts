@@ -94,7 +94,7 @@ export function headerClosure(state: EditorState, path: WsPath, index: Workspace
 /**
  * Your own C and C++ names for the word being typed (or Ctrl-Space): the open file's first, then
  * each included header's, one option per name, leaving out the word at the cursor and any word in
- * `keywords` (the keyword list offers those). language-support.ts adds the keyword guard: nothing
+ * `keywords` (the keyword list offers those). c-support.ts adds the keyword guard: nothing
  * after `.`, `->` or `::`, on preprocessor lines, in strings and comments.
  */
 export function cOwnSource(keywords: readonly string[] = []): CompletionSource {

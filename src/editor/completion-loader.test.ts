@@ -1,6 +1,6 @@
 // The time before the completion chunk (completion-code.ts) has arrived: every library and own-name
 // source in a file's language data is a stand-in (completion-loader.ts lazySource). A query then
-// offers only the keywords and snippets (keyword-completion.ts, in the editor chunk) and starts the
+// offers only the keywords and snippets (keyword-completion.ts, with the language chunks) and starts the
 // load; where a stand-in's source would offer names it runs again once the code is there, and the
 // sources answer from then on. A failed load (offline before the chunk was ever cached) is quiet
 // and is tried again later. This file's fresh module has not loaded the code.
@@ -12,6 +12,7 @@ import type { EditorView } from "@codemirror/view";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { CODE_RETRY_MS, completionCode, loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
+import "./test-languages";
 
 const tick = () => new Promise((done) => setTimeout(done, 0));
 
@@ -74,6 +75,9 @@ describe("the first query, before the code is there", () => {
     vi.resetModules();
     const loader = await import("./completion-loader");
     const extensions = await import("./extensions");
+    // The fresh graph's language chunks, which use this graph's loader.
+    const languages = await import("./language-support");
+    await Promise.all([languages.loadLanguage("c"), languages.loadLanguage("python")]);
     expect(loader.completionCode()).toBeNull();
     const make = (path: string, doc: string) => {
       const state = EditorState.create({ doc, selection: { anchor: doc.length }, extensions: [autocompletion(), extensions.fileConf.of(extensions.fileExtensions(path))] });
@@ -95,7 +99,7 @@ describe("the first query, before the code is there", () => {
     // `#include <`: the header source would offer names.
     const include = make("main.c", "#include <");
     const python = make("main.py", "import math\nmath.");
-    // The keywords and snippets are the editor chunk's: offered at once, and nothing else is.
+    // The keywords and snippets are the language chunks': offered at once, and nothing else is.
     const first = (await ask(typed.view, typed.asView)).flatMap((r) => r?.options ?? []);
     expect(first.map((o) => o.label), "keywords before the code").toContain("return");
     expect(first.filter((o) => o.type === "function" || o.type === "variable").map((o) => o.label), "no own or library name before the code").toEqual([]);

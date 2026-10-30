@@ -13,6 +13,7 @@ import { fileConf, fileExtensions } from "./extensions";
 import { C_SNIPPETS, CPP_SNIPPETS, pythonImportContext } from "./keyword-completion";
 import { pythonImports, workspaceHeaders, workspaceModules } from "./library-completion";
 import { library, libraryStatus, loadLibrary } from "./library-data";
+import "./test-languages";
 
 // The completion code (completion-code.ts) as the app has it once a file has been shown; loading
 // it doesn't load the library data, which the first describe below checks the absence of.

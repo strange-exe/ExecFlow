@@ -167,7 +167,7 @@ export const ENTER_KEY: KeyBinding = {
  * A picked suggestion is an edit like typing, so a read-only file refuses it. The list's mouse
  * handler applies an option with no read-only check (autocomplete 6.20.3), and readOnly doesn't
  * stop dispatched changes. Only picks are dropped: a pull or another tab's save still replaces a
- * read-only file's text. (language-support.ts also removes the sources, which closes the list.)
+ * read-only file's text. (language-sources.ts writable() also removes the sources, which closes the list.)
  */
 export const refuseReadOnlyPicks: Extension = EditorState.transactionFilter.of((tr) =>
   tr.startState.readOnly && tr.annotation(pickedCompletion) !== undefined ? [] : tr,

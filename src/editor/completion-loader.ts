@@ -6,7 +6,7 @@
 // nothing has happened since: the same text, cursor and focus, and no Escape. The service worker
 // precaches the chunk with every other one, so this works offline after the first visit. If the
 // code can't load (the network goes between the editor chunk and this one on a first visit, say),
-// those sources offer nothing, the keywords and snippets (keyword-completion.ts, the editor chunk's)
+// those sources offer nothing, the keywords and snippets (keyword-completion.ts, the language chunks')
 // still do, and this code throws and logs nothing; the browser still
 // reports its own failed request (Chromium in the console). A query after CODE_RETRY_MS tries
 // again, and when that load works the shown files' loaders start (Loaders). Chromium and Firefox

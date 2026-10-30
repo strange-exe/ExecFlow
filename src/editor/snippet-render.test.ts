@@ -9,6 +9,7 @@ import { OWN } from "../theme/palettes";
 import { BUILT_IN, themePalette, type Scheme } from "../theme/themes";
 import { EXTRA_SPECIALS } from "./extensions";
 import { languageSupport } from "./language-support";
+import "./test-languages";
 import {
   BAR_STEP, cardRect, chooseScale, CREDIT, creditInk, creditMark, creditSize, edgeThickness, layoutImage, markSpecials, pixelsOk, readbackRect, SIZES, styledLines, tabStop, treeFor, trimEnd, windowBarGround, wrapRows,
   type Run, type StyledLine,
