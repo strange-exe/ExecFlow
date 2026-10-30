@@ -8,7 +8,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { contrast, deltaE, lift, over, UI_MIXES } from "../src/theme/contrast";
 import { audit } from "./audit";
-import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, reloadApp, run, test, tolerating } from "./helpers";
+import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, test, tolerating } from "./helpers";
 import {
   CARD_AT, FIXTURE, MOD, box, calls, canCopy, captures, clearCalls, decodeRgba, dialogOf, downloadPng, hexRgb, inkOf, instrument, markOf, matOf, off,
   openFromFileMenu, openWith, pngInfo, previewPng, previewReady, salience, selectAll, selectFixtureLines, tokens, writtenPng,
@@ -1106,11 +1106,9 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   // Theme from this tab: page B picks Deep Field Dark; page A's Match image keeps page A's own ground.
   const b = await context.newPage();
   await openApp(b);
-  await b.locator("#settings-button").click();
-  const settings = b.getByRole("dialog", { name: /Settings/ });
-  // Deep Field is folded under More themes since Signal became the default.
-  await settings.locator(".theme-more summary").click();
-  await settings.locator('input[name=theme][value="deep-field-dark"]').check();
+  // The themes are in the theme picker (Settings, Change theme) since Workbench Pro S4.
+  const picker = await openThemePicker(b);
+  await picker.locator('input[name=theme][value="deep-field-dark"]').check();
   await expect(b.locator("html")).toHaveAttribute("data-theme-id", "deep-field-dark");
   await page.bringToFront();
   await selectFixtureLines(page);

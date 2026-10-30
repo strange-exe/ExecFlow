@@ -1187,7 +1187,7 @@ a.status-btn { text-decoration: none; }
 .setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--s5); min-height: 48px; padding: var(--s2) 0; }
 .setting + .setting { border-top: 1px solid var(--border); }
 .setting-text { min-width: 0; }
-.setting-label { display: block; font-weight: var(--w-label); }
+.setting-label { display: block; margin: 0; font-weight: var(--w-label); }
 .setting-control { display: flex; justify-content: flex-end; min-width: 0; }
 .setting-control select { max-width: min(320px, 100%); }
 /* Number fields are as wide as their numbers, not the column. */
@@ -1237,6 +1237,9 @@ input.switch {
 .setting-control input.switch { margin: 2px 2px 2px 0; }
 .danger-box { padding: var(--s3) var(--s4); border-radius: var(--r-control); box-shadow: inset 0 0 0 1px var(--danger); }
 .danger-text { margin: 0; color: var(--text); }
+/* At 320 px "Sign out and clear this computer" is wider than the box: it wraps rather than scroll
+   Settings sideways. */
+.danger-box .btn { max-width: 100%; padding-block: var(--s1); white-space: normal; text-align: left; }
 /* The foot: the version (when the versions unit fills it) and the legal line, under a rule. */
 .settings-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: var(--s4); row-gap: var(--s1); padding: var(--s3) var(--s5); box-shadow: inset 0 1px 0 var(--divider); }
 .settings-foot > p { margin: 0; }
@@ -1253,33 +1256,93 @@ input.switch {
   .settings-foot { padding: var(--s3) var(--s4); }
 }
 
-/* Themes as tiles: the radio, the name and a preview in that theme's own colours (custom
-   properties set on each tile by theme-picker.ts; only var(--tile-*) is painted here). The list is
-   not a scroll box of its own: the dialog scrolls once. */
-.theme-list { display: flex; flex-direction: column; gap: var(--s2); margin: var(--s2) 0 var(--s3); }
-.theme-group { margin: var(--s2) 0 0; color: var(--text-secondary); font-size: var(--fs-2); font-weight: var(--w-label); }
-.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: var(--s2); }
-.theme-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+/* The theme picker (Workbench Pro S4), a dialog of its own: the head, a tool row that stays put
+   (search, the Light/Dark/All segmented filter, the count), the family tiles in the scrolling body,
+   then a foot (Load theme file, Get template). A tile is a card on the code ground with a 1 px edge:
+   the family's name and schemes, a preview in the shown variant's own colours (custom properties set
+   by theme-picker.ts; only var(--tile-*) is painted inside it), then the variants as native radios in
+   small buttons. The chosen family's card has the 2 px location ring; the chosen variant's button is
+   raised with a ring, so the choice is a shape, not only a colour. */
+.theme-dialog.dialog { width: min(1120px, calc(100vw - 32px)); height: min(860px, calc(100dvh - 32px)); max-height: none; }
+.theme-dialog[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
+.theme-dialog > .dialog-body { padding-top: var(--s1); }
+.theme-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s1) var(--s5) var(--s3); }
+.theme-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s4); padding: var(--s3) var(--s5); box-shadow: inset 0 1px 0 var(--divider); }
+.theme-foot > .row-actions { margin: 0; }
+.theme-foot > .field-note { margin: 0; }
+.theme-foot > .field-note:empty { display: none; }
+@media (max-width: 699px) {
+  .theme-tools, .theme-foot { padding-inline: var(--s4); }
+  .theme-dialog > .dialog-body { padding-inline: var(--s4); }
+}
+.theme-search { position: relative; flex: 1 1 220px; min-width: 0; }
+.theme-search > .icon { position: absolute; top: 50%; left: var(--s2); width: var(--icon-sm); height: var(--icon-sm); color: var(--text-muted); transform: translateY(-50%); pointer-events: none; }
+.theme-search-field {
+  width: 100%;
+  min-height: var(--field-h);
+  padding: 0 var(--s2) 0 calc(var(--s2) + var(--s5));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  color: var(--text);
+}
+.theme-search-field:focus-visible { outline-offset: 0; }
+/* A segmented control of native radios: the track has a 1 px control edge; the chosen option is a
+   raised chip with a hairline ring (the console's tabs, app.css .panel-tabs). The radio covers its
+   option, invisible, so the whole option is its target and keeps native keyboard behaviour. */
+.seg { display: inline-flex; align-items: center; gap: 2px; flex: none; min-inline-size: 0; margin: 0; padding: 2px; border: 0; border-radius: var(--r-control); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.seg-option { position: relative; display: inline-flex; align-items: center; min-height: calc(var(--field-h) - 4px); padding: 0 var(--s3); border-radius: var(--r-row); color: var(--text-secondary); font-size: var(--fs-2); font-weight: var(--w-label); cursor: pointer; }
+.seg-option > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.seg-option:hover { color: var(--text); background: var(--hover); }
+.seg-option:has(input:checked) { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.seg-option:has(input:focus-visible), .theme-dialog[data-keys] .seg-option:has(input:focus) { outline: var(--ring); outline-offset: 0; }
+.theme-count { margin: 0 0 0 auto; white-space: nowrap; }
+.theme-list { display: flex; flex-direction: column; gap: var(--s5); }
+.theme-section { display: flex; flex-direction: column; gap: var(--s2); }
+.theme-group { margin: 0; color: var(--text-secondary); font-size: var(--fs-2); font-weight: var(--w-label); }
+/* Three to a row at full width (the six "Start here" tiles fill two rows), two at 900 px, one on phones. */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--s3); }
+.theme-family {
+  display: flex;
+  flex-direction: column;
   gap: var(--s2);
+  min-width: 0;
   padding: var(--s3);
   border: 1px solid var(--border);
   border-radius: var(--r-control);
-  cursor: pointer;
+  background: var(--bg);
 }
-.theme-option:hover { background: var(--hover); }
-.theme-option:has(input:checked) { border-color: transparent; background: var(--list-selected); box-shadow: inset 0 0 0 2px var(--location); }
-.theme-name { min-width: 0; }
-/* "Default" beside a theme's name: a quiet word in the secondary tier, not a box that reads as a
+.theme-family:has(input[name="theme"]:checked) { border-color: transparent; box-shadow: inset 0 0 0 2px var(--location); }
+.family-head { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
+.family-name { min-width: 0; overflow: hidden; color: var(--text); font-weight: var(--w-label); text-overflow: ellipsis; white-space: nowrap; }
+.family-head > .btn { margin-left: auto; }
+.family-schemes { margin: calc(-1 * var(--s2) + 2px) 0 0; color: var(--text-muted); font-size: var(--fs-hint); line-height: var(--lh-hint); }
+/* "Default" beside a family's name: a quiet word in the secondary tier, not a box that reads as a
    button. */
 .tag { margin-left: var(--s1); color: var(--text-secondary); font-size: var(--fs-2); }
-.theme-more summary { padding: var(--s2) 0; color: var(--text-secondary); font-weight: var(--w-label); cursor: pointer; }
-.theme-more[open] summary { margin-bottom: var(--s2); }
+.theme-variants { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: var(--h-row);
+  padding: 0 var(--s2) 0 var(--s1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-row);
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  cursor: pointer;
+}
+.theme-option > input { width: 16px; height: 16px; margin: 0; }
+.theme-option > input:focus-visible { outline: none; }
+.theme-option:hover { color: var(--text); background: var(--hover); }
+.theme-option:has(input:checked) { border-color: transparent; color: var(--text); font-weight: var(--w-label); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
+/* data-keys (theme-picker.ts): WebKit stops matching :focus-visible on a radio reached by an arrow key. */
+.theme-option:has(input:focus-visible), .theme-dialog[data-keys] .theme-option:has(input:focus) { outline: var(--ring); outline-offset: 2px; }
+.theme-empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s4); border: 1px dashed var(--border-strong); border-radius: var(--r-control); }
+.theme-empty > p { margin: 0; color: var(--text-secondary); }
 .tile-prev {
   position: relative;
-  grid-column: 1 / -1;
   display: block;
   padding: var(--s1) 0;
   overflow: hidden;
@@ -1287,29 +1350,38 @@ input.switch {
   border-radius: var(--r-key);
   background: var(--tile-bg);
   color: var(--tile-text);
-  font: 12px/20px var(--font-code);
+  font: 12px/18px var(--font-code);
   font-variant-ligatures: none;
+  cursor: pointer;
 }
 .tp-ln { display: block; padding-right: var(--s2); white-space: pre; }
 .tp-ln.is-band { background: var(--tile-band); box-shadow: inset 2px 0 0 var(--tile-danger); }
-.tp-num { display: inline-block; width: 28px; padding-right: var(--s2); color: var(--tile-gutter); text-align: right; }
-.tp-ln.is-band .tp-num { color: var(--tile-text); }
-.tp-kw { color: var(--tile-keyword); }
-.tp-fn { color: var(--tile-function); }
-.tp-pu { color: var(--tile-punctuation); }
+.tp-num { display: inline-block; width: 26px; padding-right: var(--s2); text-align: right; }
+.tile-prev [data-role="gutter"] { color: var(--tile-gutter); }
+.tile-prev [data-role="keyword"] { color: var(--tile-keyword); }
+.tile-prev [data-role="string"] { color: var(--tile-string); }
+.tile-prev [data-role="number"] { color: var(--tile-number); }
+.tile-prev [data-role="comment"] { color: var(--tile-comment); font-style: italic; }
+.tile-prev [data-role="function"] { color: var(--tile-function); }
+.tile-prev [data-role="type"] { color: var(--tile-type); }
+.tile-prev [data-role="variable"] { color: var(--tile-variable); }
+.tile-prev [data-role="operator"] { color: var(--tile-operator); }
+.tile-prev [data-role="macro"] { color: var(--tile-macro); }
+.tile-prev [data-role="punctuation"] { color: var(--tile-punctuation); }
+/* Run sits at the foot, beside the short last line, clear of the code. */
 .tp-run {
   position: absolute;
-  top: var(--s1);
   right: var(--s1);
+  bottom: var(--s1);
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
-  height: 20px;
+  height: 18px;
   padding: 0 var(--s2) 0 var(--s1);
   border-radius: var(--r-key);
   background: var(--tile-action);
   color: var(--tile-on-action);
-  font: var(--w-label) 12px/20px var(--font-ui);
+  font: var(--w-label) 12px/18px var(--font-ui);
 }
 .tp-run .icon { width: var(--icon-xs); height: var(--icon-xs); }
 

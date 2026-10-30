@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, waitReady } from "./helpers";
+import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, openThemePicker, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, waitReady } from "./helpers";
 
 // Desktop and phone, light and dark. Each test loads, emulates, reloads and
 // proves the theme is really active before checking anything. These reload right after the first
@@ -252,9 +252,8 @@ test("reduced motion turns transitions off", async ({ page }) => {
 
 test("a theme chosen in Settings applies at once, and is painted on the next load before the app's code runs", async ({ page }) => {
   await openApp(page);
-  await page.locator("#settings-button").click();
-  // Dracula is a popular editor theme: folded under More themes (review D, 2026-10-18).
-  await page.getByRole("dialog", { name: "Settings" }).locator(".theme-more summary").click();
+  // The theme picker is its own dialog over Settings since Workbench Pro S4 (Change theme).
+  await openThemePicker(page);
   await page.getByRole("radio", { name: "Dracula" }).check();
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(await bg()).toBe("rgb(40, 42, 54)"); // Dracula's editor background #282a36
@@ -297,9 +296,8 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const html = page.locator("html");
   await expect(html).toHaveAttribute("data-palette", "signal");
-  await page.locator("#settings-button").click();
-  // Slate (v1's palette) is folded under More themes (review D, 2026-10-18).
-  await page.getByRole("dialog", { name: "Settings" }).locator(".theme-more summary").click();
+  // The theme picker is its own dialog over Settings since Workbench Pro S4 (Change theme).
+  await openThemePicker(page);
   await page.getByRole("radio", { name: "CodeEditor Slate Dark" }).check();
   expect(await bg()).toBe("rgb(14, 18, 23)"); // Slate's dark code ground #0e1217
   await expect(html).toHaveAttribute("data-palette", "slate");

@@ -4,7 +4,7 @@
 // policy violation may even be attempted (CSP would block an injected handler, so "no alert" alone
 // proves nothing: the DOM and the violation log are checked too).
 import type { Page } from "@playwright/test";
-import { expect, installCpp, OWN_JSON_LD, openApp, openFromTree, run, setCode, showFiles, test, treeItem } from "./helpers";
+import { expect, installCpp, OWN_JSON_LD, openApp, openFromTree, openThemePicker, run, setCode, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -191,9 +191,9 @@ test("theme files: a markup name is cleaned, unknown keys and CSS values are ref
   const colors = Object.fromEntries(
     ["paper", "sheet", "bar", "ink", "muted", "rule", "accent", "on-accent", "ok", "err", "warn", "syn-keyword", "syn-string", "syn-number", "syn-comment", "syn-def"].map((k, i) => [k, i % 2 ? "#f0f0f0" : "#101010"]),
   );
-  await page.locator("#settings-button").click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
-  const message = settings.locator(".theme-picker > [role=status]");
+  // Load theme file is in the theme picker's foot (Settings, Change theme) since Workbench Pro S4.
+  const settings = await openThemePicker(page);
+  const message = settings.locator(".theme-foot > [role=status]");
   const load = async (text: string) => {
     const chooser = page.waitForEvent("filechooser");
     await settings.getByRole("button", { name: "Load theme file" }).click();
@@ -203,7 +203,7 @@ test("theme files: a markup name is cleaned, unknown keys and CSS values are ref
   await expect(message).toHaveAttribute("data-tone", "info");
   await expect(message).toContainText("Loaded");
   // Only letters, digits, spaces and ._'()&+- are kept from a theme's name.
-  await expect(settings.locator(".theme-name").filter({ hasText: /^img srcx onerroralert\(1\) Night$/ })).toHaveCount(1);
+  await expect(settings.locator(".family-name").filter({ hasText: /^img srcx onerroralert\(1\) Night$/ })).toHaveCount(1);
   await load(JSON.stringify({ name: "x", scheme: "dark", colors: { ...colors, ink: "url(javascript:alert(1))" } }));
   await expect(message).toHaveAttribute("data-tone", "error");
   await load(JSON.stringify({ name: "x", scheme: "dark", colors, [IMG]: 1 }));

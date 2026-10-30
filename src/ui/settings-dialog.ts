@@ -8,8 +8,9 @@
 // on the left, its control on the right (a stepper, a switch or a select), so a note always sits
 // under its own field. The foot holds the version (#settings-version, filled by the versions unit)
 // and the legal line.
-import { createThemePicker } from "../theme/theme-picker";
 import { ligaturesOn, setLigatures } from "../theme/ligatures";
+import { chosenTheme } from "../theme/themes";
+import type { ThemePickerDialog } from "../theme/theme-picker";
 import type { WorkspaceDb } from "../storage/db";
 import { requestPersistence, storageStatus } from "../storage/persist";
 import { downloadText, formatBytes, h } from "./dom";
@@ -91,7 +92,40 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const set = (patch: Partial<Settings>) => deps.settings.update(patch);
 
   // ---------------------------------------------------------------- appearance
-  const picker = createThemePicker({ download: (name, text) => downloadText(name, text, "application/json") });
+  // The colour theme: its name here, and Change theme opens the theme picker (Workbench Pro S4), a
+  // dialog of its own over Settings in its own chunk, fetched when Settings opens so the click is
+  // instant. "Colour theme" labels the row; the theme's name describes the button.
+  const themeNow = h("p", { class: "field-note", id: "theme-current" });
+  const changeTheme = h("button", { type: "button", class: "btn", id: "theme-open", "aria-describedby": "theme-current" }, "Change theme");
+  const showTheme = () => {
+    themeNow.textContent = chosenTheme().name;
+  };
+  let pickerChunk: Promise<ThemePickerDialog> | null = null;
+  const loadPicker = () =>
+    (pickerChunk ??= import("../theme/theme-picker").then(
+      (m) => {
+        const picker = m.createThemePickerDialog({ download: (name, text) => downloadText(name, text, "application/json") });
+        picker.onClose(showTheme);
+        return picker;
+      },
+      (e: unknown) => {
+        pickerChunk = null; // a later click tries again
+        throw e;
+      },
+    ));
+  changeTheme.addEventListener("click", async () => {
+    try {
+      (await loadPicker()).open(changeTheme);
+    } catch {
+      themeNow.textContent = "The theme list didn't load. Check the connection, then try again.";
+    }
+  });
+  const themeRow = h(
+    "div",
+    { class: "setting" },
+    h("div", { class: "setting-text" }, h("p", { class: "setting-label", id: "theme-title" }, "Colour theme"), themeNow),
+    h("div", { class: "setting-control" }, changeTheme),
+  );
 
   // ---------------------------------------------------------------- editor
   // The code font size: a stepper (- value +), still typable; the store clamps it to LIMITS.
@@ -210,9 +244,8 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
     return el;
   };
   // Reading order (audit, Settings): the chosen theme, then the editor options, then run limits.
-  // "Colour theme" names the theme radio group (theme-picker.ts: aria-labelledby="theme-title").
   body.append(
-    section("appearance", "Appearance", h("p", { class: "field-label", id: "theme-title" }, "Colour theme"), picker.element),
+    section("appearance", "Appearance", themeRow),
     section("editor", "Editor", row("Code font size (px)", stepper, undefined, codeSize), wrap.row, suggest.row, enterTop.row, ligatures.row),
     section(
       "running",
@@ -323,7 +356,8 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   return {
     open(opener) {
       const now = s();
-      picker.render();
+      showTheme();
+      void loadPicker().catch(() => {}); // fetched now; a failure shows on the click
       showSize(now.codeSize);
       wrap.input.checked = now.lineWrapping;
       suggest.input.checked = now.suggestOnTyping;
@@ -345,7 +379,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       void refreshStorage();
       body.scrollTop = 0;
       mark("appearance");
-      openModal(dialog, dialog.querySelector<HTMLInputElement>("input[name=theme]:checked"), opener);
+      openModal(dialog, changeTheme, opener);
     },
   };
 }

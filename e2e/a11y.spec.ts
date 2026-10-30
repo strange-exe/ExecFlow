@@ -7,7 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
-import { expect, importFiles, openFromTree, openInputBox, reloadApp, showPanel, showView, test, waitReady } from "./helpers";
+import { expect, importFiles, openFromTree, openInputBox, openThemePicker, reloadApp, showPanel, showView, test, waitReady } from "./helpers";
 import { openConnect, routeGitHub } from "./sync-fake";
 import { audit, focusStop, type Audit, type FocusStop } from "./audit";
 import { contrast, decodePng, type Pixels, type RGB } from "./pixels";
@@ -841,21 +841,24 @@ test("palette themes: painted contrast in the error state", async ({ page }, inf
   await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
   await openFromTree(page, "calc.py");
   await expect(page.locator(".cm-lint-marker-error, .cm-lintRange-error").first()).toBeVisible({ timeout: 15_000 });
-  await page.locator("#settings-button").click();
+  // The themes are in the theme picker, a dialog over Settings since Workbench Pro S4: it is
+  // audited with Settings under it, then both close.
   const settings = page.getByRole("dialog", { name: "Settings" });
-  const more = settings.locator(".theme-more");
-  if (!(await more.evaluate((d) => (d as HTMLDetailsElement).open))) await more.locator("summary").click();
-  const names = await settings.locator(".theme-option[data-theme-option]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.themeOption ?? ""));
+  const picker = await openThemePicker(page);
+  const names = await picker.locator(".theme-option[data-theme-option]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.themeOption ?? ""));
   await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
   const results: Record<string, { low: string[]; axe: string[] }> = {};
   const dir = dirFor(info, "themes");
   for (const name of names) {
-    await page.locator("#settings-button").click();
-    if (!(await more.evaluate((d) => (d as HTMLDetailsElement).open))) await more.locator("summary").click();
-    await settings.locator(`.theme-option[data-theme-option="${name}"] input[type=radio]`).check();
+    await openThemePicker(page);
+    await picker.locator(`.theme-option[data-theme-option="${name}"] input[type=radio]`).check();
     // Colours change with a 140 ms transition: measure the settled state, not a frame half-way.
     await settled(page);
     const settingsAudit = await audit(page);
+    await page.keyboard.press("Escape");
+    await expect(picker).toBeHidden();
     await page.keyboard.press("Escape");
     await expect(settings).toBeHidden();
     await settled(page);

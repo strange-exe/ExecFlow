@@ -360,6 +360,19 @@ export async function importFiles(page: Page, files: FileSpec[]) {
 /** The tree item for a path. */
 export const treeItem = (page: Page, path: string) => page.locator(`.tree [role=treeitem][data-path="${path}"]`);
 
+/**
+ * Opens the colour theme picker (Workbench Pro S4): Settings, then Change theme. Returns the picker
+ * dialog, which opens over Settings with focus on the chosen theme's radio.
+ */
+export async function openThemePicker(page: Page) {
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  if (!(await settings.isVisible())) await page.locator("#settings-button").click();
+  await settings.getByRole("button", { name: "Change theme" }).click();
+  const picker = page.getByRole("dialog", { name: "Colour theme" });
+  await expect(picker.locator("input[name=theme]:checked")).toBeFocused();
+  return picker;
+}
+
 /** Below 900 px the layout is the phone one (drawer, view switch, no tab strip). */
 export const isNarrow = (page: Page) => (page.viewportSize()?.width ?? 1280) < 900;
 

@@ -5,7 +5,7 @@
 // below it, the editor head on --bg), with phones unchanged but for colours and fonts. Every themed
 // test emulates the scheme, reloads and proves the scheme and the palette are active first.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, run, test, waitReady } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, openThemePicker, run, test, waitReady } from "./helpers";
 import { rgbOf } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
@@ -97,11 +97,10 @@ test("a device on the old default (Deep Field, match device) moves to Signal onc
   await expect(page.locator("html")).toHaveAttribute("data-theme-id", "signal");
   expect(await page.evaluate(() => [localStorage.getItem("codeeditor:theme"), localStorage.getItem("codeeditor:theme-default")])).toEqual(["signal", "signal"]);
 
-  // Deep Field's "match device", chosen in Settings after the move, is kept across reloads.
-  await page.locator("#settings-button").click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
-  await settings.locator(".theme-more summary").click();
-  await settings.getByRole("radio", { name: "CodeEditor Deep Field (match device)" }).check();
+  // Deep Field's "match device", chosen in the theme picker after the move, is kept across reloads.
+  const picker = await openThemePicker(page);
+  await picker.getByRole("radio", { name: "CodeEditor Deep Field (match device)" }).check();
+  await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
   await reloadHeld(page, async () => {
     await expect(page.locator("html")).not.toHaveAttribute("data-palette");
@@ -110,38 +109,49 @@ test("a device on the old default (Deep Field, match device) moves to Signal onc
   await expect(page.locator("html")).toHaveAttribute("data-theme-id", "deep-field");
 });
 
-test("Settings leads with Signal (the default) and High contrast; Deep Field is folded with Slate", async ({ page }) => {
+// Workbench Pro S4 (owner's go-ahead 2026-10-30): the picker's first row is "Start here", the
+// redesign4 picker study's curated row (Signal, Slate, High contrast, GitHub-style, Tokyo Night,
+// Catppuccin, as families); Deep Field moves to the A to Z list with the other families. Signal
+// still leads, chosen, with its three forms and the Default mark; High contrast is still up front.
+test("the theme picker leads with Signal (the default, chosen) and High contrast; Deep Field is in the A to Z list", async ({ page }) => {
   await openApp(page);
-  await page.locator("#settings-button").click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
-  const upFront = settings.locator(".theme-list > .theme-grid").first().locator("[data-theme-option]");
-  await expect(upFront).toHaveCount(4);
-  expect(await upFront.evaluateAll((els) => els.map((e) => e.getAttribute("data-theme-option")))).toEqual(["signal", "signal-light", "signal-dark", "high-contrast"]);
-  await expect(settings.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ })).toBeChecked();
-  await expect(settings.locator('[data-theme-option="signal"] .tag')).toHaveText("Default");
-  const fold = settings.locator(".theme-more");
-  await expect(fold).not.toHaveAttribute("open");
-  expect(await fold.locator(".theme-group").allTextContents()).toEqual(["CodeEditor Deep Field", "CodeEditor Slate", "Popular editor themes", "Other editor themes"]);
-  for (const id of ["deep-field", "deep-field-light", "deep-field-dark"]) await expect(fold.locator(`[data-theme-option="${id}"]`)).toHaveCount(1);
+  const picker = await openThemePicker(page);
+  const upFront = picker.locator('.theme-section[data-section="start"] [data-theme-option]');
+  expect((await upFront.evaluateAll((els) => els.map((e) => e.getAttribute("data-theme-option")))).slice(0, 3)).toEqual(["signal", "signal-light", "signal-dark"]);
+  await expect(picker.locator('.theme-section[data-section="start"] [data-theme-option="high-contrast"]')).toHaveCount(1);
+  await expect(picker.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ })).toBeChecked();
+  await expect(picker.locator('[data-theme-family="signal"] .family-head .tag')).toHaveText("Default");
+  const rest = picker.locator('.theme-section[data-section="all"]');
+  for (const id of ["deep-field", "deep-field-light", "deep-field-dark"]) await expect(rest.locator(`[data-theme-option="${id}"]`)).toHaveCount(1);
 });
 
-test("a 'match device' tile redraws its preview when the device switches scheme with Settings open, and keeps the focus", async ({ page }) => {
+// Since Workbench Pro S4 a family has one preview, of its chosen variant (or the one pointed at):
+// the Signal tile shows "match device" (chosen) and follows the device; pointing at Light shows
+// Light's own colours whatever the device's scheme.
+test("a 'match device' preview redraws when the device switches scheme with the picker open, and keeps the focus; a fixed variant keeps its scheme", async ({ page }) => {
   await openApp(page);
   await signalIn(page, "light");
-  await page.locator("#settings-button").click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
-  const tileBg = (id: string) => settings.locator(`[data-theme-option="${id}"] .tile-prev`).evaluate((el) => (el as HTMLElement).style.getPropertyValue("--tile-bg"));
-  expect(await tileBg("signal")).toBe(SIGNAL.light.bg);
-  const radio = settings.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ });
-  await radio.focus();
+  const picker = await openThemePicker(page);
+  const prev = picker.locator('[data-theme-family="signal"] .tile-prev');
+  const tileBg = () => prev.evaluate((el) => (el as HTMLElement).style.getPropertyValue("--tile-bg"));
+  expect(await tileBg()).toBe(SIGNAL.light.bg);
+  const radio = picker.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ });
+  await expect(radio).toBeFocused();
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-    await expect.poll(() => tileBg("signal")).toBe(SIGNAL[scheme].bg);
-    expect(await tileBg("signal-light"), "fixed themes keep their own scheme").toBe(SIGNAL.light.bg);
-    expect(await tileBg("signal-dark")).toBe(SIGNAL.dark.bg);
+    await expect(prev).toHaveAttribute("data-variant", "signal");
+    await expect.poll(tileBg).toBe(SIGNAL[scheme].bg);
     await expect(radio).toBeFocused();
   }
+  await picker.locator('[data-theme-option="signal-dark"]').hover();
+  await expect(prev).toHaveAttribute("data-variant", "signal-dark");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    expect(await tileBg(), "a fixed variant keeps its own scheme").toBe(SIGNAL.dark.bg);
+  }
+  await expect(radio).toBeFocused();
 });
 
 test("fonts: Geist and JetBrains Mono load at every weight used and the weights differ; ligatures stay off unless chosen, which changes ligatures only", async ({ page }) => {
