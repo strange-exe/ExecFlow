@@ -6,6 +6,20 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.18.0] - 2026-10-30
+
+Download and share a few files, or a whole folder
+
+### Added
+
+- Download a file from its menu in the file list, exactly as it is saved, or a folder as a .zip that unpacks to that folder. The search has both for the open file.
+- Choose files to download or share: tick files and whole folders, then download them as one .zip, or share them in one code link.
+- A code link can carry a folder. Opening it shows each file first, and Add puts them in a new folder at the top, never mixed with your files.
+
+### Changed
+
+- New code a program writes (a .py, .c, .cpp or header file) waits for you to keep it, since later runs would build it. Data files are saved at once, as before.
+
 ## [0.17.0] - 2026-10-30
 
 A new C and C++ compiler, with exceptions

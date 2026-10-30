@@ -58,6 +58,15 @@ and logs nothing, and syncing never goes through it.
 - Share link... (a file's menu in the list, More file actions, and the search): a code link that
   carries the file inside the link (no account needed), or, with GitHub connected, a link to the
   file in your repository or a secret gist. See [Sharing a file](#sharing-a-file).
+- Download (a file's or folder's menu in the list, and the search): a file as itself, byte for
+  byte as saved; a folder as a .zip that unpacks to that folder.
+- Choose files to download or share... (More file actions, and the search): tick files and whole
+  folders, then download them (one .zip, named after what is ticked) or share them in one code link
+  of up to 8,000 characters, roughly 15 to 20 KB of code. Opening a shared folder shows each file
+  first; Add puts it in a new folder at the top (lab1, or lab1-2 when that name is taken).
+- Files a program writes: data files are saved to your files at once; new code (.py, .c, .cpp or a
+  header) waits for Keep it, since later runs would build it; dismissing the question, or the next
+  run, leaves it out. A program never writes over existing code.
 - Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
   name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).
@@ -250,6 +259,12 @@ Share link... asks how to share, then copies the link. Nothing is shared until y
   files under a free name, and it never runs by itself. Damaged links, links whose content would
   unpack beyond 256 KB, names that aren't a single safe file name, and text that isn't plain text
   are refused; hidden characters in a name or the code are shown as tags in the preview.
+- **A folder in a code link** (Choose files to download or share...): the ticked files under one
+  folder name (`#code=2.<data>`), at most 50 files, within the same 8000 characters and 256 KB.
+  Each path is checked as an import checks it (no `..`, no absolute paths or reserved names, at
+  most 8 folders deep), and two files that would land on one name, or a file where a folder is,
+  refuse the whole link. Opening one lists the files and previews each; Add puts them in a new
+  folder at the top.
 - **People with access to the repository**: the file's page on GitHub,
   `https://github.com/<owner>/<repo>/blob/<commit>/<path>`, pinned to the commit of the last sync.
   It opens only for you and the repository's collaborators while the repository is private. The
