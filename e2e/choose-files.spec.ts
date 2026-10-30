@@ -116,7 +116,7 @@ test("a shared folder opens in another browser as a new folder, previewed first;
   await other.close();
 });
 
-test("a selection too big for a link says how big, keeps Download, and makes no link", async ({ page }) => {
+test("a selection too big for a link says how big, keeps Download, and makes no code link (a short link is offered)", async ({ page }) => {
   await openApp(page);
   // Text that doesn't compress: a random-looking sequence, well past 8,000 characters as a link.
   let seed = 3;
@@ -132,6 +132,9 @@ test("a selection too big for a link says how big, keeps Download, and makes no 
   await expect(dialog.locator("#choose-link")).toBeHidden();
   await expect(dialog).toHaveAttribute("data-state", "ready");
   await expect(dialog.locator("#choose-download")).toHaveText("Download big.zip");
+  // Nothing is sent until Make short link is pressed (short-links.spec.ts makes one).
+  await expect(dialog.locator("#choose-result")).toContainText("Make a short link below, or download them as a .zip.");
+  await expect(dialog).toHaveAttribute("data-short", "ready");
 });
 
 test("a hostile folder link (a path that climbs out) is refused with its reason, before any preview", async ({ page }) => {

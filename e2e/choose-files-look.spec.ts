@@ -1,10 +1,12 @@
-// DESIGN.md section 6 Level 2 for Choose files and the folder-link dialog (0.18.0): 1440 x 900 and
+// DESIGN.md section 6 Level 2 for Choose files (with its short link) and the folder-link dialog: 1440 x 900 and
 // 390 x 844, light and dark. Each state is scanned with axe, has no horizontal scroll, keeps every
 // checkbox row a 24 px target, shows a focus ring on the keyboard path, and is captured with gray
 // and blur copies for the reading order (DESIGN-REFERENCE 1A). Shots go to each test's output folder.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
+import { MOVE_TO } from "../playwright.config";
 import { expect, hierarchyShots, importFiles, openIn, test, waitReady } from "./helpers";
+import { linksSite } from "./links-fake";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -33,6 +35,7 @@ for (const vp of [
   for (const scheme of ["light", "dark"] as const) {
     test(`${vp.name} ${scheme}: Choose files, its link, and a shared folder opened`, async ({ page }, info) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
+      await linksSite(MOVE_TO).serve(page.context());
       await openIn(page, "/", scheme);
       await waitReady(page);
       await importFiles(page, [
@@ -55,14 +58,32 @@ for (const vp of [
       await hierarchyShots(page, info.outputPath(`choose-${vp.name}-${scheme}`));
       await page.screenshot({ path: info.outputPath(`choose-${vp.name}-${scheme}.png`), animations: "disabled" });
 
-      // Both files ticked, shared: the link and its Copy button.
+      // Both files ticked, shared: the link and its Copy button, and the short link offered.
       await dialog.locator("input[type=checkbox]").nth(1).check();
       await dialog.locator("#choose-share").click();
       await expect(dialog).toHaveAttribute("data-state", "shared");
+      await expect(dialog).toHaveAttribute("data-short", "ready");
       expect(await overflow(page), "no horizontal scroll with the link").toBe(false);
       expect(await axe(page), "axe: the link").toEqual([]);
       await page.screenshot({ path: info.outputPath(`choose-link-${vp.name}-${scheme}.png`), animations: "disabled" });
       const url = await dialog.locator("#choose-link").inputValue();
+      // The short link made (the function's logic over a memory store, e2e/links-fake.ts).
+      for (const id of ["choose-ttl", "choose-short"]) {
+        const b = (await dialog.locator(`#${id}`).boundingBox())!;
+        expect(b.height, `${id} target`).toBeGreaterThanOrEqual(vp.name === "phone" && id === "choose-short" ? 43.5 : 23.5);
+      }
+      // The keyboard path: Copy (focused once shared), then Tab to the expiry (a programmatic focus
+      // doesn't show Firefox's focus-visible ring).
+      await expect(dialog.locator("#choose-copy")).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(dialog.locator("#choose-ttl")).toBeFocused();
+      expect(await dialog.locator("#choose-ttl").evaluate((el) => getComputedStyle(el).outlineStyle), "focus ring on the expiry").not.toBe("none");
+      await dialog.locator("#choose-short").click();
+      await expect(dialog).toHaveAttribute("data-short", "made");
+      expect(await overflow(page), "no horizontal scroll with the short link").toBe(false);
+      expect(await axe(page), "axe: the short link").toEqual([]);
+      await hierarchyShots(page, info.outputPath(`choose-short-${vp.name}-${scheme}`));
+      await page.screenshot({ path: info.outputPath(`choose-short-${vp.name}-${scheme}.png`), animations: "disabled" });
       await dialog.locator("#choose-cancel").click();
 
       // The folder link, opened.

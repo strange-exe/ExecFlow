@@ -864,7 +864,10 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       },
       codeLink: async (text) => (await import("../core/code-link")).makeCodeLink(location.origin, nameOf(path), text),
       // Packed as a code link is (format 1), then encrypted and stored (src/core/short-link.ts).
+      // Offline is said before the code it needs is loaded: offline, that load would fail and
+      // say only "couldn't make" (short-links.spec.ts).
       shortLink: async (text, ttl) => {
+        if (!navigator.onLine) return { ok: false, refusal: { kind: "offline" } };
         const [{ packFile }, { makeShort }] = await Promise.all([import("../core/code-link"), import("./short-link-ui")]);
         const packed = await packFile(nameOf(path), text);
         return packed.ok ? makeShort(packed.packed, ttl) : packed;

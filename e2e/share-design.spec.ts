@@ -8,6 +8,8 @@ import type { Page } from "@playwright/test";
 import { expect, hierarchyShots, importFiles, openApp, setCode, openFromTree, showFiles, test, treeItem } from "./helpers";
 import { connectGitHub, routeGitHub, syncCount, syncNoise, waitSync, type GitHubRoute } from "./sync-fake";
 import type { FakeGitHubOptions } from "../src/sync/test-helpers";
+import { MOVE_TO } from "../playwright.config";
+import { linksSite } from "./links-fake";
 
 test.use({ serviceWorkers: "block" });
 test.use(syncNoise(/^HTTP 403: https:\/\/api\.github\.com\/gists$/, /^Failed to load resource: the server responded with a status of 403( \(.*\))?$/));
@@ -47,7 +49,7 @@ async function matrix(page: Page, state: string, key = false) {
           .filter(({ r, tag }) => r.height < (phone && tag === "BUTTON" ? 44 : 24) - 0.5 || r.width < 24 - 0.5)
           .map(({ id, r }) => `${id} ${Math.round(r.width)}x${Math.round(r.height)}`), size.name === "phone");
       // Inline text links and radios are exempt (WCAG 2.5.8: inline; spacing).
-      expect(small.filter((s) => !/^(share-open|share-code|share-repo|share-gist) /.test(s)), `${state} ${size.name}: small targets`).toEqual([]);
+      expect(small.filter((s) => !/^(share-open|share-code|share-short|share-repo|share-gist) /.test(s)), `${state} ${size.name}: small targets`).toEqual([]);
       const base = `${SHOTS}/share/${engine}/${state}-${size.name}-${scheme}`;
       await page.screenshot({ path: `${base}.png`, animations: "disabled" });
       if (key && size.name === "desktop") await hierarchyShots(page, base);
@@ -105,6 +107,34 @@ test("not connected: the code link at once; the GitHub links explain and offer C
   await page.locator("#share-repo").check();
   await expect(dialog(page)).toHaveAttribute("data-state", "not-connected");
   await matrix(page, "not-connected");
+});
+
+test("short link: the expiry before anything is sent, then the link and its marked QR code", async ({ page }) => {
+  // Three states in the matrix (Firefox's axe runs took over 45 s for the three).
+  test.setTimeout(120_000);
+  // The function's logic over a memory store (e2e/links-fake.ts); short-links.spec.ts tests the flow.
+  await linksSite(MOVE_TO).serve(page.context());
+  await setUp(page, { connect: false });
+  await openShare(page, "main.py", "code");
+  await expect(dialog(page)).toHaveAttribute("data-state", "code");
+  await page.locator("#share-short").check();
+  await page.locator("#share-short").focus();
+  await expect(dialog(page)).toHaveAttribute("data-state", "short-ready");
+  // Keyboard path: the choice, the expiry, Cancel, Make short link.
+  for (const id of ["share-ttl", "share-cancel", "share-primary"]) {
+    await page.keyboard.press("Tab");
+    await expect(page.locator(`#${id}`), id).toBeFocused();
+  }
+  expect((await page.locator("#share-ttl").boundingBox())!.height, "expiry target").toBeGreaterThanOrEqual(23.5);
+  await page.locator("#share-short").focus();
+  await matrix(page, "short-ready", true);
+  await primary(page).click();
+  await expect(dialog(page)).toHaveAttribute("data-state", "short");
+  await matrix(page, "short", true);
+  await page.locator("#share-qr-toggle").click();
+  await expect(dialog(page)).toHaveAttribute("data-qr", "shown");
+  await expect(page.locator("#share-qr .share-qr-mark")).toHaveCount(1);
+  await matrix(page, "short-qr");
 });
 
 test("code link, connected: the default, and its keyboard path", async ({ page }) => {
