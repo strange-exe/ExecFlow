@@ -14,6 +14,10 @@ A new finish on the logo
 
 - The ExecFlow mark now flows from blue to teal, in the browser tab, the app icon, the side bar, the link preview card, and the credit on Capture snippet and flowchart images. The mark looks the same in every theme.
 
+### Fixed
+
+- If the device went offline just as ExecFlow was setting up its offline copy, that visit never set it up. It now waits for the connection and sets it up then.
+
 ## [0.18.1] - 2026-10-31
 
 The editor arrives in smaller pieces

@@ -25,6 +25,7 @@ export const CHANGELOG: readonly Release[] = [
     title: "A new finish on the logo",
     items: [
       { kind: "changed", text: "The ExecFlow mark now flows from blue to teal, in the browser tab, the app icon, the side bar, the link preview card, and the credit on Capture snippet and flowchart images. The mark looks the same in every theme." },
+      { kind: "fixed", text: "If the device went offline just as ExecFlow was setting up its offline copy, that visit never set it up. It now waits for the connection and sets it up then." },
     ],
   },
   {

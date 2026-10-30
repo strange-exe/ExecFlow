@@ -23,6 +23,12 @@ if (root) await startWorkbench(root).catch(() => document.dispatchEvent(new Even
 let registered = false;
 function register() {
   if (registered || !("serviceWorker" in navigator)) return;
+  // registerSW loads its helper chunk first; offline that load fails and nothing would register
+  // this visit, so wait for the connection (WebKit e2e: Python ready just as the device went offline).
+  if (!navigator.onLine) {
+    addEventListener("online", register, { once: true });
+    return;
+  }
   registered = true;
   const update = registerSW({
     immediate: true,
