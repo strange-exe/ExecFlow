@@ -109,7 +109,7 @@ describe("the pairs the UI draws (contract v2)", () => {
   });
 });
 
-describe("CodeEditor Deep Field (the default)", () => {
+describe("ExecFlow Deep Field (the default)", () => {
   it.each(SCHEMES)("%s passes every pair the UI draws, exactly as designed", (scheme) => {
     expect(failures(DEEP_FIELD[scheme])).toEqual([]);
     expect(readablePalette(DEEP_FIELD[scheme]).adjusted).toEqual([]);
@@ -135,7 +135,7 @@ describe("CodeEditor Deep Field (the default)", () => {
   });
 });
 
-describe("CodeEditor Signal (the default)", () => {
+describe("ExecFlow Signal (the default)", () => {
   it.each(SCHEMES)("%s passes every pair the UI draws, exactly as designed", (scheme) => {
     expect(failures(SIGNAL[scheme])).toEqual([]);
     expect(readablePalette(SIGNAL[scheme]).adjusted).toEqual([]);
@@ -215,7 +215,7 @@ describe("Signal light's console (Workbench Pro: the output panel is dark in bot
   });
 });
 
-describe("CodeEditor Slate (a picker theme)", () => {
+describe("ExecFlow Slate (a picker theme)", () => {
   it.each(SCHEMES)("%s passes every pair as designed (nothing moved)", (scheme) => {
     expect(failures(SLATE[scheme])).toEqual([]);
     expect(readablePalette(SLATE[scheme]).adjusted).toEqual([]);
@@ -377,15 +377,15 @@ describe("scripts/contrast-check.mjs", () => {
   it("passes for every theme and lists the pairs", () => {
     const out = execFileSync(process.execPath, ["scripts/contrast-check.mjs"], { encoding: "utf8", timeout: 60_000 });
     expect(out).toContain(`${PAIRS.length} pairs per theme`);
-    expect(out).toContain("pass    CodeEditor Signal Light");
-    expect(out).toContain("pass    CodeEditor Signal Dark");
-    expect(out).toContain("pass    CodeEditor Deep Field Light");
-    expect(out).toContain("pass    CodeEditor Deep Field Dark");
-    expect(out).toContain("pass    CodeEditor Slate Light");
+    expect(out).toContain("pass    ExecFlow Signal Light");
+    expect(out).toContain("pass    ExecFlow Signal Dark");
+    expect(out).toContain("pass    ExecFlow Deep Field Light");
+    expect(out).toContain("pass    ExecFlow Deep Field Dark");
+    expect(out).toContain("pass    ExecFlow Slate Light");
     expect(out).not.toMatch(/^FAIL/m);
     // Signal, like Deep Field, is held to every rule; only Slate's misses are reported.
     const after = (name: string) => out.slice(out.indexOf(name)).split("\n")[1];
-    for (const name of ["CodeEditor Signal Light", "CodeEditor Signal Dark"]) {
+    for (const name of ["ExecFlow Signal Light", "ExecFlow Signal Dark"]) {
       expect(after(name), name).toContain("rules: every distinctness rule and region step passes");
       expect(after(name), name).not.toContain("reported only");
     }
@@ -401,7 +401,7 @@ describe("scripts/contrast-check.mjs", () => {
       await import("./scripts/contrast-check.mjs");
     `], { encoding: "utf8", timeout: 60_000 });
     expect(run.status).toBe(1);
-    expect(run.stdout).toMatch(/CodeEditor Signal Dark[^\n]*\n\s+rules: missed [^\n]*focus/);
+    expect(run.stdout).toMatch(/ExecFlow Signal Dark[^\n]*\n\s+rules: missed [^\n]*focus/);
   });
 
   it("exits with an error code and names the pair when a theme fails", () => {
@@ -414,7 +414,7 @@ describe("scripts/contrast-check.mjs", () => {
       await import("./scripts/contrast-check.mjs");
     `], { encoding: "utf8", timeout: 60_000 });
     expect(run.status).toBe(1);
-    expect(run.stdout).toMatch(/FAIL\s+\d+\s+CodeEditor Deep Field Light/);
+    expect(run.stdout).toMatch(/FAIL\s+\d+\s+ExecFlow Deep Field Light/);
     expect(run.stdout).toContain("text-muted #c0c4cc");
   });
 });

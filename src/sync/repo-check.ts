@@ -38,12 +38,12 @@ export function explainError(error: unknown, auth: AuthKind = "pat"): string {
   if (auth === "app") {
     if (error.kind === "auth") return "Your GitHub sign-in has ended or was revoked, so sign in again. Your files here are kept and sync once you're back.";
     if (error.kind === "forbidden" || (error.kind === "not-found" && error.op !== "getRef")) {
-      return "CodeEditor isn't allowed in this repository any more: sign in again and choose it on GitHub.";
+      return "ExecFlow isn't allowed in this repository any more: sign in again and choose it on GitHub.";
     }
     if (error.via === "sign-in") {
       return error.kind === "network"
-        ? "CodeEditor couldn't reach its sign-in service to renew your GitHub sign-in, so check the internet connection and try again."
-        : "CodeEditor's sign-in service couldn't renew your GitHub sign-in just now, so try again in a few minutes; your files here are unchanged.";
+        ? "ExecFlow couldn't reach its sign-in service to renew your GitHub sign-in, so check the internet connection and try again."
+        : "ExecFlow's sign-in service couldn't renew your GitHub sign-in just now, so try again in a few minutes; your files here are unchanged.";
     }
   }
   switch (error.kind) {
@@ -70,6 +70,6 @@ export function explainError(error: unknown, auth: AuthKind = "pat"): string {
     case "server":
       return "GitHub had a problem answering, so try again in a few minutes; your files here are unchanged.";
     case "network":
-      return "CodeEditor couldn't reach GitHub, so check the internet connection and try again.";
+      return "ExecFlow couldn't reach GitHub, so check the internet connection and try again.";
   }
 }

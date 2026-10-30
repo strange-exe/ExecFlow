@@ -80,7 +80,7 @@ test("1: the file menu item opens the dialog with the open file chosen, one line
   await expect(d.getByRole("button", { name: "Open print dialog" })).toBeFocused();
   await expect(d.getByRole("radio", { name: "Print-safe light" })).toBeChecked();
   await expect(d.getByRole("checkbox", { name: "Line numbers" })).toBeChecked();
-  await expect(d.getByRole("checkbox", { name: '"Made with CodeEditor" footer' })).toBeChecked();
+  await expect(d.getByRole("checkbox", { name: '"Made with ExecFlow" footer' })).toBeChecked();
   const axe = await new AxeBuilder({ page }).include("#pdf-dialog").withTags(AXE_TAGS).analyze();
   expect(axe.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   // Escape closes it, nothing prints, and focus goes back to the menu's button.
@@ -150,7 +150,7 @@ test("3: printing: the layout replaces the app on paper, in the editor's highlig
     expect(boxes, "Chromium draws margin boxes; Firefox and WebKit don't").toBe(test.info().project.name === "chromium");
     const foot = root.locator(".print-foot").first();
     if (boxes) await expect(foot).toBeHidden();
-    else await expect(foot).toHaveText(`main.py, ${date}. Made with CodeEditor`);
+    else await expect(foot).toHaveText(`main.py, ${date}. Made with ExecFlow`);
     expect(await page.locator("#print-pages").textContent()).toContain("@page ce-file-1");
     await page.screenshot({ path: test.info().outputPath("print-media.png"), fullPage: true });
   } finally {
@@ -160,7 +160,7 @@ test("3: printing: the layout replaces the app on paper, in the editor's highlig
   await expect(app(page)).toHaveAttribute("data-print", "done");
   await expect(page.locator("#print-root")).toHaveCount(0);
   await expect(page.locator("#print-pages")).toHaveCount(0);
-  expect(await page.evaluate(() => [document.documentElement.dataset.printing ?? null, document.title])).toEqual([null, "CodeEditor: free online Python, C and C++ compiler"]);
+  expect(await page.evaluate(() => [document.documentElement.dataset.printing ?? null, document.title])).toEqual([null, "ExecFlow: free online Python, C and C++ compiler"]);
   await expect(page.locator("#file-actions")).toBeFocused();
 });
 
@@ -242,7 +242,7 @@ test("6 (Chromium): page.pdf prints it: each file from a new page, a footer with
     const s = squash(text);
     const file = owner(s)!;
     expect(s, `page ${i + 1}: Page ${i + 1} of 5`).toContain(`Page${i + 1}of5`);
-    expect(s, `page ${i + 1}: the mark`).toContain("MadewithCodeEditor");
+    expect(s, `page ${i + 1}: the mark`).toContain("MadewithExecFlow");
     expect(s, `page ${i + 1}: the footer names the file and the date`).toContain(squash(`${file}, ${date}`));
     // The heading on a file's first page only (the footer names it on every page).
     const first = i === 0 || owner(squash(pages[i - 1])) !== file;
@@ -272,7 +272,7 @@ test("6 (Chromium): page.pdf prints it: each file from a new page, a footer with
   for (const text of withBrowsers) {
     expect(text, "no browser header (the title)").not.toContain("long.py and 2 more files");
     expect(text, "no browser footer (the address)").not.toContain("127.0.0.1");
-    expect(text.replace(/\s+/g, "")).toContain("MadewithCodeEditor");
+    expect(text.replace(/\s+/g, "")).toContain("MadewithExecFlow");
   }
   await expect(app(page)).toHaveAttribute("data-print", "done");
 });
@@ -330,13 +330,13 @@ test("7 (Chromium): the footer off prints no mark, no page furniture and none of
   await recordPrints(page);
   await openWithFiles(page);
   await openFromFileMenu(page);
-  await dialog(page).getByRole("checkbox", { name: '"Made with CodeEditor" footer' }).uncheck();
+  await dialog(page).getByRole("checkbox", { name: '"Made with ExecFlow" footer' }).uncheck();
   await printFiles(page, ["main.py"]);
   await expect(page.locator("#print-root .print-foot")).toHaveCount(0);
   const pages = pdfPages(await page.pdf({ preferCSSPageSize: true, format: "A4", displayHeaderFooter: true }));
   expect(pages).toHaveLength(1);
   const s = pages[0].replace(/\s+/g, "");
   expect(s).toContain("defadd(a,b):");
-  for (const absent of ["MadewithCodeEditor", "Page1of1", "127.0.0.1", "1/1"]) expect(s, absent).not.toContain(absent);
+  for (const absent of ["MadewithExecFlow", "Page1of1", "127.0.0.1", "1/1"]) expect(s, absent).not.toContain(absent);
   await expect(app(page)).toHaveAttribute("data-print", "done");
 });

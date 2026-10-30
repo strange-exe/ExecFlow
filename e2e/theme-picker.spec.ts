@@ -38,7 +38,7 @@ test("the picker is Settings > Appearance itself: no second dialog, focus on the
   await body.evaluate((el) => (el.scrollTop = 600));
   const [tools, pane] = [await box(page, "#theme-picker .theme-tools"), await box(page, "#settings .dialog-body")];
   expect(Math.abs(tools.y - pane.y), "the tools are held at the pane's top").toBeLessThan(2);
-  await settings.getByRole("radio", { name: "CodeEditor Slate Dark", exact: true }).check();
+  await settings.getByRole("radio", { name: "ExecFlow Slate Dark", exact: true }).check();
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();
   await expect(page.locator("#settings-button")).toBeFocused();
@@ -63,7 +63,7 @@ test("themes are family tiles with a code preview, and every variant is a native
   await expect(catppuccin.getByRole("radio", { name: "Catppuccin Latte", exact: true })).toHaveAttribute("value", "catppuccin-latte");
   // A name keeps the theme's own name and holds what its button shows (label in name).
   await expect(dialog.getByRole("radio", { name: "Dracula, Dark", exact: true })).toHaveAttribute("value", "dracula");
-  await expect(dialog.getByRole("radio", { name: "CodeEditor Slate Dark", exact: true })).toHaveAttribute("value", "slate-dark");
+  await expect(dialog.getByRole("radio", { name: "ExecFlow Slate Dark", exact: true })).toHaveAttribute("value", "slate-dark");
   await expect(family(dialog, "signal").locator(".family-head .tag")).toHaveText("Default");
   // The preview: hidden from assistive technology, six lines of code, one failed, and Run.
   const prev = family(dialog, "signal").locator(".tile-prev");

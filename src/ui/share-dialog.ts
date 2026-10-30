@@ -1,7 +1,7 @@
 // Share link (.claude/design/batch5/share-link.md): one dialog, three clearly labelled links, chosen
 // with a radio, then the primary action.
 // 0. "Anyone with the link (the code is in the link)", the default: the file inside the link itself
-//    (src/core/code-link.ts), opened by CodeEditor. Needs no GitHub, sends nothing, made as the
+//    (src/core/code-link.ts), opened by ExecFlow. Needs no GitHub, sends nothing, made as the
 //    dialog opens; a file too long for a link (or not text) says why. Without a connection the
 //    other two choices offer Connect GitHub (.claude/tasks/code-links.md).
 // 1. "People with access to the repository": the file on GitHub, pinned to the commit that holds
@@ -202,7 +202,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     return { input, row };
   };
   const codeRadio = radio("code", "Anyone with the link (the code is in the link)", [
-    h("p", null, "Opens a copy in CodeEditor, without an account. The code is inside the link itself: nothing is uploaded or stored."),
+    h("p", null, "Opens a copy in ExecFlow, without an account. The code is inside the link itself: nothing is uploaded or stored."),
   ]);
   const repoWho = h("p", { class: "share-who" });
   /** The note, its tone and the attributes for a visibility (stored first, then the live answer). */
@@ -220,7 +220,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const repoRadio = radio("repo", "People with access to the repository", [repoWho]);
   const gistRadio = radio("gist", "Anyone with the link (a secret gist)", [
     h("p", { class: "share-warn" }, "Secret gists aren't private: anyone with the link can open it, without signing in."),
-    h("p", null, `CodeEditor makes a copy of ${name} as a secret gist on your GitHub account only when you press Create link. GitHub doesn't list it or show it in search.`),
+    h("p", null, `ExecFlow makes a copy of ${name} as a secret gist on your GitHub account only when you press Create link. GitHub doesn't list it or show it in search.`),
   ]);
   const panel = h("div", { class: "share-panel", id: "share-panel" });
   body.append(
@@ -277,10 +277,10 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     render();
     dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
   }
-  /** "Copy with title": the link named "Open <file> in CodeEditor" where links can carry a title. */
+  /** "Copy with title": the link named "Open <file> in ExecFlow" where links can carry a title. */
   async function copyTitled(url: string) {
     // The real name: the title is pasted elsewhere as the link's label (the sentence below tags it).
-    const title = `Open ${fileName} in CodeEditor`;
+    const title = `Open ${fileName} in ExecFlow`;
     // Built as an element, so the file name is escaped by the serializer, never pasted into markup.
     const html = h("a", { href: url }, title).outerHTML;
     try {
@@ -289,7 +289,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
       say(`Copied the link with the title "${shown(title)}". Documents, mail and Teams show the title; chat apps such as WhatsApp show the whole link.`, "done");
     } catch {
       dialog.dataset.copy = "refused";
-      say(`This browser didn't let CodeEditor copy. The link is selected in its field: press ${deps.mac ? "Cmd+C" : "Ctrl+C"} to copy it.`, "warning");
+      say(`This browser didn't let ExecFlow copy. The link is selected in its field: press ${deps.mac ? "Cmd+C" : "Ctrl+C"} to copy it.`, "warning");
       const field = panel.querySelector<HTMLInputElement>("#share-link");
       field?.focus();
       field?.select();
@@ -312,7 +312,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (read === "missing") return { problem: MISSING };
     if (read === "opaque") return { problem: `${name} is kept as read-only bytes, not as text, so it can't go in a link.` };
     const made = await deps.codeLink(read.text).catch(() => null);
-    if (!made) return { problem: "CodeEditor couldn't make the link. Try again." };
+    if (!made) return { problem: "ExecFlow couldn't make the link. Try again." };
     return made.ok ? { url: made.url } : { problem: refusalText(made.refusal) };
   }
 
@@ -338,7 +338,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     return state.kind === "connected" && state.link.kind === "ready" ? state.link.url : null;
   }
 
-  const INVALID = `CodeEditor couldn't make a safe GitHub address for ${name} from this workspace's connection, so there is no repository link. Disconnect and connect again to repair it.`;
+  const INVALID = `ExecFlow couldn't make a safe GitHub address for ${name} from this workspace's connection, so there is no repository link. Disconnect and connect again to repair it.`;
   const MISSING = `${name} isn't in this workspace any more, so there is nothing to share.`;
 
   function render() {
@@ -445,7 +445,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
               h("div", { class: "field" }, h("label", { for: "share-link" }, "Link"), linkField(gist.url)),
               h("p", { class: "field-note", id: "share-link-note" }, "To remove it, ", external(gist.url, "open the gist on GitHub", "share-open"), " and delete it there."),
             ]
-          : [h("p", { class: "share-pending" }, "GitHub made the gist, but its address didn't look like a GitHub page, so CodeEditor doesn't show it. Find it under Your gists on GitHub, where you can also delete it.")]),
+          : [h("p", { class: "share-pending" }, "GitHub made the gist, but its address didn't look like a GitHub page, so ExecFlow doesn't show it. Find it under Your gists on GitHub, where you can also delete it.")]),
       );
       setPrimary("copy", "Copy link");
     } else {
@@ -558,7 +558,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
       say("Copied the link.", "done");
     } catch {
       dialog.dataset.copy = "refused";
-      say(`This browser didn't let CodeEditor copy. The link is selected in its field: press ${deps.mac ? "Cmd+C" : "Ctrl+C"} to copy it.`, "warning");
+      say(`This browser didn't let ExecFlow copy. The link is selected in its field: press ${deps.mac ? "Cmd+C" : "Ctrl+C"} to copy it.`, "warning");
       field?.focus();
       field?.select();
     }

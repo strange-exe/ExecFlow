@@ -22,7 +22,7 @@ export function newerThan(a: string, b: string): boolean {
 /**
  * The version to announce (`current`), or null. Remembers `current` either way. `returning`: the
  * workspace existed before this visit. With no version remembered, a returning student used
- * CodeEditor before versions were remembered (they count as updated); anyone else is new. (Other
+ * ExecFlow before versions were remembered (they count as updated); anyone else is new. (Other
  * localStorage keys can't tell: the theme writes its paint on every start.)
  */
 export function whatsNew(store: VersionStore | null, current: string, returning: boolean): string | null {

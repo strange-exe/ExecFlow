@@ -1,5 +1,5 @@
 // Code links (.claude/tasks/code-links.md): one file carried in the link itself, so it opens in
-// CodeEditor with no account and nothing stored anywhere.
+// ExecFlow with no account and nothing stored anywhere.
 //   https://<origin>/#code=1.<base64url(deflate-raw(UTF-8 JSON {"n": name, "t": text}))>
 // The code is in the fragment, which the browser never sends to a server or puts in a Referer
 // (https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referer). Compression is the

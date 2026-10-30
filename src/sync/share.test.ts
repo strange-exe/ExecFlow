@@ -104,7 +104,7 @@ describe("gistRefusal", () => {
     expect(gistRefusal({ opaque: false, text: e.repeat(GIST_MAX_BYTES / 2 + 1) })).toEqual({ kind: "too-big", bytes: GIST_MAX_BYTES + 2 });
   });
   it("says what to do instead", () => {
-    expect(refusalText({ kind: "too-big", bytes: 600 * 1024 }, "lab/big.py")).toBe("big.py is 600 KB; a gist from CodeEditor holds at most 512 KB. Share the repository link instead.");
+    expect(refusalText({ kind: "too-big", bytes: 600 * 1024 }, "lab/big.py")).toBe("big.py is 600 KB; a gist from ExecFlow holds at most 512 KB. Share the repository link instead.");
     expect(refusalText({ kind: "opaque" }, "logo.png")).toContain("repository link");
   });
 });
@@ -128,7 +128,7 @@ describe("repoAudience (security review, finding 1)", () => {
     const a = repoAudience("me/workspace", null);
     expect(a).toEqual({
       visibility: "unknown",
-      text: "CodeEditor couldn't check whether me/workspace is private. If it is public, anyone can open this link. It shows the file as last synced.",
+      text: "ExecFlow couldn't check whether me/workspace is private. If it is public, anyone can open this link. It shows the file as last synced.",
     });
     expect(a.text).not.toContain("collaborators");
   });
@@ -137,7 +137,7 @@ describe("repoAudience (security review, finding 1)", () => {
 describe("gistRequest", () => {
   it("is one secret file named after the file, with only its name in the description", () => {
     expect(gistRequest("week 1/main.py", "print(1)\n")).toEqual({
-      description: "main.py, shared from CodeEditor",
+      description: "main.py, shared from ExecFlow",
       public: false,
       files: { "main.py": { content: "print(1)\n" } },
     });
@@ -147,10 +147,10 @@ describe("gistRequest", () => {
     const cp = (...codes: number[]) => String.fromCodePoint(...codes);
     const path = "students/Priya Sharma 2510370000/private" + cp(0x2028) + "notes/q2.c";
     const body = gistRequest(path, "int main(void){return 0;}\n");
-    expect(body.description).toBe("q2.c, shared from CodeEditor");
+    expect(body.description).toBe("q2.c, shared from ExecFlow");
     expect(body.description).not.toContain("Priya");
-    expect(gistRequest("lab/q" + cp(0x202e, 0x200b, 0xfe0f) + "2.c", "x\n").description).toBe("q2.c, shared from CodeEditor");
-    expect(gistRequest("a" + cp(10) + "b.py", "x\n").description).toBe("a b.py, shared from CodeEditor");
+    expect(gistRequest("lab/q" + cp(0x202e, 0x200b, 0xfe0f) + "2.c", "x\n").description).toBe("q2.c, shared from ExecFlow");
+    expect(gistRequest("a" + cp(10) + "b.py", "x\n").description).toBe("a b.py, shared from ExecFlow");
   });
 
   it("goes to POST https://api.github.com/gists with the sync headers, the content only in the body", async () => {
@@ -171,7 +171,7 @@ describe("gistRequest", () => {
     expect(headers.get("accept")).toBe("application/vnd.github+json");
     expect(init.credentials).toBe("omit");
     expect(init.referrerPolicy).toBe("no-referrer");
-    expect(JSON.parse(String(init.body))).toEqual({ description: "main.py, shared from CodeEditor", public: false, files: { "main.py": { content: `print("${marker}")\n` } } });
+    expect(JSON.parse(String(init.body))).toEqual({ description: "main.py, shared from ExecFlow", public: false, files: { "main.py": { content: `print("${marker}")\n` } } });
     expect(gh.gists).toHaveLength(1);
     expect(gh.gists[0].public).toBe(false);
   });

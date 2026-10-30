@@ -207,7 +207,7 @@ describe("layoutImage and chooseScale (4.1, 4.5)", () => {
     expect(chooseScale(2486, 9077, 3)).toBeNull();
   });
 
-  it('the "Made with CodeEditor" line: in a background it fills a bottom band of at least its line box and 7 above and below; without one it is the card\'s last row', () => {
+  it('the "Made with ExecFlow" line: in a background it fills a bottom band of at least its line box and 7 above and below; without one it is the card\'s last row', () => {
     const m = { ch: 9, lineH: 22.5, widest: 144 };
     // 15 px code: a 12 px credit on an 18 px line box, a band of 32: medium and large keep their size, small grows at its foot only.
     for (const [pad, padBottom, height] of [[16, 32, 162.5], [32, 32, 178.5], [64, 64, 242.5]] as const) {
@@ -230,7 +230,7 @@ describe("layoutImage and chooseScale (4.1, 4.5)", () => {
   it("round 3: the brand mark sits before the credit's text, at the text's size, centred on its line box; the layout's size is unchanged", () => {
     const m = { ch: 9, lineH: 22.5, widest: 144 };
     const l = layoutImage(numbered(2, 2), m, { ...plain(true, true), pad: 32, credit: true });
-    // "Made with CodeEditor" at 12 px in the code font (0.6 em advance): 144 px wide.
+    // "Made with ExecFlow" at 12 px in the code font (0.6 em advance): 144 px wide.
     const mark = creditMark(l.credit!, 144);
     expect(mark.size).toBe(12);
     expect(mark.x + mark.size + CREDIT.MARK_GAP * 12).toBeCloseTo(347 - 144, 9);
@@ -370,7 +370,7 @@ describe("the image's colours in every theme (4.6)", () => {
     expect(deltaE(bar, p.bg)).toBeGreaterThanOrEqual(deltaE(p.surface, p.bg));
     if (deltaE(p.surface, p.bg) >= BAR_STEP) expect(bar, "a chrome of its own: the bar is the chrome's ground").toBe(p.surface);
     for (const t of ["text-secondary", "danger"] as const) expect(contrast(p[t], bar), `${t} on the window bar ${bar}`).toBeGreaterThanOrEqual(4.5);
-    // Batch 4: the "Made with CodeEditor" line on its ground, the background (the mat) or the code's.
+    // Batch 4: the "Made with ExecFlow" line on its ground, the background (the mat) or the code's.
     const mat = over(p.bg, p.action, IMAGE_MIXES.mat.pct / 100);
     const ink = { bg: p.bg, action: p.action, "text-secondary": p["text-secondary"] };
     expect(contrast(creditInk(ink, true), mat), `the credit ${creditInk(ink, true)} on the background ${mat}`).toBeGreaterThanOrEqual(4.5);

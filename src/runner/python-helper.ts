@@ -225,7 +225,7 @@ def _explain_missing(e):
         e.add_note(f"{top} is available, but it wasn't loaded for this run. It is loaded when a file of the program has 'import {top}' or 'from {top} import ...'; imports made through importlib or __import__ can't be seen ahead of time.")
     else:
         available = ", ".join(sorted(_config["imports"]))
-        e.add_note(f"No {top}.py is next to the file you run, and CodeEditor can't install packages. "
+        e.add_note(f"No {top}.py is next to the file you run, and ExecFlow can't install packages. "
                    + (f"Besides the standard library, programs can import: {available}." if available else "Programs can import the standard library."))
 
 

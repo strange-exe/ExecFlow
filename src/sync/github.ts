@@ -31,7 +31,7 @@ export type GitHubErrorKind =
   | "ref-rejected" // 422 on updateRef: the branch moved (not a fast-forward)
   | "validation" // other 4xx: GitHub refused the request as invalid
   | "rate-limit" // 429, or 403 with retry-after / x-ratelimit-remaining: 0
-  | "server" // 5xx, or an answer CodeEditor couldn't read
+  | "server" // 5xx, or an answer ExecFlow couldn't read
   | "network"; // no answer: offline, blocked, or timed out
 
 export type GitHubOp =
@@ -54,8 +54,8 @@ export type GitHubOp =
 const OP_LABEL: Record<GitHubOp, string> = {
   createGist: "Creating the gist",
   getUser: "Reading your GitHub account",
-  listInstallations: "Reading where CodeEditor is installed",
-  listRepos: "Reading the repositories CodeEditor can reach",
+  listInstallations: "Reading where ExecFlow is installed",
+  listRepos: "Reading the repositories ExecFlow can reach",
   getRepo: "Reading the repository",
   getRef: "Reading the branch",
   getCommit: "Reading a commit",
@@ -79,7 +79,7 @@ export class GitHubError extends Error {
     message: string,
     /** Rate limits only: how long to wait before trying again. */
     readonly retryAfterMs?: number,
-    /** "sign-in": the token couldn't be renewed (CodeEditor's sign-in relay), GitHub wasn't asked. */
+    /** "sign-in": the token couldn't be renewed (ExecFlow's sign-in relay), GitHub wasn't asked. */
     readonly via?: "sign-in",
   ) {
     super(message);
@@ -350,7 +350,7 @@ export function createClient(options: ClientOptions): GitHubClient {
   }
 
   const unexpected = (op: GitHubOp, status: number) =>
-    new GitHubError("server", status, op, `${OP_LABEL[op]} failed: GitHub sent an answer CodeEditor couldn't read`);
+    new GitHubError("server", status, op, `${OP_LABEL[op]} failed: GitHub sent an answer ExecFlow couldn't read`);
 
   /** The source's error as a GitHubError of the same meaning ("auth" stops this client for good). */
   function unavailable(op: GitHubOp, error: unknown): GitHubError {
@@ -361,8 +361,8 @@ export function createClient(options: ClientOptions): GitHubClient {
       return new GitHubError("auth", 401, op, `${OP_LABEL[op]} wasn't tried: the GitHub sign-in has ended, so ${again}`);
     }
     return kind === "network"
-      ? new GitHubError("network", 0, op, `${OP_LABEL[op]} failed: CodeEditor's sign-in service couldn't be reached`, undefined, "sign-in")
-      : new GitHubError("server", 502, op, `${OP_LABEL[op]} failed: CodeEditor's sign-in service had a problem`, undefined, "sign-in");
+      ? new GitHubError("network", 0, op, `${OP_LABEL[op]} failed: ExecFlow's sign-in service couldn't be reached`, undefined, "sign-in")
+      : new GitHubError("server", 502, op, `${OP_LABEL[op]} failed: ExecFlow's sign-in service had a problem`, undefined, "sign-in");
   }
 
   async function currentToken(op: GitHubOp): Promise<string> {

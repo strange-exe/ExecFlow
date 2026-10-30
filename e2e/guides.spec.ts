@@ -1,8 +1,8 @@
 // The guide pages (src/pages/routes.ts: /flowchart-from-code, /python, /c, /cpp), as built: the
 // head and h1, no console errors or CSP violations (the fixture fails on errors; the page records
 // securitypolicyviolation events), axe clean in light and dark, no sideways scroll at 320 px, the
-// charts drawn in the page's own colours, the product named CodeEditor everywhere, and every "Open in
-// CodeEditor" link opening the editor's preview of exactly that code, with nothing run. With the real service worker, a guide page is never
+// charts drawn in the page's own colours, the product named ExecFlow everywhere, and every "Open in
+// ExecFlow" link opening the editor's preview of exactly that code, with nothing run. With the real service worker, a guide page is never
 // answered with the editor.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
@@ -35,13 +35,13 @@ for (const route of GUIDE_ROUTES) {
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         await expect(page).toHaveTitle(route.title);
         await expect(page.locator("h1")).toHaveCount(1);
-        await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| CodeEditor$/, ""));
-        // The product is CodeEditor in everything the page shows or says (the rename to Execflow is a
+        await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| ExecFlow$/, ""));
+        // The product is ExecFlow in everything the page shows or says (the rename to Execflow is a
         // later release): the tab title, all text (closed answers too), accessible names, link previews.
         const shownText = await page.evaluate(() =>
           [document.title, document.body.textContent, ...[...document.querySelectorAll("[aria-label], [title], [alt], meta[content]")].map((el) => `${el.getAttribute("aria-label")} ${el.getAttribute("title")} ${el.getAttribute("alt")} ${el.getAttribute("content")}`)].join("\n"),
         );
-        expect(shownText).toContain("CodeEditor");
+        expect(shownText).toContain("ExecFlow");
         // Since 0.12.0 the site's address (canonical, og:url, og:image) carries the new name; only it may.
         expect(shownText.replaceAll("https://execflow.abhinesh.codes/", "").match(/execflow/gi), "the name Execflow on the page").toBeNull();
         await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${SITE}${route.path}`);
@@ -157,7 +157,7 @@ for (const route of GUIDE_ROUTES) {
       });
     }
 
-    test("every Open in CodeEditor link opens the editor's preview of that code, and nothing runs", async ({ page }) => {
+    test("every Open in ExecFlow link opens the editor's preview of that code, and nothing runs", async ({ page }) => {
       test.setTimeout(240_000);
       await page.goto(route.path);
       const links = await page.locator("a.ex-open").evaluateAll((els) =>
@@ -197,7 +197,7 @@ test.describe("with the service worker", () => {
     for (const route of GUIDE_ROUTES) {
       await page.goto(route.path);
       expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "page controlled by the service worker").toBe(true);
-      await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| CodeEditor$/, ""));
+      await expect(page.locator("h1")).toHaveText(route.title.replace(/ \| ExecFlow$/, ""));
       await expect(page.locator("#app")).toHaveCount(0);
     }
     // A query the precache doesn't ignore (Workbox drops only utm_* and fbclid) misses the precache,

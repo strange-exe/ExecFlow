@@ -1,7 +1,7 @@
 /// <reference types="node" />
 // The Flowchart export (milestone 4): the SVG built from the same safe DOM as the view, with every
 // colour resolved to #rrggbb, no rings or interactive attributes, nothing external, and the brand
-// footer (mark, "Made with CodeEditor", the file and the function); the file-name rule; the scale cap.
+// footer (mark, "Made with ExecFlow", the file and the function); the file-name rule; the scale cap.
 import { describe, expect, it } from "vitest";
 import { BRAND_MARK } from "../editor/brand-mark";
 import { CHART_TOKENS, chooseExportScale, drawExport, exportFileName, exportSvg, FOOTER_TEXT, mixHex, printColors, type ExportLook } from "./export";
@@ -44,7 +44,7 @@ describe("flowchart SVG export", () => {
     expect(svg.children.find((c): c is FakeElement => c instanceof FakeElement && c.tagName === "rect")!.getAttribute("fill")).toBe("#ffffff");
   });
 
-  test("the footer: the brand mark, then Made with CodeEditor, then the file and the function, under the chart", async () => {
+  test("the footer: the brand mark, then Made with ExecFlow, then the file and the function, under the chart", async () => {
     const main = ok((await chartFile("c", fixture("switch.c"))).charts[0]);
     const layout = layoutChart(main);
     const svg = svgOf(main, "lab1/switch.c");

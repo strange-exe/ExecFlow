@@ -56,7 +56,7 @@ const ERRNO_HEADER = `#ifndef __wasm_basics___errno_h
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* CodeEditor: a plain global (clang 8 can't select thread-local storage for wasm32). */
+/* ExecFlow: a plain global (clang 8 can't select thread-local storage for wasm32). */
 extern int errno;
 #define errno errno
 #ifdef __cplusplus

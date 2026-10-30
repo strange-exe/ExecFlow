@@ -40,7 +40,7 @@ describe("lockDown", () => {
     expect(bound()).toBe("own copy");
   });
 
-  it("includes the cross-tab, storage-bucket, font and messaging APIs CodeEditor added", () => {
+  it("includes the cross-tab, storage-bucket, font and messaging APIs ExecFlow added", () => {
     expect(BLOCKED_GLOBALS).toEqual(expect.arrayContaining(["indexedDB", "caches", "fetch", "BroadcastChannel", "FontFace", "fonts", "Notification", "postMessage"]));
     expect(BLOCKED_NAVIGATOR).toEqual(expect.arrayContaining(["locks", "storage", "storageBuckets", "serviceWorker"]));
   });

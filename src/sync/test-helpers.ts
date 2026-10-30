@@ -456,7 +456,7 @@ export function createFakeGitHub(options: FakeGitHubOptions = {}) {
 
   /**
    * Simulates a change made on github.com (or by another machine) directly in the repository.
-   * Paths are taken as they are, unchecked, so tests can plant names CodeEditor must ignore.
+   * Paths are taken as they are, unchecked, so tests can plant names ExecFlow must ignore.
    * `root: true` makes a commit with no parents (a rewritten history).
    */
   async function remoteCommit(changes: Record<string, RemoteChange>, opts: { root?: boolean; message?: string } = {}): Promise<string> {

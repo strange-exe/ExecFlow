@@ -1,4 +1,4 @@
-// Checks for anything that enters CodeEditor from outside: files opened from disk, imported
+// Checks for anything that enters ExecFlow from outside: files opened from disk, imported
 // zips and files pulled from GitHub. (Adapted from Pocket Run, same author, MIT.) "Malicious"
 // here means content that isn't what it claims to be, or that hides what the code really does:
 //   - executables, archives and other binary files renamed to source extensions,

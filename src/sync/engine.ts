@@ -39,7 +39,7 @@ export type FirstConnectChoice = "use-remote" | "merge" | "push-local";
 export type SyncPhase = "checking" | "downloading" | "uploading" | "verifying" | "saving";
 
 export interface SyncOptions {
-  /** Shown in commit messages ("From: <device> (CodeEditor)", commit-message.ts). */
+  /** Shown in commit messages ("From: <device> (ExecFlow)", commit-message.ts). */
   deviceName: string;
   /**
    * A subject the student typed for this sync ("Sync now with a message"): every commit this sync
@@ -282,7 +282,7 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
       const first = [...plan.merged].filter(([p, m]) => !m.opaque && !isWorkflowPath(p)).map(([p]) => p).sort()[0];
       if (first !== undefined) {
         if (bootstrap) {
-          throw new SyncError("remote-moving", "GitHub still shows the repository as empty after CodeEditor added the first file, so sync again in a minute.");
+          throw new SyncError("remote-moving", "GitHub still shows the repository as empty after ExecFlow added the first file, so sync again in a minute.");
         }
         const info = await client.getRepo();
         if (info.defaultBranch !== opts.branch) {
@@ -366,7 +366,7 @@ async function runSync(store: SyncStore, client: GitHubClient, opts: SyncOptions
       } catch (error) {
         if (!(error instanceof GitHubError && error.kind === "ref-rejected")) throw error;
         if (attempt >= MAX_ATTEMPTS) {
-          throw new SyncError("remote-moving", `The repository kept changing while CodeEditor synced (${MAX_ATTEMPTS} tries); nothing was lost, so sync again in a moment.`);
+          throw new SyncError("remote-moving", `The repository kept changing while ExecFlow synced (${MAX_ATTEMPTS} tries); nothing was lost, so sync again in a moment.`);
         }
         attempt++;
         continue; // someone pushed meanwhile: merge again against the new head
@@ -476,7 +476,7 @@ async function readRemote(
 async function readTree(client: GitHubClient, sha: string): Promise<{ entries: Map<WsPath, RemoteEntry>; ignored: string[] }> {
   const listing = await client.getTree(sha, true);
   if (listing.truncated) {
-    throw new SyncError("tree-too-large", "The repository has too many files for GitHub to list in one answer, so CodeEditor can't sync it safely.");
+    throw new SyncError("tree-too-large", "The repository has too many files for GitHub to list in one answer, so ExecFlow can't sync it safely.");
   }
   const entries = new Map<WsPath, RemoteEntry>();
   const ignored: string[] = [];
@@ -626,7 +626,7 @@ function chunked(entries: TreeWrite[]): TreeWrite[][] {
 }
 
 function verifyFailed(path: WsPath): never {
-  throw new SyncError("verify-failed", `GitHub stored a different version of ${path} than CodeEditor sent, so the sync stopped before changing the branch.`);
+  throw new SyncError("verify-failed", `GitHub stored a different version of ${path} than ExecFlow sent, so the sync stopped before changing the branch.`);
 }
 
 /**

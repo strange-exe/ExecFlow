@@ -1,6 +1,6 @@
 // A start that fails says so (milestone 5 readiness audit): when a file the app's code needs doesn't
 // arrive (a dropped connection, or a tab opened while a new version is published), the page shows
-// "CodeEditor couldn't start" with Reload, instead of loading forever. Reload, once the file arrives,
+// "ExecFlow couldn't start" with Reload, instead of loading forever. Reload, once the file arrives,
 // starts the app. public/theme-boot.js draws it (the app's own code may never have run).
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync } from "node:fs";
@@ -26,7 +26,7 @@ test("a module the app needs is missing: the page says it couldn't start, and Re
   const box = page.locator(".start-failed");
   await expect(box).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("#app")).toHaveAttribute("data-state", "start-failed");
-  await expect(box.getByRole("heading", { level: 1 })).toHaveText("CodeEditor couldn't start");
+  await expect(box.getByRole("heading", { level: 1 })).toHaveText("ExecFlow couldn't start");
   await expect(box).toHaveAttribute("role", "alert");
   missing = false;
   const reloaded = page.waitForEvent("load");

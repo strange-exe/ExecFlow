@@ -257,12 +257,12 @@ export interface LayoutOptions {
   readonly frame: "plain" | "window";
   /** The background's padding around the card, CSS px (0: no background). */
   readonly pad: number;
-  /** The "Made with CodeEditor" line: under the card in the background, or inside the card's bottom edge without one. */
+  /** The "Made with ExecFlow" line: under the card in the background, or inside the card's bottom edge without one. */
   readonly credit?: boolean;
 }
 
 /**
- * The "Made with CodeEditor" line (batch 4, .claude/design/pdf.md): the code font 3 px under the
+ * The "Made with ExecFlow" line (batch 4, .claude/design/pdf.md): the code font 3 px under the
  * code size (11 px at least), on its own 1.5 line box. In a background it sits in the bottom
  * padding, right-aligned with the card's edge and centred in a band of at least its line box and
  * 7 px above and below (so a small background grows at its bottom only); without one, it is the
@@ -314,7 +314,7 @@ export interface ImageLayout {
   readonly rows: number;
   /** The background's padding under the card (CSS px): `pad`, or the credit's taller band. */
   readonly padBottom: number;
-  /** The "Made with CodeEditor" line, when it is shown. */
+  /** The "Made with ExecFlow" line, when it is shown. */
   readonly credit: CreditPlace | null;
 }
 

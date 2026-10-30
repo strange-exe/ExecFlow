@@ -16,7 +16,7 @@ describe("each page's title and description", () => {
   it.each(PAGES.map((p) => [p.path, p.file]))("%s (%s): a branded title up to 60 characters, a description of 120 to 160", (_path, file) => {
     const html = read(file);
     const title = titleOf(html);
-    expect(title).toContain("CodeEditor");
+    expect(title).toContain("ExecFlow");
     expect(title.length).toBeLessThanOrEqual(60);
     const description = descriptionOf(html);
     expect(description.length, description).toBeGreaterThanOrEqual(120);
@@ -41,7 +41,7 @@ describe("headTags", () => {
   it("carries the title and description escaped, the site name, and the card with its size and text", () => {
     expect(tags).toContain('<meta property="og:title" content="About &amp; more" />');
     expect(tags).toContain('<meta property="og:description" content="Runs &quot;code&quot; &lt;here&gt;" />');
-    expect(tags).toContain('<meta property="og:site_name" content="CodeEditor" />');
+    expect(tags).toContain('<meta property="og:site_name" content="ExecFlow" />');
     expect(tags).toContain('<meta property="og:type" content="website" />');
     expect(tags).toContain(`<meta property="og:image" content="${ORIGIN}${SOCIAL_CARD.path}" />`);
     expect(tags).toContain('<meta property="og:image:width" content="1200" />');
@@ -209,11 +209,11 @@ describe("the home page", () => {
     const data = JSON.parse(blocks[0]);
     expect(data["@context"]).toBe("https://schema.org");
     const site = data["@graph"].find((n: { "@type": string }) => n["@type"] === "WebSite");
-    expect(site).toMatchObject({ name: "CodeEditor", url: `${ORIGIN}/` });
+    expect(site).toMatchObject({ name: "ExecFlow", url: `${ORIGIN}/` });
     expect(site.alternateName.length).toBeGreaterThan(0);
     const app = data["@graph"].find((n: { "@type": string }) => n["@type"] === "WebApplication");
     expect(app).toMatchObject({
-      name: "CodeEditor",
+      name: "ExecFlow",
       url: `${ORIGIN}/`,
       applicationCategory: "DeveloperApplication",
       operatingSystem: "Any (runs in a web browser)",
@@ -231,13 +231,13 @@ describe("the home page", () => {
     expect(all.filter((k) => /rating$|^rating|^reviews?$|review[a-z]/.test(k) && k !== "operatingsystem")).toEqual([]);
   });
 
-  it("says what CodeEditor is to a reader without JavaScript, with links to About, Privacy and Terms", () => {
+  it("says what ExecFlow is to a reader without JavaScript, with links to About, Privacy and Terms", () => {
     const noscript = /<noscript>([\s\S]*?)<\/noscript>/.exec(html)?.[1] ?? "";
     for (const words of ["Python", "C++", "nothing to install", "flowchart", "JavaScript"]) expect(noscript).toContain(words);
     for (const href of ["/about", "/privacy", "/terms"]) expect(noscript).toContain(`href="${href}"`);
   });
 
   it("has a level-one heading with the product's name, outside #app so the workbench keeps it", () => {
-    expect(html).toMatch(/<body>\s*<h1 class="visually-hidden">CodeEditor<\/h1>\s*<div id="app"/);
+    expect(html).toMatch(/<body>\s*<h1 class="visually-hidden">ExecFlow<\/h1>\s*<div id="app"/);
   });
 });

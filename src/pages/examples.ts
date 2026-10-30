@@ -2,7 +2,7 @@
 // Each one's code is src/pages/examples/<id>.<ext>, the input typed into it <id>.stdin (when it reads
 // any), and what it printed in the real app is in captured.json, written by the capture run
 // (.claude/verify/pages/build/capture.spec.ts), never by hand. `name` is the file name the example
-// gets in the editor when its "Open in CodeEditor" link is opened.
+// gets in the editor when its "Open in ExecFlow" link is opened.
 
 export interface Example {
   /** The file name in the editor (and in a Python traceback). */

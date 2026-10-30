@@ -1,5 +1,5 @@
 {
- "about": "Diagnostics captured on 2026-10-23 by running each program through CodeEditor's own runners (src/runner/python-runner.ts with Pyodide 314.0.7, src/runner/cpp-workers.ts with clang and wasm-ld 8 from binji/wasm-clang 648c4a89) in Chromium, with the app's default build settings (gnu11, c++17, -O2, -Wall). Keys with @firefox or @webkit are runs whose words differed in that engine. Never edited by hand.",
+ "about": "Diagnostics captured on 2026-10-23 by running each program through ExecFlow's own runners (src/runner/python-runner.ts with Pyodide 314.0.7, src/runner/cpp-workers.ts with clang and wasm-ld 8 from binji/wasm-clang 648c4a89) in Chromium, with the app's default build settings (gnu11, c++17, -O2, -Wall). Keys with @firefox or @webkit are runs whose words differed in that engine. Never edited by hand.",
  "cases": {
   "py-name-suggest": {
    "files": {
@@ -492,7 +492,7 @@
      "source": "python",
      "severity": "error",
      "code": "ModuleNotFoundError",
-     "message": "ModuleNotFoundError: No module named 'requests'\nNo requests.py is next to the file you run, and CodeEditor can't install packages. Besides the standard library, programs can import: dateutil, numpy, pandas, pytz, six.",
+     "message": "ModuleNotFoundError: No module named 'requests'\nNo requests.py is next to the file you run, and ExecFlow can't install packages. Besides the standard library, programs can import: dateutil, numpy, pandas, pytz, six.",
      "path": "main.py",
      "line": 1
     }

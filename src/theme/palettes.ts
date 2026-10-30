@@ -1,10 +1,10 @@
-// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). CodeEditor's own three
+// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). ExecFlow's own three
 // palettes, Signal (the default since 2026-10-25), Deep Field (the default before it) and Slate, are
 // painted by tokens.css before any script runs (a unit test keeps the two files equal); all three
 // pass every pair as designed, so the guard never moves them.
 //
 // The other palettes are Pocket Run's editor themes (its src/themes.ts, same author, MIT), kept as
-// their 16 base colours and expanded onto CodeEditor's variable contract
+// their 16 base colours and expanded onto ExecFlow's variable contract
 // by expandBase() below. Palette sources, as Pocket Run recorded them (fetched 2026-10-10/12):
 //   Tokyo Night       github.com/folke/tokyonight.nvim extras (Apache-2.0)
 //   Catppuccin        github.com/catppuccin/palette (MIT)
@@ -19,7 +19,7 @@
 //   Ayu               github.com/ayu-theme/vscode-ayu (MIT)
 //   Night Owl         github.com/sdras/night-owl-vscode-theme (MIT)
 //   Solarized         ethanschoonover.com/solarized, altercation/vim-colors-solarized (MIT)
-// Added in CodeEditor, in the same 16-colour format and the same role mapping as their family's
+// Added in ExecFlow, in the same 16-colour format and the same role mapping as their family's
 // existing entry (fetched 2026-10-23 from each repository's own palette file; licence read in its
 // LICENSE file):
 //   Tokyo Night Storm         folke/tokyonight.nvim lua/tokyonight/colors/storm.lua (Apache-2.0)
@@ -49,7 +49,7 @@ import { lift, luminance, over, type Palette, type Scheme } from "./contrast";
 export type { Scheme };
 
 /**
- * CodeEditor Signal, light and dark (redesign 2, option a "Slate Signal", chosen 2026-10-25): cool
+ * ExecFlow Signal, light and dark (redesign 2, option a "Slate Signal", chosen 2026-10-25): cool
  * slate neutrals with a surface ladder (the chrome on --surface, the code on a near-white or
  * near-black sheet), one electric blue for the action, the location bars and checked controls, and a
  * teal focus apart from it (the caret, the focus ring and typed input). Red marks errors only. The
@@ -102,7 +102,7 @@ export const SIGNAL: Record<Scheme, Palette> = {
 export const SIGNAL_CONSOLE: Palette = { ...SIGNAL.dark, "terminal-bg": "#12151a", "runlog-bg": "#181c22" };
 
 /**
- * CodeEditor Deep Field, light and dark: three 12-step OKLCH scales per mode (sage-stone neutral,
+ * ExecFlow Deep Field, light and dark: three 12-step OKLCH scales per mode (sage-stone neutral,
  * spruce anchor, brass accent), gamut-mapped to sRGB. "Spruce is the product, brass is your hand,
  * red is an error": the action, location bars and links are spruce; focus, the caret, the text
  * selection and typed input are brass; red marks errors only. The four band tokens are translucent
@@ -134,7 +134,7 @@ export const DEEP_FIELD: Record<Scheme, Palette> = {
 };
 
 /**
- * CodeEditor Slate (v1's own theme, "Slate and Signal"), kept as a picker theme on contract v2.
+ * ExecFlow Slate (v1's own theme, "Slate and Signal"), kept as a picker theme on contract v2.
  * Every v1 hex is kept where its role still exists (the azure Run, focus, links, location bars and
  * calls; the slate panels; its syntax colours). Forced changes only: a translucent active line (ink
  * at 3%, so a selection on the cursor line shows), the light Run label #fdfdff instead of pure
@@ -171,7 +171,7 @@ export const SLATE: Record<Scheme, Palette> = {
   },
 };
 
-/** CodeEditor's own palettes (painted by tokens.css), by name. */
+/** ExecFlow's own palettes (painted by tokens.css), by name. */
 export type OwnPalette = "signal" | "deep-field" | "slate";
 export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { signal: SIGNAL, "deep-field": DEEP_FIELD, slate: SLATE };
 /**
@@ -187,7 +187,7 @@ export const BASE_TOKENS = [
   "syn-keyword", "syn-string", "syn-number", "syn-comment", "syn-def",
 ] as const;
 export type BaseToken = (typeof BASE_TOKENS)[number];
-/** Syntax colours a CodeEditor theme file may set too; otherwise they are derived. */
+/** Syntax colours a ExecFlow theme file may set too; otherwise they are derived. */
 export const OPTIONAL_TOKENS = ["syn-type", "syn-variable", "syn-operator", "syn-macro", "syn-punctuation"] as const;
 export type OptionalToken = (typeof OPTIONAL_TOKENS)[number];
 export type BaseColors = Record<BaseToken, string> & Partial<Record<OptionalToken, string>>;
@@ -254,8 +254,8 @@ export const POCKET_THEMES: readonly PaletteTheme[] = [
 const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(16).padStart(2, "0")}`;
 
 /**
- * Maps Pocket Run's 16 colours onto CodeEditor's contract v2. Pocket Run's "sheet" is the editor
- * (CodeEditor's --bg), "paper" the page behind it (the sidebar here, and the program's terminal),
+ * Maps Pocket Run's 16 colours onto ExecFlow's contract v2. Pocket Run's "sheet" is the editor
+ * (ExecFlow's --bg), "paper" the page behind it (the sidebar here, and the program's terminal),
  * "bar" its header strips (floating layers and the run-log header). The colours Pocket Run doesn't
  * have are derived the way CSS color-mix() would (over()):
  *   action, location, control-on   = accent; action-hover: accent moved 15% away from its label

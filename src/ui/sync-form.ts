@@ -60,8 +60,8 @@ export function branchProblem(branch: string): string | null {
 export function tokenPageUrl(owner: string, repo: string): string {
   const url = new URL(TOKEN_PAGE);
   const validRepo = repoProblem(repo) === null;
-  url.searchParams.set("name", `CodeEditor ${validRepo ? repo : "sync"}`.slice(0, 40));
-  url.searchParams.set("description", "CodeEditor sync for one repository: Contents read and write.");
+  url.searchParams.set("name", `ExecFlow ${validRepo ? repo : "sync"}`.slice(0, 40));
+  url.searchParams.set("description", "ExecFlow sync for one repository: Contents read and write.");
   if (ownerProblem(owner) === null) url.searchParams.set("target_name", owner);
   url.searchParams.set("expires_in", "90");
   url.searchParams.set("contents", "write");

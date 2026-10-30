@@ -71,7 +71,7 @@ export type MetaRecord =
   | { key: "schema"; version: number; migratedAt: number }
   | { key: "persist"; askedAt: number; granted: boolean };
 
-export interface CodeEditorDB extends DBSchema {
+export interface ExecFlowDB extends DBSchema {
   workspaces: { key: string; value: WorkspaceRecord };
   entries: { key: [string, string]; value: EntryRecord };
   contents: { key: [string, string]; value: ContentRecord };
@@ -79,8 +79,8 @@ export interface CodeEditorDB extends DBSchema {
   meta: { key: string; value: MetaRecord };
 }
 
-export type WorkspaceDb = IDBPDatabase<CodeEditorDB>;
-export type StoreName = StoreNames<CodeEditorDB>;
+export type WorkspaceDb = IDBPDatabase<ExecFlowDB>;
+export type StoreName = StoreNames<ExecFlowDB>;
 export type Durability = "default" | "strict" | "relaxed";
 
 export interface OpenOptions {
@@ -103,7 +103,7 @@ export interface OpenOptions {
  * cached build met a newer database: tell the user to reload (see isVersionError).
  */
 export function openWorkspaceDb(options: OpenOptions = {}): Promise<WorkspaceDb> {
-  return openDB<CodeEditorDB>(options.name ?? DB_NAME, DB_VERSION, {
+  return openDB<ExecFlowDB>(options.name ?? DB_NAME, DB_VERSION, {
     upgrade(db, oldVersion, newVersion, tx) {
       upgrade(db, oldVersion, newVersion ?? DB_VERSION, tx);
     },
@@ -131,7 +131,7 @@ function upgrade(
   db: WorkspaceDb,
   oldVersion: number,
   newVersion: number,
-  tx: IDBPTransaction<CodeEditorDB, StoreName[], "versionchange">,
+  tx: IDBPTransaction<ExecFlowDB, StoreName[], "versionchange">,
 ): void {
   if (oldVersion < 1) {
     db.createObjectStore("workspaces", { keyPath: "id" });
@@ -176,7 +176,7 @@ export function belowRange(ws: string, dir: WsPath): IDBKeyRange {
 
 // ---------------------------------------------------------------- transactions
 
-export type Tx<Names extends StoreName[], Mode extends IDBTransactionMode> = IDBPTransaction<CodeEditorDB, Names, Mode>;
+export type Tx<Names extends StoreName[], Mode extends IDBTransactionMode> = IDBPTransaction<ExecFlowDB, Names, Mode>;
 
 /**
  * Runs `body` in one transaction and resolves once it has committed. If `body` throws (a
@@ -190,7 +190,7 @@ export async function inTransaction<const Names extends StoreName[], Mode extend
   body: (tx: Tx<Names, Mode>) => Promise<T>,
   durability: Durability = "default",
 ): Promise<T> {
-  let tx: IDBPTransaction<CodeEditorDB, Names, Mode>;
+  let tx: IDBPTransaction<ExecFlowDB, Names, Mode>;
   try {
     tx = db.transaction(stores, mode, { durability });
   } catch (error) {
@@ -231,7 +231,7 @@ export async function readRequest<T>(db: WorkspaceDb, read: (db: WorkspaceDb) =>
  */
 function asClosed(error: unknown): unknown {
   if (typeof error !== "object" || error === null || (error as { name?: unknown }).name !== "InvalidStateError") return error;
-  return new StorageError("closed", "CodeEditor's storage was closed in this tab (another tab cleared it or opened a newer version). Reload the page to continue.");
+  return new StorageError("closed", "ExecFlow's storage was closed in this tab (another tab cleared it or opened a newer version). Reload the page to continue.");
 }
 
 /** A storage call failed because this tab's connection was closed (see asClosed): reload, don't retry. */

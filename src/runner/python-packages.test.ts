@@ -26,7 +26,7 @@ describe("packages from the real pyodide-lock.json", () => {
     expect(index.get("numpy")).toBe("numpy");
     expect(index.get("pandas")).toBe("pandas");
     expect(index.get("dateutil")).toBe("python-dateutil");
-    expect(index.has("scipy")).toBe(false); // in Pyodide, but not something CodeEditor serves
+    expect(index.has("scipy")).toBe(false); // in Pyodide, but not something ExecFlow serves
   });
 });
 

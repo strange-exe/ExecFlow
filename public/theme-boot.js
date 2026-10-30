@@ -67,7 +67,7 @@
     box.setAttribute("role", "alert");
     var title = document.createElement("h1");
     title.className = "empty-title";
-    title.textContent = "CodeEditor couldn't start";
+    title.textContent = "ExecFlow couldn't start";
     var lede = document.createElement("p");
     lede.className = "empty-lede";
     lede.textContent = "Part of the app didn't load. A weak connection, or an update being published, can cause this. Your files are kept in this browser.";

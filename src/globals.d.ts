@@ -1,4 +1,4 @@
-/** CodeEditor's version, package.json's, injected by vite.config.ts ("0.7.0"). */
+/** ExecFlow's version, package.json's, injected by vite.config.ts ("0.7.0"). */
 declare const __APP_VERSION__: string;
 
 /** Pyodide's folder, "<version>-heap<MB>", injected by vite.config.ts; the runtime is served from /pyodide/<folder>/. */

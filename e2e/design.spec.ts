@@ -21,7 +21,7 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   await waitReady(page);
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  // And the colours really are that scheme's (CodeEditor Signal, the default: data-palette="signal").
+  // And the colours really are that scheme's (ExecFlow Signal, the default: data-palette="signal").
   await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(21, 24, 29)" : "rgb(255, 255, 255)");
 }
@@ -298,7 +298,7 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   await expect(html).toHaveAttribute("data-palette", "signal");
   // The theme picker is Settings > Appearance since Workbench Pro S4.
   await openThemePicker(page);
-  await page.getByRole("radio", { name: "CodeEditor Slate Dark" }).check();
+  await page.getByRole("radio", { name: "ExecFlow Slate Dark" }).check();
   expect(await bg()).toBe("rgb(14, 18, 23)"); // Slate's dark code ground #0e1217
   await expect(html).toHaveAttribute("data-palette", "slate");
   await expect(html).toHaveAttribute("data-theme", "dark");
@@ -310,7 +310,7 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
     await expect(html).toHaveAttribute("data-theme", "dark");
   });
 
-  // A device that saved "CodeEditor Slate (match device)" before Deep Field existed: its paint
+  // A device that saved "ExecFlow Slate (match device)" before Deep Field existed: its paint
   // payload has no palette field. It paints Slate before any script runs, and the app keeps Slate.
   await page.evaluate(() => {
     localStorage.setItem("codeeditor:theme", "system");

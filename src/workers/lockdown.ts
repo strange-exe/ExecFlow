@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 // Adapted from Pocket Run (same author, MIT). Code in the Python worker can reach JavaScript
-// (`import js`, `pyodide_js`). CodeEditor keeps the workspace and, if the user chose "Remember on
+// (`import js`, `pyodide_js`). ExecFlow keeps the workspace and, if the user chose "Remember on
 // this computer", an encrypted GitHub token in this origin's IndexedDB; the app itself lives in Cache
 // Storage. Before any user code runs, the worker removes storage, network, cross-tab and
 // worker-spawning APIs from its global scope, and refuses to run anything if one is still reachable.

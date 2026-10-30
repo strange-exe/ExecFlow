@@ -43,25 +43,25 @@ afterEach(() => {
 });
 
 describe("built-in themes", () => {
-  it("defaults to CodeEditor Signal following the device, painted by tokens.css", () => {
+  it("defaults to ExecFlow Signal following the device, painted by tokens.css", () => {
     const def = byId(DEFAULT_THEME_ID);
     expect(def.id).toBe("signal");
-    expect(def.name).toBe("CodeEditor Signal (match device)");
+    expect(def.name).toBe("ExecFlow Signal (match device)");
     expect(def.system).toBe(true);
     expect(def.own).toBe("signal");
     expect(def.base).toBeUndefined();
     expect(paintFor(def)).toMatchObject({ palette: "signal", colors: null }); // no inline colours
     expect(themePalette(def, "light").palette).toEqual(SIGNAL.light);
     expect(themePalette(def, "dark").palette).toEqual(SIGNAL.dark);
-    for (const [id, name, scheme] of [["signal-light", "CodeEditor Signal Light", "light"], ["signal-dark", "CodeEditor Signal Dark", "dark"]] as const) {
+    for (const [id, name, scheme] of [["signal-light", "ExecFlow Signal Light", "light"], ["signal-dark", "ExecFlow Signal Dark", "dark"]] as const) {
       expect(byId(id), id).toMatchObject({ name, scheme, own: "signal", group: "codeeditor" });
       expect(byId(id).system, id).toBeFalsy();
       expect(themePalette(byId(id)).palette, id).toEqual(SIGNAL[scheme]);
     }
   });
 
-  it("keeps CodeEditor Deep Field as a picker theme with its ids unchanged", () => {
-    for (const [id, name, system] of [["deep-field", "CodeEditor Deep Field (match device)", true], ["deep-field-light", "CodeEditor Deep Field Light", false], ["deep-field-dark", "CodeEditor Deep Field Dark", false]] as const) {
+  it("keeps ExecFlow Deep Field as a picker theme with its ids unchanged", () => {
+    for (const [id, name, system] of [["deep-field", "ExecFlow Deep Field (match device)", true], ["deep-field-light", "ExecFlow Deep Field Light", false], ["deep-field-dark", "ExecFlow Deep Field Dark", false]] as const) {
       const t = byId(id);
       expect(t, id).toMatchObject({ name, own: "deep-field", group: "codeeditor" });
       expect(Boolean(t.system), id).toBe(system);
@@ -70,9 +70,9 @@ describe("built-in themes", () => {
     expect(themePalette(byId("deep-field"), "dark").palette).toEqual(DEEP_FIELD.dark);
   });
 
-  it("keeps CodeEditor Slate as a picker theme with its ids unchanged", () => {
+  it("keeps ExecFlow Slate as a picker theme with its ids unchanged", () => {
     expect(SLATE_SYSTEM_ID).toBe("system");
-    for (const [id, name, system] of [["system", "CodeEditor Slate (match device)", true], ["slate-light", "CodeEditor Slate Light", false], ["slate-dark", "CodeEditor Slate Dark", false]] as const) {
+    for (const [id, name, system] of [["system", "ExecFlow Slate (match device)", true], ["slate-light", "ExecFlow Slate Light", false], ["slate-dark", "ExecFlow Slate Dark", false]] as const) {
       const t = byId(id);
       expect(t, id).toMatchObject({ name, own: "slate", group: "codeeditor" });
       expect(Boolean(t.system), id).toBe(system);
@@ -81,7 +81,7 @@ describe("built-in themes", () => {
     expect(themePalette(byId("slate-dark")).palette).toEqual(SLATE.dark);
   });
 
-  it("lists CodeEditor's group in order: Signal x3, Deep Field x3, Slate x3, High contrast", () => {
+  it("lists ExecFlow's group in order: Signal x3, Deep Field x3, Slate x3, High contrast", () => {
     expect(BUILT_IN.filter((t) => t.group === "codeeditor").map((t) => t.id)).toEqual([
       "signal", "signal-light", "signal-dark", "deep-field", "deep-field-light", "deep-field-dark", "system", "slate-light", "slate-dark", "high-contrast",
     ]);
@@ -336,7 +336,7 @@ describe("theme files", () => {
     expect(checkPalette(themePalette(parsed.theme).palette).filter((r) => !r.pass)).toEqual([]);
   });
 
-  it("accepts CodeEditor's extra syntax colours", () => {
+  it("accepts ExecFlow's extra syntax colours", () => {
     const file = pocketFile();
     const parsed = parseThemeFile(json({ ...file, colors: { ...file.colors, "syn-type": "#e5c07b" } }));
     expect(parsed.ok && themePalette(parsed.theme).palette["syn-type"]).toMatch(/^#[0-9a-f]{6}$/);

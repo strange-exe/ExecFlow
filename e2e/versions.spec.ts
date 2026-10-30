@@ -1,4 +1,4 @@
-// Versions (0.7.0 versions unit): Settings shows "CodeEditor <version>" and a What's new link to the
+// Versions (0.7.0 versions unit): Settings shows "ExecFlow <version>" and a What's new link to the
 // About page's changelog; after an update the app says so once, quietly; never on a first visit.
 // The version is package.json's, injected by the build (no request for it).
 import AxeBuilder from "@axe-core/playwright";
@@ -16,7 +16,7 @@ test("Settings shows the version and a What's new link to the About page's chang
   await page.locator("#settings-button").click();
   const foot = page.locator("#settings-version");
   await foot.scrollIntoViewIfNeeded();
-  await expect(foot).toContainText(`CodeEditor ${VERSION}`);
+  await expect(foot).toContainText(`ExecFlow ${VERSION}`);
   const link = foot.getByRole("link", { name: "What's new" });
   await expect(link).toHaveAttribute("href", "/about#changelog");
   await expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -36,7 +36,7 @@ test("after an update: told once, quietly, with What's new; Dismiss and a reload
   await page.evaluate((k) => localStorage.setItem(k, "0.6.2"), KEY);
   await page.reload();
   await waitReady(page);
-  await expect(notice(page)).toContainText(`Updated to CodeEditor ${VERSION}.`);
+  await expect(notice(page)).toContainText(`Updated to ExecFlow ${VERSION}.`);
   await expect(notice(page)).toHaveAttribute("data-tone", "info");
   // Quiet: the notice doesn't take the focus from the editor or the page.
   expect(await page.evaluate(() => document.activeElement?.closest(".notice") === null)).toBe(true);

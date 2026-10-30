@@ -280,7 +280,7 @@ describe("C and C++ headers on #include lines", () => {
   it("offers the app's own bits/stdc++.h in C++ (the C/C++ worker writes it), never in C (review F4)", async () => {
     const cxx = await optionsAfter("main.cpp", "#include <bits/", "<bits/");
     expect(one(cxx, "bits/stdc++.h")).toMatchObject({
-      type: "namespace", apply: "bits/stdc++.h>", info: "The whole C++ standard library at once (GCC's name; CodeEditor provides it)",
+      type: "namespace", apply: "bits/stdc++.h>", info: "The whole C++ standard library at once (GCC's name; ExecFlow provides it)",
     });
     expect(sectionName(one(cxx, "bits/stdc++.h"))).toBe("C++ library");
     // The name keeps matching as it is typed, + included.

@@ -2,9 +2,9 @@
 // pair the UI draws (src/theme/contrast.ts PAIRS, token contract v2) is computed with the WCAG 2.2
 // formula.
 //   node scripts/contrast-check.mjs            summary per theme; exits 1 if any pair fails
-//   node scripts/contrast-check.mjs --rows     also print every pair of CodeEditor's own palettes
+//   node scripts/contrast-check.mjs --rows     also print every pair of ExecFlow's own palettes
 //   node scripts/contrast-check.mjs --json     machine-readable result
-// CodeEditor's own palettes (Signal, Deep Field and Slate) must pass as designed: the guard may
+// ExecFlow's own palettes (Signal, Deep Field and Slate) must pass as designed: the guard may
 // move nothing in them. Signal and Deep Field must also meet every role-distinctness rule and
 // region step (checkRules); Slate's misses there are its v1 identity (one azure for action, focus
 // and location; near-equal grounds) and are reported, not failed. Palette themes are checked after the

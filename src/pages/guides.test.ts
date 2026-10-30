@@ -1,6 +1,6 @@
 /// <reference types="node" />
 // The guide pages (src/pages/routes.ts) as the build makes them (render.ts, vite.config.ts
-// guidePages): every "Open in CodeEditor" link decodes, through the app's own code-link reader, to
+// guidePages): every "Open in ExecFlow" link decodes, through the app's own code-link reader, to
 // exactly the code shown beside it; every example and chart comes from the capture run; each page's
 // head says what its route says; and the inlined charts are drawn only in the page's tokens.
 import { readFileSync } from "node:fs";
@@ -28,7 +28,7 @@ const attr = (html: string, re: RegExp) => re.exec(html)?.[1];
 const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
 describe.each(GUIDE_ROUTES)("$path", (route) => {
-  it("every Open in CodeEditor link opens exactly the code shown beside it, under the example's name", async () => {
+  it("every Open in ExecFlow link opens exactly the code shown beside it, under the example's name", async () => {
     const html = await page(route.file);
     const blocks = [...html.matchAll(/<div class="ex" id="ex-([\w-]+)">.*?<span class="ex-file">([^<]*)<\/span><a class="ex-open" href="([^"]+)">.*?<pre class="ex-code"[^>]*><code>(.*?)<\/code><\/pre>/gs)];
     expect(blocks.length).toBe((html.match(/class="ex-open"/g) ?? []).length);
@@ -79,22 +79,21 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
     expect(attr(html, /<a href="([^"]+)" aria-current="page"/)).toBe(route.path);
   });
 
-  it("names the product CodeEditor everywhere it is seen: title, headings, link text, prose and tags", async () => {
+  it("names the product ExecFlow everywhere it is seen: title, headings, link text, prose and tags", async () => {
     const html = await page(route.file);
-    // The rename to Execflow is a later release: until then a student would click through to an
-    // app that calls itself something else. Since 0.12.0 the site's address and the repository's
-    // carry the new name; only those links may.
-    expect(html.replaceAll("https://execflow.abhinesh.codes/", "").replaceAll("https://github.com/strange-exe/ExecFlow", "")).not.toMatch(/execflow/i);
-    expect(attr(html, /<title>([^<]*)<\/title>/)).toMatch(/ \| CodeEditor$/);
-    expect(attr(html, /<meta property="og:site_name" content="([^"]+)"/)).toBe("CodeEditor");
+    // 0.16.0 renamed CodeEditor to ExecFlow (owner, 2026-10-30): the old name is gone from the page
+    // (a lowercase "code editor" is the common noun, as in "what code editors use").
+    expect(html).not.toMatch(/CodeEditor|Code Editor/);
+    expect(attr(html, /<title>([^<]*)<\/title>/)).toMatch(/ \| ExecFlow$/);
+    expect(attr(html, /<meta property="og:site_name" content="([^"]+)"/)).toBe("ExecFlow");
     const opens = html.match(/class="ex-open"/g) ?? [];
-    expect(html.match(/>Open in CodeEditor<span class="ex-sr">/g) ?? []).toHaveLength(opens.length);
+    expect(html.match(/>Open in ExecFlow<span class="ex-sr">/g) ?? []).toHaveLength(opens.length);
   });
 
-  it("says what Open in CodeEditor really does: a preview first, the editor only after Add to my files", async () => {
+  it("says what Open in ExecFlow really does: a preview first, the editor only after Add to my files", async () => {
     const html = await page(route.file);
     const intro = attr(html, /<section aria-labelledby="examples">([\s\S]*?)<div class="guide-example">/)!.replace(/\s+/g, " ");
-    expect(intro).toContain("<strong>Open in CodeEditor</strong> shows");
+    expect(intro).toContain("<strong>Open in ExecFlow</strong> shows");
     expect(intro).toContain("a preview");
     expect(intro).toContain("<strong>Add to my files</strong> puts it in the editor");
     expect(intro).toContain("until you press Run");

@@ -3,7 +3,7 @@
 // no rings, Tab stops, classes or data attributes) and a PNG drawn on a canvas from the same layout
 // with the page's loaded fonts (drawing the SVG as an image would lose those fonts, and WebKit can
 // refuse to read back a canvas an SVG image was drawn on). Every export carries the footer the owner
-// asked for: the brand mark, "Made with CodeEditor", the file and the function.
+// asked for: the brand mark, "Made with ExecFlow", the file and the function.
 import { drawBrandMark, brandMarkSvg } from "../editor/brand-mark";
 import { nameOf } from "../core/paths";
 import { cleanFilename, tagUnshown as shown } from "../core/safety";
@@ -49,7 +49,7 @@ export function mixHex(top: string, base: string, pct: number): string {
   return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export const FOOTER_TEXT = "Made with CodeEditor";
+export const FOOTER_TEXT = "Made with ExecFlow";
 /** The footer under the chart: one line, the mark at the left margin. */
 export const FOOTER = { height: 44, mark: 20, margin: 24, gap: 8, between: 16, textW: 7, fontSize: 12 } as const;
 

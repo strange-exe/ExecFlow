@@ -246,7 +246,7 @@ test.describe("the repository list", () => {
   test("several repositories: none chosen for you, a warning with a link to change it on GitHub", async ({ page }) => {
     const { si } = await setUp(page, { repos: [{ id: 1, owner: "me", name: "notes", private: false }, { id: 4242, owner: "me", name: "workspace" }] });
     await signInAndPick(page, si);
-    await expect(page.locator("#connect-pick-many")).toContainText("CodeEditor can reach 2 repositories");
+    await expect(page.locator("#connect-pick-many")).toContainText("ExecFlow can reach 2 repositories");
     const link = page.locator("#connect-pick-many a");
     await expect(link).toHaveAttribute("href", "https://github.com/settings/installations/77");
     await expect(link).toHaveAttribute("target", "_blank");

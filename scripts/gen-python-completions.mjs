@@ -1,5 +1,5 @@
 // Generates src/editor/data/python-stdlib.json, the Python completion data: the standard-library
-// modules that import in the Pyodide CodeEditor ships, and the public members of the modules a
+// modules that import in the Pyodide ExecFlow ships, and the public members of the modules a
 // beginner uses, each with a CodeMirror completion type and, for callables, the signature that
 // inspect.signature gives. No docstrings: an option's detail is its signature, and any longer text is
 // written by us in the editor code.
@@ -31,7 +31,7 @@ const report = process.argv.includes("--report");
 const MAX_SIGNATURE = 120;
 
 /**
- * Modules that import in Pyodide but whose purpose cannot work in CodeEditor's Python worker, or
+ * Modules that import in Pyodide but whose purpose cannot work in ExecFlow's Python worker, or
  * that Pyodide leaves out (listed anyway, so the decision stays recorded if a later Pyodide ships
  * them). The facts in brackets were measured with Pyodide 314.0.7 under Node. Network clients fail
  * twice over: Pyodide lists sockets as "included but not working"

@@ -266,9 +266,9 @@ test("Copy with title puts a link named after the file on the clipboard, and its
   const url = await page.locator("#share-link").inputValue();
   await page.locator("#share-titled").click();
   await expect(page.locator("dialog#share-dialog")).toHaveAttribute("data-copy", "titled");
-  await expect(page.locator("#share-result")).toContainText('Copied the link with the title "Open a&b.c in CodeEditor"');
-  const html = `<a href="${url}">Open a&amp;b.c in CodeEditor</a>`;
-  const plain = `Open a&b.c in CodeEditor: ${url}`;
+  await expect(page.locator("#share-result")).toContainText('Copied the link with the title "Open a&b.c in ExecFlow"');
+  const html = `<a href="${url}">Open a&amp;b.c in ExecFlow</a>`;
+  const plain = `Open a&b.c in ExecFlow: ${url}`;
   // Where the browser has ClipboardItem, both forms in one item; where it hasn't, the plain text.
   const rich = await page.evaluate(() => typeof ClipboardItem === "function");
   expect(await clip(page)).toEqual(rich ? [{ type: "text/html", text: html }, { type: "text/plain", text: plain }] : [{ type: "text", text: plain }]);

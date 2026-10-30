@@ -21,18 +21,18 @@ const PAGES = [
 /** Every numbered section, in order: [id, number, heading text]. The ids are the pages' old ones. */
 const SECTIONS = {
   "/privacy": [
-    ["who", "1", "Who runs CodeEditor"],
+    ["who", "1", "Who runs ExecFlow"],
     ["device", "2", "What stays in your browser"],
     ["running", "3", "Running and charting code"],
     ["github", "4", "If you connect GitHub"],
-    ["relay", "4.1", "The sign-in step on CodeEditor's server"],
+    ["relay", "4.1", "The sign-in step on ExecFlow's server"],
     ["sharing", "4.2", "Share links"],
     ["hosting", "5", "Hosting"],
     ["remove", "6", "Removing your data"],
     ["changes", "7", "Changes to this page"],
   ],
   "/terms": [
-    ["what", "1", "What CodeEditor is"],
+    ["what", "1", "What ExecFlow is"],
     ["code", "2", "Your code"],
     ["use", "3", "Using it fairly"],
     ["warranty", "4", "No guarantee"],
@@ -70,7 +70,7 @@ test.describe("legal pages", () => {
           await page.setViewportSize(vp);
           await openIn(page, p.path, scheme);
           await ready(page);
-          await expect(page).toHaveTitle(`${p.title} - CodeEditor`);
+          await expect(page).toHaveTitle(`${p.title} - ExecFlow`);
           await expect(page.getByRole("heading", { level: 1 })).toHaveText(p.title);
           await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
           const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -390,7 +390,7 @@ test.describe("legal pages", () => {
     await expect(page.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   });
 
-  test("/licenses.txt: CodeEditor's licence, then every third-party licence text the site ships under", async ({ request }) => {
+  test("/licenses.txt: ExecFlow's licence, then every third-party licence text the site ships under", async ({ request }) => {
     const res = await request.get("/licenses.txt");
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toMatch(/^text\/plain/);
@@ -487,7 +487,7 @@ test("with the service worker in control, /privacy, /terms and /licenses.txt are
     // the editor (About, Terms and Settings link to it). It is precached, so it opens offline too.
     const res = await page.goto("/licenses.txt");
     expect(res?.headers()["content-type"], `/licenses.txt ${offline ? "offline" : "online"}`).toMatch(/^text\/plain/);
-    expect(await page.evaluate(() => document.body.innerText.split("\n")[0])).toBe("CodeEditor: licences");
+    expect(await page.evaluate(() => document.body.innerText.split("\n")[0])).toBe("ExecFlow: licences");
     await expect(page.locator("#app")).toHaveCount(0);
     if (!offline) {
       // Any other file opened on its own (the launch video's poster here, as the video's own link

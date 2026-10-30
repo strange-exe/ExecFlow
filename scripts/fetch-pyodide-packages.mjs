@@ -1,4 +1,4 @@
-// Downloads the Python packages CodeEditor serves itself (PYTHON_PACKAGES in
+// Downloads the Python packages ExecFlow serves itself (PYTHON_PACKAGES in
 // src/runner/python-packages.ts: numpy, pandas and what they depend on) from Pyodide's official CDN
 // for the pinned Pyodide version, checks each file against the sha256 in pyodide-lock.json, keeps
 // a local cache in node_modules/.cache/, and copies the files into public/pyodide/<version>-heap<MB>/

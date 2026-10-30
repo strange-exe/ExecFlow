@@ -1,4 +1,4 @@
-/* CodeEditor workbench. Regions told apart by their grounds, one filled action per view, each
+/* ExecFlow workbench. Regions told apart by their grounds, one filled action per view, each
    colour role kept to its job (the action and location colour, the focus colour for the user's
    hand, red for errors only), saturated colour mostly inside the code. From 900 px the editor and
    its panel are one sheet set into the chrome's frame (Signal's layout, for every theme: the
@@ -355,7 +355,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .sidebar-foot-row:empty { display: none; }
 .sidebar-foot .sync-slot { flex: 1; }
 .sidebar-foot .sync-status { max-width: 100%; }
-/* About here is its icon (named "About CodeEditor"), an icon button beside the sync status. */
+/* About here is its icon (named "About ExecFlow"), an icon button beside the sync status. */
 .sidebar-foot .status-btn { justify-content: center; width: var(--tool); height: var(--tool); margin: 0; padding: 0; border-radius: var(--r-control); color: var(--text-muted); }
 .sidebar-foot .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
 .sidebar-foot .status-btn-label { display: none; }

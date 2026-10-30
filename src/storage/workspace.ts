@@ -256,7 +256,7 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
         const [entry, content] = await Promise.all([tx.objectStore("entries").get([ws, p]), tx.objectStore("contents").get([ws, p])]);
         if (!entry) throw new StorageError("not-found", `"${p}" doesn't exist.`);
         if (entry.kind !== "file") throw new StorageError("not-a-file", `"${p}" is a folder.`);
-        if (entry.opaque) throw new StorageError("read-only-entry", `"${p}" isn't a text file CodeEditor can open.`);
+        if (entry.opaque) throw new StorageError("read-only-entry", `"${p}" isn't a text file ExecFlow can open.`);
         if (!content) throw new StorageError("corrupt", `The text of "${p}" is missing.`);
         return content.text;
       });
@@ -386,7 +386,7 @@ export function createWorkspaceStore(db: WorkspaceDb, options: StoreOptions = {}
         const opaque = moving.find((r) => r.opaque);
         if (opaque) {
           // Its bytes aren't stored here, so a rename couldn't be pushed as content.
-          throw new StorageError("read-only-entry", `"${opaque.path}" came from GitHub as a file CodeEditor can't edit, so it can't be moved here; rename it on GitHub instead.`);
+          throw new StorageError("read-only-entry", `"${opaque.path}" came from GitHub as a file ExecFlow can't edit, so it can't be moved here; rename it on GitHub instead.`);
         }
         const movingPaths = new Set(moving.map((r) => r.path));
         const isMoving = (p: WsPath) => movingPaths.has(p);

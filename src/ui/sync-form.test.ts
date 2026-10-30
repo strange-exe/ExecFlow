@@ -47,7 +47,7 @@ describe("the token page link", () => {
     expect(url.searchParams.get("contents")).toBe("write");
     expect(url.searchParams.get("expires_in")).toBe("90");
     expect(url.searchParams.get("target_name")).toBe("me");
-    expect(url.searchParams.get("name")).toBe("CodeEditor code");
+    expect(url.searchParams.get("name")).toBe("ExecFlow code");
     // Nothing broader than Contents is asked for.
     expect([...url.searchParams.keys()].sort()).toEqual(["contents", "description", "expires_in", "name", "target_name"]);
   });

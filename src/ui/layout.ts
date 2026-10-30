@@ -330,7 +330,7 @@ export function createLayout(root: HTMLElement): Layout {
   // index.html's <noscript>, so this is how it finds About (SEO review, 2026-10-29).
   const aboutLink = h(
     "a",
-    { class: "status-btn", id: "about-link", href: "/about", target: "_blank", rel: "noopener noreferrer", "aria-label": "About CodeEditor", title: "About CodeEditor (opens in a new tab)" },
+    { class: "status-btn", id: "about-link", href: "/about", target: "_blank", rel: "noopener noreferrer", "aria-label": "About ExecFlow", title: "About ExecFlow (opens in a new tab)" },
     icon("info"),
     h("span", { class: "status-btn-label" }, "About"),
   );

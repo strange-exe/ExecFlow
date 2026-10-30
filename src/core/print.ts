@@ -17,7 +17,7 @@ export type PrintColours = "print" | "theme";
 export interface PrintOptions {
   readonly colours: PrintColours;
   readonly numbers: boolean;
-  /** The footer on every page: the file, the page number (where the browser can count pages), the date and "Made with CodeEditor". */
+  /** The footer on every page: the file, the page number (where the browser can count pages), the date and "Made with ExecFlow". */
   readonly footer: boolean;
 }
 
@@ -77,7 +77,7 @@ export function choiceProblem(lines: readonly number[]): string | null {
  * ("main.py.pdf"), and Firefox and Safari print it in their own page header. Untrusted text: shown().
  */
 export function printTitle(paths: readonly string[]): string {
-  if (!paths.length) return "CodeEditor";
+  if (!paths.length) return "ExecFlow";
   const first = shown(nameOf(paths[0]));
   if (paths.length === 1) return first;
   const more = paths.length - 1;
@@ -107,7 +107,7 @@ export const pageName = (index: number): string => `ce-file-${index}`;
 const HEX = /^#[0-9a-f]{6}$/i;
 
 /** The words of the footer that never change. */
-export const MADE_WITH = "Made with CodeEditor";
+export const MADE_WITH = "Made with ExecFlow";
 
 export interface FooterSpec {
   /** The chosen files' paths, in print order. */
@@ -123,7 +123,7 @@ export interface FooterSpec {
 /**
  * The page rules: page margins for every page, and with the footer on, one named page per file
  * whose bottom margin boxes say the file's path and the date, "Page 2 of 5", and "Made with
- * CodeEditor" (CSS Paged Media 3, margin boxes and the page and pages counters; Chromium 131 and
+ * ExecFlow" (CSS Paged Media 3, margin boxes and the page and pages counters; Chromium 131 and
  * later draw them, the other engines skip the at-rules and get the in-page footer instead). The
  * empty top box keeps Chromium's own header (its date and the page title) off these pages, as
  * the bottom boxes keep its own footer off (measured with page.pdf's displayHeaderFooter, which

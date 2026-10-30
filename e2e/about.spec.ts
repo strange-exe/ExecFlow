@@ -1,5 +1,5 @@
 // The About page (0.7.0, brief .claude/tasks/v07-about.md): served at /about as its own entry; the
-// first viewport says what CodeEditor is, for whom, and offers "Open the editor"; the hero's poster
+// first viewport says what ExecFlow is, for whom, and offers "Open the editor"; the hero's poster
 // (a pre-rendered still of the scene) shows at once and the real-time three.js scene replaces it only
 // where WebGL works and motion is welcome; the changelog lists every release; light and dark, 320 px,
 // keyboard and axe; and the editor's first visit loads nothing of it.
@@ -32,7 +32,7 @@ test.describe("the About page", () => {
       test(`${vp.name} ${scheme}: the first viewport answers what, who and what next; axe clean; no sideways scroll`, async ({ page }, info) => {
         await page.setViewportSize(vp);
         await openIn(page, "/about", scheme);
-        await expect(page).toHaveTitle("About CodeEditor: run Python, C and C++ in your browser");
+        await expect(page).toHaveTitle("About ExecFlow: run Python, C and C++ in your browser");
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toBeInViewport();
@@ -354,7 +354,7 @@ test.describe("the About page", () => {
     await expect(skip).toBeInViewport();
     if (linksAreStops) {
       // The home link, the bar's three section links (Overview, Flowcharts, What's new), then Open the editor.
-      for (const name of ["CodeEditor", "Overview", "Flowcharts", "What's new"]) {
+      for (const name of ["ExecFlow", "Overview", "Flowcharts", "What's new"]) {
         await page.keyboard.press("Tab");
         await expect(page.locator(".about-head").getByRole("link", { name, exact: true })).toBeFocused();
       }

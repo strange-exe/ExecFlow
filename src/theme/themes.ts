@@ -1,5 +1,5 @@
 // The theme engine (adapted from Pocket Run's src/themes.ts, same author, MIT). A theme is either
-// one of CodeEditor's own palettes, Signal (the default), Deep Field or Slate, whose colours live in
+// one of ExecFlow's own palettes, Signal (the default), Deep Field or Slate, whose colours live in
 // tokens.css so the first paint needs no script, or a palette whose colours are expanded onto the
 // variable contract, passed through the readability guard and set as inline CSS variables on
 // <html>. public/theme-boot.js repaints the saved choice before the app loads, from what
@@ -20,7 +20,7 @@ export interface Theme {
   /** The scheme it is drawn in ("system" follows the device instead). */
   scheme: Scheme;
   group: ThemeGroup;
-  /** CodeEditor's own palettes, whose colours are in tokens.css. */
+  /** ExecFlow's own palettes, whose colours are in tokens.css. */
   own?: OwnPalette;
   /** A palette theme's base colours (Pocket Run's format); undefined for the own palettes. */
   base?: BaseColors;
@@ -31,26 +31,26 @@ export interface Theme {
 
 export const DEFAULT_THEME_ID = "signal";
 /**
- * "CodeEditor Deep Field (match device)", the default from 2026-10-18 until Signal (2026-10-25). A
+ * "ExecFlow Deep Field (match device)", the default from 2026-10-18 until Signal (2026-10-25). A
  * device that kept it is moved to Signal once (storedThemeId); chosen again after that, it stays.
  */
 export const DEEP_FIELD_SYSTEM_ID = "deep-field";
 /**
- * "CodeEditor Slate (match device)". The id is historical: before Deep Field, "system" was the
+ * "ExecFlow Slate (match device)". The id is historical: before Deep Field, "system" was the
  * default theme, so a device that saved it keeps Slate (an explicit choice is never re-pointed).
  */
 export const SLATE_SYSTEM_ID = "system";
 
 export const BUILT_IN: readonly Theme[] = [
-  { id: DEFAULT_THEME_ID, name: "CodeEditor Signal (match device)", scheme: "light", group: "codeeditor", own: "signal", system: true },
-  { id: "signal-light", name: "CodeEditor Signal Light", scheme: "light", group: "codeeditor", own: "signal" },
-  { id: "signal-dark", name: "CodeEditor Signal Dark", scheme: "dark", group: "codeeditor", own: "signal" },
-  { id: DEEP_FIELD_SYSTEM_ID, name: "CodeEditor Deep Field (match device)", scheme: "light", group: "codeeditor", own: "deep-field", system: true },
-  { id: "deep-field-light", name: "CodeEditor Deep Field Light", scheme: "light", group: "codeeditor", own: "deep-field" },
-  { id: "deep-field-dark", name: "CodeEditor Deep Field Dark", scheme: "dark", group: "codeeditor", own: "deep-field" },
-  { id: SLATE_SYSTEM_ID, name: "CodeEditor Slate (match device)", scheme: "light", group: "codeeditor", own: "slate", system: true },
-  { id: "slate-light", name: "CodeEditor Slate Light", scheme: "light", group: "codeeditor", own: "slate" },
-  { id: "slate-dark", name: "CodeEditor Slate Dark", scheme: "dark", group: "codeeditor", own: "slate" },
+  { id: DEFAULT_THEME_ID, name: "ExecFlow Signal (match device)", scheme: "light", group: "codeeditor", own: "signal", system: true },
+  { id: "signal-light", name: "ExecFlow Signal Light", scheme: "light", group: "codeeditor", own: "signal" },
+  { id: "signal-dark", name: "ExecFlow Signal Dark", scheme: "dark", group: "codeeditor", own: "signal" },
+  { id: DEEP_FIELD_SYSTEM_ID, name: "ExecFlow Deep Field (match device)", scheme: "light", group: "codeeditor", own: "deep-field", system: true },
+  { id: "deep-field-light", name: "ExecFlow Deep Field Light", scheme: "light", group: "codeeditor", own: "deep-field" },
+  { id: "deep-field-dark", name: "ExecFlow Deep Field Dark", scheme: "dark", group: "codeeditor", own: "deep-field" },
+  { id: SLATE_SYSTEM_ID, name: "ExecFlow Slate (match device)", scheme: "light", group: "codeeditor", own: "slate", system: true },
+  { id: "slate-light", name: "ExecFlow Slate Light", scheme: "light", group: "codeeditor", own: "slate" },
+  { id: "slate-dark", name: "ExecFlow Slate Dark", scheme: "dark", group: "codeeditor", own: "slate" },
   ...POCKET_THEMES,
 ];
 
@@ -89,7 +89,7 @@ export const MAX_CUSTOM_THEMES = 8;
 export type Parsed = { ok: true; theme: Theme; adjusted: ColorVar[] } | { ok: false; error: string };
 
 /**
- * Reads a theme file: Pocket Run's format (name, scheme, 16 colours), plus optional CodeEditor
+ * Reads a theme file: Pocket Run's format (name, scheme, 16 colours), plus optional ExecFlow
  * syntax colours. Only #rrggbb values for known names are accepted: no CSS, no URLs, no script.
  */
 export function parseThemeFile(bytes: Uint8Array): Parsed {

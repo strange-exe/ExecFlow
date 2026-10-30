@@ -1,4 +1,4 @@
-/* CodeEditor design tokens (token contract v2). The colour values are CodeEditor's own palettes
+/* ExecFlow design tokens (token contract v2). The colour values are ExecFlow's own palettes
    from src/theme/palettes.ts (a unit test keeps every block equal to it): Deep Field on :root (no
    attribute needed), Signal, the default since 2026-10-25, under [data-palette="signal"], and Slate,
    the picker theme kept from v1, under [data-palette="slate"]. Palette themes from the picker
@@ -45,7 +45,7 @@
 :root {
   color-scheme: light;
 
-  /* ---- colour contract v2 (src/theme/contrast.ts lists every variable), CodeEditor Deep Field light ---- */
+  /* ---- colour contract v2 (src/theme/contrast.ts lists every variable), ExecFlow Deep Field light ---- */
   --bg: #f8fbf9;
   --surface: #dbeee2;
   --surface-raised: #fcfefd;
@@ -99,7 +99,7 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  /* CodeEditor Deep Field dark: the workbench sits in one spruce field. */
+  /* ExecFlow Deep Field dark: the workbench sits in one spruce field. */
   --bg: #13201b;
   --surface: #152a22;
   --surface-raised: #1e322a;
@@ -148,7 +148,7 @@
 }
 
 :root[data-palette="signal"] {
-  /* CodeEditor Signal light, the default (Workbench Pro ladder, 2026-10-29): a quiet slate frame on
+  /* ExecFlow Signal light, the default (Workbench Pro ladder, 2026-10-29): a quiet slate frame on
      --surface, the code on a white card, one electric blue for the action and location, a teal
      focus, red for errors only. The output panel is the dark console (the block after the dark one). */
   --bg: #ffffff;
@@ -199,7 +199,7 @@
 }
 
 :root[data-palette="signal"][data-theme="dark"] {
-  /* CodeEditor Signal dark: a near-black frame, the code on a slate card with a 1 px edge 1.60:1 off
+  /* ExecFlow Signal dark: a near-black frame, the code on a slate card with a 1 px edge 1.60:1 off
      the frame, the console darker still; the pale blue Run is the brightest object. */
   --bg: #15181d;
   --surface: #0b0d10;
@@ -302,7 +302,7 @@
 }
 
 :root[data-palette="slate"] {
-  /* CodeEditor Slate light (the picker theme kept from v1, on contract v2). */
+  /* ExecFlow Slate light (the picker theme kept from v1, on contract v2). */
   --bg: #fdfdff;
   --surface: #f6f8fa;
   --surface-raised: #eff1f5;
@@ -350,7 +350,7 @@
 }
 
 :root[data-palette="slate"][data-theme="dark"] {
-  /* CodeEditor Slate dark. */
+  /* ExecFlow Slate dark. */
   --bg: #0e1217;
   --surface: #14171d;
   --surface-raised: #1b1f27;

@@ -29,8 +29,8 @@ function stateWith(doc: string, ranges: [number, number][]) {
 const plan = (first: number, last: number, gaps = false): LineSpan => ({ ok: true, first, last, gaps });
 /** The round-2 defaults with no line highlighted. */
 const DEFAULTS: ImageOptions = { ...DEFAULT_IMAGE_OPTIONS, highlight: [] };
-/** Round 2's default look, as the label says it, with batch 4's "Made with CodeEditor" line (on by default). */
-const LOOK = 'Plain frame, medium background, "Made with CodeEditor" under the card';
+/** Round 2's default look, as the label says it, with batch 4's "Made with ExecFlow" line (on by default). */
+const LOOK = 'Plain frame, medium background, "Made with ExecFlow" under the card';
 
 describe("pickLines", () => {
   it.each([
@@ -115,20 +115,20 @@ describe("labels", () => {
 describe("colorChoices", () => {
   const labels = (p: PaintInfo) => colorChoices(p).map((c) => [c.value, c.label]);
   it("own palettes name the scheme", () => {
-    expect(labels({ family: "signal", scheme: "light", themeName: "CodeEditor Signal (match device)" })).toEqual([
+    expect(labels({ family: "signal", scheme: "light", themeName: "ExecFlow Signal (match device)" })).toEqual([
       ["match", "Match the editor (light)"], ["light", "Light"], ["dark", "Dark"],
     ]);
-    expect(labels({ family: "deep-field", scheme: "dark", themeName: "CodeEditor Deep Field Dark" })).toEqual([
+    expect(labels({ family: "deep-field", scheme: "dark", themeName: "ExecFlow Deep Field Dark" })).toEqual([
       ["match", "Match the editor (dark)"], ["light", "Light"], ["dark", "Dark"],
     ]);
-    expect(labels({ family: "slate", scheme: "light", themeName: "CodeEditor Slate Light" })).toEqual([
+    expect(labels({ family: "slate", scheme: "light", themeName: "ExecFlow Slate Light" })).toEqual([
       ["match", "Match the editor (light)"], ["light", "Light"], ["dark", "Dark"],
     ]);
   });
 
   it("palette themes name the theme and offer the default's (Signal's) two schemes", () => {
     expect(labels({ family: "palette", scheme: "dark", themeName: "High contrast" })).toEqual([
-      ["match", "Match the editor (High contrast)"], ["light", "CodeEditor Signal Light"], ["dark", "CodeEditor Signal Dark"],
+      ["match", "Match the editor (High contrast)"], ["light", "ExecFlow Signal Light"], ["dark", "ExecFlow Signal Dark"],
     ]);
     expect(colorChoices({ family: "palette", scheme: "light", themeName: `Mine${RLO}` })[0].label).toBe("Match the editor (Mine[U+202E])");
     expect(colorChoices({ family: "palette", scheme: "light", themeName: null })[0].label).toBe("Match the editor");
@@ -136,11 +136,11 @@ describe("colorChoices", () => {
 });
 
 describe("previewLabel", () => {
-  const own: PaintInfo = { family: "deep-field", scheme: "light", themeName: "CodeEditor Deep Field Light" };
+  const own: PaintInfo = { family: "deep-field", scheme: "light", themeName: "ExecFlow Deep Field Light" };
   const pal: PaintInfo = { family: "palette", scheme: "dark", themeName: "Dracula" };
   const phrase = {
     own: { match: "in the editor's colours", light: "in light colours", dark: "in dark colours" },
-    palette: { match: "in the editor's colours", light: "in CodeEditor Signal Light colours", dark: "in CodeEditor Signal Dark colours" },
+    palette: { match: "in the editor's colours", light: "in ExecFlow Signal Light colours", dark: "in ExecFlow Signal Dark colours" },
   } as const;
 
   it("pins five labels exactly", () => {
@@ -148,16 +148,16 @@ describe("previewLabel", () => {
       `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}.`,
     );
     expect(previewLabel(plan(7, 7), "main.py", { ...DEFAULTS, colors: "light", numbers: false, name: false }, pal, false)).toBe(
-      `Preview of main.py, line 7, in CodeEditor Signal Light colours; line numbers hidden; file name hidden. ${LOOK}.`,
+      `Preview of main.py, line 7, in ExecFlow Signal Light colours; line numbers hidden; file name hidden. ${LOOK}.`,
     );
     expect(previewLabel(plan(4, 12), "main.py", DEFAULTS, own, true)).toBe(
       `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}. Some colours are missing.`,
     );
     expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, frame: "window", background: false, highlight: [3, 5, 6, 7] }, own, false)).toBe(
-      `Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Window frame, no background, highlighted: line 3, lines 5 to 7, "Made with CodeEditor" at the card's foot.`,
+      `Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Window frame, no background, highlighted: line 3, lines 5 to 7, "Made with ExecFlow" at the card's foot.`,
     );
     expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, padding: "large", scale: 3 }, own, false)).toBe(
-      `Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Plain frame, large background, "Made with CodeEditor" under the card.`,
+      `Preview of main.py, lines 2 to 9, in the editor's colours; line numbers shown; file name shown. Plain frame, large background, "Made with ExecFlow" under the card.`,
     );
     // With the line off, round 2's label exactly.
     expect(previewLabel(plan(2, 9), "main.py", { ...DEFAULTS, mark: false }, own, false)).toBe(

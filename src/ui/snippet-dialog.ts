@@ -3,7 +3,7 @@
 // lazy chunk with its stylesheet: the preview (the export bitmap itself, named by its text
 // alternative, the whole image fitted to its sunken stage, or 1:1 with "Actual size" in the stage's
 // bar), the options rail (Colours as swatch chips; Show as switches: line numbers, file name, the
-// "Made with CodeEditor" line; Highlight lines; then Background, Frame and Scale as segmented radio
+// "Made with ExecFlow" line; Highlight lines; then Background, Frame and Scale as segmented radio
 // groups), and the PNG's size, the status, Download (.png) and Copy image in a footer that never
 // scrolls away. Side by side from 900 px wide (the stage left, the options in a 360 px rail), a
 // full-screen stacked sheet below that, and compact (the dialog the one scroller) in very short windows.

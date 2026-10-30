@@ -128,7 +128,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         // Still starting up: nothing can be unsaved yet (and the editor state below isn't set up).
         if (root.dataset.state !== "ready") {
           close();
-          notice.show("CodeEditor's data on this computer changed in another tab. Reload to continue.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
+          notice.show("ExecFlow's data on this computer changed in another tab. Reload to continue.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
           return;
         }
         // Being deleted: another tab is clearing this computer (a tab that missed its message).
@@ -140,11 +140,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         void saves.flushAll().finally(() => {
           close();
           editors.setReadOnly(true);
-          notice.show("A newer version of CodeEditor was opened in another tab.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
+          notice.show("A newer version of ExecFlow was opened in another tab.", { tone: "warning", action: { label: "Reload", run: () => location.reload() } });
         });
       },
       onTerminated() {
-        notice.show("The browser closed CodeEditor's storage (it may have been cleared). Reload to continue.", { action: { label: "Reload", run: () => location.reload() } });
+        notice.show("The browser closed ExecFlow's storage (it may have been cleared). Reload to continue.", { action: { label: "Reload", run: () => location.reload() } });
       },
     });
     store = createWorkspaceStore(db, { canWrite: () => tab?.canWrite() ?? false });
@@ -157,8 +157,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       h(
         "div",
         { class: "empty-state", "data-empty": "storage" },
-        h("h2", { class: "empty-title" }, "CodeEditor can't open its storage"),
-        h("p", { class: "empty-lede" }, isVersionError(e) ? "A newer version of CodeEditor is open in another tab. Reload this page." : `This browser refused to keep files for this site (${errorText(e)}). A private window or blocked site data can cause this.`),
+        h("h2", { class: "empty-title" }, "ExecFlow can't open its storage"),
+        h("p", { class: "empty-lede" }, isVersionError(e) ? "A newer version of ExecFlow is open in another tab. Reload this page." : `This browser refused to keep files for this site (${errorText(e)}). A private window or blocked site data can cause this.`),
       ),
     );
     return;
@@ -2117,9 +2117,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const ok = await confirmDialog({
       title: "Sign out and clear this computer?",
       body: [
-        "This removes every file, setting and saved GitHub token CodeEditor keeps in this browser, then reloads the page.",
+        "This removes every file, setting and saved GitHub token ExecFlow keeps in this browser, then reloads the page.",
         "Files already synced to GitHub stay in the repository. Anything not synced is lost: export it first if you need it.",
-        "On a shared computer, also sign out of github.com: the browser's GitHub session isn't CodeEditor's and stays signed in.",
+        "On a shared computer, also sign out of github.com: the browser's GitHub session isn't ExecFlow's and stays signed in.",
       ],
       confirm: "Clear this computer",
       danger: true,
@@ -2132,7 +2132,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     await sync.signOut().catch(() => {});
     await tab?.close().catch(() => {});
     try {
-      await deleteAllLocalData({ close: [db], onBlocked: () => notice.show("Close CodeEditor's other tabs to finish clearing this computer.", { tone: "warning" }) });
+      await deleteAllLocalData({ close: [db], onBlocked: () => notice.show("Close ExecFlow's other tabs to finish clearing this computer.", { tone: "warning" }) });
       const { deleteSecretsDb } = await import("../sync/token-store");
       await deleteSecretsDb();
     } catch (e) {
@@ -2193,7 +2193,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         h(
           "div",
           { class: "start-failed empty-state", role: "alert", "data-empty": "cleared" },
-          h("h1", { class: "empty-title" }, "CodeEditor was cleared in another tab"),
+          h("h1", { class: "empty-title" }, "ExecFlow was cleared in another tab"),
           h("p", { class: "empty-lede" }, "The files, settings and GitHub sign-in it kept in this browser are gone from this tab too. Reload to start again."),
           reload,
         ),
@@ -2206,7 +2206,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // A new version was downloaded in the background: reload only when the user says so.
   document.addEventListener("codeeditor:update-ready", (e) => {
     const apply = (e as CustomEvent<() => void>).detail;
-    notice.show("A new version of CodeEditor is ready.", {
+    notice.show("A new version of ExecFlow is ready.", {
       tone: "info",
       action: { label: "Reload now", run: () => void saves.flushAll().then(() => apply()) },
     });
@@ -2343,7 +2343,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // A workspace made before this page loaded means this student has been here before.
   const updated = whatsNew(browserStore, __APP_VERSION__, record.createdAt < performance.timeOrigin);
   if (updated) {
-    notice.show(`Updated to CodeEditor ${updated}.`, {
+    notice.show(`Updated to ExecFlow ${updated}.`, {
       tone: "info",
       action: { label: "What's new", run: () => void window.open("/about#changelog", "_blank", "noopener,noreferrer") },
       pin: { key: "whats-new" },

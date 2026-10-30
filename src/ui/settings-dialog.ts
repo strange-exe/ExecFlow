@@ -178,7 +178,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const connect = h("button", { type: "button", class: "btn", id: "settings-connect" }, icon("github-logo"), "Connect GitHub");
   const disconnect = h("button", { type: "button", class: "btn", id: "settings-disconnect" }, icon("cloud-slash"), "Disconnect GitHub");
   const withMessage = h("button", { type: "button", class: "btn", id: "settings-sync-message" }, icon("cloud-arrow-up"), "Sync with a message...");
-  const autoSync = toggle("Sync automatically", s().autoSync, "A minute after your last change, while CodeEditor is open in front. Ctrl+S and the sync status sync at once.", "set-autosync");
+  const autoSync = toggle("Sync automatically", s().autoSync, "A minute after your last change, while ExecFlow is open in front. Ctrl+S and the sync status sync at once.", "set-autosync");
   autoSync.input.addEventListener("change", () => set({ autoSync: autoSync.input.checked }));
   connect.addEventListener("click", () => {
     dialog.close();
@@ -232,7 +232,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       "danger",
       "Danger zone",
       h("div", { class: "danger-box" },
-        h("p", { class: "danger-text" }, h("strong", null, "Clear this computer. "), "For shared computers: removes every file, setting and saved GitHub token CodeEditor keeps in this browser. Files already synced to GitHub stay there."),
+        h("p", { class: "danger-text" }, h("strong", null, "Clear this computer. "), "For shared computers: removes every file, setting and saved GitHub token ExecFlow keeps in this browser. Files already synced to GitHub stay there."),
         h("div", { class: "row-actions" }, clear),
       ),
     ),
@@ -311,11 +311,11 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   // ---------------------------------------------------------------- the foot
   // The legal pages open in a new tab, so nothing typed here is left behind. Then the version (the
   // build injects it) and the About page's list of changes.
-  const version = h("p", { class: "field-note settings-version", id: "settings-version" }, `CodeEditor ${__APP_VERSION__}. `, legalLink("/about#changelog", "What's new"));
+  const version = h("p", { class: "field-note settings-version", id: "settings-version" }, `ExecFlow ${__APP_VERSION__}. `, legalLink("/about#changelog", "What's new"));
   const foot = h(
     "div",
     { class: "settings-foot" },
-    h("p", { class: "field-note settings-legal" }, "What CodeEditor keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
+    h("p", { class: "field-note settings-legal" }, "What ExecFlow keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
     version,
   );
   body.before(nav);

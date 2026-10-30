@@ -1,4 +1,4 @@
-# CodeEditor
+# ExecFlow
 
 A personal code editor for Python, C and C++ that runs programs in the browser. Files live in
 folders in a workspace kept in the browser's storage (IndexedDB), and can be kept in a private
@@ -42,7 +42,7 @@ and logs nothing, and syncing never goes through it.
   (or none: the code card alone, with transparent corners), a plain or window frame (a title bar
   with the file name), the scale (1x, 2x or 3x; the exact pixel size is shown, and a scale too big
   for one image steps down and says so), and lines to highlight ("3-5, 8": a band behind those
-  lines; nothing else is dimmed), and a small "Made with CodeEditor" line under the card (on by
+  lines; nothing else is dimmed), and a small "Made with ExecFlow" line under the card (on by
   default; turn it off under Show). The options are remembered on this device; the highlighted
   lines are not. Nothing is sent anywhere: the image is made in the browser and works offline.
 - Save as PDF... (in More file actions and the search): choose one or more files, then the
@@ -50,7 +50,7 @@ and logs nothing, and syncing never goes through it.
   editor's syntax colours, in print-safe dark ink on white by default (or the editor's own colours),
   with line numbers (optional); long lines wrap with a continuation mark, and each file starts on a
   new page under its path. A footer (on by default) gives the file, the date and "Made with
-  CodeEditor" on every page, and in Chrome and Edge the page number ("Page 2 of 5"). Firefox and
+  ExecFlow" on every page, and in Chrome and Edge the page number ("Page 2 of 5"). Firefox and
   Safari can't number pages for a web page: there the footer has no page number and is printed
   with each file's code (their print dialog can add its own page numbers). Works offline; the PDF
   is made by the browser, so its text can be selected and searched.
@@ -175,14 +175,14 @@ GitHub's new-repository page with Private chosen ("No repository yet? Create a p
 **Sign in with GitHub** (where the site owner has set it up, below). Once:
 
 1. Connect GitHub, then Sign in with GitHub. GitHub asks you to pick an account and to authorize
-   CodeEditor: choose Authorize.
-2. Back in CodeEditor, if no repository is listed: choose "Choose a repository on GitHub", pick your
+   ExecFlow: choose Authorize.
+2. Back in ExecFlow, if no repository is listed: choose "Choose a repository on GitHub", pick your
    account, choose **Only select repositories**, pick one repository (private; it can be empty),
-   then Install. Come back to the CodeEditor tab: the repository shows up.
+   then Install. Come back to the ExecFlow tab: the repository shows up.
 3. Pick it and choose Connect. A repository owned by an organisation may need the organisation's
-   owner to approve CodeEditor first.
+   owner to approve ExecFlow first.
 
-- CodeEditor is a GitHub App that asks only for **Contents: Read and write** (and the Metadata read
+- ExecFlow is a GitHub App that asks only for **Contents: Read and write** (and the Metadata read
   GitHub adds). It reaches only the repositories you installed it on, and only if you can reach
   them too; the list warns when it can reach more than one.
 - The sign-in lasts 8 hours and renews itself (GitHub's refresh token lasts 6 months and changes at
@@ -190,13 +190,13 @@ GitHub's new-repository page with Private chosen ("No repository yet? Create a p
   device" (off by default; leave it off on a shared computer) keeps it encrypted (AES-GCM with a
   non-extractable key) in its own IndexedDB database, so the next visit syncs by itself. Disconnect asks GitHub to revoke
   this device's token and deletes it here; if GitHub can't be reached, the token stops working by
-  itself within 8 hours, or you can revoke CodeEditor in your GitHub settings (Applications,
+  itself within 8 hours, or you can revoke ExecFlow in your GitHub settings (Applications,
   Authorized GitHub Apps). On a shared computer, also sign out of github.com: your GitHub session in the browser
-  isn't CodeEditor's.
+  isn't ExecFlow's.
 - What the relay sees: to sign in and to renew, the browser sends the one-time code (with the PKCE
   verifier) or the refresh token to `/api/auth/*` on this same site, which adds the app's client
   secret, asks GitHub, and passes the tokens back. It stores and logs nothing. Syncing goes straight
-  from the browser to `https://api.github.com`. GitHub lists CodeEditor under your Authorized
+  from the browser to `https://api.github.com`. GitHub lists ExecFlow under your Authorized
   GitHub Apps, and the app's owner can see which accounts installed it; the owner has no private
   key for the app, so they can't act on your repositories without your token. Install apps only
   from owners you trust.
@@ -216,13 +216,13 @@ with the name, Contents and a 90-day expiry filled in; you pick the repository t
   syncs.
 - Each commit is named after the files it changes, for example `Add lab3/q2.c, update main.py
   and 2 more` (at most 72 characters), with `Added:`, `Changed:` and `Deleted:` lists below (one
-  file per line, up to 20 per list, then `and N more`) and a `From: <browser> (CodeEditor)` line
+  file per line, up to 20 per list, then `and N more`) and a `From: <browser> (ExecFlow)` line
   last. A file name that could read as part of the title (one with a comma, "and" or quotes) is
   quoted there. To write your own title, choose "Sync now with a
   message..." in the command palette (F1) or "Sync with a message..." in Settings: what you type
   (one line, up to 72 characters) replaces the title of that one sync's commit, and the file lists
   stay. Ctrl+S and automatic syncs never ask. If there is nothing to upload, or the sync fails,
-  no commit carries the message; CodeEditor says so and offers the text again next time.
+  no commit carries the message; ExecFlow says so and offers the text again next time.
 - A file changed on both sides keeps GitHub's version under its name, and yours is saved next to
   it as `name.conflict-YYYYMMDD-HHMMSS.ext`, here and in the repository: nothing is lost. The same
   happens when a sync brings in a new version of a file while you are typing in it: the tab shows
@@ -233,7 +233,7 @@ with the name, Contents and a 90-day expiry filled in; you pick the repository t
   computer and the repository have different versions of the same file, you choose: merge
   (conflict copies), the repository's versions, or this computer's.
 - Offline, changes stay here and sync once the connection is back. When GitHub limits requests,
-  CodeEditor waits as long as GitHub says, then twice as long, and stops after 3 tries.
+  ExecFlow waits as long as GitHub says, then twice as long, and stops after 3 tries.
 
 ### Sharing a file
 
@@ -243,7 +243,7 @@ Share link... asks how to share, then copies the link. Nothing is shared until y
   the link itself (`#code=1.<data>`). The part after `#` is never sent to a server, so nothing is
   uploaded and anyone can open it. A link holds up to 8000 characters, so chat apps keep it
   whole; a file too long for one says so. Copy with title copies it as
-  a titled link ("Open main.py in CodeEditor") for documents and mail, and Show QR code draws it
+  a titled link ("Open main.py in ExecFlow") for documents and mail, and Show QR code draws it
   to scan from a screen. Opening a code link shows a read-only preview first; Add puts it in your
   files under a free name, and it never runs by itself. Damaged links, links whose content would
   unpack beyond 256 KB, names that aren't a single safe file name, and text that isn't plain text
@@ -255,7 +255,7 @@ Share link... asks how to share, then copies the link. Nothing is shared until y
   answer and the connection doesn't record it). Nothing is sent to make it and no new permission is needed. A
   file with changes that aren't on GitHub yet, or that never synced, shows Sync now first, so the
   link always shows what you see. A read-only tab doesn't share; the tab that edits does.
-- **Anyone with the link (a secret gist)**: CodeEditor copies the file into a new secret gist on
+- **Anyone with the link (a secret gist)**: ExecFlow copies the file into a new secret gist on
   your GitHub account, only when you press Create link. GitHub's own words: "Secret gists aren't
   private" ([Creating gists](https://docs.github.com/en/get-started/writing-on-github/editing-and-sharing-content-with-gists/creating-gists)):
   anyone with the link can open it without signing in; it just isn't listed or searchable. The
@@ -270,7 +270,7 @@ Share link... asks how to share, then copies the link. Nothing is shared until y
     "User permissions for Gists"). A classic token: the **gist** scope
     ([scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)).
   - Either way this lets the token create, change and delete any of your gists, not only the ones
-    CodeEditor made. Without it, the repository link still works and the dialog says what is missing.
+    ExecFlow made. Without it, the repository link still works and the dialog says what is missing.
 
 ### Setting up Sign in with GitHub (the site's owner, once)
 
@@ -279,8 +279,8 @@ Without these steps the site still works: the Connect dialog shows only the toke
 On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
 ([GitHub's guide](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)).
 
-1. **Name**: unique on GitHub, at most 34 characters (e.g. "CodeEditor Sync" and your name).
-   **Description**: "Saves your CodeEditor workspace to a GitHub repository you choose and opens it again
+1. **Name**: unique on GitHub, at most 34 characters (e.g. "ExecFlow Sync" and your name).
+   **Description**: "Saves your ExecFlow workspace to a GitHub repository you choose and opens it again
    on any computer. Your code runs in your browser; the app reads and writes files only in the
    repositories you install it on." With Gists on (step 6), add: "Share link also makes secret gists
    when you ask it to." **Homepage URL**: the production site.
@@ -292,7 +292,7 @@ On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
 5. **Setup URL**: empty; **Redirect on update**: off. **Webhook**: untick Active.
 6. **Permissions**: Repository, Contents: **Read and write**; check that Metadata shows Read-only.
    For Share link's public link (a secret gist), also Account permissions, **Gists: Read and
-   write**; leave it at No access if students shouldn't make gists from CodeEditor (the repository
+   write**; leave it at No access if students shouldn't make gists from ExecFlow (the repository
    link works without it). Everything else No access (no Organization permissions, no other Account
    permissions, no Workflows).
 7. **Where can this GitHub App be installed**: **Any account** (classmates install it on their own
@@ -331,7 +331,7 @@ the new permissions are approved", and that for account permissions the app prom
 reauthorize ([Modifying a GitHub App registration](https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration),
 "Changing the permissions of a GitHub App";
 [Approving updated permissions](https://docs.github.com/en/apps/using-github-apps/approving-updated-permissions-for-a-github-app)).
-In CodeEditor that means: a signed-in student who presses Create link gets a sentence saying the
+In ExecFlow that means: a signed-in student who presses Create link gets a sentence saying the
 sign-in can't create gists yet; Disconnect, then Sign in with GitHub again, and approve on GitHub's
 page. Their sync keeps working meanwhile. A user access token only ever has what both the app and
 the user allow ([Choosing permissions for a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app)).
@@ -398,7 +398,7 @@ own `postMessage` removed before any program starts (a program can't send the pa
 
 ## Privacy, terms and licences
 
-The site's [Privacy](https://execflow.abhinesh.codes/privacy) page says what CodeEditor keeps and
+The site's [Privacy](https://execflow.abhinesh.codes/privacy) page says what ExecFlow keeps and
 sends; [Terms](https://execflow.abhinesh.codes/terms) are the rules for using it. Both are linked
 from Settings. The build writes `/licenses.txt` with every licence text the site's files ship under
 (`vite.config.ts`, `thirdPartyLicenses`); a bundled npm package without a licence file stops the build.
@@ -435,7 +435,7 @@ from the old address to the new one ends the move (the old address's notice then
 
 ## Third-party software
 
-CodeEditor bundles or downloads the following. Their licences apply to their parts.
+ExecFlow bundles or downloads the following. Their licences apply to their parts.
 
 | Software | Licence | Used for |
 |---|---|---|
@@ -463,9 +463,9 @@ CodeEditor bundles or downloads the following. Their licences apply to their par
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto
-CodeEditor's colours and adjusted where a colour pair would be hard to read. The table lists all 36
-palette themes; High contrast, like CodeEditor Signal (the default), CodeEditor Deep Field and CodeEditor
-Slate, is CodeEditor's own:
+ExecFlow's colours and adjusted where a colour pair would be hard to read. The table lists all 36
+palette themes; High contrast, like ExecFlow Signal (the default), ExecFlow Deep Field and ExecFlow
+Slate, is ExecFlow's own:
 
 | Theme | Source | Licence |
 |---|---|---|
@@ -487,4 +487,4 @@ Slate, is CodeEditor's own:
 | Vitesse Dark, Vitesse Light | [antfu/vscode-theme-vitesse](https://github.com/antfu/vscode-theme-vitesse) | MIT |
 | Flexoki Dark, Flexoki Light | [kepano/flexoki](https://github.com/kepano/flexoki) ([stephango.com/flexoki](https://stephango.com/flexoki)) | MIT |
 | Nightfox | [EdenEast/nightfox.nvim](https://github.com/EdenEast/nightfox.nvim) | MIT |
-| High contrast | CodeEditor (this repository) | MIT (`LICENSE`) |
+| High contrast | ExecFlow (this repository) | MIT (`LICENSE`) |

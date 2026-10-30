@@ -13,10 +13,10 @@ const ORIGIN = "https://execflow.abhinesh.codes";
 const OLD_ORIGIN = "https://code-editor.abhinesh.codes";
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const PAGES = [
-  { path: "/", title: "CodeEditor: free online Python, C and C++ compiler" },
-  { path: "/about", title: "About CodeEditor: run Python, C and C++ in your browser" },
-  { path: "/privacy", title: "Privacy - CodeEditor" },
-  { path: "/terms", title: "Terms - CodeEditor" },
+  { path: "/", title: "ExecFlow: free online Python, C and C++ compiler" },
+  { path: "/about", title: "About ExecFlow: run Python, C and C++ in your browser" },
+  { path: "/privacy", title: "Privacy - ExecFlow" },
+  { path: "/terms", title: "Terms - ExecFlow" },
 ] as const;
 // The 404s below are the point of these tests; each engine reports the page's own 404 in its words.
 const NOT_FOUND_NOISE = tolerating(
@@ -39,7 +39,7 @@ test.describe("search and sharing", () => {
       expect(head.meta["og:url"]).toBe(ORIGIN + p.path);
       expect(head.meta["og:title"]).toBe(p.title);
       expect(head.meta["og:description"]).toBe(head.meta["description"]);
-      expect(head.meta["og:site_name"]).toBe("CodeEditor");
+      expect(head.meta["og:site_name"]).toBe("ExecFlow");
       expect(head.meta["twitter:card"]).toBe("summary_large_image");
       const image = head.meta["og:image"]!;
       expect(head.meta["twitter:image"]).toBe(image);
@@ -67,10 +67,10 @@ test.describe("search and sharing", () => {
     expect(app.image.startsWith(`${ORIGIN}/media/social-card.`)).toBe(true);
     // The old address appears only as that alternate name, never as an address to follow.
     expect(blocks[0].split(OLD_ORIGIN)).toHaveLength(1);
-    await expect(page.getByRole("heading", { level: 1, name: "CodeEditor" })).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 1, name: "ExecFlow" })).toHaveCount(1);
   });
 
-  test("without JavaScript, the home page says what CodeEditor is and links to About, Privacy and Terms; with it, that text is gone", async ({ browser, page }) => {
+  test("without JavaScript, the home page says what ExecFlow is and links to About, Privacy and Terms; with it, that text is gone", async ({ browser, page }) => {
     const off = await browser.newContext({ javaScriptEnabled: false });
     const plain = await off.newPage();
     await plain.goto("/");
@@ -78,7 +78,7 @@ test.describe("search and sharing", () => {
     await expect(summary).toBeVisible();
     await expect(summary).toContainText("Python, C and C++");
     await expect(summary).toContainText("nothing to install");
-    for (const name of ["About CodeEditor", "Privacy", "Terms"]) await expect(summary.getByRole("link", { name })).toBeVisible();
+    for (const name of ["About ExecFlow", "Privacy", "Terms"]) await expect(summary.getByRole("link", { name })).toBeVisible();
     await off.close();
     await openApp(page);
     await expect(page.getByText("nothing to install")).toHaveCount(0);
@@ -97,7 +97,7 @@ test.describe("search and sharing", () => {
       await expect(about).toHaveCount(1);
       await expect(about).toBeVisible();
       await expect(about).toBeInViewport();
-      await expect(about).toHaveAccessibleName("About CodeEditor");
+      await expect(about).toHaveAccessibleName("About ExecFlow");
       await expect(page.locator(vp.width < 900 ? ".statusbar" : ".sidebar-foot").locator('a[href="/about"]')).toHaveCount(1);
       // A 24 px target at least, and a visible focus ring from the keyboard.
       const r = (await about.boundingBox())!;
@@ -139,11 +139,11 @@ test.describe("the 404 page", () => {
         expect(res?.status()).toBe(404);
         if (scheme === "dark") await openIn(page, "/no/such/page", scheme);
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-        await expect(page).toHaveTitle("Page not found - CodeEditor");
+        await expect(page).toHaveTitle("Page not found - ExecFlow");
         await expect(page.getByRole("heading", { level: 1 })).toHaveText("Page not found");
         await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
         await expect(page.getByRole("main").getByRole("link", { name: "Open the editor" })).toBeVisible();
-        await expect(page.getByRole("main").getByRole("link", { name: "About CodeEditor" })).toBeVisible();
+        await expect(page.getByRole("main").getByRole("link", { name: "About ExecFlow" })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
         const axe = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
         expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}`)).toEqual([]);

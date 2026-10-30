@@ -71,10 +71,10 @@ export async function listReachable(token: string, fetchImpl: Fetch = (i, init) 
     try {
       return await res.json();
     } catch {
-      throw new GitHubError("server", res.status, op, "GitHub sent an answer CodeEditor couldn't read");
+      throw new GitHubError("server", res.status, op, "GitHub sent an answer ExecFlow couldn't read");
     }
   }
-  const unreadable = (op: GitHubOp) => new GitHubError("server", 200, op, "GitHub sent an answer CodeEditor couldn't read");
+  const unreadable = (op: GitHubOp) => new GitHubError("server", 200, op, "GitHub sent an answer ExecFlow couldn't read");
 
   const user = await get("getUser", "/user");
   const login = field(user, "login");

@@ -68,7 +68,7 @@ export interface SyncController {
 }
 
 /**
- * GitHub's Applications settings, whose Authorized GitHub Apps tab ends CodeEditor's sign-in
+ * GitHub's Applications settings, whose Authorized GitHub Apps tab ends ExecFlow's sign-in
  * (docs: Settings, Integrations, Applications, Authorized GitHub Apps; the docs give no direct URL).
  * https://docs.github.com/en/apps/using-github-apps/reviewing-and-revoking-authorization-of-github-apps
  */
@@ -91,9 +91,9 @@ function signInFailure(error: unknown): { ok: false; message: string; openToken?
     case "unverified_user_email":
       return { ok: false, message: "GitHub lets apps sign in only for accounts with a verified email address: verify yours in GitHub's email settings, then sign in again." };
     case "access_denied":
-      return { ok: false, message: "Signing in was cancelled on GitHub, so CodeEditor isn't connected. Sign in again when you're ready." };
+      return { ok: false, message: "Signing in was cancelled on GitHub, so ExecFlow isn't connected. Sign in again when you're ready." };
     case "network":
-      return { ok: false, message: "CodeEditor couldn't reach its sign-in service, so check the internet connection and sign in again." };
+      return { ok: false, message: "ExecFlow couldn't reach its sign-in service, so check the internet connection and sign in again." };
     default:
       return { ok: false, message: "Signing in with GitHub isn't working on this site right now, so use a token instead.", openToken: true };
   }
@@ -417,8 +417,8 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     if (retryable(e)) {
       const last = scheduler.failures + 1 >= MAX_FAILURES;
       // A retry by itself writes an automatic message: the typed one belonged to this attempt.
-      if (manual || scheduler.failures === 0) host.notice.show(`Sync failed: ${sentence}${last ? "" : " CodeEditor tries again by itself."}${lost}`, { action: tryAgain });
-      else if (last) host.notice.show(`Sync failed: ${sentence} CodeEditor stopped trying after ${MAX_FAILURES} attempts.`, { action: tryAgain });
+      if (manual || scheduler.failures === 0) host.notice.show(`Sync failed: ${sentence}${last ? "" : " ExecFlow tries again by itself."}${lost}`, { action: tryAgain });
+      else if (last) host.notice.show(`Sync failed: ${sentence} ExecFlow stopped trying after ${MAX_FAILURES} attempts.`, { action: tryAgain });
       return { kind: "retry", retryAfterMs: e instanceof GitHubError ? e.retryAfterMs : undefined };
     }
     host.notice.show(`Sync failed: ${sentence}${lost}`, { action: tryAgain });
@@ -554,7 +554,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     if (!navigator.onLine) return { message: OFFLINE_SIGN_IN };
     const config = await readConfig();
     if (config.state === "absent") return { message: "Signing in with GitHub isn't set up on this site, so use a token instead.", openToken: true };
-    if (config.state === "unreachable") return { message: "CodeEditor couldn't reach its sign-in service, so check the internet connection and try again, or use a token instead." };
+    if (config.state === "unreachable") return { message: "ExecFlow couldn't reach its sign-in service, so check the internet connection and try again, or use a token instead." };
     // Everything typed is saved before the page leaves for GitHub (the workspace is in IndexedDB).
     await host.flushSaves().catch(() => {});
     let url: string;
@@ -716,7 +716,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       body: [
         "This computer stops syncing with the repository. Your files stay here and on GitHub.",
         app
-          ? "The GitHub sign-in on this device ends: CodeEditor asks GitHub to revoke its token and deletes it here."
+          ? "The GitHub sign-in on this device ends: ExecFlow asks GitHub to revoke its token and deletes it here."
           : remembered
             ? "The token remembered on this device is deleted."
             : "The token is forgotten.",
@@ -751,7 +751,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
     if (revoked === false) {
       // Offline, or the sign-in service didn't answer: the token is gone from here, not from GitHub yet.
       host.notice.show(
-        `Disconnected from ${repo}. GitHub couldn't be reached to end the sign-in, so it stops working by itself within 8 hours; to end it now, revoke CodeEditor in GitHub's settings (Applications, Authorized GitHub Apps).`,
+        `Disconnected from ${repo}. GitHub couldn't be reached to end the sign-in, so it stops working by itself within 8 hours; to end it now, revoke ExecFlow in GitHub's settings (Applications, Authorized GitHub Apps).`,
         { tone: "warning", action: { label: "Open GitHub settings", run: () => void open(AUTHORIZED_APPS_URL, "_blank", "noopener,noreferrer") } },
       );
       return;

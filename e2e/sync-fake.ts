@@ -212,7 +212,7 @@ export async function routeSignIn(page: Page, o: SignInOptions = {}) {
   }
   await page.route("https://github.com/login/oauth/authorize**", (route) => {
     authorize.push(route.request().url());
-    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>GitHub stand-in</title><p>Authorize CodeEditor (test stand-in)</p>" });
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>GitHub stand-in</title><p>Authorize ExecFlow (test stand-in)</p>" });
   });
   // The account endpoints (registered after routeGitHub's catch-all, so these win).
   const cors = { "access-control-allow-origin": "*", "content-type": "application/json; charset=utf-8" };

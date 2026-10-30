@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Run Python online in your browser | CodeEditor</title>
+    <title>Run Python online in your browser | ExecFlow</title>
     <meta name="description" content="Run Python 3.14 in your browser, nothing to install: input() waits for you, numpy and pandas load on import, and errors are explained in plain words." />
     <link rel="canonical" href="https://execflow.abhinesh.codes/python" />
     <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="CodeEditor" />
+    <meta property="og:site_name" content="ExecFlow" />
     <meta property="og:title" content="Run Python online in your browser" />
     <meta property="og:description" content="Python 3.14 in your browser through Pyodide: input(), numpy and pandas, plain-language error help, no sign-up." />
     <meta property="og:url" content="https://execflow.abhinesh.codes/python" />
@@ -26,7 +26,7 @@
   <body class="about guide">
     <a class="about-skip" href="#content">Skip to the content</a>
     <header class="about-head">
-      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" />CodeEditor</a>
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
       <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
     </header>
     <nav class="guide-nav" aria-label="Guides">
@@ -42,7 +42,7 @@
       <section class="guide-hero" aria-labelledby="title">
         <h1 id="title">Run Python online in your browser</h1>
         <p class="about-lede">
-          CodeEditor runs real Python, the CPython interpreter compiled to WebAssembly, inside your browser tab. There is
+          ExecFlow runs real Python, the CPython interpreter compiled to WebAssembly, inside your browser tab. There is
           nothing to install and no account to make. A program that calls <code>input()</code> waits for you to type,
           and when it fails, the error comes with an explanation in plain words.
         </p>
@@ -71,8 +71,8 @@
       <section aria-labelledby="examples">
         <h2 id="examples">Examples, with what they really printed</h2>
         <p>
-          Each program below was run in CodeEditor, and the output is copied from it exactly, including what was typed.
-          <strong>Open in CodeEditor</strong> shows the program in CodeEditor as a preview first.
+          Each program below was run in ExecFlow, and the output is copied from it exactly, including what was typed.
+          <strong>Open in ExecFlow</strong> shows the program in ExecFlow as a preview first.
           <strong>Add to my files</strong> puts it in the editor, where you can change it and run it; nothing runs until
           you press Run.
         </p>
@@ -110,7 +110,7 @@
           <h3 id="ex-error">An error, explained</h3>
           <p>
             A mistake almost every beginner makes: <code>input()</code> returns text, and <code>+</code> can't join text
-            to a number. Python's message is correct but terse; under it, CodeEditor says what it means for this line and
+            to a number. Python's message is correct but terse; under it, ExecFlow says what it means for this line and
             how to fix it.
           </p>
           <div data-example="py-error"></div>
@@ -138,7 +138,7 @@
         <div class="guide-example">
           <h3 id="ex-numpy">numpy</h3>
           <p>
-            The first time a program says <code>import numpy</code>, CodeEditor downloads numpy and then runs the program;
+            The first time a program says <code>import numpy</code>, ExecFlow downloads numpy and then runs the program;
             later runs use the copy kept in your browser. A boolean mask like <code>heights &gt; 155</code> picks the
             values where it is true.
           </p>
@@ -158,16 +158,16 @@
       <section aria-labelledby="loads">
         <h2 id="loads">What loads, and when</h2>
         <ul class="guide-list">
-          <li><strong>Python itself</strong> (Pyodide 314.0.7: the interpreter and the standard library, about 13.5 MB) downloads the first time CodeEditor starts Python, and the site's service worker keeps it, so later visits start without downloading it again.</li>
+          <li><strong>Python itself</strong> (Pyodide 314.0.7: the interpreter and the standard library, about 13.5 MB) downloads the first time ExecFlow starts Python, and the site's service worker keeps it, so later visits start without downloading it again.</li>
           <li><strong>numpy 2.4.6 and pandas 3.0.2</strong>, with what pandas needs (python-dateutil, pytz and six), download only when a program imports them, then stay in the browser. numpy is about 3 MB and pandas about 4.2 MB.</li>
-          <li>CodeEditor sees these imports in the program's own lines (<code>import numpy</code>, <code>from pandas import ...</code>). An import made through <code>importlib</code> or <code>__import__</code> can't be seen ahead of time, and fails with a note saying so.</li>
+          <li>ExecFlow sees these imports in the program's own lines (<code>import numpy</code>, <code>from pandas import ...</code>). An import made through <code>importlib</code> or <code>__import__</code> can't be seen ahead of time, and fails with a note saying so.</li>
           <li>A Python program can use up to 512 MB of memory.</li>
         </ul>
       </section>
 
       <section aria-labelledby="not">
         <h2 id="not">What doesn't run</h2>
-        <p>CodeEditor runs your program in a locked-down worker inside the page. That is what keeps it safe to run code from anyone, and it rules out a few things. These are the errors you get, copied from real runs:</p>
+        <p>ExecFlow runs your program in a locked-down worker inside the page. That is what keeps it safe to run code from anyone, and it rules out a few things. These are the errors you get, copied from real runs:</p>
         <h3 id="not-net">The internet</h3>
         <p>The worker running your program has no network access, so <code>urllib</code>, sockets and similar code can't reach a website:</p>
         <p class="guide-quote"><span data-capture="py-net:error"></span></p>
@@ -195,7 +195,7 @@
         <pre class="guide-quote"><code>count = 0
 while count &lt; 10:
     print("Counting...")</code></pre>
-        <p>It hit the output limit in under a second, and CodeEditor explained:</p>
+        <p>It hit the output limit in under a second, and ExecFlow explained:</p>
         <p class="guide-quote"><span data-capture="py-forever:means"></span></p>
       </section>
 
@@ -208,7 +208,7 @@ while count &lt; 10:
         <h3>Do I need to sign up?</h3>
         <p>No. There are no accounts. Your files are kept in your browser; you can also connect your own GitHub account to sync them to a private repository.</p>
         <h3>Is my code sent to a server to run?</h3>
-        <p>No. It runs in your browser. When you share a program as a code link, the code travels inside the link, after the <code>#code=</code> mark. Browsers never send that part of an address to a server, so the link works without the code being stored anywhere. Read the <a href="/privacy">privacy page</a> for everything CodeEditor keeps and sends.</p>
+        <p>No. It runs in your browser. When you share a program as a code link, the code travels inside the link, after the <code>#code=</code> mark. Browsers never send that part of an address to a server, so the link works without the code being stored anywhere. Read the <a href="/privacy">privacy page</a> for everything ExecFlow keeps and sends.</p>
         <h3>Why is the first run slower?</h3>
         <p>The first run in a browser downloads Python (about 13.5 MB). Later runs start from the browser's copy. The first import of numpy or pandas downloads that package the same way.</p>
       </section>
@@ -219,7 +219,7 @@ while count &lt; 10:
           <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: how loops, decisions and returns are drawn, and exporting PNG or SVG.</li>
           <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 8, and what a crash looks like.</li>
           <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
-          <li><a href="/about">About CodeEditor</a>: everything the editor does, and what changed lately.</li>
+          <li><a href="/about">About ExecFlow</a>: everything the editor does, and what changed lately.</li>
         </ul>
       </section>
     </main>

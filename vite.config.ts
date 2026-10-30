@@ -289,7 +289,7 @@ function licenseFileOf(pkg: string): string | null {
 }
 
 /**
- * Writes /licenses.txt: CodeEditor's own licence, then every third-party licence text the site's
+ * Writes /licenses.txt: ExecFlow's own licence, then every third-party licence text the site's
  * files ship under. A bundled package without a licence file stops the build.
  */
 function thirdPartyLicenses(): Plugin {
@@ -308,15 +308,15 @@ function thirdPartyLicenses(): Plugin {
       parts.push(...LICENSE_EXTRAS);
       const rule = "=".repeat(78);
       const text = [
-        "CodeEditor: licences",
+        "ExecFlow: licences",
         "",
-        "CodeEditor's own code is under the MIT licence (the first text below). The rest are the licences of",
+        "ExecFlow's own code is under the MIT licence (the first text below). The rest are the licences of",
         "the third-party software this site serves, each under its own licence.",
         "",
         ...LICENSE_NOTES.map((n) => `- ${n}`),
         "",
         rule,
-        "CodeEditor",
+        "ExecFlow",
         rule,
         readFileSync("LICENSE", "utf8").trim(),
         ...parts.flatMap(({ name, file }) => ["", rule, name, rule, readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim()]),
@@ -376,7 +376,7 @@ function site(): Plugin {
 
 /**
  * The guide pages (src/pages/routes.ts): their examples, outputs and flowcharts are filled in from
- * the repo's captured data (src/pages/render.ts), and each "Open in CodeEditor" link is made with the
+ * the repo's captured data (src/pages/render.ts), and each "Open in ExecFlow" link is made with the
  * app's own code-link encoder, so a link always opens exactly the code shown beside it.
  */
 function guidePages(): Plugin {
@@ -512,8 +512,8 @@ export default defineConfig(({ mode }) => ({
       // An editor can hold unsaved text, so updates wait for the user instead of reloading tabs.
       registerType: "prompt",
       manifest: {
-        name: "CodeEditor",
-        short_name: "CodeEditor",
+        name: "ExecFlow",
+        short_name: "ExecFlow",
         description: "Write, run and chart Python, C and C++ in your browser, with nothing to install.",
         // Signal's dark chrome and code ground (the default theme; src/theme/contrast.test.ts keeps them equal).
         theme_color: "#0b0d10",

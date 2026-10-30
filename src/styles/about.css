@@ -4,6 +4,7 @@
    controls, --r-dialog for frames), one light and one dark theme from theme-boot.js. Motion settles
    content in (never from opacity 0) and stops under reduced motion. */
 @import "./tokens.css";
+@import "./wordmark.css";
 
 *,
 *::before,

@@ -254,7 +254,7 @@ test.describe("the repository link", () => {
       await shareFromTree(page, "main.py");
       await expect(dialog(page)).toHaveAttribute("data-checked", "");
       await expect(dialog(page)).toHaveAttribute("data-visibility", "unknown");
-      await expect(note(page)).toHaveText("CodeEditor couldn't check whether me/workspace is private. If it is public, anyone can open this link. It shows the file as last synced.");
+      await expect(note(page)).toHaveText("ExecFlow couldn't check whether me/workspace is private. If it is public, anyone can open this link. It shows the file as last synced.");
       await expect(dialog(page)).not.toHaveAttribute("data-public", "");
     });
 
@@ -363,7 +363,7 @@ test.describe("the public link (a secret gist)", () => {
     expect(gh.fake.gists).toHaveLength(1);
     const g = gh.fake.gists[0];
     expect(g.public).toBe(false);
-    expect(g.description).toBe("main.py, shared from CodeEditor");
+    expect(g.description).toBe("main.py, shared from ExecFlow");
     expect(g.files).toEqual({ "main.py": { content: text } });
     const url = `https://gist.github.com/me/${g.id}`;
     await expect(link(page)).toHaveValue(url);
@@ -460,7 +460,7 @@ test.describe("the public link (a secret gist)", () => {
       await shareFromTree(page, "main.py");
       await page.locator("#share-gist").check();
       await primary(page).click();
-      await expect(result(page)).toContainText('the site\'s owner has to give CodeEditor\'s GitHub App the account permission "Gists: Read and write", and then you sign in again to approve it');
+      await expect(result(page)).toContainText('the site\'s owner has to give ExecFlow\'s GitHub App the account permission "Gists: Read and write", and then you sign in again to approve it');
       const posts = gistPosts(gh);
       expect(posts).toHaveLength(1);
       expect(posts[0].headers.authorization).toBe(`Bearer ${GHU1}`);
@@ -515,9 +515,9 @@ test.describe("the public link (a secret gist)", () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
     const gh = await connected(page, { extra: { "logo.png": png, "empty.py": "", "big.py": "x".repeat(512 * 1024 + 1) } });
     for (const [path, words] of [
-      ["logo.png", "isn't a text file CodeEditor can edit, so it can't go in a gist"],
+      ["logo.png", "isn't a text file ExecFlow can edit, so it can't go in a gist"],
       ["empty.py", "is empty, and GitHub doesn't keep empty files in a gist"],
-      ["big.py", "big.py is 513 KB; a gist from CodeEditor holds at most 512 KB"],
+      ["big.py", "big.py is 513 KB; a gist from ExecFlow holds at most 512 KB"],
     ] as const) {
       await shareFromTree(page, path);
       // The repository link works for every one of them.
@@ -711,7 +711,7 @@ test.describe("attacker pass", () => {
     await importFiles(page, [{ name, text: MAIN }]);
     await shareFromTree(page, name, "code");
     await expect(page.locator("#share-dialog-title")).toHaveText(`Share ${tagged}`);
-    await expect(dialog(page)).toContainText(`CodeEditor makes a copy of ${tagged} as a secret gist`);
+    await expect(dialog(page)).toContainText(`ExecFlow makes a copy of ${tagged} as a secret gist`);
     await page.locator("#share-qr-toggle").click();
     await expect(dialog(page)).toHaveAttribute("data-qr", "shown");
     await expect(page.locator("#share-qr")).toHaveAttribute("aria-label", `QR code of the link to ${tagged}`);

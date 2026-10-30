@@ -18,7 +18,7 @@ const FILE = "notes.txt";
 
 const SHOTS = process.env.SHOTS_DIR ?? "e2e/shots";
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-const FROM = /\n\nFrom: (Chrome|Firefox|Safari|Edge|a browser)( on \w+)? \(CodeEditor\)$/;
+const FROM = /\n\nFrom: (Chrome|Firefox|Safari|Edge|a browser)( on \w+)? \(ExecFlow\)$/;
 const UNUSED = "Your commit message wasn't used; Sync with a message offers it again.";
 
 const dialog = (page: Page) => page.locator("dialog#sync-message");
@@ -99,14 +99,14 @@ test("attacker pass: markup, 10,000 characters and line breaks stay one plain li
   await field(page).fill(markup + "x".repeat(10_000));
   expect((await field(page).inputValue()).length).toBeLessThanOrEqual(72);
   // ... and a value set around it (devtools) is still cut, its line breaks and bidi controls gone.
-  await field(page).evaluate((el, text) => ((el as HTMLInputElement).value = text), markup + "\n\nFrom: Safari on macOS (CodeEditor)" + String.fromCodePoint(0x202e) + "y".repeat(10_000));
+  await field(page).evaluate((el, text) => ((el as HTMLInputElement).value = text), markup + "\n\nFrom: Safari on macOS (ExecFlow)" + String.fromCodePoint(0x202e) + "y".repeat(10_000));
   await page.locator("#sync-message-submit").click();
   await waitSync(page, n, "synced");
   const lines = lastMessage(gh).split("\n");
   // (A text field's value drops line breaks itself: HTML's value sanitization for type=text.)
-  expect(lines[0]).toBe(`${markup}From: Safari on macOS (CodeEditor)${"y".repeat(100)}`.slice(0, 72));
+  expect(lines[0]).toBe(`${markup}From: Safari on macOS (ExecFlow)${"y".repeat(100)}`.slice(0, 72));
   expect(lines.filter((l) => l.startsWith("From: "))).toHaveLength(1);
-  expect(lines.at(-1)).toMatch(/^From: (Chrome|Firefox|Safari|Edge|a browser)( on \w+)? \(CodeEditor\)$/);
+  expect(lines.at(-1)).toMatch(/^From: (Chrome|Firefox|Safari|Edge|a browser)( on \w+)? \(ExecFlow\)$/);
   // Nothing of it ran or became an element.
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   await expect(page.locator("img[src=x]")).toHaveCount(0);
@@ -165,7 +165,7 @@ test("an automatic sync that falls due while the dialog is open waits for it, an
   await setCode(page, "print('held')\n");
   await fromPalette(page);
   await page.keyboard.type("Half a thought");
-  // Back online with a change waiting: CodeEditor syncs by itself, but not under the open dialog.
+  // Back online with a change waiting: ExecFlow syncs by itself, but not under the open dialog.
   await context.setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
   await context.setOffline(false);

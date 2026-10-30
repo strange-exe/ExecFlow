@@ -77,7 +77,7 @@ function offerMove(app: MoveApp, to: string): void {
   const download = { label: "Download .zip", run: () => app.downloadZip() };
   // Here (at /move) the button opens the new address; at / it first comes here (see the top).
   const isolated = globalThis.crossOriginIsolated === true;
-  say(isolated ? `CodeEditor has a new address: ${host}. Move your files there.` : `CodeEditor has a new address: ${host}. Press Move my files to copy your files there in a new tab.`, {
+  say(isolated ? `ExecFlow has a new address: ${host}. Move your files there.` : `ExecFlow has a new address: ${host}. Press Move my files to copy your files there in a new tab.`, {
     tone: "info",
     action: { label: "Move my files", run: () => void move() },
     pin: { key: "address-move", onDismiss: () => sessionFlag(DISMISSED_KEY, true) },
@@ -127,7 +127,7 @@ function offerMove(app: MoveApp, to: string): void {
       case "refused":
         if (result.reason === "declined") return say("Nothing was moved: the new tab was told not to add the files.", { tone: "info", action: again });
         if (result.reason === "read-only")
-          return say(`Nothing was moved: CodeEditor is open for editing in another tab at ${host}. Use that tab: close it (or choose Edit here in the new tab), then press Try again.`, { tone: "warning", action: again });
+          return say(`Nothing was moved: ExecFlow is open for editing in another tab at ${host}. Use that tab: close it (or choose Edit here in the new tab), then press Try again.`, { tone: "warning", action: again });
         return say(`${host} couldn't read the files, so nothing was moved. Download them as a .zip instead.`, { tone: "error", action: download });
     }
   }
@@ -153,8 +153,8 @@ function takeMove(app: MoveApp, from: string): void {
     prepare: (zip) => app.prepareImport(zip),
     confirm: (count) =>
       confirmDialog({
-        title: `Add ${plural(count, "file")} from your old CodeEditor?`,
-        body: [`They come from ${oldHost}, CodeEditor's old address, and stay there too. A file whose name is already used here is left out; nothing here is replaced.`],
+        title: `Add ${plural(count, "file")} from your old ExecFlow?`,
+        body: [`They come from ${oldHost}, ExecFlow's old address, and stay there too. A file whose name is already used here is left out; nothing here is replaced.`],
         confirm: "Add files",
         cancel: "Not now",
       }),

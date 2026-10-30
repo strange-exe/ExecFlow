@@ -199,7 +199,7 @@ describe("error help, what it leaves alone", () => {
 
   it("matches the first line only, so a program's own text after it can't choose the help", () => {
     expect(helpFor({ ...base, message: "ValueError: something else\nNameError: name 'x' is not defined" })).toBeNull();
-    expect(helpFor({ source: "python", severity: "error", message: "KeyError: 'k'\nNo k.py is next to the file you run, and CodeEditor can't install packages." })?.id).toBe("py-key");
+    expect(helpFor({ source: "python", severity: "error", message: "KeyError: 'k'\nNo k.py is next to the file you run, and ExecFlow can't install packages." })?.id).toBe("py-key");
   });
 
   it("has no help for messages it doesn't know", () => {

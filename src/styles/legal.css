@@ -6,6 +6,7 @@
    src/legal/page.ts adds the scroll spy and the copy-link buttons; without it the page still reads
    fully (both lists are static HTML). Colours come from tokens.css only. */
 @import "./tokens.css";
+@import "./wordmark.css";
 
 *,
 *::before,

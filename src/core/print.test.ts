@@ -90,7 +90,7 @@ describe("the rest", () => {
     expect(printTitle(["a.py", "b.c"])).toBe("a.py and 1 more file");
     expect(printTitle(["a.py", "b.c", "c.cpp"])).toBe("a.py and 2 more files");
     expect(printTitle([`${cp(0x202e)}x.py`])).toBe("[U+202E]x.py");
-    expect(printTitle([])).toBe("CodeEditor");
+    expect(printTitle([])).toBe("ExecFlow");
   });
 
   it("what can be printed and what can't", () => {
@@ -102,8 +102,8 @@ describe("the rest", () => {
 
   it("the words: the next step, the footer without margin boxes, the messages", () => {
     expect(NEXT_STEP).toBe('Your browser\'s print dialog opens next. Choose "Save as PDF" as the printer.');
-    expect(fallbackFooter("labs/main.py", "23 Oct 2026")).toBe("labs/main.py, 23 Oct 2026. Made with CodeEditor");
-    expect(MADE_WITH).toBe("Made with CodeEditor");
+    expect(fallbackFooter("labs/main.py", "23 Oct 2026")).toBe("labs/main.py, 23 Oct 2026. Made with ExecFlow");
+    expect(MADE_WITH).toBe("Made with ExecFlow");
     expect(printMessage({ kind: "read-failed", path: "a.py" })).toEqual({ text: "Couldn't read a.py. Try again.", tone: "error" });
     expect(printMessage({ kind: "partial", paths: ["labs/a.py", "b.py"] }).text).toBe("Some colours are missing in a.py, b.py: the file was still being read.");
     expect(printMessage({ kind: "print-failed" }).tone).toBe("error");

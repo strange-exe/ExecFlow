@@ -563,7 +563,7 @@ function headerOptions(lib: CLibrary, lang: CLang, cxxStd: string): readonly Com
  * only what the sysroot ships (review finding F4, 2026-10-19).
  */
 const APP_HEADERS: readonly Completion[] = [
-  { label: "bits/stdc++.h", type: "namespace", info: "The whole C++ standard library at once (GCC's name; CodeEditor provides it)" },
+  { label: "bits/stdc++.h", type: "namespace", info: "The whole C++ standard library at once (GCC's name; ExecFlow provides it)" },
 ];
 
 /**

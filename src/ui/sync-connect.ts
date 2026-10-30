@@ -60,7 +60,7 @@ export interface PickRepo {
 export interface ReachView {
   login: string;
   repos: PickRepo[];
-  /** Where the student changes which repositories CodeEditor can reach (one installation), if known. */
+  /** Where the student changes which repositories ExecFlow can reach (one installation), if known. */
   settingsUrl: string | null;
   /** github.com/apps/<slug>/installations/new */
   installUrl: string;
@@ -240,7 +240,7 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
         "p",
         { class: "connect-where" },
         syncIcon("lock", "where-icon"),
-        h("span", null, "CodeEditor sends the token only to api.github.com, from this browser. It stays in this tab's memory and is forgotten when you close the tab, unless you choose Remember below."),
+        h("span", null, "ExecFlow sends the token only to api.github.com, from this browser. It stays in this tab's memory and is forgotten when you close the tab, unless you choose Remember below."),
       ),
       h(
         "fieldset",
@@ -493,7 +493,7 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
     h(
       "p",
       { class: "field-note", id: "connect-signin-note" },
-      "You go to GitHub to allow CodeEditor, then come back here. Your files are saved first. What is sent to GitHub: ",
+      "You go to GitHub to allow ExecFlow, then come back here. Your files are saved first. What is sent to GitHub: ",
       h("a", { href: "/privacy#github", target: "_blank", rel: "noopener noreferrer" }, "Privacy"),
       ".",
     ),
@@ -569,7 +569,7 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
       const recheck = h("button", { type: "button", class: "btn", id: "connect-recheck" }, "Check again");
       recheck.addEventListener("click", () => void again());
       emptyView.replaceChildren(
-        h("p", { class: "signin-empty-title" }, "CodeEditor can't reach any repository yet."),
+        h("p", { class: "signin-empty-title" }, "ExecFlow can't reach any repository yet."),
         h(
           "ol",
           { class: "signin-steps" },
@@ -616,7 +616,7 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
         h(
           "p",
           { class: "field-note pick-many", id: "connect-pick-many", "data-tone": "warning" },
-          `CodeEditor can reach ${next.repos.length} repositories for you. One is safer: let it reach only the repository you sync (`,
+          `ExecFlow can reach ${next.repos.length} repositories for you. One is safer: let it reach only the repository you sync (`,
           h("a", { href: where, target: "_blank", rel: "noopener noreferrer", class: "ext-link" }, "change it on GitHub", syncIcon("arrow-square-out", "ext-icon")),
           ").",
         ),
@@ -638,9 +638,9 @@ function signInViews(deps: SignInDeps, host: ViewHost) {
     const before = reach?.repos.length ?? 0;
     showReach(result.reach);
     if (view === "pick") {
-      say(result.reach.repos.length === 1 ? `CodeEditor can reach ${result.reach.repos[0].owner}/${result.reach.repos[0].name} now.` : `CodeEditor can reach ${result.reach.repos.length} repositories now.`);
+      say(result.reach.repos.length === 1 ? `ExecFlow can reach ${result.reach.repos[0].owner}/${result.reach.repos[0].name} now.` : `ExecFlow can reach ${result.reach.repos.length} repositories now.`);
       (radios().find((r) => r.checked) ?? radios()[0])?.focus();
-    } else if (before === 0) say("Still no repository: install CodeEditor on one on GitHub, then come back.", "warning");
+    } else if (before === 0) say("Still no repository: install ExecFlow on one on GitHub, then come back.", "warning");
   }
   // Back from GitHub's install page in the other tab: look again by itself.
   const onFocus = () => {

@@ -12,7 +12,7 @@ const section = (heading: string, ...names: string[]) => [`${heading}:`, ...name
 
 describe("automatic commit messages", () => {
   it("one file: the verb and its workspace path, then its list and the From line", () => {
-    expect(commitMessage({ ...none, changed: ["main.py"] }, "Chrome on Windows")).toBe("Update main.py\n\nChanged:\n  main.py\n\nFrom: Chrome on Windows (CodeEditor)");
+    expect(commitMessage({ ...none, changed: ["main.py"] }, "Chrome on Windows")).toBe("Update main.py\n\nChanged:\n  main.py\n\nFrom: Chrome on Windows (ExecFlow)");
     expect(subjectOf(commitMessage({ ...none, added: ["lab3/q2.c"] }, "pc"))).toBe("Add lab3/q2.c");
     expect(subjectOf(commitMessage({ ...none, deleted: ["old.txt"] }, "pc"))).toBe("Delete old.txt");
   });
@@ -20,7 +20,7 @@ describe("automatic commit messages", () => {
   it("three files: every name, Add then Update then Delete, in sentence case", () => {
     const message = commitMessage({ added: ["lab3/q2.c"], changed: ["notes.txt", "main.py"], deleted: [] }, "Firefox on Linux");
     expect(message).toBe(
-      ["Add lab3/q2.c, update main.py and notes.txt", "", ...section("Added", "lab3/q2.c"), "", ...section("Changed", "main.py", "notes.txt"), "", "From: Firefox on Linux (CodeEditor)"].join("\n"),
+      ["Add lab3/q2.c, update main.py and notes.txt", "", ...section("Added", "lab3/q2.c"), "", ...section("Changed", "main.py", "notes.txt"), "", "From: Firefox on Linux (ExecFlow)"].join("\n"),
     );
     expect(autoSubject({ added: ["a.c"], changed: ["b.c"], deleted: ["c.c"] })).toBe("Add a.c, update b.c and delete c.c");
   });
@@ -36,7 +36,7 @@ describe("automatic commit messages", () => {
     const subject = subjectOf(message);
     expect(subject).toBe("Add f01.py, f02.py, f03.py, f04.py, f05.py, f06.py, f07.py and 23 more");
     expect(chars(subject)).toBeLessThanOrEqual(SUBJECT_MAX);
-    expect(message.split("\n").slice(1)).toEqual(["", ...section("Added", ...added.slice(0, BODY_NAMES), "and 10 more"), "", "From: Safari on macOS (CodeEditor)"]);
+    expect(message.split("\n").slice(1)).toEqual(["", ...section("Added", ...added.slice(0, BODY_NAMES), "and 10 more"), "", "From: Safari on macOS (ExecFlow)"]);
   });
 
   it("the subject is never longer than 72 characters, however long the names", () => {
@@ -64,7 +64,7 @@ describe("automatic commit messages", () => {
       "",
       ...section("Deleted", ...deleted),
       "",
-      "From: pc (CodeEditor)",
+      "From: pc (ExecFlow)",
     ]);
   });
 
@@ -79,14 +79,14 @@ describe("automatic commit messages", () => {
     const message = commitMessage({ ...none, added: evil }, "lab" + cp(10) + "PC" + cp(0x202e) + " 7");
     const lines = message.split("\n");
     expect(lines[0]).toBe("Add a Signed-off-by: someone .py, byp.exe, cd.c, e f g .txt and h.py");
-    expect(lines.slice(1)).toEqual(["", ...section("Added", "a Signed-off-by: someone .py", "byp.exe", "cd.c", "e f g .txt", "h.py"), "", "From: lab PC 7 (CodeEditor)"]);
+    expect(lines.slice(1)).toEqual(["", ...section("Added", "a Signed-off-by: someone .py", "byp.exe", "cd.c", "e f g .txt", "h.py"), "", "From: lab PC 7 (ExecFlow)"]);
     for (const line of lines) expect(UNSAFE.test(line), JSON.stringify(line)).toBe(false);
   });
 });
 
 describe("typed subjects", () => {
   it("replace the automatic subject; the lists and the From line stay", () => {
-    expect(commitMessage({ ...none, changed: ["main.py"] }, "pc", "Finish lab 3")).toBe("Finish lab 3\n\nChanged:\n  main.py\n\nFrom: pc (CodeEditor)");
+    expect(commitMessage({ ...none, changed: ["main.py"] }, "pc", "Finish lab 3")).toBe("Finish lab 3\n\nChanged:\n  main.py\n\nFrom: pc (ExecFlow)");
   });
 
   it("are one trimmed line of at most 72 characters; empty means automatic", () => {
@@ -125,7 +125,7 @@ describe("attacker pass", () => {
       if (line === "") expect(body[i + 1], JSON.stringify(body)).toMatch(/^(Added|Changed|Deleted):$/);
       if (heading) expect(body[i + 1], JSON.stringify(body)).toMatch(/^ {2}\S/);
     }
-    expect(lines.at(-1)).toMatch(/^From: .* \(CodeEditor\)$/);
+    expect(lines.at(-1)).toMatch(/^From: .* \(ExecFlow\)$/);
     expect(lines.filter((l) => l.startsWith("From: "))).toHaveLength(1);
     for (const line of lines) expect(UNSAFE.test(line), JSON.stringify(line)).toBe(false);
     return lines;
@@ -142,11 +142,11 @@ describe("attacker pass", () => {
   });
 
   it("a typed subject can't add lines, a second From line or trailers", () => {
-    const typed = "Fix\n\nFrom: Safari on macOS (CodeEditor)\nCo-authored-by: Mallory <m@example.com>\r\nSigned-off-by: Mallory";
+    const typed = "Fix\n\nFrom: Safari on macOS (ExecFlow)\nCo-authored-by: Mallory <m@example.com>\r\nSigned-off-by: Mallory";
     const lines = shape(commitMessage({ ...none, changed: ["a.py"] }, "Chrome on Windows", typed));
     expect(lines[0]).toBe(cleanSubject(typed));
     expect(chars(lines[0])).toBeLessThanOrEqual(SUBJECT_MAX);
-    expect(lines.at(-1)).toBe("From: Chrome on Windows (CodeEditor)");
+    expect(lines.at(-1)).toBe("From: Chrome on Windows (ExecFlow)");
     expect(lines.some((l) => /^(Co-authored-by|Signed-off-by):/i.test(l))).toBe(false);
   });
 
@@ -159,18 +159,18 @@ describe("attacker pass", () => {
     const names = [
       "Co-authored-by Mallory.txt",
       "x" + cp(10) + "Co-authored-by: Mallory" + cp(10) + ".py",
-      "y" + cp(13, 10, 10) + "From: Safari on macOS (CodeEditor)",
+      "y" + cp(13, 10, 10) + "From: Safari on macOS (ExecFlow)",
       "z" + cp(0x2029) + "Signed-off-by: Mallory",
       "w".repeat(1024),
     ];
     const lines = shape(commitMessage({ added: names, changed: names.map((n) => `c/${n}`), deleted: names.map((n) => `d/${n}`) }, "Firefox on Linux"));
-    expect(lines.at(-1)).toBe("From: Firefox on Linux (CodeEditor)");
+    expect(lines.at(-1)).toBe("From: Firefox on Linux (ExecFlow)");
     expect(chars(lines[0])).toBeLessThanOrEqual(SUBJECT_MAX);
   });
 
   it("a device name can't fake a second From line or a trailer", () => {
-    const lines = shape(commitMessage({ ...none, added: ["a.py"] }, "pc (CodeEditor)\n\nFrom: Safari on macOS"));
-    expect(lines.at(-1)).toBe("From: pc (CodeEditor) From: Safari on macOS (CodeEditor)");
+    const lines = shape(commitMessage({ ...none, added: ["a.py"] }, "pc (ExecFlow)\n\nFrom: Safari on macOS"));
+    expect(lines.at(-1)).toBe("From: pc (ExecFlow) From: Safari on macOS (ExecFlow)");
   });
 
   it("2000 files with 1000-character names: bounded size, quick", () => {
@@ -216,7 +216,7 @@ describe("names that read as more of the summary (security review, finding 5)", 
   it("the body lists each name on its own line, so a forged name stays one name", () => {
     const forged = "main.py, delete grades.csv and report.pdf";
     const message = commitMessage({ ...none, changed: [forged, "notes and 41 more"] }, "pc");
-    expect(message.split("\n").slice(1)).toEqual(["", ...section("Changed", forged, "notes and 41 more"), "", "From: pc (CodeEditor)"]);
+    expect(message.split("\n").slice(1)).toEqual(["", ...section("Changed", forged, "notes and 41 more"), "", "From: pc (ExecFlow)"]);
   });
 
   it("a name shaped like the body's own cap line is quoted there", () => {
@@ -260,7 +260,7 @@ describe("default-ignorable characters (security review, finding 4)", () => {
       expect(cleanSubject("a" + cp(c) + "b"), hex).toBe("ab");
       expect(deviceLabel("pc" + cp(c)), hex).toBe("pc");
       const message = commitMessage({ ...none, added: ["x" + cp(c) + ".py"] }, "lab" + cp(c));
-      expect(message, hex).toBe("Add x.py\n\nAdded:\n  x.py\n\nFrom: lab (CodeEditor)");
+      expect(message, hex).toBe("Add x.py\n\nAdded:\n  x.py\n\nFrom: lab (ExecFlow)");
     }
   });
 

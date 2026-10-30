@@ -59,7 +59,7 @@ export const API_VERSION = "2026-03-10";
 export const CALLBACK_PATH = "/auth-callback";
 export const MAX_BODY_BYTES = 4096;
 export const UPSTREAM_TIMEOUT_MS = 10_000;
-const USER_AGENT = "CodeEditor-sign-in";
+const USER_AGENT = "ExecFlow-sign-in";
 
 const METHODS: Record<AuthRoute, string> = { config: "GET", token: "POST", refresh: "POST", revoke: "POST" };
 
@@ -268,7 +268,7 @@ async function tokenRequest(fetchImpl: Fetch, fields: Record<string, string>): P
   const expiresIn = field("expires_in");
   const refresh = field("refresh_token");
   const refreshExpiresIn = field("refresh_token_expires_in");
-  // Expiring tokens only (scope=offline_access asks for them): a pair CodeEditor can refresh.
+  // Expiring tokens only (scope=offline_access asks for them): a pair ExecFlow can refresh.
   if (!isAccessToken(access) || !isSeconds(expiresIn) || !isRefreshToken(refresh) || !isSeconds(refreshExpiresIn)) return fail(502, "upstream");
   return reply(200, { access_token: access, expires_in: expiresIn, refresh_token: refresh, refresh_token_expires_in: refreshExpiresIn });
 }

@@ -36,7 +36,7 @@ export interface GuideData {
   charts: Record<string, string>;
 }
 
-/** Makes the "Open in CodeEditor" link for a file (relative: "/#code=1...."). */
+/** Makes the "Open in ExecFlow" link for a file (relative: "/#code=1...."). */
 export type LinkMaker = (name: string, text: string) => Promise<string>;
 
 export const escapeHtml = (text: string): string =>
@@ -91,11 +91,11 @@ async function exampleHtml(id: string, data: GuideData, link: LinkMaker): Promis
     ? `<p class="ex-typed-note">Typed while it ran: ${src.stdin.map((s) => `<kbd class="ex-typed">${escapeHtml(s)}</kbd>`).join(", then ")}</p>`
     : "";
   const help = run.help
-    ? `<div class="ex-help"><p class="ex-help-title">CodeEditor's explanation</p><p>${escapeHtml(run.help.means)}</p><p>${escapeHtml(run.help.tips)}</p></div>`
+    ? `<div class="ex-help"><p class="ex-help-title">ExecFlow's explanation</p><p>${escapeHtml(run.help.means)}</p><p>${escapeHtml(run.help.tips)}</p></div>`
     : "";
   return [
     `<div class="ex" id="ex-${id}">`,
-    `<div class="ex-bar"><span class="ex-file">${escapeHtml(src.name)}</span><a class="ex-open" href="${escapeHtml(href)}">Open in CodeEditor<span class="ex-sr"> (${escapeHtml(src.name)})</span></a></div>`,
+    `<div class="ex-bar"><span class="ex-file">${escapeHtml(src.name)}</span><a class="ex-open" href="${escapeHtml(href)}">Open in ExecFlow<span class="ex-sr"> (${escapeHtml(src.name)})</span></a></div>`,
     `<div class="ex-panes">`,
     // Lines stay whole (a wrapped Python line reads as two), so the block scrolls sideways on a
     // phone and is a keyboard stop with a name.

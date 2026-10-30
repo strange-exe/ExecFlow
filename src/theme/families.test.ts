@@ -29,8 +29,8 @@ describe("theme families", () => {
         expect(name.startsWith(theme.name), `${v.id}: the theme's own name leads`).toBe(true);
       }
     }
-    expect(variantName(byId.get("slate-dark")!, "Dark")).toBe("CodeEditor Slate Dark");
-    expect(variantName(byId.get("signal")!, "Match device")).toBe("CodeEditor Signal (match device)");
+    expect(variantName(byId.get("slate-dark")!, "Dark")).toBe("ExecFlow Slate Dark");
+    expect(variantName(byId.get("signal")!, "Match device")).toBe("ExecFlow Signal (match device)");
     expect(variantName(byId.get("dracula")!, "Dark")).toBe("Dracula, Dark");
     expect(variantName(byId.get("kanagawa")!, "Wave")).toBe("Kanagawa, Wave");
   });

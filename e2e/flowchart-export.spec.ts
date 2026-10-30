@@ -95,7 +95,7 @@ function checkFooter(px: RgbaPixels, chartHeight: number, scale: number, colors:
   // The ground at the image's corner and beside the mark.
   expect(off(px.at(2, 2), colors.bg), "the ground").toBeLessThanOrEqual(1);
   expect(off(px.at(Math.floor(8 * scale), Math.floor(markY * scale)), colors.bg), "the footer's ground").toBeLessThanOrEqual(1);
-  // "Made with CodeEditor": its ink is the text colour.
+  // "Made with ExecFlow": its ink is the text colour.
   const textX = FOOTER.margin + FOOTER.mark + FOOTER.gap;
   const y = chartHeight + FOOTER.height / 2;
   const area = { x0: Math.floor(textX * scale), x1: Math.floor((textX + FOOTER_TEXT.length * FOOTER.textW) * scale), y0: Math.floor((y - 8) * scale), y1: Math.floor((y + 6) * scale) };

@@ -399,7 +399,7 @@ self.addEventListener("message", async ({ data }: MessageEvent<ToPython>) => {
       run(rt, data);
     } catch (e) {
       // A bug of ours, not the program's: say so, and replace this interpreter.
-      post({ type: "out", stream: "stderr", text: `CodeEditor's Python runner failed: ${String(e)}\n` });
+      post({ type: "out", stream: "stderr", text: `ExecFlow's Python runner failed: ${String(e)}\n` });
       done({ recycle: true });
     }
   } else if (data.type === "check") {

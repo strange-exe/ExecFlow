@@ -10,7 +10,7 @@
 //     notes.txt
 //     util.h
 //
-//   From: Chrome on Windows (CodeEditor)
+//   From: Chrome on Windows (ExecFlow)
 //
 // A subject the student typed replaces the automatic one; the lists and the From line stay. The
 // paths were validated by the sync already, but every name, the device and a typed subject still
@@ -135,7 +135,7 @@ function namedSubject(list: readonly Group[], total: number, shown: number): str
 export function autoSubject(changes: CommitChanges): string {
   const list = groups(changes);
   const total = list.reduce((n, g) => n + g.names.length, 0);
-  if (total === 0) return "Sync from CodeEditor";
+  if (total === 0) return "Sync from ExecFlow";
   const all = namedSubject(list, total, total);
   if (all !== null && length(all) <= SUBJECT_MAX) return all;
   // Each extra name adds at least ", x" while "and N more" loses at most a digit, so the length
@@ -165,5 +165,5 @@ export function commitMessage(changes: CommitChanges, device: string, typed = ""
   const subject = cleanSubject(typed) || autoSubject(changes);
   const label: Record<string, string> = { add: "Added", update: "Changed", delete: "Deleted" };
   const lines = groups(changes).flatMap((g, i) => [...(i > 0 ? [""] : []), ...bodySection(label[g.verb], g.names)]);
-  return [subject, "", ...lines, ...(lines.length ? [""] : []), `From: ${deviceLabel(device)} (CodeEditor)`].join("\n");
+  return [subject, "", ...lines, ...(lines.length ? [""] : []), `From: ${deviceLabel(device)} (ExecFlow)`].join("\n");
 }

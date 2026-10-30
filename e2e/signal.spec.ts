@@ -1,4 +1,4 @@
-// The chosen redesign, "CodeEditor Signal" (redesign 2, option a, chosen 2026-10-25): the default
+// The chosen redesign, "ExecFlow Signal" (redesign 2, option a, chosen 2026-10-25): the default
 // theme and its first paint, the one-time move from the old default, the fonts (Geist for the
 // interface, JetBrains Mono for code with its ligatures off unless chosen), the desktop bar heights
 // and the editor as a sheet (12 px corners, a 1 px --border edge, 10 px of --surface right and
@@ -99,7 +99,7 @@ test("a device on the old default (Deep Field, match device) moves to Signal onc
 
   // Deep Field's "match device", chosen in the theme picker after the move, is kept across reloads.
   const picker = await openThemePicker(page);
-  await picker.getByRole("radio", { name: "CodeEditor Deep Field (match device)" }).check();
+  await picker.getByRole("radio", { name: "ExecFlow Deep Field (match device)" }).check();
   await page.keyboard.press("Escape");
   await expect(picker).toBeHidden();
   await reloadHeld(page, async () => {
@@ -119,7 +119,7 @@ test("the theme picker leads with Signal (the default, chosen) and High contrast
   const upFront = picker.locator('.theme-section[data-section="start"] [data-theme-option]');
   expect((await upFront.evaluateAll((els) => els.map((e) => e.getAttribute("data-theme-option")))).slice(0, 3)).toEqual(["signal", "signal-light", "signal-dark"]);
   await expect(picker.locator('.theme-section[data-section="start"] [data-theme-option="high-contrast"]')).toHaveCount(1);
-  await expect(picker.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ })).toBeChecked();
+  await expect(picker.getByRole("radio", { name: /^ExecFlow Signal \(match device\)/ })).toBeChecked();
   await expect(picker.locator('[data-theme-family="signal"] .family-head .tag')).toHaveText("Default");
   const rest = picker.locator('.theme-section[data-section="all"]');
   for (const id of ["deep-field", "deep-field-light", "deep-field-dark"]) await expect(rest.locator(`[data-theme-option="${id}"]`)).toHaveCount(1);
@@ -135,7 +135,7 @@ test("a 'match device' preview redraws when the device switches scheme with the 
   const prev = picker.locator('[data-theme-family="signal"] .tile-prev');
   const tileBg = () => prev.evaluate((el) => (el as HTMLElement).style.getPropertyValue("--tile-bg"));
   expect(await tileBg()).toBe(SIGNAL.light.bg);
-  const radio = picker.getByRole("radio", { name: /^CodeEditor Signal \(match device\)/ });
+  const radio = picker.getByRole("radio", { name: /^ExecFlow Signal \(match device\)/ });
   await expect(radio).toBeFocused();
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });

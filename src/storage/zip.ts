@@ -291,7 +291,7 @@ export async function readZip(bytes: Uint8Array, limits: Partial<ZipLimits> = {}
     }
     if (out.files.length >= lim.maxFiles) throw new ZipError("too-many", `The zip has more than ${lim.maxFiles} files.`);
     if (method !== 0 && method !== 8) {
-      out.refused.push({ name: shown(raw), reason: "it is compressed in a way CodeEditor can't unpack" });
+      out.refused.push({ name: shown(raw), reason: "it is compressed in a way ExecFlow can't unpack" });
       continue;
     }
     if (usize > lim.maxFileBytes) {

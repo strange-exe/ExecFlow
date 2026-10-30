@@ -112,7 +112,7 @@
     },
     "py-pip": {
       "status": "error",
-      "output": "Traceback (most recent call last):\n  File \"use_requests.py\", line 1, in <module>\n    import requests\nModuleNotFoundError: No module named 'requests'\nNo requests.py is next to the file you run, and CodeEditor can't install packages. Besides the standard library, programs can import: dateutil, numpy, pandas, pytz, six.\n",
+      "output": "Traceback (most recent call last):\n  File \"use_requests.py\", line 1, in <module>\n    import requests\nModuleNotFoundError: No module named 'requests'\nNo requests.py is next to the file you run, and ExecFlow can't install packages. Besides the standard library, programs can import: dateutil, numpy, pandas, pytz, six.\n",
       "outputChars": 319,
       "runlog": "use_requests.py\nExited with code 1\nran in 45 ms\nModuleNotFoundError: No module named 'requests'\nuse_requests.py, line 1\n\nPython can't find a module called requests. Packages that need installing (with pip) can't be used in this app; the message lists the ones that can.\n\nCheck the spelling. If requests is your own file, name it requests.py and put it in the same folder as the file you run.",
       "help": {

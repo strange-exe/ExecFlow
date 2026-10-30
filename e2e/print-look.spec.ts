@@ -1,5 +1,5 @@
 // The look of batch 4 (DESIGN.md section 6, Level 2): the Save as PDF dialog (ready and with its
-// error) and the Capture snippet dialog with its "Made with CodeEditor" toggle, at 1440 x 900 and
+// error) and the Capture snippet dialog with its "Made with ExecFlow" toggle, at 1440 x 900 and
 // 390 x 844, light and dark. Axe, no sideways scroll, targets, a visible focus ring on every Tab
 // stop, and shots (with gray and blur ones for the reading order) in e2e/shots/print/.
 import AxeBuilder from "@axe-core/playwright";
@@ -95,14 +95,14 @@ for (const vp of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone"
       await expect(d).toHaveCount(0);
     });
 
-    test(`Capture snippet dialog with the "Made with CodeEditor" toggle, ${vp.name} ${scheme}`, async ({ page, browserName }) => {
+    test(`Capture snippet dialog with the "Made with ExecFlow" toggle, ${vp.name} ${scheme}`, async ({ page, browserName }) => {
       await setUp(page, vp, scheme);
       await selectFixtureLines(page);
       await showFiles(page);
       await page.locator("#file-actions").click();
       await page.getByRole("menuitem", { name: /^Capture snippet of main\.py, lines 2 to 3/ }).click();
       await previewReady(page, "match numbers name");
-      const toggle = dialogOf(page).getByRole("checkbox", { name: '"Made with CodeEditor" line' });
+      const toggle = dialogOf(page).getByRole("checkbox", { name: '"Made with ExecFlow" line' });
       await expect(toggle).toBeChecked();
       await noSidewaysScroll(page, "#snippet-dialog");
       await axeClean(page, "#snippet-dialog");

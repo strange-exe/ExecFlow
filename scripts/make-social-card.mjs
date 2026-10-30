@@ -1,5 +1,5 @@
 // Renders the picture a shared link shows (Open Graph and Twitter cards): 1200 x 630, Signal's dark
-// theme, the brand mark, the name, one line on what CodeEditor does, and a small code-and-flowchart
+// theme, the brand mark, the name, one line on what ExecFlow does, and a small code-and-flowchart
 // motif. Writes public/media/social-card.<sha256 first 8>.png and removes the older card; then set
 // SOCIAL_CARD.path in src/about/site.ts to the printed name (src/about/site.test.ts checks the file).
 // Every text colour must pass 4.5:1 on its ground, or nothing is written.
@@ -87,12 +87,16 @@ const chart = `<svg class="chart" viewBox="0 0 200 320" aria-hidden="true">
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face { font-family: "Geist"; font-weight: 100 900; src: url(${font("node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2")}) format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url(${font("node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2")}) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 600; src: url(${font("node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2")}) format("woff2"); }
 * { box-sizing: border-box; margin: 0; }
 body { width: 1200px; height: 630px; background: ${C.bg}; color: ${C.text}; font-family: Geist; overflow: hidden; }
 .card { position: relative; display: grid; grid-template-columns: 470px 1fr; gap: 48px; height: 100%; padding: 72px 72px 64px; }
 .brand { display: flex; align-items: center; gap: 20px; }
 .brand svg { width: 72px; height: 72px; }
-h1 { font-size: 64px; font-weight: 600; letter-spacing: -0.02em; }
+h1 { font-size: 64px; white-space: nowrap; }
+/* The wordmark (src/styles/wordmark.css): Exec in the code font, Flow in the UI font and the action colour. */
+.wm-exec { font-family: "JetBrains Mono"; font-weight: 600; letter-spacing: -0.02em; }
+.wm-flow { font-family: Geist; font-weight: 700; color: ${C.action}; }
 .line { margin-top: 40px; font-size: 40px; line-height: 1.25; font-weight: 500; color: ${C.secondary}; }
 .address { position: absolute; left: 72px; bottom: 64px; font-size: 24px; color: ${C.muted}; }
 .motif { display: grid; grid-template-columns: 1fr 180px; gap: 16px; align-self: center; align-items: center; }
@@ -101,7 +105,7 @@ h1 { font-size: 64px; font-weight: 600; letter-spacing: -0.02em; }
 .g { width: 26px; flex: none; color: ${C.gutter}; }
 .chart { width: 180px; height: 288px; align-self: center; }
 </style></head><body><div class="card">
-<div><div class="brand">${mark}<h1>CodeEditor</h1></div>
+<div><div class="brand">${mark}<h1><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></h1></div>
 <p class="line">Write, run and chart Python, C and C++ in your browser</p></div>
 <div class="motif"><div class="sheet">${lines}</div>${chart}</div>
 <p class="address">execflow.abhinesh.codes</p>

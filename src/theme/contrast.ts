@@ -1,5 +1,5 @@
 // WCAG 2.2 contrast for the theme layer (token contract v2): the colour variables every theme
-// provides, the foreground/background pairs the UI actually draws, CodeEditor's own palette rules
+// provides, the foreground/background pairs the UI actually draws, ExecFlow's own palette rules
 // (role distinctness and region steps), and the guard that lifts a colour until it passes. This
 // file has NO imports, so scripts/contrast-check.mjs can load it straight from Node (built-in type
 // stripping) and report exactly what the app and its tests check.
@@ -463,14 +463,14 @@ export function checkPalette(p: Palette): PairResult[] {
   });
 }
 
-// ---------------------------------------------------------------- CodeEditor's own palettes: distinctness and steps
+// ---------------------------------------------------------------- ExecFlow's own palettes: distinctness and steps
 
 /**
  * Role distinctness. Two colours are distinct when both are chromatic (OKLCH C >= CHROMA_MIN) and
  * their hues differ by HUE_MIN degrees or more; or exactly one is chromatic and they differ by
  * DELTA_E_MIN in OKLab; or both are neutral and their lightness differs by NEUTRAL_L_MIN. A rule
  * with when: "chromatic" applies only if one of the two is chromatic. These rules (and STEPS) bind
- * CodeEditor's own palettes; the palette themes keep the WCAG pairs and the guard only.
+ * ExecFlow's own palettes; the palette themes keep the WCAG pairs and the guard only.
  */
 export const DISTINCT_LIMITS = { CHROMA_MIN: 0.04, HUE_MIN: 30, DELTA_E_MIN: 0.12, NEUTRAL_L_MIN: 0.3 };
 
@@ -590,7 +590,7 @@ function hueGap(x: string, y: string): number {
   return Math.min(d, 360 - d);
 }
 
-/** Role distinctness and region steps for one of CodeEditor's own palettes. */
+/** Role distinctness and region steps for one of ExecFlow's own palettes. */
 export function checkRules(p: Palette, opts: { scheme: Scheme; separation: Separation }): { distinct: DistinctResult[]; steps: StepResult[] } {
   const distinct = DISTINCT.map((rule) => {
     const [aHex, bHex] = [resolve(p, rule.a), resolve(p, rule.b)];

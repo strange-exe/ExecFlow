@@ -39,10 +39,10 @@ export const HTML_INPUT: Record<string, string> = {
  * page's media; rendered by scripts/make-social-card.mjs).
  */
 export const SOCIAL_CARD = {
-  path: "/media/social-card.a727144c.png",
+  path: "/media/social-card.16ef265a.png",
   width: 1200,
   height: 630,
-  alt: "CodeEditor: write, run and chart Python, C and C++ in your browser.",
+  alt: "ExecFlow: write, run and chart Python, C and C++ in your browser.",
 };
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -55,7 +55,7 @@ export function headTags(path: string, title: string, description: string): stri
   return [
     `<link rel="canonical" href="${url}" />`,
     og("type", "website"),
-    og("site_name", "CodeEditor"),
+    og("site_name", "ExecFlow"),
     og("title", escape(title)),
     og("description", escape(description)),
     og("url", url),

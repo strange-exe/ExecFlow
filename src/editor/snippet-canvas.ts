@@ -261,7 +261,7 @@ function nameUnits(name: string): { text: string; special: boolean }[] {
 }
 
 /**
- * The "Made with CodeEditor" line, right-aligned at its place (card coordinates, under the drawing's
+ * The "Made with ExecFlow" line, right-aligned at its place (card coordinates, under the drawing's
  * scale), with the brand mark before it (round 3; its fixed brand colours, brand-mark.ts).
  */
 function drawCredit(ctx: CanvasRenderingContext2D, at: CreditPlace, font: CodeFont, ink: string): void {

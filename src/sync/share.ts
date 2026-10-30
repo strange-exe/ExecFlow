@@ -14,7 +14,7 @@ import { GitHubError, type GistBody } from "./github";
 import { explainError, type AuthKind } from "./repo-check";
 
 /**
- * Largest file CodeEditor puts in a gist. GitHub's API cuts a gist file's content at 1 MB in its
+ * Largest file ExecFlow puts in a gist. GitHub's API cuts a gist file's content at 1 MB in its
  * answers (larger files need raw_url or a clone), so a shared copy stays well inside that.
  */
 export const GIST_MAX_BYTES = 512 * 1024;
@@ -63,7 +63,7 @@ export function repoLinkState(o: { owner: string; repo: string; commit: string |
   }
 }
 
-/** Who can open the repository link, as far as CodeEditor knows. */
+/** Who can open the repository link, as far as ExecFlow knows. */
 export interface RepoAudience {
   visibility: "private" | "public" | "unknown";
   text: string;
@@ -77,7 +77,7 @@ export function repoAudience(repo: string, isPrivate: boolean | null): RepoAudie
   const tail = "It shows the file as last synced.";
   if (isPrivate === true) return { visibility: "private", text: `Opens on GitHub only for you and the collaborators of ${repo}. ${tail}` };
   if (isPrivate === false) return { visibility: "public", text: `${repo} is public, so anyone can open this link, signed in or not. ${tail}` };
-  return { visibility: "unknown", text: `CodeEditor couldn't check whether ${repo} is private. If it is public, anyone can open this link. ${tail}` };
+  return { visibility: "unknown", text: `ExecFlow couldn't check whether ${repo} is private. If it is public, anyone can open this link. ${tail}` };
 }
 
 /** Why a file can't go in a gist, checked before anything is sent. */
@@ -97,11 +97,11 @@ export function refusalText(r: GistRefusal, path: string): string {
   const name = nameOf(path);
   switch (r.kind) {
     case "opaque":
-      return `${name} isn't a text file CodeEditor can edit, so it can't go in a gist. The repository link still works.`;
+      return `${name} isn't a text file ExecFlow can edit, so it can't go in a gist. The repository link still works.`;
     case "empty":
       return `${name} is empty, and GitHub doesn't keep empty files in a gist.`;
     case "too-big":
-      return `${name} is ${kb(r.bytes)}; a gist from CodeEditor holds at most ${kb(GIST_MAX_BYTES)}. Share the repository link instead.`;
+      return `${name} is ${kb(r.bytes)}; a gist from ExecFlow holds at most ${kb(GIST_MAX_BYTES)}. Share the repository link instead.`;
   }
 }
 
@@ -112,7 +112,7 @@ export function refusalText(r: GistRefusal, path: string): string {
  */
 export function gistRequest(path: string, text: string): GistBody {
   const name = nameOf(path);
-  return { description: `${printable(name) || "A file"}, shared from CodeEditor`, public: false, files: { [name]: { content: text } } };
+  return { description: `${printable(name) || "A file"}, shared from ExecFlow`, public: false, files: { [name]: { content: text } } };
 }
 
 const MAX_GIST_URL = 2048;
@@ -138,7 +138,7 @@ export function gistPageUrl(value: unknown): string | null {
 /** What a token needs to create gists, by how this computer connected. */
 export function gistPermissionText(auth: AuthKind): string {
   return auth === "app"
-    ? 'Your GitHub sign-in can\'t create gists: the site\'s owner has to give CodeEditor\'s GitHub App the account permission "Gists: Read and write", and then you sign in again to approve it (Disconnect in Settings, then Sign in with GitHub). The repository link works without it.'
+    ? 'Your GitHub sign-in can\'t create gists: the site\'s owner has to give ExecFlow\'s GitHub App the account permission "Gists: Read and write", and then you sign in again to approve it (Disconnect in Settings, then Sign in with GitHub). The repository link works without it.'
     : 'This token can\'t create gists: a fine-grained token needs the account permission "Gists" set to "Read and write", and a classic token the "gist" scope. The repository link works without it.';
 }
 

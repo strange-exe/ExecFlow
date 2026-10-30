@@ -70,7 +70,7 @@ test.describe("the move notice", () => {
     await openApp(page, `${OLD}/`);
     const notice = page.locator(NOTICE);
     await expect(notice).toBeVisible();
-    await expect(notice).toContainText(`CodeEditor has a new address: ${new URL(NEW).host}. Move your files there.`);
+    await expect(notice).toContainText(`ExecFlow has a new address: ${new URL(NEW).host}. Move your files there.`);
     await expect(notice.getByRole("button", { name: "Move my files" })).toBeVisible();
     await expect(notice.getByRole("link", { name: `Open ${new URL(NEW).host}` })).toHaveAttribute("href", `${NEW}/`);
     await notice.getByRole("button", { name: "Dismiss notice" }).click();
@@ -119,7 +119,7 @@ test.describe("moving files", () => {
     const [popup] = await Promise.all([context.waitForEvent("page"), page.locator(NOTICE).getByRole("button", { name: "Move my files" }).click()]);
     await waitReady(popup);
     expect(new URL(popup.url()).origin).toBe(NEW);
-    const dialog = popup.getByRole("alertdialog", { name: "Add 3 files from your old CodeEditor?" });
+    const dialog = popup.getByRole("alertdialog", { name: "Add 3 files from your old ExecFlow?" });
     await expect(dialog).toBeVisible();
     // The marker left the new tab's address bar.
     expect(new URL(popup.url()).hash).toBe("");
@@ -240,7 +240,7 @@ test.describe("the new address takes files only from the tab that opened it", ()
       },
       [zip, NEW] as const,
     );
-    await expect(popup.getByRole("alertdialog", { name: "Add 1 file from your old CodeEditor?" })).toBeVisible();
+    await expect(popup.getByRole("alertdialog", { name: "Add 1 file from your old ExecFlow?" })).toBeVisible();
     await popup.getByRole("alertdialog").getByRole("button", { name: "Add files" }).click();
     await expect(treeItem(popup, "a.py")).toHaveCount(1);
   });

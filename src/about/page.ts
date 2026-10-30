@@ -219,7 +219,7 @@ function renderThemes(): void {
       bar.style.backgroundColor = palette[key];
       sample.append(bar);
     }
-    item.append(sample, el("span", "swatch-name", t.name.replace(/^CodeEditor /, "")));
+    item.append(sample, el("span", "swatch-name", t.name.replace(/^ExecFlow /, "")));
     strip.append(item);
   }
   for (const n of document.querySelectorAll<HTMLElement>("[data-theme-count]")) n.textContent = String(themes.length);

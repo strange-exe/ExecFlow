@@ -33,9 +33,9 @@ const f = (id: string, name: string, ...variants: [string, string][]): Family =>
  * Rose Pine's "main" and Kanagawa's "wave" variants.
  */
 export const FAMILIES: readonly Family[] = [
-  f("signal", "CodeEditor Signal", ["signal", "Match device"], ["signal-light", "Light"], ["signal-dark", "Dark"]),
-  f("deep-field", "CodeEditor Deep Field", ["deep-field", "Match device"], ["deep-field-light", "Light"], ["deep-field-dark", "Dark"]),
-  f("slate", "CodeEditor Slate", ["system", "Match device"], ["slate-light", "Light"], ["slate-dark", "Dark"]),
+  f("signal", "ExecFlow Signal", ["signal", "Match device"], ["signal-light", "Light"], ["signal-dark", "Dark"]),
+  f("deep-field", "ExecFlow Deep Field", ["deep-field", "Match device"], ["deep-field-light", "Light"], ["deep-field-dark", "Dark"]),
+  f("slate", "ExecFlow Slate", ["system", "Match device"], ["slate-light", "Light"], ["slate-dark", "Dark"]),
   f("high-contrast", "High contrast", ["high-contrast", "Dark"]),
   f("github", "GitHub-style", ["github-light", "Light"], ["github-dark", "Dark"]),
   f("one-dark-pro", "One Dark Pro", ["one-dark-pro", "Dark"]),
@@ -80,7 +80,7 @@ export function customFamily(theme: Theme): Family {
 /**
  * The radio's accessible name: the theme's own name (what Settings always said), with the button's
  * visible label added when the name doesn't hold it (WCAG 2.5.3 Label in Name): "Dracula, Dark",
- * "Kanagawa, Wave"; "CodeEditor Slate Dark" and "Catppuccin Mocha" stay as they are.
+ * "Kanagawa, Wave"; "ExecFlow Slate Dark" and "Catppuccin Mocha" stay as they are.
  */
 export function variantName(theme: Pick<Theme, "name">, label: string): string {
   return theme.name.toLowerCase().includes(label.toLowerCase()) ? theme.name : `${theme.name}, ${label}`;

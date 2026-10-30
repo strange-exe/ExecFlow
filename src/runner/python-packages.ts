@@ -1,4 +1,4 @@
-// Python packages CodeEditor serves itself (the user's choice, 2026-10-17): numpy and pandas plus what
+// Python packages ExecFlow serves itself (the user's choice, 2026-10-17): numpy and pandas plus what
 // they depend on, exactly as Pyodide built them. scripts/fetch-pyodide-packages.mjs downloads this set
 // into the runtime folder (sha256-checked against pyodide-lock.json), and the worker loads it before
 // the lockdown, because a worker running user code has no network.
