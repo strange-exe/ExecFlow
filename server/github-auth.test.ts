@@ -302,6 +302,104 @@ describe("/api/auth/revoke", () => {
   });
 });
 
+describe("ALLOWED_ORIGIN as a list (the site moving to a new address)", () => {
+  const OLD = "https://old.example.test";
+  const NEW = "https://new.example.test";
+  const LIST: AuthEnv = { ...ENV, ALLOWED_ORIGIN: `${OLD},${NEW}` };
+  const from = (origin: string, route: AuthRoute = "token", body: Record<string, unknown> = { code: CODE, code_verifier: VERIFIER }) =>
+    new Request(`${origin}/api/auth/${route}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: origin, "Sec-Fetch-Site": "same-origin" },
+      body: JSON.stringify(body),
+    });
+
+  it("accepts each listed origin, on every route", async () => {
+    for (const origin of [OLD, NEW]) {
+      expect((await run("config", get({ Origin: origin }), upstream(), LIST)).res.status, origin).toBe(200);
+      expect((await run("token", from(origin), upstream(), LIST)).res.status, origin).toBe(200);
+      expect((await run("refresh", from(origin, "refresh", { refresh_token: REFRESH }), upstream(), LIST)).res.status, origin).toBe(200);
+      const revoked = await run("revoke", from(origin, "revoke", { access_token: ACCESS }), upstream(() => new Response(null, { status: 204 })), LIST);
+      expect(revoked.res.status, origin).toBe(204);
+    }
+    // Spaces around the commas are allowed; the entries themselves stay exact.
+    expect((await run("token", from(NEW), upstream(), { ...ENV, ALLOWED_ORIGIN: ` ${OLD} , ${NEW} ` })).res.status).toBe(200);
+  });
+
+  it("refuses another origin, a trailing slash, and a prefix or suffix of a listed one", async () => {
+    const refused = [
+      "https://evil.test",
+      `${NEW}/`,
+      "https://new.example.tes",
+      "https://ew.example.test",
+      "https://anew.example.test",
+      `${NEW}.evil.test`,
+      `${NEW}:8443`,
+      "http://new.example.test",
+      `${OLD},${NEW}`,
+      `${OLD}, ${NEW}`,
+      "https://NEW.example.test",
+    ];
+    for (const origin of refused) {
+      const fake = upstream();
+      const request = from(NEW);
+      request.headers.set("origin", origin);
+      const { res, json } = await run("token", request, fake, LIST);
+      expect(res.status, origin).toBe(403);
+      expect(json).toEqual({ error: "forbidden" });
+      expect(fake.seen).toEqual([]);
+      expect((await run("config", get({ Origin: origin }), upstream(), LIST)).res.status, origin).toBe(403);
+    }
+  });
+
+  it("an invalid entry anywhere, an empty entry, or more than 4 entries disables the relay", async () => {
+    const lists = [
+      `${OLD},${NEW}/`,
+      `${OLD}/,${NEW}`,
+      `${OLD},http://new.example.test`,
+      `${OLD},*.example.test`,
+      `${OLD},https://*.example.test`,
+      `${OLD},`,
+      `,${NEW}`,
+      `${OLD},,${NEW}`,
+      `${OLD};${NEW}`,
+      `${OLD} ${NEW}`,
+      `${OLD},${NEW}/path`,
+      `${OLD},null`,
+      ",",
+      "",
+      ["https://a.example.test", "https://b.example.test", "https://c.example.test", "https://d.example.test", NEW].join(","),
+    ];
+    for (const allowed of lists) {
+      for (const origin of [OLD, NEW]) {
+        const fake = upstream();
+        const env = { ...ENV, ALLOWED_ORIGIN: allowed };
+        const { res, json } = await run("token", from(origin), fake, env);
+        expect(res.status, `${allowed} / ${origin}`).toBe(404);
+        expect(json).toEqual({ error: "not_configured" });
+        expect(fake.seen).toEqual([]);
+        expect((await run("config", get(), upstream(), env)).res.status, allowed).toBe(404);
+      }
+    }
+    // Exactly 4 is fine.
+    const four = { ...ENV, ALLOWED_ORIGIN: ["https://a.example.test", "https://b.example.test", OLD, NEW].join(",") };
+    expect((await run("token", from(NEW), upstream(), four)).res.status).toBe(200);
+  });
+
+  it("sends GitHub the callback of the origin the request came from, never another entry's", async () => {
+    for (const [env, origin] of [[LIST, OLD], [LIST, NEW], [{ ...ENV, ALLOWED_ORIGIN: `${NEW},${OLD}` }, OLD], [{ ...ENV, ALLOWED_ORIGIN: `${NEW},${OLD}` }, NEW]] as const) {
+      const fake = upstream();
+      // The request's own URL says another host: only the matched Origin entry counts.
+      const request = new Request("https://elsewhere.example.test/api/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: origin, "Sec-Fetch-Site": "same-origin" },
+        body: JSON.stringify({ code: CODE, code_verifier: VERIFIER }),
+      });
+      expect((await run("token", request, fake, env)).res.status).toBe(200);
+      expect(new URLSearchParams(String(fake.seen[0].init.body)).get("redirect_uri"), origin).toBe(`${origin}${CALLBACK_PATH}`);
+    }
+  });
+});
+
 describe("the client secret", () => {
   it("is in no answer the tests saw, body or header", () => {
     expect(answers.length).toBeGreaterThan(40);

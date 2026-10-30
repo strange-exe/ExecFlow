@@ -42,7 +42,8 @@ for (const route of GUIDE_ROUTES) {
           [document.title, document.body.textContent, ...[...document.querySelectorAll("[aria-label], [title], [alt], meta[content]")].map((el) => `${el.getAttribute("aria-label")} ${el.getAttribute("title")} ${el.getAttribute("alt")} ${el.getAttribute("content")}`)].join("\n"),
         );
         expect(shownText).toContain("CodeEditor");
-        expect(shownText.match(/execflow/gi), "the name Execflow on the page").toBeNull();
+        // Since 0.12.0 the site's address (canonical, og:url, og:image) carries the new name; only it may.
+        expect(shownText.replaceAll("https://execflow.abhinesh.codes/", "").match(/execflow/gi), "the name Execflow on the page").toBeNull();
         await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${SITE}${route.path}`);
         // The page is its own, not the editor's shell.
         await expect(page.locator("#app")).toHaveCount(0);
@@ -109,15 +110,14 @@ for (const route of GUIDE_ROUTES) {
         test.setTimeout(120_000);
         await openIn(page, route.path, scheme);
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-        // Every element the keyboard should reach, numbered in document order. WebKit, like Safari by
-        // default, leaves links out of the Tab order: there Tab is checked on the rest, and each link's
-        // ring by focusing it straight after a key press (which makes the focus keyboard focus).
+        // Every element the keyboard should reach, numbered in document order. WebKit on Windows, like
+        // Safari by default, leaves links out of the Tab order; WebKit on Linux (CI) keeps them in. So
+        // the order is checked on whatever Tab reaches, and where links are left out each link's ring is
+        // checked by focusing it straight after a key press (which makes the focus keyboard focus).
         const all = await page.locator("a[href], summary, [tabindex='0']").evaluateAll((els) =>
           els.filter((el) => el.getClientRects().length > 0).map((el, i) => (el.setAttribute("data-stop", String(i)), el.tagName === "A")),
         );
-        const tabbed = all.flatMap((isLink, i) => (browserName === "webkit" && isLink ? [] : [i]));
-        expect(tabbed.length).toBeGreaterThan(browserName === "webkit" ? 3 : 10);
-        const ring = () =>
+        expect(all.length).toBeGreaterThan(10);        const ring = () =>
           page.evaluate(() => {
             const el = document.activeElement as HTMLElement;
             if (el === document.body) return null;
@@ -130,17 +130,22 @@ for (const route of GUIDE_ROUTES) {
           expect(r.width, r.tag).toBeGreaterThanOrEqual(2);
         };
         const reached: number[] = [];
-        for (let i = 0; i < tabbed.length + 20 && reached.length < tabbed.length; i++) {
+        for (let i = 0; i < all.length + 20; i++) {
           await page.keyboard.press("Tab");
           const r = await ring();
-          // Past the last stop focus leaves the page (body, or the browser's own controls).
-          if (!r || (reached.length && r.stop === reached[reached.length - 1])) break;
+          // Past the last stop focus leaves the page (body, or the browser's own controls) or wraps.
+          if (!r || reached.includes(r.stop)) break;
           expectRing(r);
           if (r.stop >= 0) reached.push(r.stop);
         }
+        // Links are left out only by WebKit, and then all of them; never by Chromium or Firefox.
+        const linksTabbed = reached.some((i) => all[i]);
+        if (browserName !== "webkit") expect(linksTabbed, "links in the Tab order").toBe(true);
         // Every stop, once each, in document order.
+        const tabbed = all.flatMap((isLink, i) => (isLink && !linksTabbed ? [] : [i]));
+        expect(tabbed.length).toBeGreaterThan(3);
         expect(reached).toEqual(tabbed);
-        if (browserName === "webkit") {
+        if (!linksTabbed) {
           for (const i of all.flatMap((isLink, n) => (isLink ? [n] : []))) {
             await page.keyboard.press("Shift");
             await page.locator(`[data-stop="${i}"]`).evaluate((el) => (el as HTMLElement).focus());

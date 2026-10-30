@@ -17,7 +17,8 @@ import { ariaMod, h, isMac, isTyping, listNames, plural, shown } from "./dom";
 import { noEditor, type Editors } from "./editors";
 import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
-import { exportZip, pickFiles } from "./import-export";
+import { MOVE_PATH, moveRole } from "../core/move-protocol";
+import { exportZip, pickFiles, workspaceZip } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
 import { createLayout, NARROW, WIDE } from "./layout";
 import type { Splitter } from "./splitter";
@@ -2347,6 +2348,41 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     });
   }
 
+  // The site's move to a new address (src/ui/address-move.ts): only at the old and the new address,
+  // after the What's new notice so the move's notice is the one that stays.
+  if (moveRole(location.origin, __MOVE_FROM__, __MOVE_TO__)) {
+    void import("./address-move").then(
+      (m) =>
+        !wiped &&
+        m.startAddressMove({
+          root,
+          notice,
+          canWrite,
+          readOnlyText,
+          flush: async () => void (await saves.flushAll()),
+          buildZip: () => workspaceZip(store, ws),
+          downloadZip: () => void exportWorkspace(),
+          // The normal zip import: readZip checks names, sizes, entry counts and bombs; importFiles
+          // checks every name and byte again, never replaces a file, and needs the writer lock.
+          prepareImport: async (zip) => {
+            const { readZip } = await import("../storage/zip");
+            const contents = await readZip(new Uint8Array(await zip.arrayBuffer()));
+            return {
+              count: contents.files.length,
+              apply: async () => {
+                const result = await store.importFiles(ws, "", contents.files.map((f) => ({ name: f.path, bytes: f.bytes })), { dirs: contents.dirs });
+                await refreshTree();
+                return { added: result.added.length, skipped: contents.refused.length + result.refused.length };
+              },
+            };
+          },
+        }),
+      () => {
+        // The chunk didn't load (offline at the old address): the site still works as before.
+      },
+    );
+  }
+
   // Code links (src/core/code-link.ts): a page opened with #code= offers that file, and so does one
   // pasted into this tab's address bar later (only the fragment changes, so the page doesn't reload).
   let codeLinkChunk: Promise<typeof import("./code-link-dialog")> | null = null;
@@ -2368,6 +2404,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
     );
   }
-  takeCodeLink();
-  window.addEventListener("hashchange", takeCodeLink);
+  // /move runs without cross-origin isolation (vite.config.ts "/move"), so another site that opened
+  // it can keep a handle to the tab and change its fragment: there code links are never taken.
+  if (location.pathname === MOVE_PATH) root.dataset.codeLinks = "off";
+  else {
+    takeCodeLink();
+    window.addEventListener("hashchange", takeCodeLink);
+  }
 }

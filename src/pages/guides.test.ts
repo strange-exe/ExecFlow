@@ -82,8 +82,9 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
   it("names the product CodeEditor everywhere it is seen: title, headings, link text, prose and tags", async () => {
     const html = await page(route.file);
     // The rename to Execflow is a later release: until then a student would click through to an
-    // app that calls itself something else.
-    expect(html).not.toMatch(/execflow/i);
+    // app that calls itself something else. Since 0.12.0 the site's address and the repository's
+    // carry the new name; only those links may.
+    expect(html.replaceAll("https://execflow.abhinesh.codes/", "").replaceAll("https://github.com/strange-exe/ExecFlow", "")).not.toMatch(/execflow/i);
     expect(attr(html, /<title>([^<]*)<\/title>/)).toMatch(/ \| CodeEditor$/);
     expect(attr(html, /<meta property="og:site_name" content="([^"]+)"/)).toBe("CodeEditor");
     const opens = html.match(/class="ex-open"/g) ?? [];

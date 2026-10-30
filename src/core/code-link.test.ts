@@ -5,7 +5,7 @@ import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { MAX_INFLATED_BYTES, MAX_LINK_CHARS, isCodeLink, makeCodeLink, readCodeLink, readRefusalText } from "./code-link";
 
-const ORIGIN = "https://code-editor.abhinesh.codes";
+const ORIGIN = "https://execflow.abhinesh.codes";
 const hashOf = (url: string) => url.slice(url.indexOf("#"));
 /** A version-1 fragment around any bytes (deflated here), bypassing makeCodeLink's checks. */
 const forge = (raw: Buffer | string) => `#code=1.${deflateRawSync(raw).toString("base64url")}`;

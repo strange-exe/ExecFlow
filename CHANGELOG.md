@@ -6,6 +6,19 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.12.0] - 2026-10-30
+
+A new address: execflow.abhinesh.codes
+
+### Added
+
+- A Move my files button at the old address that copies your files to the new one, after you say yes there. They stay at the old address too.
+
+### Changed
+
+- The site's new address is execflow.abhinesh.codes. The old address keeps working for now.
+- Links to the source code and to issues point to the renamed GitHub repository.
+
 ## [0.11.0] - 2026-10-29
 
 Guides for Python, C, C++ and flowcharts, and a clearer Capture snippet

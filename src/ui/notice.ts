@@ -10,11 +10,26 @@ export interface NoticeOptions {
   tone?: Tone;
   action?: { label: string; run: () => void };
   /**
+   * A plain link after the sentence (inside the text, so it wraps with it). Only for addresses the
+   * app itself fixes; an http(s) URL only, or the link is left out.
+   */
+  link?: { label: string; href: string };
+  /**
    * A notice that stays until it is acted on (its action, Dismiss, or unpin(key)): clear() leaves
    * it, and a later notice only covers it, so it comes back when that one goes. One at a time; a
    * new pinned notice replaces the last.
    */
   pin?: { key: string; onDismiss?: () => void };
+}
+
+/** An absolute http(s) URL as written, else null (never javascript:, data: or a relative path). */
+function linkHref(href: string): string | null {
+  try {
+    const url = new URL(href);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 const ICONS: Record<Tone, IconName> = { info: "info", error: "warning-circle", success: "check-circle", warning: "warning" };
@@ -74,6 +89,8 @@ export function createNotice(options: { returnFocus?: () => HTMLElement | null }
     else delete element.dataset.pinned;
     glyph.replaceChildren(safe ? icon(ICONS[tone]) : "");
     text.textContent = safe;
+    const href = safe && options.link ? linkHref(options.link.href) : null;
+    if (href && options.link) text.append(" ", h("a", { class: "notice-link text-btn", href }, shown(options.link.label)));
     handler = safe ? (options.action?.run ?? null) : null;
     action.hidden = !safe || !options.action;
     action.textContent = safe ? shown(options.action?.label ?? "") : "";

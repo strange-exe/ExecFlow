@@ -284,8 +284,9 @@ On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App
    on any computer. Your code runs in your browser; the app reads and writes files only in the
    repositories you install it on." With Gists on (step 6), add: "Share link also makes secret gists
    when you ask it to." **Homepage URL**: the production site.
-2. **Callback URL**: exactly `https://<production origin>/auth-callback`, one URL only. Leave any
-   option that allows matching other URLs (wildcards, subdomains, paths) off.
+2. **Callback URL**: exactly `https://<production origin>/auth-callback`, one URL per address the
+   site answers on (while the site moves to a new address, one for the old and one for the new).
+   Leave any option that allows matching other URLs (wildcards, subdomains, paths) off.
 3. **Expire user authorization tokens**: on (the default).
 4. **Request user authorization (OAuth) during installation**: off. **Enable Device Flow**: off.
 5. **Setup URL**: empty; **Redirect on update**: off. **Webhook**: untick Active.
@@ -307,7 +308,12 @@ On Cloudflare: Workers & Pages, the project, Settings, Variables and Secrets
 **Production** environment only:
 
 9. `GITHUB_CLIENT_ID` (text), `GITHUB_APP_SLUG` (text), `ALLOWED_ORIGIN` (text): the exact production
-   origin, `https://` and the custom domain, no trailing slash.
+   origin, `https://` and the custom domain, no trailing slash. While the site moves to a new
+   address, list both, separated by a comma (at most 4, spaces around the comma allowed), for
+   example `https://execflow.abhinesh.codes,https://code-editor.abhinesh.codes`. Every entry must be
+   an exact origin with no wildcard and no path; one bad entry turns sign-in off for every address
+   (the Connect dialog then shows only the token path). Sign-in sends GitHub the callback of the
+   address the student is on, so each listed address needs its own callback URL (step 2).
 10. `GITHUB_CLIENT_SECRET`, type **Secret**. Not in Preview: preview deployments are public, and their
     origin differs from `ALLOWED_ORIGIN`, so they refuse sign-in anyway.
 11. Check the build's root directory is the repository root (so `functions/` is deployed with the
@@ -392,13 +398,13 @@ own `postMessage` removed before any program starts (a program can't send the pa
 
 ## Privacy, terms and licences
 
-The site's [Privacy](https://code-editor.abhinesh.codes/privacy) page says what CodeEditor keeps and
-sends; [Terms](https://code-editor.abhinesh.codes/terms) are the rules for using it. Both are linked
+The site's [Privacy](https://execflow.abhinesh.codes/privacy) page says what CodeEditor keeps and
+sends; [Terms](https://execflow.abhinesh.codes/terms) are the rules for using it. Both are linked
 from Settings. The build writes `/licenses.txt` with every licence text the site's files ship under
 (`vite.config.ts`, `thirdPartyLicenses`); a bundled npm package without a licence file stops the build.
 
 What changed in each release: [CHANGELOG.md](CHANGELOG.md), or the
-[About page](https://code-editor.abhinesh.codes/about#changelog) on the site. Releases are listed in
+[About page](https://execflow.abhinesh.codes/about#changelog) on the site. Releases are listed in
 `src/about/changelog.ts`, which writes CHANGELOG.md (`node scripts/write-changelog.mjs`) and the
 About page's list; a release also bumps `version` in package.json.
 
@@ -411,6 +417,21 @@ reviews). `public/robots.txt` names the sitemap. The social card is
 `public/media/social-card.<hash>.png`, drawn by `node scripts/make-social-card.mjs`. Unknown
 addresses get `404.html` with a real 404; `public/_redirects` serves the editor at `/auth-callback`,
 where GitHub returns after sign-in, and `vite preview` copies both so the end-to-end tests see them.
+
+## The move to a new address
+
+Since 0.12.0 the site's address is https://execflow.abhinesh.codes; the old one,
+https://code-editor.abhinesh.codes, serves the same build while students move. Browser storage
+belongs to one address, so at the old one a notice offers **Move my files**: the files go to the new
+address in the browser, as a .zip handed over with `postMessage` (each side takes messages only from
+the other's exact origin and window), and the new address imports them with the normal zip import
+after asking. Files also stay at the old address. The editor at `/` is cross-origin isolated, which
+cuts the link between two windows of different origins, so the hand-over happens at `/move`: the
+same editor served without `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` (the
+`/move` rule in `_headers`, from `vite.config.ts`). The two addresses are build-time constants
+(`__MOVE_FROM__`, `__MOVE_TO__`; the `MOVE_FROM` and `MOVE_TO` environment variables override them,
+which the end-to-end tests do). Code: `src/core/move-protocol.ts`, `src/ui/address-move.ts`. A 301
+from the old address to the new one ends the move (the old address's notice then never shows).
 
 ## Third-party software
 

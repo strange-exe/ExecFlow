@@ -10,6 +10,13 @@ const OUT_DIR = process.env.PW_OUTDIR;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const serve = `npx vite preview --host 127.0.0.1 --port ${PORT} --strictPort`;
 /**
+ * The move to a new address (src/ui/address-move.ts) needs two origins: the build under test treats
+ * http://localhost:<port> as the OLD address and the suite's own http://127.0.0.1:<port> as the NEW
+ * one, so every other test runs where no move notice shows (e2e/move.spec.ts).
+ */
+export const MOVE_FROM = `http://localhost:${PORT}`;
+export const MOVE_TO = ORIGIN;
+/**
  * The typing-speed test measures typing latency and main-thread work (a lab INP estimate, and long
  * tasks against suggestions off), so it runs alone: in its own project, after every test of the
  * three engines has finished (dependencies), never next to them (e2e/speed.spec.ts).
@@ -37,6 +44,7 @@ export default defineConfig({
   webServer: {
     command: OUT_DIR ? `npx vite build --outDir ${OUT_DIR} && ${serve} --outDir ${OUT_DIR}` : `npm run build && ${serve}`,
     url: ORIGIN,
+    env: { MOVE_FROM, MOVE_TO },
     reuseExistingServer: false,
     timeout: 180_000,
   },

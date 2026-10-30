@@ -77,10 +77,47 @@ async function exportZip(page: Page): Promise<Buffer> {
 }
 
 async function importFolder(page: Page, dir: string) {
+  // What the file input saw, for importState: twice on CI (Linux WebKit, 408e53b and 2cf681f) the
+  // picker opened and took the folder, yet nothing was imported, and that browser can't run here.
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { pickEvents: string[] }).pickEvents = seen;
+    for (const type of ["change", "cancel", "input"])
+      window.addEventListener(
+        type,
+        (e) => {
+          const input = e.target as HTMLInputElement;
+          if (input instanceof HTMLInputElement && input.type === "file")
+            seen.push(`${type} files=${input.files?.length ?? -1} first=${input.files?.[0]?.webkitRelativePath || input.files?.[0]?.name || ""}`);
+        },
+        true,
+      );
+  });
   const chooser = page.waitForEvent("filechooser");
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import a folder" }).click();
   await (await chooser).setFiles(dir);
+}
+
+/** Runs `check`; if it fails, the error also says what the import saw (input events, notice, stored paths). */
+async function explained(page: Page, check: () => Promise<unknown>) {
+  try {
+    await check();
+  } catch (e) {
+    const state = await Promise.race([
+      page
+        .evaluate(() => ({
+          events: (window as unknown as { pickEvents?: string[] }).pickEvents ?? null,
+          app: document.querySelector<HTMLElement>("#app")?.dataset.state ?? null,
+          notice: document.querySelector(".notice")?.textContent?.trim() ?? null,
+          dialog: document.querySelector("dialog[open]")?.textContent?.trim().slice(0, 200) ?? null,
+          inputs: document.querySelectorAll("input[type=file]").length,
+        }))
+        .then(async (s) => ({ ...s, stored: await storedPaths(page) })),
+      new Promise((resolve) => setTimeout(() => resolve("the page didn't answer in 5 s"), 5000)),
+    ]).catch((err: unknown) => `state unreadable: ${String(err)}`);
+    throw new Error(`${(e as Error).message}\nimport state: ${JSON.stringify(state)}`);
+  }
 }
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
@@ -102,7 +139,7 @@ test("importing a cloned project folder: every file that was left out is named, 
   });
   await openApp(page);
   await importFolder(page, join(root, "proj"));
-  await expect(treeItem(page, "proj/main.py")).toBeVisible({ timeout: 20_000 });
+  await explained(page, () => expect(treeItem(page, "proj/main.py")).toBeVisible({ timeout: 20_000 }));
   // Collapsed folders don't render their items, so the stored entries are checked.
   const stored = await storedPaths(page);
   for (const p of ["proj/pkg/util.py", "proj/pkg/__init__.py", "proj/notes/readme.md"]) expect(stored, p).toContain(p);
@@ -172,7 +209,7 @@ test("export, then import into a fresh browser: the same files with the same byt
     const page2 = await fresh.newPage();
     await openApp(page2);
     await importFolder(page2, join(root, "Workspace"));
-    await expect.poll(() => storedPaths(page2), { timeout: 20_000 }).toContain("Workspace/sub/inner.c");
+    await explained(page2, () => expect.poll(() => storedPaths(page2), { timeout: 20_000 }).toContain("Workspace/sub/inner.c"));
     const second = readZip(await exportZip(page2));
     for (const [p, bytes] of first.files) expect(second.files.get(`Workspace/${p}`)?.equals(bytes), p).toBe(true);
     expect(watch.settle(), "console errors and failed requests in the fresh profile").toEqual([]);
