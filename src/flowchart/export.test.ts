@@ -18,7 +18,10 @@ function svgOf(chart: FlowChart, file = "grades.c", look = LOOK): FakeElement {
   return exportSvg({ chart, layout: layoutChart(chart), file, look }, doc) as unknown as FakeElement;
 }
 
-const ALLOWED = new Set(["svg", "title", "rect", "g", "polyline", "polygon", "line", "circle", "text", "tspan", "path"]);
+const ALLOWED = new Set(["svg", "title", "rect", "g", "polyline", "polygon", "line", "circle", "text", "tspan", "path", "defs", "linearGradient", "stop"]);
+
+/** The brand mark's gradient ids in the export: the only things a url() may name (brand-mark.ts). */
+const gradientIds = (svg: FakeElement) => new Set(svg.all().filter((e) => e.tagName === "linearGradient").map((e) => e.getAttribute("id")!));
 
 describe("flowchart SVG export", () => {
   test("every colour is resolved to #rrggbb; no var(), class, ring or Tab stop is left", async () => {
@@ -27,14 +30,20 @@ describe("flowchart SVG export", () => {
     const xml = serialize(svg);
     expect(xml).not.toContain("var(");
     expect(xml).not.toContain("fc-ring");
+    const ids = gradientIds(svg);
+    expect(ids.size, "one gradient: the brand mark's tile").toBe(1);
     for (const e of svg.all()) {
       expect(ALLOWED.has(e.tagName), e.tagName).toBe(true);
       for (const name of e.attributes.keys()) {
         expect(name === "class" || name === "tabindex" || name === "role" && e !== svg || name.startsWith("on") || name.includes("href") || name.startsWith("data-"), `${e.tagName} ${name}`).toBe(false);
+        if (name === "id") expect(e.tagName, "only a gradient has an id").toBe("linearGradient");
       }
-      for (const attr of ["fill", "stroke"]) {
+      for (const attr of ["fill", "stroke", "stop-color"]) {
         const v = e.getAttribute(attr);
-        if (v !== null) expect(v, `${e.tagName} ${attr}`).toMatch(/^(#[0-9a-f]{6}|none)$/);
+        // A fill may name the mark's own gradient, on the mark's tile only; every other colour is resolved.
+        const ownGradient = attr === "fill" && e.tagName === "rect" && /^url\(#([a-z][a-z0-9-]*)\)$/.exec(v ?? "")?.[1];
+        if (ownGradient) expect(ids.has(ownGradient), `${v} names a gradient in this SVG`).toBe(true);
+        else if (v !== null) expect(v, `${e.tagName} ${attr}`).toMatch(/^(#[0-9a-f]{6}|none)$/);
       }
       const style = e.getAttribute("style") ?? "";
       for (const m of style.matchAll(/(?:fill|stroke):\s*([^;]+)/g)) expect(m[1].trim(), style).toMatch(/^(#[0-9a-f]{6}|none)$/);
@@ -51,7 +60,9 @@ describe("flowchart SVG export", () => {
     const footer = svg.all().find((e) => e.getAttribute("data-part") === null && e.getAttribute("aria-label") === null && e.tagName === "g" && e.all().some((x) => x.tagName === "svg"))!;
     expect(footer).toBeDefined();
     const mark = footer.all().find((e) => e.tagName === "svg")!;
-    expect(mark.all().find((e) => e.tagName === "rect")!.getAttribute("fill")).toBe(BRAND_MARK.tile.fill);
+    const gradient = mark.all().find((e) => e.tagName === "linearGradient")!;
+    expect(mark.all().find((e) => e.tagName === "rect")!.getAttribute("fill")).toBe(`url(#${gradient.getAttribute("id")})`);
+    expect(gradient.all().filter((e) => e.tagName === "stop").map((s) => [Number(s.getAttribute("offset")), s.getAttribute("stop-color")])).toEqual(BRAND_MARK.tile.gradient.stops);
     const texts = footer.all().filter((e) => e.tagName === "text").map((t) => t.textContent);
     expect(texts).toEqual([FOOTER_TEXT, "switch.c, function main"]);
     // Under the chart, in reading order left to right.
@@ -169,6 +180,8 @@ function recordingContext() {
     arcTo() {},
     arc() {},
     closePath() {},
+    // The brand mark's tile in the footer (after the chart's restore, so not recorded here).
+    createLinearGradient: () => ({ addColorStop() {} }),
     fill() {
       if (open) ops.push({ op: "fill", color: ctx.fillStyle });
     },

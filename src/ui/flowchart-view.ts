@@ -23,7 +23,7 @@ import type { ChartResult, ChartStub, FlowChart, FlowFile } from "../flowchart/m
 import type { FlowLanguage } from "../flowchart/pack";
 import { pickOf, type Pick } from "../flowchart/picked";
 import { canCopyImages } from "../core/snippet";
-import { BRAND_MARK } from "../editor/brand-mark";
+import { BRAND_MARK, tileColorAt } from "../editor/brand-mark";
 import {
   chooseExportScale, drawExport, exportFileName, exportSize, exportSvg, footerWhat, markSpot, printColors, type ExportColors, type ExportInput, type ExportLook,
 } from "../flowchart/export";
@@ -602,13 +602,16 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
    */
   function readback(ctx: CanvasRenderingContext2D, spot: { x: number; y: number; size: number }, scale: number): "ok" | Failure {
     const k = spot.size / BRAND_MARK.view;
-    const want = [0x2f, 0x5b, 0xea];
     let blank = true;
-    // Two points of the tile clear of the chevrons: between their tops, and the middle.
+    // Two points of the tile clear of the chevrons: between their tops, and the middle; each read
+    // against the tile's gradient at that pixel's centre (the logo's blue-to-teal ramp).
     for (const [vx, vy] of [[16, 5], [16, 16]]) {
+      const [px, py] = [Math.floor((spot.x + vx * k) * scale), Math.floor((spot.y + vy * k) * scale)];
+      const hex = tileColorAt(((px + 0.5) / scale - spot.x) / k, ((py + 0.5) / scale - spot.y) / k);
+      const want = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
       let d: Uint8ClampedArray;
       try {
-        d = ctx.getImageData(Math.floor((spot.x + vx * k) * scale), Math.floor((spot.y + vy * k) * scale), 1, 1).data;
+        d = ctx.getImageData(px, py, 1, 1).data;
       } catch {
         return "privacy";
       }

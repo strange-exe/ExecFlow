@@ -39,7 +39,7 @@ export const HTML_INPUT: Record<string, string> = {
  * page's media; rendered by scripts/make-social-card.mjs).
  */
 export const SOCIAL_CARD = {
-  path: "/media/social-card.16ef265a.png",
+  path: "/media/social-card.1b0e2b95.png",
   width: 1200,
   height: 630,
   alt: "ExecFlow: write, run and chart Python, C and C++ in your browser.",

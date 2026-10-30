@@ -79,15 +79,37 @@ async function checkIcon(request: APIRequestContext, icon: Declared): Promise<Bu
   return body;
 }
 
+type Stops = [number, string][];
+
+/** The tile gradient's colour at t (0..1, clamped) from its stops, interpolated in sRGB as SVG and canvas do. */
+function rampAt(stops: Stops, t: number): string {
+  const rgb = (h: string) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+  const u = Math.min(1, Math.max(0, t));
+  const i = Math.max(1, stops.findIndex(([o]) => o >= u));
+  const [[o0, c0], [o1, c1]] = [stops[i - 1], stops[i]];
+  const f = o1 === o0 ? 0 : (u - o0) / (o1 - o0);
+  return `#${rgb(c0).map((v, j) => Math.round(v + (rgb(c1)[j] - v) * f).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Where a pixel's centre lies along the tile's diagonal (0 top-left, 1 bottom-right), in the mark's
+ * 32-unit view: a rounded tile spans 1 to 31 units (the favicon's rect), a full-bleed square 0 to 32.
+ */
+function along(x: number, y: number, size: number, fullBleed: boolean): number {
+  const [vx, vy] = [((x + 0.5) * 32) / size, ((y + 0.5) * 32) / size];
+  return fullBleed ? (vx + vy) / 64 : (vx - 1 + (vy - 1)) / 60;
+}
+
 /**
  * Facts about a same-origin image's pixels, worked out in the page (img-src 'self' allows it; same
  * origin keeps the canvas readable): its size, how many pixels aren't fully opaque, the colour at
- * the tile sample point (left of the glyph, on its middle line), and with `tile` given, the pixels
- * that aren't the tile colour and lie outside the maskable safe zone (a circle of radius 40%).
+ * the tile sample point (left of the glyph, on its middle line) and where that point is, and with
+ * a full-bleed icon's gradient `stops` given, the pixels that aren't the gradient's colour at their
+ * own place and lie outside the maskable safe zone (a circle of radius 40%).
  */
-function imageFacts(page: Page, url: string, tile: string | null = null) {
+function imageFacts(page: Page, url: string, stops: Stops | null = null) {
   return page.evaluate(
-    async ({ src, tile }) => {
+    async ({ src, stops }) => {
       const img = new Image();
       img.src = src;
       await img.decode();
@@ -98,36 +120,54 @@ function imageFacts(page: Page, url: string, tile: string | null = null) {
       const ctx = c.getContext("2d", { willReadFrequently: true })!;
       ctx.drawImage(img, 0, 0);
       const d = ctx.getImageData(0, 0, width, height).data;
-      const rgb = tile ? [1, 3, 5].map((k) => parseInt(tile.slice(k, k + 2), 16)) : null;
+      const hexRgb = (h: string) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+      // The full-bleed gradient at a pixel's centre (the same sum as rampAt and along, in the page).
+      const expected = (x: number, y: number) => {
+        const t = Math.min(1, Math.max(0, (x + 0.5 + y + 0.5) / (width + height)));
+        const i = Math.max(1, stops!.findIndex(([o]) => o >= t));
+        const [[o0, c0], [o1, c1]] = [stops![i - 1], stops![i]];
+        const f = (t - o0) / (o1 - o0);
+        return hexRgb(c0).map((v, j) => v + (hexRgb(c1)[j] - v) * f);
+      };
       let transparent = 0;
       const outside: string[] = [];
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const i = (y * width + x) * 4;
           if (d[i + 3] !== 255) transparent++;
-          if (rgb && rgb.some((v, j) => Math.abs(d[i + j] - v) > 8) && Math.hypot(x + 0.5 - width / 2, y + 0.5 - height / 2) > 0.4 * width) outside.push(`${x},${y}`);
+          if (stops && Math.hypot(x + 0.5 - width / 2, y + 0.5 - height / 2) > 0.4 * width && expected(x, y).some((v, j) => Math.abs(d[i + j] - v) > 8)) outside.push(`${x},${y}`);
         }
       }
-      const s = (Math.floor(height / 2) * width + Math.floor((width * 3) / 32)) * 4;
+      const [sx, sy] = [Math.floor((width * 3) / 32), Math.floor(height / 2)];
+      const s = (sy * width + sx) * 4;
       const sample = `#${[d[s], d[s + 1], d[s + 2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-      return { width, height, transparent, sample, outside: outside.slice(0, 5), outsideCount: outside.length };
+      return { width, height, transparent, sample, sx, sy, cornerAlpha: d[3], outside: outside.slice(0, 5), outsideCount: outside.length };
     },
-    { src: url, tile },
+    { src: url, stops },
   );
 }
 
 const near = (a: string, b: string, tolerance = 3) => [1, 3, 5].every((k) => Math.abs(parseInt(a.slice(k, k + 2), 16) - parseInt(b.slice(k, k + 2), 16)) <= tolerance);
 
-/** The SVG favicon's tile fill and glyph stroke (the mark's two colours). */
+/** The SVG favicon's tile gradient (its id and stops) and glyph stroke. */
 async function svgMark(page: Page, request: APIRequestContext) {
   const svgIcon = (await pageIcons(page)).find((i) => i.type === "image/svg+xml");
   expect(svgIcon, "an SVG favicon").toBeDefined();
   const text = (await checkIcon(request, svgIcon!)).toString("utf8");
-  const tile = text.match(/<rect\b[^>]*\bfill="(#[0-9a-f]{6})"/i)?.[1];
+  const gradients = [...text.matchAll(/<linearGradient\b([^>]*)>/gi)];
+  expect(gradients, "one linearGradient").toHaveLength(1);
+  const id = /\sid="([a-z][a-z0-9-]*)"/.exec(gradients[0][1])?.[1];
+  expect(id, "the gradient's own id").toBeDefined();
+  // Top-left to bottom-right of the tile's own box (objectBoundingBox, the default units).
+  expect(gradients[0][1], "x1=0 y1=0 x2=1 y2=1").toMatch(/^(?=.*\sx1="0")(?=.*\sy1="0")(?=.*\sx2="1")(?=.*\sy2="1")(?!.*gradientUnits="userSpaceOnUse")/);
+  expect(text.match(/<rect\b[^>]*\bfill="([^"]+)"/i)?.[1], "the tile is filled with that gradient").toBe(`url(#${id})`);
+  const stops: Stops = [...text.matchAll(/<stop\b[^>]*\boffset="([\d.]+)"[^>]*\bstop-color="(#[0-9a-f]{6})"/gi)].map((m) => [Number(m[1]), m[2].toLowerCase()]);
+  expect(stops.length, "the gradient's stops are resolved #rrggbb colours").toBeGreaterThanOrEqual(2);
+  expect(stops.length, "every stop read").toBe(text.match(/<stop\b/g)?.length);
+  expect([stops[0][0], stops.at(-1)![0]], "stops from 0 to 1").toEqual([0, 1]);
   const glyph = text.match(/<path\b[^>]*\bstroke="(#[0-9a-f]{6})"/i)?.[1];
-  expect(tile, "the tile's fill is a resolved #rrggbb colour").toBeDefined();
   expect(glyph, "the glyph's stroke is a resolved #rrggbb colour").toBeDefined();
-  return { text, tile: tile!.toLowerCase(), glyph: glyph!.toLowerCase() };
+  return { text, id: id!, stops, glyph: glyph!.toLowerCase() };
 }
 
 test("every icon index.html declares is there, in its declared format and size: a PNG and an SVG favicon and a square apple-touch-icon", async ({ page, request }) => {
@@ -146,25 +186,35 @@ test("every icon index.html declares is there, in its declared format and size: 
   expect(px.transparent, "apple-touch-icon has no transparent pixel").toBe(0);
 });
 
-test("the SVG favicon is plain: no script, no var(), no outside reference, resolved colours that pass 3:1, the same mark as the PNGs", async ({ page, request }) => {
-  const { text, tile, glyph } = await svgMark(page, request);
+test("the SVG favicon is plain: no script, no var(), no outside reference, resolved colours that pass 4.5:1 and 3:1, the same mark as the PNGs", async ({ page, request }) => {
+  const { text, id, stops, glyph } = await svgMark(page, request);
   // An external SVG can't see the page's custom properties, and an icon never runs code.
   expect(text, "no var()").not.toMatch(/var\(/i);
   expect(text, "no script element").not.toMatch(/<script/i);
   expect(text, "no event handler attribute").not.toMatch(/\son[a-z]+\s*=/i);
   expect(text, "no javascript: URL").not.toMatch(/javascript:/i);
-  expect(text, "no reference to another file").not.toMatch(/\b(?:xlink:)?href\s*=|url\(|<foreignObject|<style|@import/i);
+  // The one url() allowed is the tile's fill naming the file's own gradient; nothing else refers out.
+  expect(text.split(`fill="url(#${id})"`), "the tile's own gradient, named once").toHaveLength(2);
+  expect(text.replace(`fill="url(#${id})"`, ""), "no reference to another file").not.toMatch(/\b(?:xlink:)?href\s*=|url\(|<foreignObject|<style|@import/i);
   expect(text, "a square viewBox").toMatch(/viewBox="0 0 32 32"/);
-  // Every colour in it is a resolved hex: the two of the mark.
-  const colours = [...new Set([...text.matchAll(/\b(?:fill|stroke)="([^"]+)"/g)].map((m) => m[1].toLowerCase()))].filter((c) => c !== "none");
-  expect(colours.sort()).toEqual([tile, glyph].sort());
-  expect(contrast(glyph, tile), `glyph ${glyph} on tile ${tile}`).toBeGreaterThanOrEqual(3);
-  // One mark: every PNG icon's tile is the SVG's tile colour (sampled left of the glyph, on its middle line).
+  // Every other colour in it is a resolved hex: the stops and the glyph.
+  const colours = [...new Set([...text.matchAll(/\b(?:fill|stroke|stop-color)="([^"]+)"/g)].map((m) => m[1].toLowerCase()))].filter((c) => c !== "none" && c !== `url(#${id})`);
+  expect(colours.sort()).toEqual([...new Set([...stops.map(([, c]) => c), glyph])].sort());
+  // Every point of the ramp: the white glyph at 4.5:1, the tile at 3:1 on a dark tab strip (#0d1117).
+  for (let i = 0; i <= 100; i++) {
+    const c = rampAt(stops, i / 100);
+    expect(contrast(glyph, c), `glyph ${glyph} on tile ${c} (t=${i / 100})`).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c, "#0d1117"), `tile ${c} on #0d1117 (t=${i / 100})`).toBeGreaterThanOrEqual(3);
+  }
+  // One mark: every PNG icon's tile is the SVG's gradient at the sample's own place (left of the
+  // glyph, on its middle line); the rounded tile spans 1 to 31 units, the full-bleed square all 32.
   const { icons } = await manifestIcons(page, request);
   const pngs = [...(await pageIcons(page)).filter((i) => i.type === "image/png" || i.where === "apple-touch-icon"), ...icons];
   for (const icon of pngs) {
-    const { sample } = await imageFacts(page, icon.url);
-    expect(near(sample, tile), `${icon.where} ${icon.url}: tile ${sample} is the SVG's ${tile}`).toBe(true);
+    const px = await imageFacts(page, icon.url);
+    const fullBleed = px.cornerAlpha === 255;
+    const want = rampAt(stops, along(px.sx, px.sy, px.width, fullBleed));
+    expect(near(px.sample, want), `${icon.where} ${icon.url} (${fullBleed ? "full bleed" : "rounded tile"}): tile ${px.sample} is the SVG's gradient there, ${want}`).toBe(true);
   }
 });
 
@@ -178,8 +228,8 @@ test("the manifest declares 192 and 512 px icons and a maskable one, each there 
   // W3C Web App Manifest, icon masks: the safe zone is a circle centred on the icon, its radius 40%
   // of the icon's size; everything outside it may be cut away. So the glyph stays inside the circle
   // and the tile fills the whole square (full bleed, no transparent corner).
-  const { tile } = await svgMark(page, request);
-  const px = await imageFacts(page, maskable[0].url, tile);
+  const { stops } = await svgMark(page, request);
+  const px = await imageFacts(page, maskable[0].url, stops);
   expect(px.width, "maskable icon is square").toBe(px.height);
   expect(px.transparent, "maskable icon is fully opaque (full bleed)").toBe(0);
   expect(px.outside, `glyph pixels outside the safe zone (${px.outsideCount})`).toEqual([]);
