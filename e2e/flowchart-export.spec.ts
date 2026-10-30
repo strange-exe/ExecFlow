@@ -8,7 +8,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Download, Page, TestInfo } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BRAND_MARK } from "../src/editor/brand-mark";
+import { BRAND_MARK, tileColorAt } from "../src/editor/brand-mark";
 import { FOOTER, FOOTER_TEXT, mixHex, printColors } from "../src/flowchart/export";
 import { CHART_TINT } from "../src/flowchart/render";
 import { expect, importFiles, isNarrow, openFromTree, openIn, test, waitReady } from "./helpers";
@@ -88,8 +88,21 @@ function checkFooter(px: RgbaPixels, chartHeight: number, scale: number, colors:
   const markX = FOOTER.margin;
   const markY = chartHeight + (FOOTER.height - FOOTER.mark) / 2;
   const at = (vx: number, vy: number) => px.at(Math.floor((markX + vx * k) * scale), Math.floor((markY + vy * k) * scale));
-  expect(off(at(16, 16), BRAND_MARK.tile.fill), "the mark's tile").toBeLessThanOrEqual(2);
-  expect(off(at(16, 5), BRAND_MARK.tile.fill), "the mark's tile, top").toBeLessThanOrEqual(2);
+  // The tile's gradient where the pixel's centre lies, in the mark's own 32 units (tileColorAt).
+  const want = (vx: number, vy: number) => {
+    const back = (v: number, at0: number) => ((Math.floor((at0 + v * k) * scale) + 0.5) / scale - at0) / k;
+    return tileColorAt(back(vx, markX), back(vy, markY));
+  };
+  // Points of the tile, each with its clearance (in units) from the tile's edge and the chevrons; a
+  // point is read only where one pixel fits inside that clearance (a scaled-down export has pixels
+  // several units wide, which blend the edge or the glyph in). Middle, top and bottom always fit.
+  const pixelUnits = 1 / (k * scale);
+  const points = [[16, 16, 5, "middle"], [16, 5, 4, "top"], [16, 27, 4, "bottom"], [3, 16, 1.75, "left"], [29, 16, 1.75, "right"]] as const;
+  for (const [vx, vy, clear, where] of points.filter(([, , clear]) => clear >= pixelUnits + 0.25)) {
+    expect(off(at(vx, vy), want(vx, vy)), `the mark's tile, ${where} (${clear} units clear): ${at(vx, vy)} vs ${want(vx, vy)}`).toBeLessThanOrEqual(3);
+  }
+  // A gradient, not one flat colour: the top (blue) and the bottom (towards teal) differ as the stops do.
+  expect(off(at(16, 5), want(16, 27)), "the top is not the bottom's colour").toBeGreaterThan(20);
   // The middle of the left chevron's upper stroke.
   expect(off(at(9.25, 13), BRAND_MARK.glyph.stroke), "the mark's glyph").toBeLessThanOrEqual(24);
   // The ground at the image's corner and beside the mark.
@@ -116,16 +129,23 @@ async function svgProblems(page: Page, xml: string) {
   return page.evaluate((text) => {
     const doc = new DOMParser().parseFromString(text, "image/svg+xml");
     if (doc.getElementsByTagName("parsererror").length) return { problems: ["parsererror"], title: "", texts: [] as string[], width: 0, height: 0 };
-    const allowed = new Set(["svg", "title", "rect", "g", "polyline", "polygon", "line", "circle", "text", "tspan", "path"]);
+    // defs, linearGradient and stop: the brand mark's tile gradient (brand-mark.ts), and nothing else.
+    const allowed = new Set(["svg", "title", "rect", "g", "polyline", "polygon", "line", "circle", "text", "tspan", "path", "defs", "linearGradient", "stop"]);
     const problems: string[] = [];
+    const gradients = [...doc.documentElement.querySelectorAll("linearGradient")];
+    if (gradients.length !== 1) problems.push(`${gradients.length} gradients`);
+    const ownFill = gradients.length === 1 ? `url(#${gradients[0].id})` : null;
     for (const el of [doc.documentElement, ...doc.documentElement.querySelectorAll("*")]) {
       if (!allowed.has(el.localName)) problems.push(`element ${el.localName}`);
       if (el.namespaceURI !== "http://www.w3.org/2000/svg") problems.push(`namespace ${el.localName} ${el.namespaceURI}`);
       for (const a of el.attributes) {
         const v = a.value;
         if (/^on/i.test(a.name) || /href/i.test(a.name) || a.name === "class" || a.name === "tabindex" || a.name.startsWith("data-")) problems.push(`attribute ${el.localName} ${a.name}`);
-        if (/url\(|var\(|@import|javascript:|expression\(/i.test(v)) problems.push(`value ${el.localName} ${a.name}=${v}`);
-        if ((a.name === "fill" || a.name === "stroke") && !/^(#[0-9a-f]{6}|none)$/.test(v)) problems.push(`colour ${el.localName} ${a.name}=${v}`);
+        if (a.name === "id" && el.localName !== "linearGradient") problems.push(`id on ${el.localName}`);
+        // The one url() allowed: the mark's tile naming that gradient.
+        const own = el.localName === "rect" && a.name === "fill" && v === ownFill;
+        if (!own && /url\(|var\(|@import|javascript:|expression\(/i.test(v)) problems.push(`value ${el.localName} ${a.name}=${v}`);
+        if ((a.name === "fill" || a.name === "stroke" || a.name === "stop-color") && !own && !/^(#[0-9a-f]{6}|none)$/.test(v)) problems.push(`colour ${el.localName} ${a.name}=${v}`);
         if (a.name === "style") for (const m of v.matchAll(/(?:fill|stroke):\s*([^;]+)/g)) if (!/^(#[0-9a-f]{6}|none)$/.test(m[1].trim())) problems.push(`style colour ${m[1]}`);
       }
     }

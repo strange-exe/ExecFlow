@@ -12,7 +12,8 @@
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
-import { ariaMod, h, isMac, srOnly, svg } from "./dom";
+import { brandMarkSvg } from "../editor/brand-mark";
+import { ariaMod, h, isMac, srOnly } from "./dom";
 import { icon } from "./icons";
 import { chartPanelSize } from "./panel-size";
 import { clamp, createSplitter, type Splitter } from "./splitter";
@@ -35,14 +36,11 @@ export type View = "code" | "output" | "problems" | "flowchart";
 export type PanelTab = "output" | "problems" | "flowchart";
 const PANEL_TABS: readonly PanelTab[] = ["output", "problems", "flowchart"];
 
-/** The app's mark: the favicon's shape, drawn with the theme's brand tile and glyph colours. */
+/** The app's mark: the logo itself (the favicon's gradient tile and white chevrons), the same in every theme. */
 export function brandMark(): SVGSVGElement {
-  return svg(
-    "svg",
-    { class: "brand-mark", viewBox: "0 0 32 32", "aria-hidden": "true", focusable: "false" },
-    svg("rect", { x: "1", y: "1", width: "30", height: "30", rx: "7", class: "mark-tile" }),
-    svg("path", { d: "M12 10 6.5 16l5.5 6M20 10l5.5 6-5.5 6", class: "mark-glyph" }),
-  );
+  const mark = brandMarkSvg(document, 20);
+  mark.classList.add("brand-mark");
+  return mark;
 }
 
 /**

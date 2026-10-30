@@ -461,6 +461,11 @@
   --w-label: 500;
   --w-strong: 600;
   --tracking-title: -0.02em;
+  /* The logo's tile, the same in every theme (the owner's "Blue to teal", 2026-10-30): the stops of
+     public/icons/mark-v2.svg and BRAND_MARK (brand-mark.ts; brand-mark.test.ts keeps them equal). */
+  --logo-from: #3561f0;
+  --logo-mid: #2a5ee0;
+  --logo-to: #1a7a9a;
 
   /* ---- space (4 px base), shape, heights, motion ---- */
   --s1: 4px;

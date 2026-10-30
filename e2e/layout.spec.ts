@@ -4,7 +4,9 @@
 // switch without a tab strip, live input on the prompt's line, the grouped file menu and the
 // shortcuts dialog's one grid. Every keyboard path these touch is driven with the keyboard.
 import type { Page } from "@playwright/test";
-import { expect, expectActive, importFiles, openApp, openFromTree, openThemePicker, reloadApp, run, setCode, showFiles, test, treeItem } from "./helpers";
+import { BRAND_MARK, rampColor, tileColorAt } from "../src/editor/brand-mark";
+import { expect, expectActive, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, setCode, showFiles, test, treeItem, waitReady } from "./helpers";
+import { decodeRgba, off } from "./snippet-helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -318,6 +320,51 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   expect((await box(page, ".topbar .crumb-file")).x).toBeGreaterThanOrEqual(markBox.x + markBox.width);
   expect(await noOverflow(page)).toBe(true);
 });
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`the app's mark is the logo in ${scheme}: the blue-to-teal tile and white chevrons, at the rail's head and in the phone's top bar`, async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await openIn(page, "/", scheme);
+    await waitReady(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+    // The rail: a 32 px tile painted with the logo's gradient corner to corner (the svg's own tile
+    // gives way to it there), the 20 px glyph on it.
+    // Screenshots come at the device's pixel ratio (WebKit's desktop profile is 2x): CSS px are scaled
+    // to bitmap px, and each expected colour is worked out at the sampled pixel's own centre.
+    const shot = async (sel: string, css: number) => {
+      const png = decodeRgba(await page.locator(sel).screenshot({ animations: "disabled" }));
+      const s = png.width / css;
+      expect([png.width, png.height], `${sel}: a ${css} px square at ${s}x`).toEqual([css * s, css * s]);
+      const px = (c: number) => Math.floor((c + 0.5) * s);
+      return { at: (x: number, y: number) => png.at(px(x), px(y)), centre: (c: number) => (px(c) + 0.5) / s };
+    };
+    const rail = await shot(".rail-mark", 32);
+    const railWant = (x: number, y: number) => rampColor((rail.centre(x) + rail.centre(y)) / 64);
+    for (const [x, y] of [[16, 3], [3, 16], [28, 16], [16, 28], [9, 9], [23, 23]] as const) {
+      expect(off(rail.at(x, y), railWant(x, y)), `rail tile at ${x}, ${y}: ${rail.at(x, y)} vs ${railWant(x, y)}`).toBeLessThanOrEqual(3);
+    }
+    // The middle of the left chevron's upper arm (unit 9.25, 13 of the 20 px svg at 6 px in).
+    expect(off(rail.at(11, 14), "#ffffff"), `the rail's glyph is white: ${rail.at(11, 14)}`).toBeLessThanOrEqual(40);
+    // The phone's top bar: the svg itself, its tile filled with its own gradient.
+    await page.setViewportSize(PHONE);
+    const mark = page.locator(".topbar .topbar-start > svg.brand-mark");
+    await expect(mark).toBeVisible();
+    const fill = await mark.evaluate((svg) => {
+      const rect = svg.querySelector("rect")!;
+      const id = /^url\("?#([^")]+)"?\)$/.exec(getComputedStyle(rect).fill)?.[1] ?? "";
+      const g = svg.querySelector(`linearGradient[id="${id}"]`);
+      return { id, inSvg: !!g, sameIdCount: document.querySelectorAll(`[id="${id}"]`).length, stops: g ? [...g.querySelectorAll("stop")].map((s) => [Number(s.getAttribute("offset")), s.getAttribute("stop-color")]) : [] };
+    });
+    expect(fill.inSvg, `the tile names its own gradient (${fill.id})`).toBe(true);
+    expect(fill.sameIdCount, "its id is unique in the page").toBe(1);
+    expect(fill.stops).toEqual(BRAND_MARK.tile.gradient.stops);
+    const top = await shot(".topbar .topbar-start > svg.brand-mark", 20);
+    for (const [x, y] of [[10, 2], [10, 17], [1, 10], [18, 10]] as const) {
+      const want = tileColorAt((top.centre(x) * 32) / 20, (top.centre(y) * 32) / 20);
+      expect(off(top.at(x, y), want), `top bar tile at ${x}, ${y}: ${top.at(x, y)} vs ${want}`).toBeLessThanOrEqual(3);
+    }
+  });
+}
 
 test("notices speak from the sidebar's foot: kept rendered while empty, dismissed in place; sync shows once, in the foot", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });

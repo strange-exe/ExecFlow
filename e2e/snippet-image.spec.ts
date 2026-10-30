@@ -6,6 +6,7 @@
 // lives in init scripts only.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
+import { rampColor, tileColorAt } from "../src/editor/brand-mark";
 import { contrast, deltaE, lift, over, UI_MIXES } from "../src/theme/contrast";
 import { audit } from "./audit";
 import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, test, tolerating } from "./helpers";
@@ -2397,20 +2398,29 @@ async function markBox(page: Page, background: "none" | "small" | "medium" | "la
 }
 
 for (const scheme of ["light", "dark"] as const) {
-  test(`45: the exported PNG carries the brand mark before "Made with ExecFlow": the tile's blue and the glyph's white, every background (${scheme})`, async ({ page }) => {
+  test(`45: the exported PNG carries the brand mark before "Made with ExecFlow": the tile's gradient and the glyph's white, every background (${scheme})`, async ({ page }) => {
     await openIn(page, "/", scheme);
     await openDialog(page);
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-    const BLUE = "#2f5bea";
+    // Every colour of the tile's blue-to-teal ramp (brand-mark.ts), for "nothing of it left of the tile".
+    const RAMP = Array.from({ length: 51 }, (_, i) => rampColor(i / 50));
     for (const background of ["none", "small", "medium", "large"] as const) {
       await setOptions(page, "match", true, true, { background });
       const px = decodeRgba((await downloadPng(page)).bytes);
       const m = await markBox(page, background);
-      const at = (u: number, v: number) => px.at(Math.round(m.x + u * m.size), Math.round(m.y + v * m.size));
-      // The tile's blue above and below the glyph, and on both sides of it.
+      const pixel = (u: number, v: number) => [Math.round(m.x + u * m.size), Math.round(m.y + v * m.size)];
+      const at = (u: number, v: number) => px.at(...(pixel(u, v) as [number, number]));
+      // The gradient at the pixel's centre, in the mark's 32-unit view.
+      const want = (u: number, v: number) => {
+        const [x, y] = pixel(u, v);
+        return tileColorAt(((x + 0.5 - m.x) / m.size) * 32, ((y + 0.5 - m.y) / m.size) * 32);
+      };
+      // The tile's gradient above and below the glyph, in the middle, and on both sides of it.
       for (const [u, v] of [[0.5, 0.16], [0.5, 0.84], [0.5, 0.5], [0.09, 0.5], [0.91, 0.5]] as const) {
-        expect(off(at(u, v), BLUE), `${background}: blue at ${u}, ${v} of the tile (${at(u, v)})`).toBeLessThanOrEqual(8);
+        expect(off(at(u, v), want(u, v)), `${background}: the gradient's ${want(u, v)} at ${u}, ${v} of the tile (${at(u, v)})`).toBeLessThanOrEqual(8);
       }
+      // Blue at the top, teal at the bottom: one ramp, not one flat colour.
+      expect(off(at(0.5, 0.16), want(0.5, 0.84)), `${background}: top and bottom differ`).toBeGreaterThan(20);
       // The glyph's white: each chevron's arms hold white pixels.
       const count = (u0: number, u1: number, v0: number, v1: number, hex: string) => {
         let n = 0;
@@ -2420,8 +2430,9 @@ for (const scheme of ["light", "dark"] as const) {
       };
       expect(count(0.15, 0.42, 0.25, 0.75, "#ffffff"), `${background}: the left chevron's white`).toBeGreaterThanOrEqual(8);
       expect(count(0.58, 0.85, 0.25, 0.75, "#ffffff"), `${background}: the right chevron's white`).toBeGreaterThanOrEqual(8);
-      // Nothing blue left of the tile (the line stays right-aligned).
-      expect(count(-1.5, -0.2, 0, 1, BLUE), `${background}: nothing of the mark left of its tile`).toBe(0);
+      // Nothing of the ramp left of the tile (the line stays right-aligned).
+      const ramp = RAMP.reduce((n, hex) => n + count(-1.5, -0.2, 0, 1, hex), 0);
+      expect(ramp, `${background}: nothing of the mark left of its tile`).toBe(0);
     }
   });
 }

@@ -137,9 +137,8 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .topbar-start, .topbar-end { display: flex; flex: 1 1 0; align-items: center; gap: var(--s2); min-width: 0; }
 .topbar-end { justify-content: flex-end; min-width: max-content; }
+/* The logo (brand-mark.ts brandMarkSvg): its own gradient tile and white chevrons, in every theme. */
 .brand-mark { width: var(--icon-xl); height: var(--icon-xl); flex: none; }
-.mark-tile { fill: var(--brand); }
-.mark-glyph { fill: none; stroke: var(--on-brand); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
 /* The breadcrumb: the folders in the secondary tier, the file in --text and the name font, slashes
    between them in the muted tier. A long path gives way from the left: the folders shrink
    (ellipsis) long before the file name does. */
@@ -302,9 +301,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
    word; Shortcuts and Settings at its foot. The chosen one (Files while the list shows) is lifted on
    the raised ground with a hairline ring, as a chosen tab is, never by colour alone. */
 .rail { display: flex; flex-direction: column; align-items: center; gap: var(--s1); min-height: 0; padding: var(--s3) 0; background: var(--surface); overflow-y: auto; scrollbar-width: none; }
-/* The mark at the rail's top: its 20 px box on a 32 px tile in the brand colour (one tile, read as
-   the mark at the rail's size). */
-.rail-mark { display: grid; place-items: center; flex: none; width: var(--s6); height: var(--s6); margin-bottom: var(--s2); border-radius: var(--r-control); background: var(--brand); color: var(--on-brand); }
+/* The mark at the rail's top: its 20 px glyph on a 32 px tile painted with the logo's gradient,
+   corner to corner (135deg on a square is the SVG's 0 0 1 1); the svg's own smaller tile gives way
+   to it, so the two ramps never sit one inside the other. One tile, read as the mark at the rail's size. */
+.rail-mark { display: grid; place-items: center; flex: none; width: var(--s6); height: var(--s6); margin-bottom: var(--s2); border-radius: var(--r-control); background: linear-gradient(135deg, var(--logo-from), var(--logo-mid) 50%, var(--logo-to)); }
+.rail-mark > .brand-mark > rect { visibility: hidden; }
 .rail-foot { display: flex; flex-direction: column; align-items: center; gap: var(--s1); margin-top: auto; }
 .rail .rail-btn,
 .rail .status-btn {
