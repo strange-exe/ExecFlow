@@ -190,3 +190,42 @@ test("a program that writes over a code file never replaces the code: Output say
   await expect(page.locator(".cm-content")).toContainText("def help():");
   await expect(page.locator(".cm-content")).not.toContainText("oops");
 });
+
+// Owner, 0.18.0 (2026-10-30), "Ask first": new code a program writes waits for a yes, because later
+// runs would build it (and the program may be someone else's, from a code link). Data saves as before.
+const WRITER = "with open('extra.py', 'w') as f:\n    f.write('print(1)\\n')\nwith open('out.txt', 'w') as f:\n    f.write('42\\n')\n";
+
+test("new code a program writes is asked about; Keep it adds it, and data files save without asking", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [{ name: "writer.py", text: WRITER }]);
+  await openFromTree(page, "writer.py");
+  const r = await run(page);
+  expect(r.status, r.output).toBe("ok");
+  await expect(treeItem(page, "out.txt")).toBeVisible();
+  await expect(treeItem(page, "extra.py")).toHaveCount(0);
+  const notice = page.locator(".notice");
+  await expect(notice).toContainText("The program wrote extra.py, code that later runs would build. Keep it in your files?");
+  await notice.getByRole("button", { name: "Keep it" }).click();
+  await expect(treeItem(page, "extra.py")).toBeVisible();
+  await expect(page.locator('#console [data-stream="note"]').last()).toContainText("Saved extra.py to your files.");
+  await openFromTree(page, "extra.py");
+  await expect(page.locator(".cm-content")).toContainText("print(1)");
+});
+
+test("new code a program writes is left out when the question is dismissed, or when the next run starts", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [{ name: "writer.py", text: WRITER }]);
+  await openFromTree(page, "writer.py");
+  await run(page);
+  const notice = page.locator(".notice");
+  await expect(notice).toContainText("Keep it in your files?");
+  await notice.getByRole("button", { name: /^Dismiss/ }).click();
+  await expect(page.locator('#console [data-stream="note"]').last()).toContainText("extra.py was left out of your files.");
+  await expect(treeItem(page, "extra.py")).toHaveCount(0);
+  // Asked again, then not answered before the next run: left out, and Output says so.
+  await run(page);
+  await expect(notice).toContainText("Keep it in your files?");
+  await run(page);
+  await expect(page.locator("#console")).toContainText("extra.py from the last run was left out of your files.");
+  await expect(treeItem(page, "extra.py")).toHaveCount(0);
+});

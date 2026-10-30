@@ -1371,6 +1371,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const current = settings.get();
     runSerial++;
     output.begin(nameOf(file.path), args.shown);
+    // Code the last run wrote and nobody kept is left out now (it would be built into this run).
+    discardHeld("next-run");
     // Ready before the run can fail, so its help shows with the error (a failed load says nothing).
     loadHelp().catch(() => {});
     // The panel opens on Run (to its remembered height) and shows Output.
@@ -1474,32 +1476,41 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   }
 
   /**
-   * Files the program wrote land in the workspace like on a disk: new files are created and changed
-   * ones saved, with a line in Output instead of a question. The one exception is code: a program
-   * that wrote over a .py, .c, .cpp or header file is not saved over the code the user typed.
+   * New code a run wrote (a .py, .c, .cpp or header file), held until the student keeps it: later
+   * builds would use it, and the run may be someone else's program from a code link (owner, 0.18.0,
+   * 2026-10-30: "Ask first"). A pinned notice asks; dismissing it, or the next run, leaves it out.
    */
-  async function saveWritten(written: WorkspaceFile[] | undefined) {
-    if (!written?.length) return;
-    if (!canWrite()) {
-      output.note(`This tab is read-only, so ${listNames(written.map((f) => f.path))} wasn't saved to your files.`, "warning");
-      return;
-    }
-    const byKey = new Map<string, WorkspaceFile>();
-    for (const f of written) byKey.set(foldKey(f.path), f);
-    const current = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
-    const changes: { file: WorkspaceFile; target: WsPath; replace: boolean }[] = [];
-    for (const [key, file] of byKey) {
-      const existing = current.get(key);
-      if (existing?.opaque || existing?.kind === "dir") continue;
-      if (existing) {
-        const text = await store.readFile(ws, existing.path).catch(() => null);
-        if (text === file.text) continue;
-      }
-      changes.push({ file, target: existing?.path ?? file.path, replace: Boolean(existing) });
-    }
-    const kept = changes.filter((c) => c.replace && detectLanguage(nameOf(c.target)));
-    const saving = changes.filter((c) => !kept.includes(c));
-    if (kept.length) output.note(`The program wrote over ${listNames(kept.map((c) => c.target))}. Your code was kept, not replaced.`, "warning");
+  const HELD_KEY = "written-code";
+  let held: WorkspaceFile[] | null = null;
+  function holdWritten(files: WorkspaceFile[]) {
+    held = files;
+    const names = listNames(files.map((f) => f.path));
+    const one = files.length === 1;
+    output.note(`The program wrote ${names}. Code a program writes is added to your files only if you keep it: see the question at the bottom.`, "warning");
+    notice.show(`The program wrote ${names}, code that later runs would build. Keep ${one ? "it" : "them"} in your files?`, {
+      tone: "warning",
+      action: { label: one ? "Keep it" : "Keep them", run: () => void keepHeld() },
+      pin: { key: HELD_KEY, onDismiss: () => discardHeld("dismissed") },
+    });
+  }
+  async function keepHeld() {
+    const files = held;
+    held = null;
+    notice.unpin(HELD_KEY);
+    if (!files) return;
+    if (!canWrite()) return void notice.show(readOnlyText(), { tone: "info" });
+    await saveChanges(files.map((file) => ({ file, target: file.path, replace: false })));
+  }
+  function discardHeld(why: "dismissed" | "next-run") {
+    if (!held) return;
+    const names = listNames(held.map((f) => f.path));
+    held = null;
+    if (why === "next-run") notice.unpin(HELD_KEY);
+    output.note(`${names} ${why === "next-run" ? "from the last run was" : "was"} left out of your files.`, "warning");
+  }
+
+  /** Saves files a run wrote (created, or saved over a file that isn't code), and says which. */
+  async function saveChanges(saving: { file: WorkspaceFile; target: WsPath; replace: boolean }[]) {
     if (!saving.length) return;
     // Unsaved typing reaches storage first, so the program's text replaces a saved file, never typing.
     await saves.flushAll();
@@ -1520,6 +1531,40 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       output.note(`Saved ${listNames(saved)} to your files.`);
       announcer.say(`The program saved ${plural(saved.length, "file")} to your files.`);
     }
+  }
+
+  /**
+   * Files the program wrote land in the workspace like on a disk: new files are created and changed
+   * ones saved, with a line in Output instead of a question. The exceptions are code: a program that
+   * wrote over a .py, .c, .cpp or header file is not saved over the code the user typed, and new code
+   * it wrote waits for the student to keep it (holdWritten).
+   */
+  async function saveWritten(written: WorkspaceFile[] | undefined) {
+    if (!written?.length) return;
+    if (!canWrite()) {
+      output.note(`This tab is read-only, so ${listNames(written.map((f) => f.path))} wasn't saved to your files.`, "warning");
+      return;
+    }
+    const byKey = new Map<string, WorkspaceFile>();
+    for (const f of written) byKey.set(foldKey(f.path), f);
+    const current = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
+    const changes: { file: WorkspaceFile; target: WsPath; replace: boolean }[] = [];
+    for (const [key, file] of byKey) {
+      const existing = current.get(key);
+      if (existing?.opaque || existing?.kind === "dir") continue;
+      if (existing) {
+        const text = await store.readFile(ws, existing.path).catch(() => null);
+        if (text === file.text) continue;
+      }
+      changes.push({ file, target: existing?.path ?? file.path, replace: Boolean(existing) });
+    }
+    const isCode = (path: string) => Boolean(detectLanguage(nameOf(path))) || isHeader(nameOf(path));
+    const kept = changes.filter((c) => c.replace && isCode(c.target));
+    const fresh = changes.filter((c) => !c.replace && isCode(c.target));
+    const saving = changes.filter((c) => !kept.includes(c) && !fresh.includes(c));
+    if (kept.length) output.note(`The program wrote over ${listNames(kept.map((c) => c.target))}. Your code was kept, not replaced.`, "warning");
+    await saveChanges(saving);
+    if (fresh.length) holdWritten(fresh.map((c) => ({ path: c.target, text: c.file.text })));
   }
 
   // C/C++ download offer (in Output while a C or C++ file is open).
