@@ -838,47 +838,24 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]] as const
 }
 
 for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
-  test(`Settings at ${viewport.width}x${viewport.height}: the colour theme leads under one heading, the editor options follow on the first screen, and every theme is one step away`, async ({ page }) => {
+  test(`Settings at ${viewport.width}x${viewport.height}: the colour themes lead under Appearance, and the editor options are one choice away in the sections list`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await openApp(page);
     await page.locator("#settings-button").click();
     const dialog = page.getByRole("dialog", { name: "Settings" });
     await expect(dialog).toBeVisible();
-    // The editor options are on the first screen (review D: they had moved about 1,300 px down),
-    // after the colour theme, whose control has the focus. Since Workbench Pro S4 the themes are in
-    // the theme picker, a dialog of its own: Settings names the chosen theme and Change theme opens it.
-    const change = dialog.getByRole("button", { name: "Change theme" });
-    await expect(change).toBeFocused();
-    await expect(change).toHaveAccessibleDescription("CodeEditor Signal (match device)");
-    // 0.7.0 Settings: the sections list beside the pane is on the first screen, so the Editor options
-    // are one choice away whatever the height. The first three are on the first screen (the
-    // dialog's legal foot now takes a line: the options after them, from "Enter accepts the top
-    // suggestion" (2026-10-28) on, start below it).
+    // Since the owner's "Inside Settings" (2026-10-30) Appearance is the theme picker itself: its
+    // one radio group is named "Colour theme", the chosen theme has the focus, and every theme is there.
+    await expect(dialog.locator("h3").first()).toHaveText("Appearance");
+    const themes = dialog.getByRole("radiogroup", { name: "Colour theme" });
+    await expect(themes.locator('input[name=theme][value="signal"]')).toBeFocused();
+    for (const id of ["slate-dark", "tokyo-night", "nord"]) await expect(themes.locator(`input[name=theme][value="${id}"]`)).toBeAttached();
+    expect(await themes.locator("input[name=theme]").count(), "every built-in theme").toBeGreaterThanOrEqual(27);
+    expect((await box(page, "#theme-search")).y).toBeLessThan((await box(page, "#set-code-size")).y);
+    // The sections list beside the pane is on the first screen, so the Editor options are one
+    // choice away whatever the height.
     const nav = dialog.getByRole("navigation", { name: "Settings sections" });
     await expect(nav.getByRole("button", { name: "Editor" })).toBeInViewport();
-    const body = await box(page, "#settings .dialog-body");
-    for (const id of ["#set-code-size", "#set-wrap", "#set-suggest"]) {
-      const control = await box(page, id);
-      expect(control.y + control.height, `${id} is on the first screen`).toBeLessThanOrEqual(body.y + body.height);
-    }
-    expect((await box(page, "#theme-open")).y).toBeLessThan((await box(page, "#set-code-size")).y);
-    // 0.7.0 Settings: the first section is Appearance; "Colour theme" is its first row's visible
-    // label (settings-dialog.ts #theme-title), then the Editor section.
-    await expect(dialog.locator("#theme-title")).toHaveText("Colour theme");
-    await expect(dialog.locator("h3").first()).toHaveText("Appearance");
-    await expect(dialog.getByRole("heading", { name: "Editor" })).toBeVisible();
-    // Every theme is still offered: Slate, the popular ones and the rest are one step away, in the
-    // picker's one radio group, named "Colour theme" too.
-    await change.click();
-    const picker = page.getByRole("dialog", { name: "Colour theme" });
-    const themes = picker.getByRole("radiogroup", { name: "Colour theme" });
-    await expect(themes.locator('input[name=theme][value="signal"]')).toBeFocused();
-    for (const id of ["slate-dark", "tokyo-night", "nord"]) await expect(themes.locator(`input[name=theme][value="${id}"]`)).toBeVisible();
-    const all = await themes.locator("input[name=theme]").count();
-    expect(all, "every built-in theme").toBeGreaterThanOrEqual(27);
-    await page.keyboard.press("Escape");
-    await expect(picker).toBeHidden();
-    await expect(change).toBeFocused();
     // Editor in the list brings every editor option on screen, its heading focused.
     await nav.getByRole("button", { name: "Editor" }).click();
     await expect(dialog.getByRole("heading", { name: "Editor" })).toBeFocused();
@@ -891,8 +868,8 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
   });
 }
 
-// Since Workbench Pro S4 there is no fold: the picker scrolls to the chosen theme instead, so a
-// theme far down the A to Z list is on show (and focused) when the picker opens again.
+// Since Workbench Pro S4 there is no fold: Settings scrolls to the chosen theme instead, so a
+// theme far down the A to Z list is on show (and focused) when Settings opens again.
 test("the theme picker opens on the chosen theme, so the chosen theme is always on show", async ({ page }) => {
   await page.setViewportSize(DESKTOP);
   await openApp(page);
@@ -900,8 +877,6 @@ test("the theme picker opens on the chosen theme, so the chosen theme is always 
   await picker.locator('input[name=theme][value="vitesse-light"]').check();
   await page.keyboard.press("Escape");
   await expect(picker).toBeHidden();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
   await openThemePicker(page);
   await expect(picker.locator('input[name=theme][value="vitesse-light"]')).toBeFocused();
   await expect(picker.locator('[data-theme-family="vitesse"]')).toBeInViewport({ ratio: 1 });

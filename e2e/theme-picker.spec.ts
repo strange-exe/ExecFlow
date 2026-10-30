@@ -1,12 +1,12 @@
-// The theme picker (Workbench Pro S4, owner's go-ahead 2026-10-30): Settings > Appearance names the
-// chosen theme and opens the picker, a dialog of its own, with Change theme. The picker shows the 45
+// The theme picker (Workbench Pro S4, owner's go-ahead 2026-10-30): Settings > Appearance itself
+// (owner, 2026-10-30: "Inside Settings"). The picker shows the 45
 // built-in themes as 22 family tiles, each with a code preview in its own colours (every syntax
 // colour, the failed line, Run) and its variants as native radios, all one group (name=theme, value
 // = the theme id stored as before). A search field and a Light/Dark/All filter narrow the tiles; the
 // first row is curated ("Start here"), the rest follow A to Z.
 import AxeBuilder from "@axe-core/playwright";
-import type { Locator, Page, Route } from "@playwright/test";
-import { expect, openApp, openThemePicker, test, tolerating, waitReady } from "./helpers";
+import type { Locator, Page } from "@playwright/test";
+import { expect, openApp, openThemePicker, test, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -24,54 +24,25 @@ const visibleFamilies = (dialog: Locator) =>
 const visibleVariants = (tile: Locator) =>
   tile.locator("input[name=theme]").evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => (e as HTMLInputElement).value));
 
-test("Settings names the chosen theme and Change theme opens the picker over it; Escape goes back to Settings on the button", async ({ page }) => {
+test("the picker is Settings > Appearance itself: no second dialog, focus on the chosen theme, and Escape closes Settings back to the gear", async ({ page }) => {
   await openApp(page);
   await page.locator("#settings-button").click();
   const settings = page.getByRole("dialog", { name: "Settings" });
-  const change = settings.getByRole("button", { name: "Change theme" });
-  await expect(change).toBeFocused();
-  await expect(change).toHaveAccessibleDescription("CodeEditor Signal (match device)");
-  await expect(settings.locator("input[name=theme]")).toHaveCount(0);
-  const picker = await openThemePicker(page);
-  await expect(picker).toBeVisible();
-  await expect(settings).toBeVisible();
-  await picker.getByRole("radio", { name: "CodeEditor Slate Dark", exact: true }).check();
+  const appearance = settings.locator("#settings-appearance");
+  await expect(appearance.locator("#theme-picker")).toBeVisible();
+  await expect(appearance.locator("input[name=theme][value=signal]")).toBeFocused();
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(settings.getByRole("button", { name: "Change theme" })).toHaveCount(0);
+  // The tool row stays at the top of Settings' scroller while the tiles scroll under it.
+  const body = settings.locator(".dialog-body");
+  await body.evaluate((el) => (el.scrollTop = 600));
+  const [tools, pane] = [await box(page, "#theme-picker .theme-tools"), await box(page, "#settings .dialog-body")];
+  expect(Math.abs(tools.y - pane.y), "the tools are held at the pane's top").toBeLessThan(2);
+  await settings.getByRole("radio", { name: "CodeEditor Slate Dark", exact: true }).check();
   await page.keyboard.press("Escape");
-  await expect(picker).toBeHidden();
-  await expect(settings).toBeVisible();
-  await expect(change).toBeFocused();
-  await expect(change).toHaveAccessibleDescription("CodeEditor Slate Dark");
-});
-
-test.describe("the picker's chunk fails to load", () => {
-  // The aborted request is this test's own doing; it is the only failure tolerated, with the console
-  // line Chromium logs for it (it names no URL).
-  test.use(tolerating(/^request failed: http:\/\/127\.0\.0\.1:\d+\/assets\/[\w-]+\.js /, /^Failed to load resource: net::ERR_FAILED$/));
-  test("Settings says the theme list didn't load, and the next try opens it", async ({ page, browserName }) => {
-    await openApp(page);
-    // Only the picker's own chunk fails: it is the one that holds the search field's id.
-    const failPicker = async (route: Route) => {
-      const response = await route.fetch();
-      if ((await response.text()).includes("theme-search")) await route.abort("failed");
-      else await route.fulfill({ response });
-    };
-    await page.route(/\/assets\/[\w-]+\.js$/, failPicker);
-    await page.locator("#settings-button").click();
-    const settings = page.getByRole("dialog", { name: "Settings" });
-    const change = settings.getByRole("button", { name: "Change theme" });
-    await change.click();
-    await expect(settings.locator("#theme-current")).toHaveText("The theme list didn't load. Check the connection, then try again.");
-    await expect(change).toHaveAccessibleDescription(/didn't load/);
-    await expect(page.locator("#theme-picker")).toHaveCount(0);
-    await expect(settings).toBeVisible();
-    await page.unroute(/\/assets\/[\w-]+\.js$/, failPicker);
-    // Playwright's WebKit keeps a failed dynamic import failed for the whole context (lessons, 2026-10-21).
-    test.skip(browserName === "webkit", "WebKit keeps the failed import: no second try in this context");
-    const picker = await openThemePicker(page);
-    await page.keyboard.press("Escape");
-    await expect(picker).toBeHidden();
-    await expect(change).toHaveAccessibleDescription("CodeEditor Signal (match device)");
-  });
+  await expect(settings).toBeHidden();
+  await expect(page.locator("#settings-button")).toBeFocused();
+  await expect(page.locator("html")).toHaveAttribute("data-theme-id", "slate-dark");
 });
 
 test("themes are family tiles with a code preview, and every variant is a native radio in one group", async ({ page }) => {
@@ -150,15 +121,15 @@ test("keyboard: focus starts on the chosen theme, arrows choose the next variant
   // Tab goes past the other 44 radios to the next control.
   await page.keyboard.press("Tab");
   expect(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name ?? "")).not.toBe("theme");
-  // The search field and the filter come before the group, then the scrolling body (a region the
-  // keyboard can scroll, dialogs.ts watchScroll).
+  // The filter and the search field come before the group, and before them Settings' scrolling body
+  // (a region the keyboard can scroll, dialogs.ts watchScroll).
   await signal.focus();
-  await page.keyboard.press("Shift+Tab");
-  await expect(dialog.locator(".dialog-body")).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(dialog.getByRole("radio", { name: "All", exact: true })).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(dialog.getByRole("searchbox", { name: "Search themes" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.locator(".dialog-body")).toBeFocused();
 });
 
 test("search narrows the tiles, says how many match, and an empty result offers to clear it", async ({ page }) => {
@@ -187,15 +158,14 @@ test("search narrows the tiles, says how many match, and an empty result offers 
   await expect(search).toBeFocused();
   await expect(empty).toBeHidden();
   await expect.poll(async () => (await visibleFamilies(dialog)).length).toBe(ALL_FAMILIES);
-  // Escape in a filled field clears it and keeps the picker open; the next Escape closes it.
+  // Escape in a filled field clears it and keeps Settings open; the next Escape closes it.
   await search.fill("nord");
   await search.press("Escape");
   await expect(search).toHaveValue("");
   await expect(dialog).toBeVisible();
   await search.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
-  // The picker opens again with the search cleared.
+  // Settings opens again with the search cleared.
   await page.locator("#theme-search").evaluate((el) => ((el as HTMLInputElement).value = "stale"));
   await openThemePicker(page);
   await expect(search).toHaveValue("");
@@ -328,9 +298,10 @@ for (const scheme of ["light", "dark"] as const) {
       await dialog.getByRole("searchbox", { name: "Search themes" }).fill("zzz");
       await expect(dialog.locator(".theme-empty")).toBeVisible();
       await scan("empty");
+      // The first Escape clears the search, the second closes Settings.
       await page.keyboard.press("Escape");
       await page.keyboard.press("Escape");
-      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
     }
   });
 }
@@ -341,14 +312,14 @@ for (const width of [390, 320]) {
     await openApp(page);
     const dialog = await openThemePicker(page);
     const body = dialog.locator(".dialog-body");
-    expect(await body.evaluate((el) => el.scrollWidth - el.clientWidth), "the picker's body does not scroll sideways").toBeLessThanOrEqual(0);
-    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth), "nor the picker").toBeLessThanOrEqual(0);
+    expect(await body.evaluate((el) => el.scrollWidth - el.clientWidth), "Settings' body does not scroll sideways").toBeLessThanOrEqual(0);
+    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth), "nor Settings").toBeLessThanOrEqual(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     // One column of tiles, each as wide as the list.
     const boxes = await dialog.locator(".theme-section[data-section=start] .theme-family").evaluateAll((els) => els.slice(0, 2).map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
     expect(boxes[1].top).toBeGreaterThan(boxes[0].bottom - 1);
     expect(Math.abs(boxes[1].left - boxes[0].left)).toBeLessThan(1);
-    // Search, filter and count sit inside the dialog, and every variant button is 24 px or more.
+    // Search, filter and count sit inside the picker, and every variant button is 24 px or more.
     const d = await box(page, "#theme-picker");
     for (const sel of ["#theme-search", ".theme-filter", "#theme-count"]) {
       const b = await box(page, `#theme-picker ${sel}`);

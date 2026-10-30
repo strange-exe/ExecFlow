@@ -305,7 +305,7 @@ for (const scheme of ["light", "dark"] as const) {
     const settings = page.getByRole("dialog", { name: "Settings" });
     await expect(settings).toBeVisible();
     for (const h of await settings.locator(".section-title").all()) expect(await h.evaluate((e) => getComputedStyle(e).fontWeight)).toBe("500");
-    // The Default tag is in the theme picker over Settings since Workbench Pro S4.
+    // The Default tag is in the theme picker, Settings > Appearance since Workbench Pro S4.
     const picker = await openThemePicker(page);
     const tag = picker.locator(".tag").first();
     expect(await tag.evaluate((e) => getComputedStyle(e).borderTopWidth)).toBe("0px");

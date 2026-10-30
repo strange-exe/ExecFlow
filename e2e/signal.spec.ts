@@ -101,7 +101,7 @@ test("a device on the old default (Deep Field, match device) moves to Signal onc
   const picker = await openThemePicker(page);
   await picker.getByRole("radio", { name: "CodeEditor Deep Field (match device)" }).check();
   await page.keyboard.press("Escape");
-  await page.keyboard.press("Escape");
+  await expect(picker).toBeHidden();
   await reloadHeld(page, async () => {
     await expect(page.locator("html")).not.toHaveAttribute("data-palette");
     expect(await bodyBg(page)).toBe("rgb(19, 32, 27)"); // Deep Field's dark field #13201b

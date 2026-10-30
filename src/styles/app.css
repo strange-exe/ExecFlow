@@ -1265,25 +1265,22 @@ input.switch {
   .settings-foot { padding: var(--s3) var(--s4); }
 }
 
-/* The theme picker (Workbench Pro S4), a dialog of its own: the head, a tool row that stays put
-   (search, the Light/Dark/All segmented filter, the count), the family tiles in the scrolling body,
-   then a foot (Load theme file, Get template). A tile is a card on the code ground with a 1 px edge:
+/* The theme picker (Workbench Pro S4), Settings > Appearance itself: a tool row held at the top of
+   Settings' scroller while the section scrolls past (search, the Light/Dark/All segmented filter,
+   the count), the family tiles, then a foot (Load theme file, Get template). A tile is a card on the
+   code ground with a 1 px edge:
    the family's name and schemes, a preview in the shown variant's own colours (custom properties set
    by theme-picker.ts; only var(--tile-*) is painted inside it), then the variants as native radios in
    small buttons. The chosen family's card has the 2 px location ring; the chosen variant's button is
    raised with a ring, so the choice is a shape, not only a colour. */
-.theme-dialog.dialog { width: min(1120px, calc(100vw - 32px)); height: min(860px, calc(100dvh - 32px)); max-height: none; }
-.theme-dialog[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
-.theme-dialog > .dialog-body { padding-top: var(--s1); }
-.theme-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s1) var(--s5) var(--s3); }
-.theme-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s4); padding: var(--s3) var(--s5); box-shadow: inset 0 1px 0 var(--divider); }
+.theme-picker { display: flex; flex-direction: column; gap: var(--s3); }
+/* Sticky to the scroller's top edge (the body's top padding, var(--s1), is scrolled away first), and
+   only while Appearance is in view: its section is the containing block. */
+.theme-tools { position: sticky; top: calc(-1 * var(--s1)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s2) 0; background: var(--bg); box-shadow: 0 1px 0 var(--divider); }
+.theme-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s4); padding-top: var(--s3); box-shadow: inset 0 1px 0 var(--divider); }
 .theme-foot > .row-actions { margin: 0; }
 .theme-foot > .field-note { margin: 0; }
 .theme-foot > .field-note:empty { display: none; }
-@media (max-width: 699px) {
-  .theme-tools, .theme-foot { padding-inline: var(--s4); }
-  .theme-dialog > .dialog-body { padding-inline: var(--s4); }
-}
 .theme-search { position: relative; flex: 1 1 220px; min-width: 0; }
 .theme-search > .icon { position: absolute; top: 50%; left: var(--s2); width: var(--icon-sm); height: var(--icon-sm); color: var(--text-muted); transform: translateY(-50%); pointer-events: none; }
 .theme-search-field {
@@ -1304,7 +1301,7 @@ input.switch {
 .seg-option > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .seg-option:hover { color: var(--text); background: var(--hover); }
 .seg-option:has(input:checked) { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
-.seg-option:has(input:focus-visible), .theme-dialog[data-keys] .seg-option:has(input:focus) { outline: var(--ring); outline-offset: 0; }
+.seg-option:has(input:focus-visible), .theme-picker[data-keys] .seg-option:has(input:focus) { outline: var(--ring); outline-offset: 0; }
 .theme-count { margin: 0 0 0 auto; white-space: nowrap; }
 .theme-list { display: flex; flex-direction: column; gap: var(--s5); }
 .theme-section { display: flex; flex-direction: column; gap: var(--s2); }
@@ -1347,7 +1344,7 @@ input.switch {
 .theme-option:hover { color: var(--text); background: var(--hover); }
 .theme-option:has(input:checked) { border-color: transparent; color: var(--text); font-weight: var(--w-label); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
 /* data-keys (theme-picker.ts): WebKit stops matching :focus-visible on a radio reached by an arrow key. */
-.theme-option:has(input:focus-visible), .theme-dialog[data-keys] .theme-option:has(input:focus) { outline: var(--ring); outline-offset: 2px; }
+.theme-option:has(input:focus-visible), .theme-picker[data-keys] .theme-option:has(input:focus) { outline: var(--ring); outline-offset: 2px; }
 .theme-empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s4); border: 1px dashed var(--border-strong); border-radius: var(--r-control); }
 .theme-empty > p { margin: 0; color: var(--text-secondary); }
 .tile-prev {

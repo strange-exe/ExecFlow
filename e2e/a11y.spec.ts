@@ -841,24 +841,20 @@ test("palette themes: painted contrast in the error state", async ({ page }, inf
   await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
   await openFromTree(page, "calc.py");
   await expect(page.locator(".cm-lint-marker-error, .cm-lintRange-error").first()).toBeVisible({ timeout: 15_000 });
-  // The themes are in the theme picker, a dialog over Settings since Workbench Pro S4: it is
-  // audited with Settings under it, then both close.
-  const settings = page.getByRole("dialog", { name: "Settings" });
-  const picker = await openThemePicker(page);
-  const names = await picker.locator(".theme-option[data-theme-option]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.themeOption ?? ""));
-  await page.keyboard.press("Escape");
+  // The themes are in the theme picker, Settings > Appearance since Workbench Pro S4: Settings is
+  // audited with each theme chosen, then it closes.
+  const settings = await openThemePicker(page);
+  const names = await settings.locator(".theme-option[data-theme-option]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.themeOption ?? ""));
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();
   const results: Record<string, { low: string[]; axe: string[] }> = {};
   const dir = dirFor(info, "themes");
   for (const name of names) {
     await openThemePicker(page);
-    await picker.locator(`.theme-option[data-theme-option="${name}"] input[type=radio]`).check();
+    await settings.locator(`.theme-option[data-theme-option="${name}"] input[type=radio]`).check();
     // Colours change with a 140 ms transition: measure the settled state, not a frame half-way.
     await settled(page);
     const settingsAudit = await audit(page);
-    await page.keyboard.press("Escape");
-    await expect(picker).toBeHidden();
     await page.keyboard.press("Escape");
     await expect(settings).toBeHidden();
     await settled(page);

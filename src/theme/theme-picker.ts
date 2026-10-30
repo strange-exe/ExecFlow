@@ -1,17 +1,16 @@
 // The colour theme picker (Workbench Pro S4, from the redesign4 picker study; first adapted from
-// Pocket Run's src/theme-picker.ts, same author, MIT): a dialog of its own, opened from Settings >
-// Appearance and loaded only then (its own chunk), so Settings keeps its editor options on its first
-// screen (review D, 2026-10-18) and the picker has the room for every family at once.
+// Pocket Run's src/theme-picker.ts, same author, MIT): Settings > Appearance itself (owner,
+// 2026-10-30: "Inside Settings"), so the themes are on show as Settings opens. The editor options
+// follow it; the sections list goes straight to them.
 //
 // The 45 built-in themes are 22 family tiles (families.ts): the family's name and schemes, a preview
 // of six lines of C in the shown variant's own colours (every syntax colour, the failed line on its
 // error band, a Run button; plain spans hidden from assistive technology, never an editor), then its
 // variants as native radio buttons. All variants are one radio group (name=theme, the theme id as
 // value, as stored): one Tab stop, arrow keys move through every theme and apply each at once.
-// Above the tiles, fixed while they scroll: a search field, a Light/Dark/All filter (native radios
+// Above the tiles, held at the top of Settings while they scroll past: a search field, a Light/Dark/All filter (native radios
 // too) and a count of the families shown. "Start here" (families.ts CURATED) leads; the other
 // families follow A to Z; themes loaded from a file come last under "Yours".
-import { dialogShell, openModal } from "../ui/dialogs";
 import { h } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { isTokenValue, type ColorVar, type Palette } from "./contrast";
@@ -65,17 +64,21 @@ interface Tile {
   hovered: string | null;
 }
 
-export interface ThemePickerDialog {
-  /** Opens the picker on the chosen theme, the search and filter cleared; focus goes back to `opener` on close. */
-  open(opener?: HTMLElement | null): void;
-  /** Called after every close, so Settings can show the theme now chosen. */
-  onClose(listener: () => void): void;
+export interface ThemePicker {
+  /** The picker: the tools, the tiles and the foot, placed in Settings > Appearance. */
+  el: HTMLElement;
+  /**
+   * Re-reads the saved themes and the choice, clears the search, the filter and the message (each
+   * time Settings opens), and returns what takes the focus: the chosen theme's radio.
+   */
+  reset(): HTMLElement;
+  /** Brings the chosen theme's tile into view (after Settings has opened and is laid out). */
+  reveal(): void;
 }
 
-export function createThemePickerDialog(options: { download(name: string, text: string): void }): ThemePickerDialog {
-  const { dialog, body } = dialogShell("theme-picker", "Colour theme");
-  dialog.classList.add("theme-dialog");
-  const list = h("div", { class: "theme-list", role: "radiogroup", "aria-labelledby": "theme-picker-title" });
+export function createThemePicker(options: { download(name: string, text: string): void }): ThemePicker {
+  const panel = h("div", { class: "theme-picker", id: "theme-picker" });
+  const list = h("div", { class: "theme-list", role: "radiogroup", "aria-label": "Colour theme" });
   const message = h("p", { class: "field-note", role: "status", "data-tone": "info" });
   const fileInput = h("input", { type: "file", accept: ".json,application/json", hidden: true, "aria-hidden": "true", tabindex: "-1" });
   const say = (text: string, tone: "info" | "error" = "info") => {
@@ -212,7 +215,7 @@ export function createThemePickerDialog(options: { download(name: string, text: 
     filter = "all";
     search.value = "";
     for (const f of filters) f.input.checked = f.value === "all";
-    dialog.removeAttribute("data-keys");
+    panel.removeAttribute("data-keys");
     const signature = themes.map((t) => `${t.id}:${t.custom ? JSON.stringify(t.base) : ""}`).join("|");
     if (signature === builtFor) {
       for (const tile of tiles) {
@@ -224,7 +227,7 @@ export function createThemePickerDialog(options: { download(name: string, text: 
     }
     builtFor = signature;
     byId = new Map(themes.map((t) => [t.id, t]));
-    const heading = (text: string) => h("h3", { class: "theme-group" }, text);
+    const heading = (text: string) => h("h4", { class: "theme-group" }, text);
     const grid = (ts: Tile[]) => h("div", { class: "theme-grid" }, ...ts.map((t) => t.el));
     const start = curatedFamilies().map((f) => makeTile(f, current));
     const rest = otherFamilies().map((f) => makeTile(f, current));
@@ -244,7 +247,7 @@ export function createThemePickerDialog(options: { download(name: string, text: 
     query = search.value;
     refresh();
   });
-  // Escape in a filled search clears it and keeps the picker open; in an empty one it closes the picker.
+  // Escape in a filled search clears it and keeps Settings open; in an empty one it closes Settings.
   search.addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !search.value) return;
     e.preventDefault();
@@ -268,7 +271,7 @@ export function createThemePickerDialog(options: { download(name: string, text: 
   });
 
   // A "match device" preview is drawn in the device's scheme, so it is redrawn when the device
-  // switches, the picker open or not. Only the previews are replaced: the radios stay, and so does the focus.
+  // switches, Settings open or not. Only the previews are replaced: the radios stay, and so does the focus.
   if (typeof matchMedia === "function") {
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
       const current = chosenTheme().id;
@@ -301,31 +304,24 @@ export function createThemePickerDialog(options: { download(name: string, text: 
     say("Saved codeeditor-theme.json. Change the colours, rename it, then load it here.");
   });
 
-  body.append(list, empty);
-  body.before(tools);
-  body.after(h("div", { class: "theme-foot" }, h("div", { class: "row-actions" }, load, template, fileInput), message));
+  panel.append(tools, list, empty, h("div", { class: "theme-foot" }, h("div", { class: "row-actions" }, load, template, fileInput), message));
 
   // The focus ring follows the keyboard: WebKit stops matching :focus-visible on a radio reached by
   // an arrow key (measured 2026-10-30, Playwright's WebKit, opened by mouse or by Enter alike), so
   // a key press marks the picker (data-keys, app.css) until the next press of a pointer.
-  dialog.addEventListener("keydown", () => dialog.setAttribute("data-keys", ""), true);
-  dialog.addEventListener("pointerdown", () => dialog.removeAttribute("data-keys"), true);
+  panel.addEventListener("keydown", () => panel.setAttribute("data-keys", ""), true);
+  panel.addEventListener("pointerdown", () => panel.removeAttribute("data-keys"), true);
 
-  const closed: (() => void)[] = [];
-  dialog.addEventListener("close", () => {
-    for (const listener of closed) listener();
-  });
-
+  const checked = () => list.querySelector<HTMLInputElement>("input[name=theme]:checked");
   return {
-    open(opener) {
+    el: panel,
+    reset() {
       render();
       say("");
-      body.scrollTop = 0;
-      openModal(dialog, list.querySelector<HTMLInputElement>("input[name=theme]:checked") ?? search, opener);
-      list.querySelector("input[name=theme]:checked")?.closest(".theme-family")?.scrollIntoView({ block: "nearest" });
+      return checked() ?? search;
     },
-    onClose(listener) {
-      closed.push(listener);
+    reveal() {
+      checked()?.closest(".theme-family")?.scrollIntoView({ block: "nearest" });
     },
   };
 }

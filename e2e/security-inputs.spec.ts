@@ -191,7 +191,7 @@ test("theme files: a markup name is cleaned, unknown keys and CSS values are ref
   const colors = Object.fromEntries(
     ["paper", "sheet", "bar", "ink", "muted", "rule", "accent", "on-accent", "ok", "err", "warn", "syn-keyword", "syn-string", "syn-number", "syn-comment", "syn-def"].map((k, i) => [k, i % 2 ? "#f0f0f0" : "#101010"]),
   );
-  // Load theme file is in the theme picker's foot (Settings, Change theme) since Workbench Pro S4.
+  // Load theme file is in the theme picker's foot (Settings > Appearance) since Workbench Pro S4.
   const settings = await openThemePicker(page);
   const message = settings.locator(".theme-foot > [role=status]");
   const load = async (text: string) => {

@@ -9,8 +9,7 @@
 // under its own field. The foot holds the version (#settings-version, filled by the versions unit)
 // and the legal line.
 import { ligaturesOn, setLigatures } from "../theme/ligatures";
-import { chosenTheme } from "../theme/themes";
-import type { ThemePickerDialog } from "../theme/theme-picker";
+import { createThemePicker } from "../theme/theme-picker";
 import type { WorkspaceDb } from "../storage/db";
 import { requestPersistence, storageStatus } from "../storage/persist";
 import { downloadText, formatBytes, h } from "./dom";
@@ -92,40 +91,9 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const set = (patch: Partial<Settings>) => deps.settings.update(patch);
 
   // ---------------------------------------------------------------- appearance
-  // The colour theme: its name here, and Change theme opens the theme picker (Workbench Pro S4), a
-  // dialog of its own over Settings in its own chunk, fetched when Settings opens so the click is
-  // instant. "Colour theme" labels the row; the theme's name describes the button.
-  const themeNow = h("p", { class: "field-note", id: "theme-current" });
-  const changeTheme = h("button", { type: "button", class: "btn", id: "theme-open", "aria-describedby": "theme-current" }, "Change theme");
-  const showTheme = () => {
-    themeNow.textContent = chosenTheme().name;
-  };
-  let pickerChunk: Promise<ThemePickerDialog> | null = null;
-  const loadPicker = () =>
-    (pickerChunk ??= import("../theme/theme-picker").then(
-      (m) => {
-        const picker = m.createThemePickerDialog({ download: (name, text) => downloadText(name, text, "application/json") });
-        picker.onClose(showTheme);
-        return picker;
-      },
-      (e: unknown) => {
-        pickerChunk = null; // a later click tries again
-        throw e;
-      },
-    ));
-  changeTheme.addEventListener("click", async () => {
-    try {
-      (await loadPicker()).open(changeTheme);
-    } catch {
-      themeNow.textContent = "The theme list didn't load. Check the connection, then try again.";
-    }
-  });
-  const themeRow = h(
-    "div",
-    { class: "setting" },
-    h("div", { class: "setting-text" }, h("p", { class: "setting-label", id: "theme-title" }, "Colour theme"), themeNow),
-    h("div", { class: "setting-control" }, changeTheme),
-  );
+  // The colour theme picker (Workbench Pro S4) is this section itself (owner, 2026-10-30: "Inside
+  // Settings"): search, filter, the family tiles and Load theme file. It is part of Settings' chunk.
+  const picker = createThemePicker({ download: (name, text) => downloadText(name, text, "application/json") });
 
   // ---------------------------------------------------------------- editor
   // The code font size: a stepper (- value +), still typable; the store clamps it to LIMITS.
@@ -243,9 +211,9 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
     sections.set(key, el);
     return el;
   };
-  // Reading order (audit, Settings): the chosen theme, then the editor options, then run limits.
+  // Reading order (audit, Settings): the themes, then the editor options, then run limits.
   body.append(
-    section("appearance", "Appearance", themeRow),
+    section("appearance", "Appearance", picker.el),
     section("editor", "Editor", row("Code font size (px)", stepper, undefined, codeSize), wrap.row, suggest.row, enterTop.row, ligatures.row),
     section(
       "running",
@@ -356,8 +324,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   return {
     open(opener) {
       const now = s();
-      showTheme();
-      void loadPicker().catch(() => {}); // fetched now; a failure shows on the click
+      const chosen = picker.reset();
       showSize(now.codeSize);
       wrap.input.checked = now.lineWrapping;
       suggest.input.checked = now.suggestOnTyping;
@@ -379,7 +346,9 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
       void refreshStorage();
       body.scrollTop = 0;
       mark("appearance");
-      openModal(dialog, changeTheme, opener);
+      // Focus starts on the chosen theme, its tile brought into view.
+      openModal(dialog, chosen, opener);
+      picker.reveal();
     },
   };
 }

@@ -252,7 +252,7 @@ test("reduced motion turns transitions off", async ({ page }) => {
 
 test("a theme chosen in Settings applies at once, and is painted on the next load before the app's code runs", async ({ page }) => {
   await openApp(page);
-  // The theme picker is its own dialog over Settings since Workbench Pro S4 (Change theme).
+  // The theme picker is Settings > Appearance since Workbench Pro S4.
   await openThemePicker(page);
   await page.getByRole("radio", { name: "Dracula" }).check();
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -296,7 +296,7 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const html = page.locator("html");
   await expect(html).toHaveAttribute("data-palette", "signal");
-  // The theme picker is its own dialog over Settings since Workbench Pro S4 (Change theme).
+  // The theme picker is Settings > Appearance since Workbench Pro S4.
   await openThemePicker(page);
   await page.getByRole("radio", { name: "CodeEditor Slate Dark" }).check();
   expect(await bg()).toBe("rgb(14, 18, 23)"); // Slate's dark code ground #0e1217

@@ -1106,7 +1106,7 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   // Theme from this tab: page B picks Deep Field Dark; page A's Match image keeps page A's own ground.
   const b = await context.newPage();
   await openApp(b);
-  // The themes are in the theme picker (Settings, Change theme) since Workbench Pro S4.
+  // The themes are in the theme picker (Settings > Appearance) since Workbench Pro S4.
   const picker = await openThemePicker(b);
   await picker.locator('input[name=theme][value="deep-field-dark"]').check();
   await expect(b.locator("html")).toHaveAttribute("data-theme-id", "deep-field-dark");
