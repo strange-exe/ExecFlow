@@ -166,6 +166,10 @@ const securityRules: [string, Record<string, string>][] = [
   // (Cloudflare Pages _headers; the preview server below does the same).
   // https://developers.cloudflare.com/pages/configuration/headers/
   ["/move", { [`${DETACH}Cross-Origin-Opener-Policy`]: "", [`${DETACH}Cross-Origin-Embedder-Policy`]: "" }],
+  // A short link's address (/s/<id>, src/core/short-link.ts) is someone's shared code, never a page
+  // to index. /api/links/* needs no rule: _headers doesn't apply to Pages Functions' responses, and
+  // server/short-links.ts sends its own Cache-Control: no-store, nosniff and CSP on every answer.
+  ["/s/*", { "X-Robots-Tag": "noindex" }],
 ];
 
 /** Hashed and versioned files never change; everything else revalidates on every visit. */

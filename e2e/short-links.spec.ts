@@ -15,7 +15,7 @@ import { shortMakeRefusalText, shortReadRefusalText } from "../src/core/short-li
 import { BRAND_MARK } from "../src/editor/brand-mark";
 import { forgeLink, keyOf, linksSite, type LinksSite } from "./links-fake";
 import { decodePng, parseHex } from "./pixels";
-import { expect, expectActive, importFiles, openApp, setCode, test, tolerating, treeItem, watchContext } from "./helpers";
+import { expect, expectActive, importFiles, openApp, setCode, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -405,9 +405,16 @@ test("Choose files: files too big for a code link still make a short link", asyn
 
 const notice = (page: Page) => page.locator(".notice");
 
-test("/s/<id> serves the editor with its icons and theme script from the site root", async ({ page }) => {
+test("/s/<id> serves the editor, never indexed, with its icons and theme script from the site root", async ({ page }) => {
   await serveLinks(page);
-  await openApp(page, "/s/AAAAAAAAAA");
+  // The preview server sends the same header rules as the deployed _headers (vite.config.ts securityRules).
+  const root = await page.goto("/");
+  expect(root!.headers()["x-robots-tag"]).toBeUndefined();
+  const response = await page.goto("/s/AAAAAAAAAA");
+  expect(response!.status()).toBe(200);
+  expect(response!.headers()["x-robots-tag"]).toBe("noindex");
+  expect(response!.headers()["content-security-policy"]).toContain("connect-src 'self'");
+  await waitReady(page);
   await expect(page.locator("html")).toHaveAttribute("data-theme", /^(light|dark)$/);
   const hrefs = await page.evaluate(() => [...document.querySelectorAll<HTMLLinkElement>("link[rel~=icon], link[rel=apple-touch-icon], link[rel=manifest]")].map((l) => l.href));
   expect(hrefs.length).toBeGreaterThan(0);
