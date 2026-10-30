@@ -6,6 +6,21 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.13.0] - 2026-10-30
+
+A new editor layout
+
+### Added
+
+- On phones, a bar at the bottom switches between Files, Code, Output, Problems and Flowchart.
+
+### Changed
+
+- On wide screens (from 1100 px) the output sits beside your code, with a handle to make either side wider. Narrower screens keep it under the code.
+- A rail at the left holds Files, Search, Flowchart, New file, Shortcuts and Settings, and the top bar shows where you are: workspace, folders and file.
+- A failed run shows its error as one clear line above the output, and the output's tabs, full screen and hide buttons sit together at its top.
+- With no file open, the start page offers one New file button and a short list of other ways to begin.
+
 ## [0.12.0] - 2026-10-30
 
 A new address: execflow.abhinesh.codes

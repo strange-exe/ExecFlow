@@ -20,6 +20,18 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.13.0",
+    date: "2026-10-30",
+    title: "A new editor layout",
+    items: [
+      { kind: "changed", text: "On wide screens (from 1100 px) the output sits beside your code, with a handle to make either side wider. Narrower screens keep it under the code." },
+      { kind: "changed", text: "A rail at the left holds Files, Search, Flowchart, New file, Shortcuts and Settings, and the top bar shows where you are: workspace, folders and file." },
+      { kind: "changed", text: "A failed run shows its error as one clear line above the output, and the output's tabs, full screen and hide buttons sit together at its top." },
+      { kind: "changed", text: "With no file open, the start page offers one New file button and a short list of other ways to begin." },
+      { kind: "added", text: "On phones, a bar at the bottom switches between Files, Code, Output, Problems and Flowchart." },
+    ],
+  },
+  {
     version: "0.12.0",
     date: "2026-10-30",
     title: "A new address: execflow.abhinesh.codes",
