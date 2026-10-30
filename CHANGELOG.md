@@ -19,6 +19,7 @@ Download and share a few files, or a whole folder
 ### Changed
 
 - New code a program writes (a .py, .c, .cpp or header file) waits for you to keep it, since later runs would build it. Data files are saved at once, as before.
+- A Python program saves only the files it writes in its own folder, as C and C++ programs already did, and a program from another folder starts with a fresh Python. So a program from a shared folder can't change the files in your other folders.
 
 ## [0.17.0] - 2026-10-30
 

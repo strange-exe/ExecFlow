@@ -212,6 +212,39 @@ test("new code a program writes is asked about; Keep it adds it, and data files 
   await expect(page.locator(".cm-content")).toContainText("print(1)");
 });
 
+// Audit run-2 (0.18.0): a program from a shared folder must not reach the student's other folders,
+// and the question names every code file it would keep (never "and N more").
+const SPREADER = [
+  "for n in 'abcd':",
+  "    with open(n + '.py', 'w') as f:",
+  "        f.write('x = 1\\n')",
+  "with open('../mine/notes.txt', 'w') as f:",
+  "    f.write('gone\\n')",
+  "with open('../mine/random.py', 'w') as f:",
+  "    f.write('raise SystemExit\\n')",
+  "",
+].join("\n");
+
+test("a program's writes outside its own folder aren't saved, and the question names every code file", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [{ name: "shared/prog.py", text: SPREADER }, { name: "mine/notes.txt", text: "my notes\n" }]);
+  await openFromTree(page, "shared/prog.py");
+  const r = await run(page);
+  expect(r.status, r.output).toBe("ok");
+  const notes = page.locator('#console [data-stream="note"]');
+  await expect(notes.filter({ hasText: "outside shared" })).toContainText("mine/notes.txt and mine/random.py are outside shared, the program's folder, so they weren't saved to your files.");
+  await expect(notes.filter({ hasText: "Code a program writes" })).toContainText("The program wrote shared/a.py, shared/b.py, shared/c.py and shared/d.py.");
+  const notice = page.locator(".notice");
+  await expect(notice).toContainText("The program wrote 4 code files (listed in Output), code that later runs would build. Keep them in your files?");
+  await notice.getByRole("button", { name: "Keep them" }).click();
+  await expect(treeItem(page, "shared/d.py")).toBeVisible();
+  await expect(treeItem(page, "mine/random.py")).toHaveCount(0);
+  const mine = treeItem(page, "mine");
+  if ((await mine.getAttribute("aria-expanded")) !== "true") await mine.locator(":scope > .tree-row").click();
+  await openFromTree(page, "mine/notes.txt");
+  await expect(page.locator(".cm-content")).toContainText("my notes");
+});
+
 test("new code a program writes is left out when the question is dismissed, or when the next run starts", async ({ page }) => {
   await openApp(page);
   await importFiles(page, [{ name: "writer.py", text: WRITER }]);

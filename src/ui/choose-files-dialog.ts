@@ -22,8 +22,8 @@ export interface ChooseFilesDeps {
   readonly initial: string | null;
   /** The workspace's name, for a .zip of picks from several folders. */
   readonly workspace: string;
-  /** Downloads the picks (workbench downloadPaths: it says what it saved). */
-  download(picks: readonly string[]): Promise<void>;
+  /** Downloads the picks, limited to the files the list `shown` (workbench downloadPaths: it says what it saved). */
+  download(picks: readonly string[], shown: ReadonlySet<string>): Promise<void>;
   readonly origin: string;
   /** navigator.clipboard.writeText, swappable in tests. */
   readonly writeText?: (text: string) => Promise<void>;
@@ -141,7 +141,7 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
     busy = true;
     dialog.dataset.state = "downloading";
     try {
-      await deps.download(p);
+      await deps.download(p, new Set(paths));
     } finally {
       busy = false;
     }

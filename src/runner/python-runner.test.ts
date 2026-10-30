@@ -442,6 +442,20 @@ describe("PythonRunner", () => {
     expect(runner.state).toBe("ready");
   });
 
+  it("a program from another folder gets a fresh interpreter: nothing one folder's program left in memory reaches another's", async () => {
+    const { runner, workers } = setUp((w) => w.emit(done()));
+    const at = (entry: string) => request({ entry, files: [{ path: entry, text: "" }] });
+    await runner.run(at("lab1-2/main.py"), hooks());
+    await runner.run(at("lab1-2/other.py"), hooks()); // the same folder keeps the warm interpreter
+    expect(workers).toHaveLength(1);
+    await runner.run(at("lab1/main.py"), hooks());
+    expect(workers).toHaveLength(2);
+    expect(workers[0].terminated).toBe(true);
+    expect(workers[1].runs.map((r) => r.entry)).toEqual(["lab1/main.py"]);
+    await runner.run(at("main.py"), hooks()); // the top level is a folder of its own too
+    expect(workers).toHaveLength(3);
+  });
+
   it("only one run at a time", async () => {
     const { runner } = setUp(() => {});
     void runner.run(request(), hooks());

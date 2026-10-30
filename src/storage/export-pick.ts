@@ -10,12 +10,13 @@ const under = (path: string, base: string) => (base === "" ? path : path.slice(b
 
 /**
  * The files, empty folders and left-out read-only files that the picks cover (a folder covers
- * everything under it), each once and in the export's order, with paths relative to `base`.
+ * everything under it), each once and in the export's order, with paths relative to `base`. With
+ * `shown` (the files a checklist listed), a folder covers only those: never a file the list hid.
  */
-export function pickExport(data: ExportData, picks: readonly string[], base = ""): ExportData {
+export function pickExport(data: ExportData, picks: readonly string[], base = "", shown?: ReadonlySet<string>): ExportData {
   const covered = (path: string) => picks.some((p) => isInside(path, p));
   return {
-    files: data.files.filter((f) => covered(f.path)).map((f) => ({ ...f, path: under(f.path, base) })),
+    files: data.files.filter((f) => covered(f.path) && (!shown || shown.has(f.path))).map((f) => ({ ...f, path: under(f.path, base) })),
     dirs: data.dirs.filter(covered).map((d) => under(d, base)),
     // Named as in the workspace: the notice says which files were left out.
     skipped: data.skipped.filter(covered),

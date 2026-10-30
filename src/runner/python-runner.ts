@@ -66,6 +66,12 @@ export class PythonRunner {
   private latestCheck = new Map<WsPath, number>();
   private checkSeq = 0;
   private restartAfterRun = false;
+  /**
+   * The folder whose program last ran in this interpreter (null: none yet). A program can leave
+   * hooks in memory (builtins, sys.meta_path, files outside /workspace) that later runs would pick
+   * up, so a program from another folder (say, one opened from a shared link) gets a fresh one.
+   */
+  private ranIn: string | null = null;
   /** The current start's download, as its worker reports it (null when not starting). */
   private download: { loaded: number; total: number; done: boolean; since: number } | null = null;
 
@@ -234,6 +240,7 @@ export class PythonRunner {
   private recycle() {
     this.worker?.terminate();
     this.worker = null;
+    this.ranIn = null;
     for (const id of [...this.checks.keys()]) this.settleCheck(id, null);
     this.boot();
   }
@@ -257,6 +264,8 @@ export class PythonRunner {
     let cancel!: () => void;
     const cancelled = new Promise<"cancelled">((resolve) => { cancel = () => resolve("cancelled"); });
     const outer = { stop: () => cancel() };
+    const folder = parentOf(req.entry);
+    if (this.ranIn !== null && this.ranIn !== folder) this.recycle();
     this.active = outer;
     const stopped: RunResult = { status: "stopped", exitCode: null, diagnostics: [], ms: {} };
     try {
@@ -408,6 +417,7 @@ export class PythonRunner {
       worker.addEventListener("message", onMessage);
       this.setState("running");
       hooks.onPhase("running");
+      this.ranIn = parentOf(req.entry); // from here on, this program's code is in the interpreter
       const msg: ToPython = {
         type: "run",
         files,

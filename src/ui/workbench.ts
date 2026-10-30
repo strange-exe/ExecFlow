@@ -942,10 +942,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   }
 
   /** Downloads a file as itself, or a folder or several picks as a .zip (0.18.0). */
-  async function downloadPaths(picks: readonly WsPath[]) {
+  async function downloadPaths(picks: readonly WsPath[], shown?: ReadonlySet<string>) {
     await saves.flushAll();
     try {
-      const { count, skipped, name, zip } = await downloadPicked(store, ws, picks, record.name);
+      const { count, skipped, name, zip } = await downloadPicked(store, ws, picks, record.name, shown);
       const leftOut = skipped.length ? ` Left out ${listNames(skipped.map(nameOf))}: read-only files from GitHub are only stored there.` : "";
       if (!count) notice.show(skipped.length ? `Nothing to download.${leftOut}` : "Nothing to download: there are no files in it.", { tone: "info" });
       else notice.show(`Saved ${zip ? `${plural(count, "file")} as ${name}` : name}.${leftOut}`, { tone: "success" });
@@ -968,7 +968,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         readOnly: entries.filter((e) => e.kind === "file" && e.opaque).map((e) => e.path),
         initial: tree.selectedNode()?.path ?? null,
         workspace: record.name,
-        download: (picks) => downloadPaths(picks),
+        download: (picks, shown) => downloadPaths(picks, shown),
         origin: location.origin,
       }, opener);
     } catch (e) {
@@ -1448,7 +1448,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       if (program) output.offerMain({ path: program, run: () => void runOffered(program) });
       finishedRun(file.path, failed, moves);
       announcer.say(announcement(result, summary, file.path, current.timeLimitS));
-      void saveWritten(result.written);
+      void saveWritten(result.written, parentOf(file.path));
     } catch (e) {
       ed.cancelBuild(ticket);
       output.fail(errorText(e));
@@ -1484,9 +1484,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let held: WorkspaceFile[] | null = null;
   function holdWritten(files: WorkspaceFile[]) {
     held = files;
-    const names = listNames(files.map((f) => f.path));
+    // Every file is named before Keep: a short list, or all of them in Output (never "and N more").
+    const all = listNames(files.map((f) => f.path), Infinity);
     const one = files.length === 1;
-    output.note(`The program wrote ${names}. Code a program writes is added to your files only if you keep it: see the question at the bottom.`, "warning");
+    const names = files.length <= 3 ? all : `${plural(files.length, "code file")} (listed in Output)`;
+    output.note(`The program wrote ${all}. Code a program writes is added to your files only if you keep it: see the question at the bottom.`, "warning");
     notice.show(`The program wrote ${names}, code that later runs would build. Keep ${one ? "it" : "them"} in your files?`, {
       tone: "warning",
       action: { label: one ? "Keep it" : "Keep them", run: () => void keepHeld() },
@@ -1537,10 +1539,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
    * Files the program wrote land in the workspace like on a disk: new files are created and changed
    * ones saved, with a line in Output instead of a question. The exceptions are code: a program that
    * wrote over a .py, .c, .cpp or header file is not saved over the code the user typed, and new code
-   * it wrote waits for the student to keep it (holdWritten).
+   * it wrote waits for the student to keep it (holdWritten). Only files inside the program's own
+   * folder count (C and C++ only see that folder; Python sees every file but runs in its folder), so
+   * a program from a shared folder can't change files in the student's other folders.
    */
-  async function saveWritten(written: WorkspaceFile[] | undefined) {
-    if (!written?.length) return;
+  async function saveWritten(all: WorkspaceFile[] | undefined, folder: WsPath | "") {
+    if (!all?.length) return;
+    const written = all.filter((f) => isInside(f.path, folder));
+    const outside = all.filter((f) => !written.includes(f));
+    if (outside.length) output.note(`${listNames(outside.map((f) => f.path), Infinity)} ${outside.length === 1 ? "is" : "are"} outside ${folder}, the program's folder, so ${outside.length === 1 ? "it wasn't" : "they weren't"} saved to your files.`, "warning");
+    if (!written.length) return;
     if (!canWrite()) {
       output.note(`This tab is read-only, so ${listNames(written.map((f) => f.path))} wasn't saved to your files.`, "warning");
       return;

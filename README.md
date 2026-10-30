@@ -66,7 +66,8 @@ and logs nothing, and syncing never goes through it.
   first; Add puts it in a new folder at the top (lab1, or lab1-2 when that name is taken).
 - Files a program writes: data files are saved to your files at once; new code (.py, .c, .cpp or a
   header) waits for Keep it, since later runs would build it; dismissing the question, or the next
-  run, leaves it out. A program never writes over existing code.
+  run, leaves it out. A program never writes over existing code, and only files in its own folder
+  are saved; a program from another folder starts with a fresh Python.
 - Search files and commands: Ctrl+P (Cmd+P on macOS) or Search in the top bar finds a file by its
   name, and any command; F1 or Ctrl+Shift+P lists the commands only (Firefox keeps Ctrl+Shift+P for
   a private window: use F1 there). Each command shows its keys. See [Keyboard](#keyboard).

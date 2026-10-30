@@ -31,6 +31,14 @@ describe("what a pick of files and folders covers", () => {
     expect(paths(pickExport(DATA, []))).toEqual([]);
   });
 
+  it("with a list of the files shown, a picked folder covers only those (no hidden conflict copy)", () => {
+    const data: ExportData = { ...DATA, files: [...DATA.files, file("lab1/main (conflict 2026-10-30).c", "old\n")] };
+    expect(paths(pickExport(data, ["lab1"]))).toContain("lab1/main (conflict 2026-10-30).c");
+    const shown = new Set(["lab1/main.c", "lab1/util.h", "lab1/data/in.txt"]);
+    expect(paths(pickExport(data, ["lab1"], "", shown))).toEqual(["lab1/main.c", "lab1/util.h", "lab1/data/in.txt"]);
+    expect(pickExport(data, ["lab1"], "", shown).skipped).toEqual(["lab1/logo.png"]); // read-only files are still named
+  });
+
   it("the zip starts at the folder that holds the pick, so it unpacks to one folder", () => {
     expect(zipBase(["a/b/lab"])).toBe("a/b");
     expect(zipBase(["lab1"])).toBe("");

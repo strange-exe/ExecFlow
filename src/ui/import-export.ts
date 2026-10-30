@@ -99,15 +99,15 @@ export async function workspaceZip(store: WorkspaceStore, ws: string): Promise<{
  * several picks, as a .zip that unpacks to one folder (export-pick.ts). Read-only GitHub files are
  * left out and named, as in the export; `count` is 0 when nothing could be downloaded.
  */
-export async function downloadPicked(store: WorkspaceStore, ws: string, picks: readonly string[], workspace: string): Promise<{ count: number; skipped: string[]; name: string; zip: boolean }> {
+export async function downloadPicked(store: WorkspaceStore, ws: string, picks: readonly string[], workspace: string, shown?: ReadonlySet<string>): Promise<{ count: number; skipped: string[]; name: string; zip: boolean }> {
   const data = await store.loadExport(ws);
-  const only = picks.length === 1 ? data.files.find((f) => f.path === picks[0]) : undefined;
+  const only = picks.length === 1 ? data.files.find((f) => f.path === picks[0] && (!shown || shown.has(f.path))) : undefined;
   if (only) {
     const name = nameOf(only.path);
     downloadBlob(name, new Blob([only.bytes as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }));
     return { count: 1, skipped: [], name, zip: false };
   }
-  const part = pickExport(data, picks, zipBase(picks));
+  const part = pickExport(data, picks, zipBase(picks), shown);
   const name = zipName(picks, workspace);
   // Empty folders alone make no download: there is nothing in them to save.
   if (!part.files.length) return { count: 0, skipped: part.skipped, name, zip: true };
