@@ -102,6 +102,8 @@ export type FromPython =
       error: string;
       /** false: starting again won't help (a package didn't download), so the runner doesn't retry. */
       retry?: boolean;
+      /** The runtime isn't on this device yet and the device is offline (python-download.ts). */
+      offline?: boolean;
     }
   | OutputMessage
   | OutputBatchMessage

@@ -45,9 +45,20 @@ type Outcome = { kind: "result"; result: RunResult } | { kind: "need-packages"; 
 const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === "string");
 const list = (names: readonly string[]) => names.join(", ");
 
+/**
+ * Said when Python's first start finds the device offline (python-download.ts): the runtime is
+ * downloaded the first time Python is used, and kept for offline use from then on.
+ */
+export function offlineMessage(bytes: number = __PYODIDE_BYTES__): string {
+  const size = bytes > 0 ? ` (about ${Math.round(bytes / 1e6)} MB)` : "";
+  return `Python needs a one-time download${size} the first time it runs, and this device is offline. Connect to the internet and press Run again; after that, Python works offline too.`;
+}
+
 export class PythonRunner {
   state: PythonState = "idle";
   bootError = "";
+  /** The last start failed because the runtime isn't on this device and the device is offline. */
+  needsOnline = false;
 
   private listeners = new Set<(state: PythonState) => void>();
   private worker: Worker | null = null;
@@ -158,6 +169,7 @@ export class PythonRunner {
   private boot() {
     const gen = ++this.generation;
     this.download = { loaded: 0, total: 0, done: false, since: performance.now() };
+    this.needsOnline = false;
     this.setState("booting");
     // A download that is still going after DOWNLOAD_SHOWN_AFTER_MS is shown then, even if no new
     // bytes arrive at that moment (a stalled connection): the listeners redraw.
@@ -177,6 +189,7 @@ export class PythonRunner {
           if (gen !== this.generation) return; // superseded by a newer start
           if (attempt >= START_ATTEMPTS || (e as { retry?: boolean }).retry === false) {
             this.bootError = (e as Error).message;
+            this.needsOnline = (e as { offline?: boolean }).offline === true;
             this.download = null;
             this.setState("failed");
             throw e;
@@ -206,10 +219,10 @@ export class PythonRunner {
         worker.removeEventListener("message", onMessage);
         worker.removeEventListener("error", onError);
       };
-      const fail = (message: string, retry = true) => {
+      const fail = (message: string, retry = true, offline = false) => {
         detach();
         worker.terminate();
-        reject(Object.assign(new Error(message), { retry }));
+        reject(Object.assign(new Error(message), { retry, offline }));
       };
       const onError = (e: ErrorEvent) => {
         e.preventDefault(); // handled here (we retry); otherwise browsers also report it as uncaught
@@ -219,14 +232,15 @@ export class PythonRunner {
         // Sent while Pyodide loads, before any user code (still type-checked in onProgress).
         if (data.type === "progress") return void (gen === this.generation && this.onProgress(data));
         if (data.type !== "ready" && data.type !== "boot-failed") return;
-        if (data.type === "boot-failed") return fail(String(data.error), data.retry !== false);
+        if (data.type === "boot-failed") return fail(String(data.error), data.retry !== false, data.offline === true);
         detach();
         if (gen !== this.generation) {
           worker.terminate();
           return reject(new Error("superseded"));
         }
         // Sent before any user code ran, so it can be believed (still type-checked).
-        this.available = isStringList(data.available) ? data.available : [];        worker.addEventListener("message", this.onChecked);
+        this.available = isStringList(data.available) ? data.available : [];
+        worker.addEventListener("message", this.onChecked);
         resolve();
       };
       worker.addEventListener("message", onMessage);
@@ -280,7 +294,10 @@ export class PythonRunner {
         }
         const waited = await this.whenReady(cancelled).finally(unfollow);
         if (waited === "cancelled") return stopped;
-        if (waited === "failed") return { status: "unavailable", exitCode: null, diagnostics: [], message: `Python couldn't start: ${this.bootError}`, ms: {} };
+        if (waited === "failed") {
+          const message = this.needsOnline ? offlineMessage() : `Python couldn't start: ${this.bootError}`;
+          return { status: "unavailable", exitCode: null, diagnostics: [], message, ms: {} };
+        }
 
         const outcome = await this.execute(req, files, known, hooks, packageCheck, outer);
         if (outcome.kind === "result") {
@@ -478,3 +495,5 @@ export const restart = (): void => python.restart();
 export const state = (): PythonState => python.state;
 export const onState = (fn: (state: PythonState) => void): (() => void) => python.onState(fn);
 export const downloadShown = (): { loaded: number; total: number } | null => python.downloadShown();
+/** Python couldn't start because it was never downloaded here and the device is offline. */
+export const needsOnline = (): boolean => python.state === "failed" && python.needsOnline;

@@ -31,8 +31,11 @@ and logs nothing, and syncing never goes through it.
   path, `/workspace/main.py`); in C and C++ `argv[0]` is the file's name without its extension
   (`main` for main.c) and the arguments follow. At most 100 arguments and 4,096 characters; an
   unclosed quote is shown at the field, and Run explains it instead of running.
-- Works offline once it has been set up: a service worker keeps the app and the Python runtime. It
-  starts when Python has loaded, or a minute into the first visit, or when the C/C++ pack downloads.
+- Works offline once it has been set up: a service worker keeps the app. It starts when Python has
+  loaded, or a minute into the first visit, or when the C/C++ pack downloads. Python itself (about
+  13.5 MB) downloads the first time a Python file is opened or run, not on every first visit, and
+  is then kept for offline use, like the C/C++ pack. Opened offline before that, Python says it
+  needs one online start.
 - Suggestions as you type: keywords and snippets, the standard library's names, and your own names
   (see [Suggestions](#suggestions)).
 - Capture snippet: right-click selected code (or press Shift+F10) to make an image of those lines,
@@ -401,6 +404,7 @@ own `postMessage` removed before any program starts (a program can't send the pa
 - Python has 512 MB of memory, C and C++ programs 256 MB. Compiling has 30 seconds per file plus
   30 seconds to link.
 - C and C++ use clang 22: C up to C23, C++ up to C++23, with exceptions.
+- Python needs a one-time 13.5 MB download the first time it starts on a device.
 - C and C++ need a one-time 29.3 MB download, offered in the Output panel the first time, and a
   browser whose WebAssembly has exception handling: Chrome or Edge 137, Firefox 131, Safari 18.4, or newer.
 - The editor's C and C++ suggestions are still read from clang 8's headers, so a few names that

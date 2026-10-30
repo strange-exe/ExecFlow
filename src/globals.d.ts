@@ -4,8 +4,11 @@ declare const __APP_VERSION__: string;
 /** Pyodide's folder, "<version>-heap<MB>", injected by vite.config.ts; the runtime is served from /pyodide/<folder>/. */
 declare const __PYODIDE_DIR__: string;
 
-/** Bytes Python's first start fetches (its .wasm, standard library and lock file); 0 when not known. Set by vite.config.ts. */
+/** Bytes Python's first start downloads (every file of its runtime); 0 when not known. Set by vite.config.ts. */
 declare const __PYODIDE_BYTES__: number;
+
+/** Each runtime file's bytes by name (python-download.ts RUNTIME_FILES); empty when not known. Set by vite.config.ts. */
+declare const __PYODIDE_FILES__: Record<string, number>;
 
 /** The site's old address ("https://code-editor.abhinesh.codes"), set by vite.config.ts: it shows the move banner. */
 declare const __MOVE_FROM__: string;

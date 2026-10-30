@@ -1753,7 +1753,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       // Python's first start downloads it (B9): said as the C/C++ download is.
       const python = kind === "python" ? runtimes.pythonDownload() : null;
       if (python) words = python.total ? `Downloading Python ${Math.floor((Math.min(python.loaded, python.total) / python.total) * 100)}%` : "Downloading Python";
-      el.replaceChildren(icon(failed ? "x-circle" : busy ? "arrow-clockwise" : state === "absent" ? "download-simple" : "check-circle"), h("span", null, words));
+      // Offline before Python was ever downloaded here: said as C/C++'s missing pack is.
+      const needsDownload = state === "absent" || (kind === "python" && state === "failed" && runtimes.pythonNeedsOnline());
+      if (needsDownload && kind === "python") words = "Python needs a one-time download";
+      el.replaceChildren(icon(needsDownload ? "download-simple" : failed ? "x-circle" : busy ? "arrow-clockwise" : "check-circle"), h("span", null, words));
       // The top bar shortens or hides the words when it is narrow (app.css): the tooltip keeps them.
       el.title = words;
     }
