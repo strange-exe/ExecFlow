@@ -101,6 +101,8 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
   const shortPanel = h("div", { class: "choose-short", hidden: "" }, h("p", { class: "field-note", id: "choose-short-note" }, `Or a short link: ${SHORT_NOTE}`), shortRow, shortMade);
   /** What Share link packed last (the short link carries the same), and a short link being made. */
   let packedNow: Packed | null = null;
+  /** Counts tick changes: a pack started before the latest one is for other files, and is dropped. */
+  let ticks = 0;
   let shortBusy = false;
   function hideShort() {
     packedNow = null;
@@ -141,7 +143,8 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
     const p = picks();
     const one = p.length === 1 && size.has(p[0]);
     (download.querySelector(".choose-download-label") as HTMLElement).textContent = t.length ? `Download ${one ? shown(nameOf(p[0])) : zipName(p, deps.workspace)}` : "Download";
-    // The links made for other ticks are out of date.
+    // The links made, or being packed, for other ticks are out of date.
+    ticks++;
     linkPanel.hidden = true;
     hideShort();
     if (dialog.dataset.state === "shared") dialog.dataset.state = "ready";
@@ -196,14 +199,21 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
     dialog.dataset.state = "sharing";
     say("");
     hideShort();
+    const started = ticks;
     const packed = t.length === 1
       ? await packFile(nameOf(t[0]), files.find((f) => f.path === t[0])!.text)
       : await (async () => {
           const folder = linkFolder(picks(), files);
           return packFolder(folder.name, folder.files);
         })();
-    const made = packed.ok ? linkOf(deps.origin, packed.packed) : packed;
     busy = false;
+    // The ticks changed while it was packing (or the dialog closed): these files aren't the ones
+    // ticked now, so neither the link nor a short link is offered for them. Share link packs again.
+    if (ticks !== started || !dialog.open) {
+      dialog.dataset.state = "ready";
+      return;
+    }
+    const made = packed.ok ? linkOf(deps.origin, packed.packed) : packed;
     // A short link holds what a code link can't: offered whenever the files are packed.
     if (packed.ok) {
       packedNow = packed.packed;
