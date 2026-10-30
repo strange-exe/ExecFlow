@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.19.0] - 2026-10-31
+
+A new finish on the logo
+
+### Changed
+
+- The ExecFlow mark now flows from blue to teal, in the browser tab, the app icon, the side bar, the link preview card, and the credit on Capture snippet and flowchart images. The mark looks the same in every theme.
+
 ## [0.18.1] - 2026-10-31
 
 The editor arrives in smaller pieces

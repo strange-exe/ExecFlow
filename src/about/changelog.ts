@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.19.0",
+    date: "2026-10-31",
+    title: "A new finish on the logo",
+    items: [
+      { kind: "changed", text: "The ExecFlow mark now flows from blue to teal, in the browser tab, the app icon, the side bar, the link preview card, and the credit on Capture snippet and flowchart images. The mark looks the same in every theme." },
+    ],
+  },
+  {
     version: "0.18.1",
     date: "2026-10-31",
     title: "The editor arrives in smaller pieces",
