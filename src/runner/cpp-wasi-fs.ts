@@ -138,7 +138,7 @@ export class WasiFs {
     if (oflags & OFLAGS.TRUNC) {
       if (!write) return fail(E.ACCES);
       this.used -= node.size;
-      node.size = 0;
+      this.shrink(node, 0);
       node.mtime = this.clock();
     }
     return ok(this.addFd({ kind: "file", path, pos: 0, read, write, append: (fdflags & FDFLAGS.APPEND) !== 0 }));
@@ -241,9 +241,26 @@ export class WasiFs {
       node.data.fill(0, node.size, size);
     }
     this.used += size - node.size;
-    node.size = size;
+    if (size < node.size) this.shrink(node, size);
+    else node.size = size;
     node.mtime = this.clock();
     return E.SUCCESS;
+  }
+
+  /**
+   * A file that gets smaller gives its memory back, not just its budget: otherwise filling file after
+   * file and truncating each would hold many times the cap (security review of 0.17.0, 2026-10-30).
+   */
+  private shrink(node: FileNode, size: number) {
+    node.data = node.data.slice(0, size);
+    node.size = size;
+  }
+
+  /** The bytes every file's buffer holds (its capacity, not its size): what the cap must bound. */
+  heldBytes(): number {
+    let n = 0;
+    for (const node of this.files.values()) n += node.data.length;
+    return n;
   }
 
   seek(fd: number, offset: bigint, whence: number): Result<number> {

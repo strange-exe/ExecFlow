@@ -49,7 +49,7 @@ describe("the program's folder as WASI sees it", () => {
     expect(fs.changes().map((c) => c.path)).toEqual(["out.txt"]);
   });
 
-  it("seeks with snapshot-0 whence values (CUR=0, END=1, SET=2) and writes in place", () => {
+  it("seeks with preview1 whence values (SET=0, CUR=1, END=2) and writes in place", () => {
     const fs = make();
     const f = fd(fs.open(ROOT_FD, "input.txt", 0, RW, 0));
     expect(fs.seek(f, 0n, WHENCE.END)).toEqual({ ok: true, value: 4 });
@@ -104,6 +104,24 @@ describe("the program's folder as WASI sees it", () => {
     expect(fs.setSize(f, 5000)).toBe(E.FBIG);
     fd(fs.open(ROOT_FD, "b.txt", OFLAGS.CREAT, W, 0));
     expect(fs.open(ROOT_FD, "c.txt", OFLAGS.CREAT, W, 0)).toEqual({ ok: false, errno: 33 /* EMFILE */ });
+  });
+
+  it("lets go of a file's memory when it shrinks, so truncating can't stack up past the cap", () => {
+    // Security review of 0.17.0 (2026-10-30): a truncate gave back budget but kept the buffer, so filling
+    // file after file and truncating each held far more memory than the cap.
+    const fs = new WasiFs([], { growBytes: 1000, maxEntries: 10, maxOpen: 4 });
+    for (let i = 0; i < 6; i++) {
+      const f = fd(fs.open(ROOT_FD, `f${i}.txt`, OFLAGS.CREAT | OFLAGS.TRUNC, W, 0));
+      expect(fs.write(f, new Uint8Array(900))).toMatchObject({ ok: true });
+      fs.close(f);
+      fs.close(fd(fs.open(ROOT_FD, `f${i}.txt`, OFLAGS.TRUNC, W, 0)));
+      expect(fs.heldBytes(), `after file ${i}`).toBeLessThanOrEqual(1000);
+    }
+    const g = fd(fs.open(ROOT_FD, "g.txt", OFLAGS.CREAT, RW, 0));
+    fs.write(g, new Uint8Array(900).fill(7));
+    expect(fs.setSize(g, 3)).toBe(E.SUCCESS); // ftruncate down keeps what is left
+    expect(fs.heldBytes()).toBeLessThanOrEqual(1000);
+    expect(fs.read(g, 10, 0)).toEqual({ ok: true, value: new Uint8Array([7, 7, 7]) });
   });
 
   it("refuses to write through directories and to create in missing folders", () => {

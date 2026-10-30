@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunHooks, RunRequest } from "../core/types";
 import type { FromCompiler, FromProgram } from "./clang-protocol";
 import { TailWriter } from "./cpp-output-tail";
-import { acceptWritten, BOOT_TIMEOUT_MS, CppRunner, crashMessage, STEP_TIMEOUT_MS, summarize } from "./cpp-runner";
+import { acceptWritten, BOOT_TIMEOUT_MS, CppRunner, crashMessage, PCH_TIMEOUT_MS, STEP_TIMEOUT_MS, summarize } from "./cpp-runner";
+import { UPDATE_FOR_CPP } from "./wasm-features";
 
 /** A stand-in for a worker: records what it's sent and replies when the test says so. */
 class FakeWorker {
@@ -72,6 +73,24 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe("a browser without WebAssembly exception handling (0.17.0)", () => {
+  it("starts no compiler, offers no download, and a run says which browsers work", async () => {
+    let made = 0;
+    const runner = new CppRunner(() => { made++; return new FakeWorker() as unknown as Worker; }, () => new FakeWorker() as unknown as Worker, () => false);
+    expect(runner.state).toBe("unsupported");
+    expect(runner.error).toBe(UPDATE_FOR_CPP);
+    runner.prepare();
+    runner.download();
+    expect(made).toBe(0);
+    expect(runner.state).toBe("unsupported");
+    const { h, phases } = hooks();
+    const r = await runner.run(REQ, h);
+    expect(r).toMatchObject({ status: "unavailable", message: UPDATE_FOR_CPP });
+    expect(phases).toEqual([]);
+    expect(made).toBe(0);
+  });
 });
 
 describe("the C/C++ download", () => {
@@ -236,6 +255,45 @@ describe("a C/C++ run", () => {
     expect(r.message).toMatch(/30 s/);
     expect(first.terminated).toBe(true);
     expect(compilers.length).toBe(2);
+  });
+
+  it("gives the one-time <bits/stdc++.h> precompile a longer limit, and the unit after it a fresh 30 s", async () => {
+    // LLVM 22 took 21.9 s here for the precompile alone (2026-10-30): a slower laptop must not lose it.
+    vi.useFakeTimers();
+    const { runner, compiler } = setup(true);
+    runner.prepare();
+    compiler().reply({ type: "ready", ms: 1 });
+    const done = runner.run(REQ, hooks().h);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = compiler();
+    const build = first.last("build") as { id: number };
+    first.reply({ type: "step", id: build.id, step: "pch" });
+    await vi.advanceTimersByTimeAsync(PCH_TIMEOUT_MS - 1000);
+    expect(first.terminated).toBe(false);
+    // The worker says "compile" again once the header is ready: the unit's own limit starts there.
+    first.reply({ type: "step", id: build.id, step: "compile", path: "lab/ex1.c" });
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS - 1000);
+    expect(first.terminated).toBe(false);
+    await vi.advanceTimersByTimeAsync(2000);
+    const r = await done;
+    expect(r.status).toBe("timeout");
+    expect(r.message).toMatch(/30 s/);
+  });
+
+  it("stops a precompile stuck past its own limit, and says which step it was", async () => {
+    vi.useFakeTimers();
+    const { runner, compiler } = setup(true);
+    runner.prepare();
+    compiler().reply({ type: "ready", ms: 1 });
+    const done = runner.run(REQ, hooks().h);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = compiler();
+    first.reply({ type: "step", id: (first.last("build") as { id: number }).id, step: "pch" });
+    await vi.advanceTimersByTimeAsync(PCH_TIMEOUT_MS + 1000);
+    const r = await done;
+    expect(r.status).toBe("timeout");
+    expect(r.message).toBe(`Preparing <bits/stdc++.h> took longer than ${PCH_TIMEOUT_MS / 1000} s and was stopped.`);
+    expect(first.terminated).toBe(true);
   });
 
   it("after a failed start, a run waits for the fresh worker's pack check (and offers the download if the pack is gone)", async () => {

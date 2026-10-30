@@ -9,9 +9,10 @@ and logs nothing, and syncing never goes through it.
 
 - **Python 3.14** through [Pyodide](https://pyodide.org/) 314.0.7, with numpy and pandas (downloaded
   the first time a program imports them).
-- **C and C++** through clang 8 and lld compiled to WebAssembly
-  ([binji/wasm-clang](https://github.com/binji/wasm-clang)). Programs can have several files and
-  headers in one folder, and can read and write files in that folder.
+- **C and C++** through clang and lld 22 compiled to WebAssembly
+  ([YoWASP](https://yowasp.org/)'s `@yowasp/clang`) with [wasi-sdk](https://github.com/WebAssembly/wasi-sdk)
+  33's C and C++ libraries, so C++ exceptions (`try`, `throw`, `catch`) work. Programs can have
+  several files and headers in one folder, and can read and write files in that folder.
 - Programs read typed input while they run (`input()`, `scanf`, `std::cin`), and Stop works at any
   point. Compiler and Python errors are marked on the line they belong to, in every file of the
   program, and listed under Problems.
@@ -91,7 +92,8 @@ npm run dev
 
 `npm run dev` first copies Pyodide out of `node_modules` and downloads, with a SHA-256 check for
 every file, the numpy and pandas wheels (about 7.5 MB, from Pyodide's CDN) and the C/C++ pack
-(about 19 MB, from the wasm-clang repository at a pinned commit), and the flowchart's three grammars
+(about 29 MB once packed, from npm's `@yowasp/clang` and wasi-sdk's GitHub release, both pinned by
+hash), and the flowchart's three grammars
 (about 4.3 MB of `.wasm`, from jsDelivr) into `public/`. Later runs use a
 cache in `node_modules/.cache/`. Then it serves the app on http://localhost:5173.
 
@@ -382,8 +384,11 @@ own `postMessage` removed before any program starts (a program can't send the pa
   after 512 Ki characters of output. Both can be changed in Settings.
 - Python has 512 MB of memory, C and C++ programs 256 MB. Compiling has 30 seconds per file plus
   30 seconds to link.
-- C and C++ use clang 8: C up to C17, C++ up to C++17 (C++20 partly, as `c++2a`).
-- C and C++ need a one-time 19.6 MB download, offered in the Output panel the first time.
+- C and C++ use clang 22: C up to C23, C++ up to C++23, with exceptions.
+- C and C++ need a one-time 29.3 MB download, offered in the Output panel the first time, and a
+  browser whose WebAssembly has exception handling: Chrome or Edge 137, Firefox 131, Safari 18.4, or newer.
+- The editor's C and C++ suggestions are still read from clang 8's headers, so a few names that
+  are new in C++20 and later aren't suggested yet.
 - Not supported: matplotlib plots, programs that open network connections.
 - Binary files, files with mixed line endings and other files that aren't plain UTF-8 text are kept
   read-only when they come from GitHub, and refused when imported.
@@ -446,10 +451,11 @@ ExecFlow bundles or downloads the following. Their licences apply to their parts
 | pandas 3.0.2 | BSD-3-Clause | Python package |
 | python-dateutil 2.9.0.post0 | Apache-2.0 or BSD-3-Clause | Python package (pandas) |
 | pytz 2026.1.post1, six 1.17.0 | MIT | Python packages (pandas) |
-| [wasm-clang](https://github.com/binji/wasm-clang) (Ben Smith), vendored in `src/vendor/wasm-clang` | Apache-2.0 | C and C++ runtime glue |
-| LLVM: clang 8 and lld, in the C/C++ pack | Apache-2.0 WITH LLVM-exception, and the legacy University of Illinois/NCSA licence (`LICENSE.llvm.txt` in the pack) | C and C++: compiling and linking |
-| libc++ 8 and libc++abi 8 (LLVM), in the C/C++ pack's sysroot | MIT or University of Illinois/NCSA, dual licensed (`licenses/libcxx-8-LICENSE.TXT`, `licenses/libcxxabi-8-LICENSE.TXT`; the pack has no copy) | C++ standard library, and the C++ names in suggestions |
-| wasi-libc (built from musl and cloudlibc), in the C/C++ pack's sysroot | Not stated in the pack. Upstream wasi-libc today: Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT, with musl's parts MIT and cloudlibc's BSD-2-Clause; not checked for this 2019 build | C library, and the C names in suggestions |
+| [YoWASP runtime](https://github.com/YoWASP/runtime-js) (the JavaScript side of `@yowasp/clang` 22.0.0-git20542-10), vendored in `src/vendor/yowasp-clang` | ISC (`licenses/yowasp-runtime-LICENSE.txt`) | C and C++: running the compiler in the browser |
+| LLVM 22: clang and lld (YoWASP's build), in the C/C++ pack | Apache-2.0 WITH LLVM-exception (`licenses/llvm-22-LICENSE.TXT`) | C and C++: compiling and linking |
+| libc++, libc++abi, libunwind and compiler-rt 22 (LLVM, wasi-sdk-33's exceptions build), in the C/C++ pack | Apache-2.0 WITH LLVM-exception (`licenses/libcxx-22-LICENSE.TXT`, `libcxxabi-22-`, `libunwind-22-`, `compiler-rt-22-`) | C++ standard library and exceptions |
+| [wasi-libc](https://github.com/WebAssembly/wasi-libc) (commit 161b3195, as wasi-sdk-33 pins it; built from musl and cloudlibc), in the C/C++ pack | Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT; musl's parts MIT, cloudlibc's BSD-2-Clause (`licenses/wasi-libc-*`) | C library |
+| libc++ 8 and libc++abi 8 headers (binji/wasm-clang's sysroot, pinned by hash in `scripts/gen-c-completions.mjs`) | MIT or University of Illinois/NCSA, dual licensed (`licenses/libcxx-8-LICENSE.TXT`, `licenses/libcxxabi-8-LICENSE.TXT`) | The C and C++ names in suggestions |
 | [Geist](https://github.com/vercel/geist-font) (`@fontsource-variable/geist`) | SIL Open Font License 1.1 | Font: the interface |
 | [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: code, output and file names (its ligatures only with "Joined symbols" on) |
 | [Phosphor Icons](https://phosphoricons.com/) (`@phosphor-icons/core`) | MIT | Icons |

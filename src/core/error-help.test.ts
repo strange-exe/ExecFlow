@@ -134,7 +134,7 @@ const EXPECTED: Record<string, [string | null, string?][]> = {
   "c-stack": [["c-infinite-recursion", "Every way through this function calls the function again, so it can never finish: the program would run out of stack."]],
   "c-stack-deep": [["crash-stack", "A function called itself (or functions called each other) so many times that the program ran out of stack memory."]],
   "cpp-uncaught": [["crash-uncaught", "Something in the program used throw, and no catch block was waiting for that kind of exception, so C++ ended the program."]],
-  "c-stack@webkit": [["c-infinite-recursion"], ["crash-memory"]],
+  "c-stack-deep@webkit": [["crash-stack"]],
   "c-div-zero": [["crash-division", "The program divided a whole number by zero (with / or %), which has no answer, so it was stopped."]],
 };
 

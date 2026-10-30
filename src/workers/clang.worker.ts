@@ -19,6 +19,7 @@ import { Exit, runLLVM, setResourceProvider, unpackTarFilesystem, type Tree } fr
 import type { BuildOptions, ToolDiagnostic, WsPath } from "../core/types";
 import type { FromCompiler, ToCompiler } from "../runner/clang-protocol";
 import { cleanToolOutput, dedupeDiagnostics, parseClangOutput, parseLldOutput, workspaceMap } from "../runner/clang-diagnostics";
+import { emptyTree, fileAt, putFile } from "../runner/clang-tree";
 import { cc1Template, CE_INCLUDE, linkArgs, linkTemplate, parseDriverJobs, PROBE, PROBES } from "../runner/clang-jobs";
 import { checkBuildOptions, includeClosure, semanticArgs, unitArgs, wantsPch } from "../runner/cpp-build";
 import { normalizeMemfsPath, parseDepfile } from "../runner/cpp-depfile";
@@ -189,30 +190,10 @@ interface Toolchain {
 let toolchain: Toolchain | null = null;
 let booting: Promise<Toolchain> | null = null;
 
-/** A file at an absolute path ("/o/a.o") in a tree, or null. */
-function fileAt(tree: Tree, path: string): Uint8Array | null {
-  let node: Tree | string | Uint8Array | undefined = tree;
-  for (const part of path.split("/").filter(Boolean)) {
-    if (!node || typeof node === "string" || node instanceof Uint8Array) return null;
-    node = node[part];
-  }
-  return node instanceof Uint8Array ? node : typeof node === "string" ? enc.encode(node) : null;
-}
-
-/** Puts `bytes` at an absolute path in a tree, creating its folders. */
-function putFile(tree: Tree, path: string, bytes: Uint8Array | string) {
-  const parts = path.split("/").filter(Boolean);
-  let dir = tree;
-  for (const part of parts.slice(0, -1)) {
-    const next = dir[part];
-    dir = (next && typeof next === "object" && !(next instanceof Uint8Array) ? next : (dir[part] = {})) as Tree;
-  }
-  dir[parts.at(-1)!] = bytes;
-}
-
 /** A fresh tree for one tool run: the libraries, ExecFlow's headers, and the run's own files. */
 function treeFor(tc: Pick<Toolchain, "sysroot">, files: [string, Uint8Array | string][] = []): Tree {
-  const tree: Tree = { sysroot: tc.sysroot };
+  const tree = emptyTree();
+  tree.sysroot = tc.sysroot;
   putFile(tree, `${CE_INCLUDE}/bits/stdc++.h`, STDCXX_HEADER);
   for (const [path, bytes] of files) putFile(tree, path, bytes);
   return tree;
@@ -293,7 +274,7 @@ async function touchPchLru(cache: Cache, k: string) {
 }
 
 /** The PCH's bytes for key `k`: from memory, Cache Storage, or built now; null if it can't be had. */
-async function ensurePch(tc: Toolchain, k: string, options: BuildOptions, id: number): Promise<Uint8Array | null> {
+async function ensurePch(tc: Toolchain, k: string, options: BuildOptions, id: number, unit: WsPath): Promise<Uint8Array | null> {
   if (pchUnavailable.has(k)) return null;
   const known = pchBytes.get(k);
   if (known) return known;
@@ -308,6 +289,8 @@ async function ensurePch(tc: Toolchain, k: string, options: BuildOptions, id: nu
       const r = await tool(["clang", "-cc1", "-emit-pch", ...tc.common.cpp, ...semanticArgs("cpp", options),
         "-o", pchPath(k), "-x", "c++-header", `${CE_INCLUDE}/bits/stdc++.h`], treeFor(tc));
       bytes = r.ok && r.tree ? fileAt(r.tree, pchPath(k)) : null;
+      // Back to the unit: its own compile gets its own time limit (the pch step has a longer one).
+      post({ type: "step", id, step: "compile", path: unit });
       if (!bytes) {
         pchUnavailable.add(k);
         return null;
@@ -382,7 +365,7 @@ async function build(msg: BuildMsg) {
     const id = await unitId(unit.path);
     const common = tc.common[unit.lang];
     let k = wantsPch(unit, byPath, msg.root) ? await pchKey(tc, options) : null;
-    let pch = k ? await ensurePch(tc, k, options, msg.id) : null;
+    let pch = k ? await ensurePch(tc, k, options, msg.id, unit.path) : null;
     if (!pch) k = null;
     const argsKey = await hashText(JSON.stringify([PACK.version, INIT_SOURCE,
       unitArgs({ unit, root: msg.root, common, options, id, pch: k ? pchPath(k) : null, mount: MOUNT })]));

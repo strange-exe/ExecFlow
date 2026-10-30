@@ -12,12 +12,20 @@ import { createOutputTail, readOutputTail } from "./cpp-output-tail";
 import { createInputChannel, sendInput } from "./input-channel";
 import { planProgram, type ProgramPlan } from "./program";
 import { RunClock, START_ATTEMPTS } from "./run-clock";
+import { UPDATE_FOR_CPP, wasmExceptionsSupported } from "./wasm-features";
 
 /** "idle": the pack is installed but clang is not loaded yet (no C/C++ file has been opened). */
-export type CppState = "checking" | "absent" | "downloading" | "idle" | "booting" | "ready" | "running" | "failed";
+/** "unsupported": this browser's WebAssembly lacks the exception instructions C and C++ programs use (wasm-features.ts). */
+export type CppState = "checking" | "absent" | "downloading" | "idle" | "booting" | "ready" | "running" | "failed" | "unsupported";
 
 /** Compiling can't be interrupted: each step (a unit, the precompiled header, the link) gets this long. */
 export const STEP_TIMEOUT_MS = 30_000;
+/**
+ * Except the one-time precompile of <bits/stdc++.h>: ExecFlow's own fixed header, not the user's
+ * code, so it can't loop. LLVM 22 took 21.9 s for it on a fast desktop (2026-10-30); this leaves
+ * room for a laptop several times slower.
+ */
+export const PCH_TIMEOUT_MS = 180_000;
 /** Starting clang from the cached pack takes ~0.2 s warm and a few seconds cold; past this it is given up. */
 export const BOOT_TIMEOUT_MS = 60_000;
 /** RunResult.written holds at most this many files. */
@@ -83,7 +91,14 @@ export class CppRunner {
   constructor(
     private readonly createCompiler: () => Worker,
     private readonly createProgram: () => Worker,
+    supported: () => boolean = wasmExceptionsSupported,
   ) {
+    // No compiler and no download where no program could run (the owner's choice, 2026-10-30).
+    if (!supported()) {
+      this.error = UPDATE_FOR_CPP;
+      this.state = "unsupported";
+      return;
+    }
     this.startCompiler();
   }
 
@@ -145,6 +160,7 @@ export class CppRunner {
 
   /** Start clang as soon as a C/C++ file is open, so pressing Run doesn't wait for it. */
   prepare() {
+    if (this.state === "unsupported") return;
     this.wantBoot = true;
     this.spare ??= this.makeSpare();
     if (this.state === "idle") void this.boot();
@@ -269,10 +285,12 @@ export class CppRunner {
     const buildMs = performance.now() - started;
     if (typeof built === "string") {
       this.active = null;
-      const timeout = built === "timeout";
+      const message = built === "pch-timeout" ? `Preparing <bits/stdc++.h> took longer than ${PCH_TIMEOUT_MS / 1000} s and was stopped.`
+        : built === "timeout" ? `Compiling took longer than ${STEP_TIMEOUT_MS / 1000} s for one step and was stopped.`
+        : undefined;
       return {
-        status: timeout ? "timeout" : "stopped", exitCode: null, diagnostics: [], skipped: plan.skipped, ms: { build: buildMs },
-        ...(timeout ? { message: `Compiling took longer than ${STEP_TIMEOUT_MS / 1000} s for one step and was stopped.` } : {}),
+        status: message ? "timeout" : "stopped", exitCode: null, diagnostics: [], skipped: plan.skipped, ms: { build: buildMs },
+        ...(message ? { message } : {}),
       };
     }
     // Hints read the program's own files only: plan.mounted is every C/C++ file of the workspace.
@@ -308,6 +326,7 @@ export class CppRunner {
   /** Waits for the pack and a booted clang; returns a finished result when the run can't go on. */
   private async whenCompilerReady(hooks: RunHooks, cancelled: Promise<StopReason>, stopped: () => boolean): Promise<RunResult | null> {
     const result = (status: RunStatus, message?: string): RunResult => ({ status, exitCode: null, diagnostics: [], ms: {}, ...(message ? { message } : {}) });
+    if (this.state === "unsupported") return result("unavailable", UPDATE_FOR_CPP);
     if (this.state === "downloading") hooks.onPhase("downloading");
     await Promise.race([this.settled(), cancelled]);
     if (stopped()) return result("stopped");
@@ -338,13 +357,13 @@ export class CppRunner {
     return null;
   }
 
-  private build(req: RunRequest, plan: ProgramPlan, hooks: RunHooks, cancelled: Promise<StopReason>): Promise<Built | "timeout" | "stopped"> {
+  private build(req: RunRequest, plan: ProgramPlan, hooks: RunHooks, cancelled: Promise<StopReason>): Promise<Built | "timeout" | "pch-timeout" | "stopped"> {
     const id = this.nextId++;
     const compiler = this.compiler;
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       let finished = false;
-      const done = (outcome: Built | "timeout" | "stopped") => {
+      const done = (outcome: Built | "timeout" | "pch-timeout" | "stopped") => {
         if (finished) return; // a later Stop (during the program run) must not touch the compiler
         finished = true;
         clearTimeout(timer);
@@ -357,14 +376,14 @@ export class CppRunner {
         }
         resolve(outcome);
       };
-      const arm = () => {
+      const arm = (pch = false) => {
         clearTimeout(timer);
-        timer = setTimeout(() => done("timeout"), STEP_TIMEOUT_MS);
+        timer = pch ? setTimeout(() => done("pch-timeout"), PCH_TIMEOUT_MS) : setTimeout(() => done("timeout"), STEP_TIMEOUT_MS);
       };
       const onMessage = ({ data }: MessageEvent<FromCompiler>) => {
         if (!("id" in data) || data.id !== id) return;
         if (data.type === "step") {
-          arm();
+          arm(data.step === "pch");
           if (data.step === "compile") hooks.onPhase("compiling", data.path);
           else if (data.step === "link") hooks.onPhase("linking");
           else hooks.onPhase("compiling", "<bits/stdc++.h> (once)");

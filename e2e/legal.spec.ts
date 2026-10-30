@@ -402,14 +402,16 @@ test.describe("legal pages", () => {
       "Pyodide 314.0.7",
       "Mozilla Public License Version 2.0",
       "PYTHON SOFTWARE FOUNDATION LICENSE",
-      "wasm-clang",
+      "YoWASP runtime",
+      "LLVM 22: clang and lld",
+      "libc++ 22",
+      "wasi-libc",
       "tree-sitter-c 0.24.1",
       "tree-sitter-cpp 0.23.4",
       "tree-sitter-python 0.25.0",
       "web-tree-sitter",
       "SIL Open Font License",
       "Workbox",
-      "LICENSE.llvm.txt",
     ]) {
       expect(text, part).toContain(part);
     }

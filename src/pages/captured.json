@@ -1,8 +1,8 @@
 {
   "note": "Written by .claude/verify/pages/build/capture.spec.ts from the built app; never edit by hand.",
   "facts": {
-    "packOffer": "C and C++ need a one-time 19.6 MB download. After that they run offline, like Python.",
-    "packButton": "Download C/C++ (19.6 MB)"
+    "packOffer": "C and C++ need a one-time 29.3 MB download. After that they run offline, like Python.",
+    "packButton": "Download C/C++ (29.3 MB)"
   },
   "examples": {
     "fc-loop": {
@@ -156,7 +156,7 @@
       "status": "ok",
       "output": "72\nPass\n",
       "outputChars": 8,
-      "runlog": "pass_fail.c\nFinished\nexit code 0\nbuilt in 665 ms\nran in 7 ms",
+      "runlog": "pass_fail.c\nFinished\nexit code 0\nbuilt in 959 ms\nran in 4 ms",
       "help": null,
       "problems": [],
       "steps": [
@@ -173,7 +173,7 @@
       "status": "ok",
       "output": "1 2 3 \n2 4 6 \n3 6 9 \n",
       "outputChars": 21,
-      "runlog": "table.cpp\nFinished\nexit code 0\nbuilt in 2.4 s\nran in 14 ms",
+      "runlog": "table.cpp\nFinished\nexit code 0\nbuilt in 5.8 s\nran in 8 ms",
       "help": null,
       "problems": [],
       "steps": [
@@ -193,7 +193,7 @@
       "status": "ok",
       "output": "Enter two numbers: 7 2\n7 + 2 = 9\n7 / 2 = 3.50\n",
       "outputChars": 46,
-      "runlog": "add.c\nFinished\nexit code 0\nbuilt in 667 ms\nran in 10 ms",
+      "runlog": "add.c\nFinished\nexit code 0\nbuilt in 797 ms\nran in 4 ms",
       "help": null,
       "problems": []
     },
@@ -201,7 +201,7 @@
       "status": "ok",
       "output": "Hottest: day 4, 35 C\nAverage: 32.0 C\n",
       "outputChars": 37,
-      "runlog": "temps.c\nFinished\nexit code 0\nbuilt in 812 ms\nran in 8 ms",
+      "runlog": "temps.c\nFinished\nexit code 0\nbuilt in 865 ms\nran in 3 ms",
       "help": null,
       "problems": []
     },
@@ -209,7 +209,7 @@
       "status": "ok",
       "output": "Before: a = 3, b = 8\nAfter:  a = 8, b = 3\n",
       "outputChars": 42,
-      "runlog": "swap.c\nFinished\nexit code 0\nbuilt in 248 ms\nran in 6 ms",
+      "runlog": "swap.c\nFinished\nexit code 0\nbuilt in 754 ms\nran in 7 ms",
       "help": null,
       "problems": []
     },
@@ -217,7 +217,7 @@
       "status": "build-failed",
       "output": "semicolon.c:4:18: error: expected ';' at end of declaration\n The program didn't compile: 1 error in semicolon.c.\n",
       "outputChars": 113,
-      "runlog": "semicolon.c\nBuild failed\nbuilt in 112 ms\nError: expected ';' at end of declaration\nsemicolon.c, line 4\n\nThe compiler expected a ; here. In C and C++ each statement and declaration ends with a semicolon.\n\nAdd ; at the end of the statement, where the message points (usually the end of the marked line).",
+      "runlog": "semicolon.c\nBuild failed\nbuilt in 568 ms\nError: expected ';' at end of declaration\nsemicolon.c, line 4\n\nThe compiler expected a ; here. In C and C++ each statement and declaration ends with a semicolon.\n\nAdd ; at the end of the statement, where the message points (usually the end of the marked line).",
       "help": {
         "id": "c-semicolon",
         "means": "The compiler expected a ; here. In C and C++ each statement and declaration ends with a semicolon.",
@@ -231,7 +231,7 @@
       "status": "crashed",
       "output": "Which student (0 to 4)? 100000000\n The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range.\n",
       "outputChars": 154,
-      "runlog": "crash.c\nCrashed\nbuilt in 545 ms\nran in 7 ms\n\nThe program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.\n\nCheck each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable.",
+      "runlog": "crash.c\nCrashed\nbuilt in 818 ms\nran in 4 ms\n\nThe program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.\n\nCheck each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable.",
       "help": {
         "id": "crash-memory",
         "means": "The program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.",
@@ -243,9 +243,9 @@
     },
     "c-version": {
       "status": "ok",
-      "output": "C standard: 201112\nCompiler: clang 8.0.1 \nint is 4 bytes, a pointer is 4 bytes\n",
-      "outputChars": 79,
-      "runlog": "which_c.c\nFinished\nexit code 0\nbuilt in 237 ms\nran in 6 ms",
+      "output": "C standard: 201112\nCompiler: clang 22.1.0 (https://codeberg.org/YoWASP/llvm-project 9560ae0f2cc440e4fc891fddbc119da6f56daa59)\nint is 4 bytes, a pointer is 4 bytes\n",
+      "outputChars": 163,
+      "runlog": "which_c.c\nFinished\nexit code 0\nbuilt in 655 ms\nran in 3 ms",
       "help": null,
       "problems": []
     },
@@ -253,7 +253,7 @@
       "status": "ok",
       "output": "Your name: Ravi Kumar\nYear you were born: 2008\nRavi Kumar, in 2030 you will turn 22.\n",
       "outputChars": 85,
-      "runlog": "birth_year.cpp\nFinished\nexit code 0\nbuilt in 4.0 s\nran in 51 ms",
+      "runlog": "birth_year.cpp\nFinished\nexit code 0\nbuilt in 6.1 s\nran in 10 ms",
       "help": null,
       "problems": []
     },
@@ -261,7 +261,7 @@
       "status": "ok",
       "output": "17 42 63 71 88 \nCount: 5, best: 88\n",
       "outputChars": 35,
-      "runlog": "scores.cpp\nFinished\nexit code 0\nbuilt in 6.2 s\nran in 23 ms",
+      "runlog": "scores.cpp\nFinished\nexit code 0\nbuilt in 6.5 s\nran in 9 ms",
       "help": null,
       "problems": []
     },
@@ -269,7 +269,7 @@
       "status": "ok",
       "output": "programming has 11 letters\nReversed: gnimmargorp\nVowels: 3\n",
       "outputChars": 59,
-      "runlog": "word.cpp\nFinished\nexit code 0\nbuilt in 2.2 s\nran in 26 ms",
+      "runlog": "word.cpp\nFinished\nexit code 0\nbuilt in 5.6 s\nran in 10 ms",
       "help": null,
       "problems": []
     },
@@ -277,7 +277,7 @@
       "status": "build-failed",
       "output": "hello.cpp:4:5: error: use of undeclared identifier 'cout'; did you mean 'std::cout'?\nhello.cpp:4:24: error: use of undeclared identifier 'endl'; did you mean 'std::endl'?\n The program didn't compile: 2 errors in hello.cpp.\n",
       "outputChars": 223,
-      "runlog": "hello.cpp\nBuild failed\nbuilt in 1.4 s\nError: use of undeclared identifier 'cout'; did you mean 'std::cout'?\nhello.cpp, line 4\n\ncout belongs to the C++ standard library, so its full name is std::cout.\n\nWrite std::cout, or put using namespace std; once after the #include lines.",
+      "runlog": "hello.cpp\nBuild failed\nbuilt in 4.2 s\nError: use of undeclared identifier 'cout'; did you mean 'std::cout'?\nhello.cpp, line 4\n\ncout belongs to the C++ standard library, so its full name is std::cout.\n\nWrite std::cout, or put using namespace std; once after the #include lines.",
       "help": {
         "id": "cpp-std-name",
         "means": "cout belongs to the C++ standard library, so its full name is std::cout.",
@@ -290,9 +290,9 @@
     },
     "cpp-version": {
       "status": "ok",
-      "output": "__cplusplus is 201703\nCompiler: clang 8.0.1 \n",
-      "outputChars": 45,
-      "runlog": "which_cpp.cpp\nFinished\nexit code 0\nbuilt in 2.2 s\nran in 13 ms",
+      "output": "__cplusplus is 201703\nCompiler: clang 22.1.0 (https://codeberg.org/YoWASP/llvm-project 9560ae0f2cc440e4fc891fddbc119da6f56daa59)\n",
+      "outputChars": 129,
+      "runlog": "which_cpp.cpp\nFinished\nexit code 0\nbuilt in 5.4 s\nran in 8 ms",
       "help": null,
       "problems": []
     },
@@ -300,7 +300,7 @@
       "status": "ok",
       "output": "Hello\n",
       "outputChars": 6,
-      "runlog": "all_headers.cpp\nFinished\nexit code 0\nbuilt in 4.5 s\nran in 20 ms",
+      "runlog": "all_headers.cpp\nFinished\nexit code 0\nbuilt in 21.0 s\nran in 7 ms",
       "help": null,
       "problems": []
     },
@@ -337,7 +337,7 @@
       "status": "build-failed",
       "output": "total.c:8:33: error: use of undeclared identifier 'totl'; did you mean 'total'?\n The program didn't compile: 1 error in total.c.\n",
       "outputChars": 129,
-      "runlog": "total.c\nBuild failed\nbuilt in 859 ms\nError: use of undeclared identifier 'totl'; did you mean 'total'?\ntotal.c, line 8\n\nThe compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike.\n\nCheck the spelling and the capital letters. A new variable needs a declaration with its type, before this line and in the same { } block or an outer one.",
+      "runlog": "total.c\nBuild failed\nbuilt in 684 ms\nError: use of undeclared identifier 'totl'; did you mean 'total'?\ntotal.c, line 8\n\nThe compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike.\n\nCheck the spelling and the capital letters. A new variable needs a declaration with its type, before this line and in the same { } block or an outer one.",
       "help": {
         "id": "c-undeclared-suggest",
         "means": "The compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike.",
@@ -348,17 +348,12 @@
       ]
     },
     "c-amp": {
-      "status": "crashed",
-      "output": "Your age: 17\n The build had 2 warnings: see Problems, or the marks in the code.\n The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range.\n",
-      "outputChars": 200,
-      "runlog": "age.c\nCrashed\nbuilt in 845 ms\nran in 11 ms\n\nThe program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.\n\nCheck each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable.",
-      "help": {
-        "id": "crash-memory",
-        "means": "The program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.",
-        "tips": "Check each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable."
-      },
+      "status": "ok",
+      "output": "Your age: 17\nNext year you will be 0\n The build had 2 warnings: see Problems, or the marks in the code.\n",
+      "outputChars": 104,
+      "runlog": "age.c\nFinished\nexit code 0\nbuilt in 811 ms\nran in 4 ms",
+      "help": null,
       "problems": [
-        "ErrorThe program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index)Whole programruntimeThe program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops.Check each array index against the array's size (the last index is size - 1), especially in loops, and that scanf has & before each variable.",
         "Warningvariable 'age' is uninitialized when used hereage.c:6:17clang -Wuninitializedage is used before it gets a value, so its value can't be relied on (it may be 0, or anything else).Give it a starting value where it is declared, such as = 0 for a sum or a counter.",
         "Warningformat specifies type 'int *' but the argument has type 'int'age.c:6:17clang -WformatThis conversion needs an address to store into (type int *), but it was given a value of type int.If this is scanf, put & before the variable's name. A char array read with %s needs no &."
       ]
@@ -367,7 +362,7 @@
       "status": "build-failed",
       "output": "greet.cpp:9:18: error: no matching function for call to 'greet'\n The program didn't compile: 1 error in greet.cpp.\n",
       "outputChars": 115,
-      "runlog": "greet.cpp\nBuild failed\nbuilt in 2.6 s\nError: no matching function for call to 'greet'\ngreet.cpp, line 9\n\nNo version of greet takes the values in this call: it needs 2, and the call gives 1.\n\nGive one value for each parameter, in the order the function lists them.",
+      "runlog": "greet.cpp\nBuild failed\nbuilt in 4.0 s\nError: no matching function for call to 'greet'\ngreet.cpp, line 9\n\nNo version of greet takes the values in this call: it needs 2, and the call gives 1.\n\nGive one value for each parameter, in the order the function lists them.",
       "help": {
         "id": "cpp-no-matching-count",
         "means": "No version of greet takes the values in this call: it needs 2, and the call gives 1.",
@@ -381,7 +376,7 @@
       "status": "build-failed",
       "output": "marks.cpp:7:11: error: no matching member function for call to 'push_back'\n The program didn't compile: 1 error in marks.cpp.\n",
       "outputChars": 126,
-      "runlog": "marks.cpp\nBuild failed\nbuilt in 3.4 s\nError: no matching member function for call to 'push_back'\nmarks.cpp, line 7",
+      "runlog": "marks.cpp\nBuild failed\nbuilt in 4.4 s\nError: no matching member function for call to 'push_back'\nmarks.cpp, line 7",
       "help": null,
       "problems": [
         "Errorno matching member function for call to 'push_back'marks.cpp:7:11clang"

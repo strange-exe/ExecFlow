@@ -6,6 +6,25 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.17.0] - 2026-10-30
+
+A new C and C++ compiler, with exceptions
+
+### Added
+
+- C++ exceptions work: throw, try and catch. An exception nobody catches stops the program, and ExecFlow says so.
+- Settings offers C23 (c23, gnu23) and C++20 and C++23. A file set to c++2a is now built as C++20.
+
+### Changed
+
+- C and C++ now build with clang 22 and libc++ 22, up from clang 8. Messages read the way current compilers word them, and ExecFlow still explains the common ones in plain words.
+- The one-time C/C++ download is now 29.3 MB, up from 19.6 MB. It needs Chrome or Edge 137, Firefox 131 or Safari 18.4, or newer; an older browser is told so, and Python still works in it.
+
+### Fixed
+
+- A program with no main() now says it needs one, instead of building and failing when it starts.
+- The first program that includes <bits/stdc++.h> has more time to prepare it, so a slower computer doesn't stop it halfway.
+
 ## [0.16.0] - 2026-10-30
 
 CodeEditor is now ExecFlow

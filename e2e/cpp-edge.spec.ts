@@ -13,14 +13,14 @@ const runtime = (page: Page) => page.locator("#status-runtime");
 test.describe("a pack download that fails", () => {
   test.use(
     tolerating(
-      /^HTTP 503: http:\/\/127\.0\.0\.1:\d+\/clang\/[^/]+\/clang\.wasm\.gz$/,
+      /^HTTP 503: http:\/\/127\.0\.0\.1:\d+\/clang\/[^/]+\/llvm\.core\.wasm\.gz$/,
       /^Failed to load resource: the server responded with a status of 503( \(.*\))?$/,
     ),
   );
 
   test("says so, offers Try again, and Try again finishes it", async ({ page }) => {
     let fail = true;
-    await page.route("**/clang/*/clang.wasm.gz", (route) => (fail ? route.fulfill({ status: 503, body: "busy" }) : route.continue()));
+    await page.route("**/clang/*/llvm.core.wasm.gz", (route) => (fail ? route.fulfill({ status: 503, body: "busy" }) : route.continue()));
     await openApp(page);
     await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("ok"); return 0; }\n' }]);
     await openFromTree(page, "main.c");
@@ -87,7 +87,7 @@ test.describe("with the service worker", () => {
       .toBe("activated");
     await reloadApp(page);
     await expect(runtime(page)).not.toHaveAttribute("data-state", /^(not-loaded|checking)$/, { timeout: 30_000 });
-    await expect(runtime(page), "the 19.6 MB pack is gone after a reload").not.toHaveAttribute("data-state", "absent");
+    await expect(runtime(page), "the 29.3 MB pack is gone after a reload").not.toHaveAttribute("data-state", "absent");
     const again = await run(page, { timeout: 150_000 });
     expect(again.status, again.output).toBe("ok");
   });
@@ -122,7 +122,7 @@ test("a pack that lost a part offers the download again on the next visit, inste
   await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("ok"); return 0; }\n' }]);
   await openFromTree(page, "main.c");
   await installCpp(page);
-  expect(await dropPackPart(page, "clang")).toBe(true);
+  expect(await dropPackPart(page, "llvm.core.wasm")).toBe(true);
   await reloadApp(page);
   await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
   await showView(page, "output");
@@ -146,12 +146,12 @@ test("a part that goes missing during the download is fetched again before the p
   await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
   await showView(page, "output");
   await page.locator("#pack-download").click();
-  // clang and lld come first; the sysroot is held back meanwhile.
-  await expect.poll(() => hasPackPart(page, "lld"), { timeout: 60_000 }).toBe(true);
-  expect(await dropPackPart(page, "clang")).toBe(true);
+  // The compiler and its resources come first; the sysroot is held back meanwhile.
+  await expect.poll(() => hasPackPart(page, "resources.tar"), { timeout: 60_000 }).toBe(true);
+  expect(await dropPackPart(page, "llvm.core.wasm")).toBe(true);
   release();
   await expect(runtime(page)).toHaveAttribute("data-state", /^(idle|booting|ready)$/, { timeout: 120_000 });
-  expect(await hasPackPart(page, "clang")).toBe(true);
+  expect(await hasPackPart(page, "llvm.core.wasm")).toBe(true);
   const r = await run(page, { timeout: 150_000 });
   expect(r.status, r.output).toBe("ok");
 });

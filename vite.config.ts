@@ -262,9 +262,20 @@ function collectPackages(): Plugin {
 const LICENSE_EXTRAS: { name: string; file: string }[] = [
   { name: "Pyodide 314.0.7 (served from /pyodide/)", file: "licenses/pyodide-314.0.7-LICENSE.txt" },
   { name: "CPython 3.14, inside Pyodide", file: "licenses/cpython-3.14-LICENSE.txt" },
-  { name: "wasm-clang (Ben Smith), vendored in src/vendor/wasm-clang", file: "src/vendor/wasm-clang/LICENSE" },
-  { name: "libc++ 8, in the C/C++ pack", file: "licenses/libcxx-8-LICENSE.TXT" },
-  { name: "libc++abi 8, in the C/C++ pack", file: "licenses/libcxxabi-8-LICENSE.TXT" },
+  // The C/C++ pack (0.17.0, scripts/fetch-clang.mjs): YoWASP's clang + lld 22 and wasi-sdk-33's libraries.
+  { name: "YoWASP runtime (the JavaScript side of @yowasp/clang), vendored in src/vendor/yowasp-clang", file: "licenses/yowasp-runtime-LICENSE.txt" },
+  { name: "LLVM 22: clang and lld, in the C/C++ pack", file: "licenses/llvm-22-LICENSE.TXT" },
+  { name: "libc++ 22 (exceptions build, from wasi-sdk-33), in the C/C++ pack", file: "licenses/libcxx-22-LICENSE.TXT" },
+  { name: "libc++abi 22 (from wasi-sdk-33), in the C/C++ pack", file: "licenses/libcxxabi-22-LICENSE.TXT" },
+  { name: "libunwind 22 (from wasi-sdk-33), in the C/C++ pack", file: "licenses/libunwind-22-LICENSE.TXT" },
+  { name: "compiler-rt 22 (libclang_rt.builtins), in the C/C++ pack", file: "licenses/compiler-rt-22-LICENSE.TXT" },
+  { name: "wasi-libc (wasi-sdk-33, commit 161b3195), in the C/C++ pack", file: "licenses/wasi-libc-LICENSE.txt" },
+  { name: "wasi-libc, under its MIT option", file: "licenses/wasi-libc-LICENSE-MIT.txt" },
+  { name: "musl, inside wasi-libc", file: "licenses/wasi-libc-musl-COPYRIGHT.txt" },
+  { name: "cloudlibc, inside wasi-libc", file: "licenses/wasi-libc-cloudlibc-LICENSE.txt" },
+  // The editor's C and C++ suggestions are still read from clang 8's headers (scripts/gen-c-completions.mjs).
+  { name: "libc++ 8 headers (the editor's suggestion lists were read from them)", file: "licenses/libcxx-8-LICENSE.TXT" },
+  { name: "libc++abi 8 headers (as above)", file: "licenses/libcxxabi-8-LICENSE.TXT" },
   { name: "tree-sitter-c 0.24.1 (its .wasm, served from /flowchart/)", file: "licenses/tree-sitter-c-0.24.1-LICENSE.txt" },
   { name: "tree-sitter-cpp 0.23.4 (its .wasm, served from /flowchart/)", file: "licenses/tree-sitter-cpp-0.23.4-LICENSE.txt" },
   { name: "tree-sitter-python 0.25.0 (its .wasm, served from /flowchart/)", file: "licenses/tree-sitter-python-0.25.0-LICENSE.txt" },
@@ -276,9 +287,8 @@ const LICENSE_EXTRAS: { name: string; file: string }[] = [
 ];
 
 const LICENSE_NOTES = [
-  "LLVM (clang 8 and lld), in the C/C++ pack: Apache-2.0 WITH LLVM-exception and the University of Illinois/NCSA licence; the pack's own copy is served beside it as /clang/<version>/LICENSE.llvm.txt.",
+  "The C/C++ pack's compiler is @yowasp/clang 22.0.0-git20542-10 (YoWASP's build of LLVM 22, whose build scripts are Apache-2.0); its libraries are the wasm32-wasip1 sysroot of wasi-sdk-33, which ships no licence files of its own, so the texts above come from llvm-project release/22.x and wasi-libc at the commit wasi-sdk-33 pins.",
   "numpy, pandas, python-dateutil, pytz and six are served as their original wheel files, each with its licence inside (its .dist-info folder).",
-  "wasi-libc, in the C/C++ pack's sysroot: the 2019 build carries no licence file; upstream wasi-libc is Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT, with musl's parts MIT and cloudlibc's BSD-2-Clause.",
   "The colour themes in Settings use the published palettes of other themes; each is listed with its source and licence in the README: https://github.com/strange-exe/ExecFlow#third-party-software",
 ];
 

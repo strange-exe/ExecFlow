@@ -11,8 +11,7 @@
     "src/workers",
     "src/runner",
     "src/core",
-    "src/globals.d.ts",
-    "src/vendor/wasm-clang/shared.d.ts"
+    "src/globals.d.ts"
   ],
   "exclude": [
     "src/**/*.test.ts"

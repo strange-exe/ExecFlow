@@ -1634,6 +1634,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     "cpp:ready": "C/C++ ready",
     "cpp:running": "C/C++ running",
     "cpp:failed": "C/C++ couldn't start",
+    // 0.17.0: no C++ exception instructions in this browser's WebAssembly (runner/wasm-features.ts).
+    "cpp:unsupported": "C/C++ needs a newer browser",
   };
   function renderStatus() {
     const file = fileOf(editors.activeId);
@@ -1649,7 +1651,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       const state = runtimes.state(kind);
       el.dataset.runtime = kind;
       el.dataset.state = state;
-      const failed = state === "failed";
+      const failed = state === "failed" || state === "unsupported";
       const busy = state === "booting" || state === "checking" || state === "downloading" || state === "not-loaded" || state === "running";
       let words = RUNTIME_WORDS[`${kind}:${state}`] ?? state;
       if (kind === "cpp" && state === "downloading" && runtimes.cppRunner) {

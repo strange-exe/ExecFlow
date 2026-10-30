@@ -1,8 +1,9 @@
 // @yowasp/clang 22.0.0-git20542-10, gen/bundle.js (https://www.npmjs.com/package/@yowasp/clang), the
 // JavaScript side of YoWASP's Clang/LLD for WebAssembly: the YoWASP runtime (@yowasp/runtime, ISC) and the
 // jco-generated bindings of the compiler's wasm modules. ExecFlow's changes, all marked "ExecFlow:":
-// the modules and the resource tar come from the worker (setResourceProvider, exported), and the Node
-// file:// loading paths are removed. The wasm modules themselves are in the C/C++ pack
+// the modules and the resource tar come from the worker (setResourceProvider, exported), the Node
+// file:// loading paths are removed, ".." in a path goes up a folder (traverse), and folder maps have
+// no prototype (directoryFromTree), so "__proto__" is an ordinary name. The wasm modules themselves are in the C/C++ pack
 // (scripts/fetch-clang.mjs); LLVM is Apache-2.0 WITH LLVM-exception.
 //
 // ISC License
@@ -186,7 +187,7 @@ var Directory = class _Directory {
         entry = files[segment];
       } else if (create === "directory" || create !== null && separatorAt !== -1) {
         parents.push(entry);
-        entry = files[segment] = new _Directory({});
+        entry = files[segment] = new _Directory(Object.create(null)); // ExecFlow: see directoryFromTree
       } else if (create === "file") {
         parents.push(entry);
         entry = files[segment] = new File(new Uint8Array());
@@ -365,7 +366,10 @@ var DirectoryEntryStream = class {
   }
 };
 function directoryFromTree(tree) {
-  const files = {};
+  // ExecFlow: folder maps have no prototype, so a file or folder named "__proto__" (a workspace name
+  // is allowed to be) is stored as itself instead of replacing the map's prototype (security review
+  // of 0.17.0, 2026-10-30). The same goes for the maps below and in traverse.
+  const files = Object.create(null);
   for (const [filename, data] of Object.entries(tree)) {
     if (typeof data === "string" || data instanceof Uint8Array)
       files[filename] = new File(tree[filename]);
@@ -381,7 +385,7 @@ function directoryIntoTree(directory, { decodeASCII = true } = {}) {
         return false;
     return true;
   }
-  const tree = {};
+  const tree = Object.create(null); // ExecFlow: see directoryFromTree
   for (const [filename, entry] of Object.entries(directory.files)) {
     if (entry instanceof File)
       tree[filename] = decodeASCII && isASCII(entry.data) ? new TextDecoder().decode(entry.data) : entry.data;
@@ -393,7 +397,7 @@ function directoryIntoTree(directory, { decodeASCII = true } = {}) {
 var Environment = class {
   vars = {};
   args = [];
-  root = new Directory({});
+  root = new Directory(Object.create(null)); // ExecFlow: see directoryFromTree
   constructor() {
     this.prng = new Xoroshiro128StarStar(1n);
     this.standardInputStream = new CallbackInputStream();

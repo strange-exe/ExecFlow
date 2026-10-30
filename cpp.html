@@ -4,17 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Run C++ online in your browser | ExecFlow</title>
-    <meta name="description" content="Compile and run C++17 in your browser with clang 8 and libc++: cin, vector, string and sort, with compiler errors explained in plain words." />
+    <meta name="description" content="Compile and run C++17 in your browser with clang 22 and libc++: cin, vector, string and sort, with compiler errors explained in plain words." />
     <link rel="canonical" href="https://execflow.abhinesh.codes/cpp" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="ExecFlow" />
     <meta property="og:title" content="Run C++ online in your browser" />
-    <meta property="og:description" content="C++17 compiled and run in your browser with clang 8 and libc++: cin, vector, string, and errors explained in plain words." />
+    <meta property="og:description" content="C++17 compiled and run in your browser with clang 22 and libc++: cin, vector, string, and errors explained in plain words." />
     <meta property="og:url" content="https://execflow.abhinesh.codes/cpp" />
     <meta property="og:image" content="https://execflow.abhinesh.codes/icons/mark-v2-512.png" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Run C++ online in your browser" />
-    <meta name="twitter:description" content="C++17 compiled and run in your browser with clang 8 and libc++: cin, vector, string, and errors explained in plain words." />
+    <meta name="twitter:description" content="C++17 compiled and run in your browser with clang 22 and libc++: cin, vector, string, and errors explained in plain words." />
     <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
@@ -52,8 +52,8 @@
         </div>
         <dl class="guide-facts">
           <div><dt>C++ standard</dt><dd>C++17 by default</dd></div>
-          <div><dt>Compiler</dt><dd>clang 8.0.1, libc++ 8</dd></div>
-          <div><dt>Download</dt><dd>19.6 MB, once (shared with C)</dd></div>
+          <div><dt>Compiler</dt><dd>clang 22.1.0, libc++ 22</dd></div>
+          <div><dt>Download</dt><dd>29.3 MB, once (shared with C)</dd></div>
           <div><dt>Account</dt><dd>None needed</dd></div>
         </dl>
       </section>
@@ -143,9 +143,10 @@
       <section aria-labelledby="compiler">
         <h2 id="compiler">The compiler, the library and the standard</h2>
         <ul class="guide-list">
-          <li><strong>clang 8.0.1</strong> with <strong>libc++ 8</strong>, LLVM's C++ standard library, compiled to WebAssembly and run in a worker in your page. Your code is never sent to a server to be built.</li>
+          <li><strong>clang 22.1.0</strong> with <strong>libc++ 22</strong>, LLVM's C++ standard library, compiled to WebAssembly and run in a worker in your page. Your code is never sent to a server to be built.</li>
           <li><strong>The defaults:</strong> <code>-std=c++17 -O2 -Wall</code>.</li>
-          <li><strong>In Settings</strong> you can choose c++11, c++14, c++17 or c++2a (clang 8's name for what became C++20, which was still being written when clang 8 was released), the optimisation level, and <code>-Wextra</code>.</li>
+          <li><strong>In Settings</strong> you can choose c++11, c++14, c++17, c++20 or c++23, the optimisation level, and <code>-Wextra</code>.</li>
+          <li><strong>Exceptions:</strong> <code>throw</code>, <code>try</code> and <code>catch</code> work. An exception nobody catches stops the program, and ExecFlow names it. They need Chrome or Edge 137, Firefox 131 or Safari 18.4, or newer.</li>
           <li><strong>Build time:</strong> building a C++ program takes a few seconds, longer than a C one; the run itself is quick. The compiler download is the same one C uses, so installing one installs both.</li>
           <li><strong>Memory:</strong> a program can use up to 256 MB.</li>
         </ul>
@@ -163,9 +164,9 @@
       <section class="guide-faq" aria-labelledby="faq">
         <h2 id="faq">Questions</h2>
         <h3>Does it work offline?</h3>
-        <p>Yes, after the one-time 19.6 MB compiler download: from then on, C++ programs build and run without a connection.</p>
+        <p>Yes, after the one-time 29.3 MB compiler download: from then on, C++ programs build and run without a connection.</p>
         <h3>Does <code>#include &lt;bits/stdc++.h&gt;</code> work?</h3>
-        <p>Yes. The header belongs to GCC's library, not to libc++, but students use it so often that ExecFlow ships its own version, which includes 41 standard headers, from <code>&lt;algorithm&gt;</code> to <code>&lt;vector&gt;</code>. A program starting with it printed:</p>
+        <p>Yes. The header belongs to GCC's library, not to libc++, but students use it so often that ExecFlow ships its own version, which includes 43 standard headers, from <code>&lt;algorithm&gt;</code> to <code>&lt;vector&gt;</code>. A program starting with it printed:</p>
         <p class="guide-quote"><span data-capture="cpp-bits:first"></span></p>
         <p>It is precompiled the first time it is used, and kept for the last few compiler settings used, so later builds that include it are faster. Code meant for other compilers is still better off including the headers it uses.</p>
         <h3>Do I need to sign up?</h3>

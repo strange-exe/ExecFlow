@@ -4,17 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Run C online in your browser | ExecFlow</title>
-    <meta name="description" content="Compile and run C in your browser with clang 8: scanf, arrays and pointers, with compiler errors and crashes explained in plain words. Works offline." />
+    <meta name="description" content="Compile and run C in your browser with clang 22: scanf, arrays and pointers, with compiler errors and crashes explained in plain words. Works offline." />
     <link rel="canonical" href="https://execflow.abhinesh.codes/c" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="ExecFlow" />
     <meta property="og:title" content="Run C online in your browser" />
-    <meta property="og:description" content="C compiled and run in your browser with clang 8 (gnu11): scanf, arrays, pointers, and errors explained in plain words." />
+    <meta property="og:description" content="C compiled and run in your browser with clang 22 (gnu11): scanf, arrays, pointers, and errors explained in plain words." />
     <meta property="og:url" content="https://execflow.abhinesh.codes/c" />
     <meta property="og:image" content="https://execflow.abhinesh.codes/icons/mark-v2-512.png" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Run C online in your browser" />
-    <meta name="twitter:description" content="C compiled and run in your browser with clang 8 (gnu11): scanf, arrays, pointers, and errors explained in plain words." />
+    <meta name="twitter:description" content="C compiled and run in your browser with clang 22 (gnu11): scanf, arrays, pointers, and errors explained in plain words." />
     <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
@@ -51,9 +51,9 @@
           <a class="about-btn about-btn-ghost" href="#examples">See the examples</a>
         </div>
         <dl class="guide-facts">
-          <div><dt>Compiler</dt><dd>clang 8.0.1</dd></div>
+          <div><dt>Compiler</dt><dd>clang 22.1.0</dd></div>
           <div><dt>C standard</dt><dd>gnu11, with -O2 -Wall</dd></div>
-          <div><dt>Download</dt><dd>19.6 MB, once</dd></div>
+          <div><dt>Download</dt><dd>29.3 MB, once</dd></div>
           <div><dt>Account</dt><dd>None needed</dd></div>
         </dl>
       </section>
@@ -123,13 +123,14 @@
         </div>
 
         <div class="guide-example">
-          <h3 id="ex-amp">scanf without &amp;: two warnings, then a crash</h3>
+          <h3 id="ex-amp">scanf without &amp;: two warnings, then a wrong answer</h3>
           <p>
             <code>scanf("%d", age)</code> hands scanf the value of <code>age</code> instead of its address, so scanf
             stores the number somewhere it shouldn't. This compiles, because it is only a warning: ExecFlow listed two
             under Problems, <em>&ldquo;<span data-capture="c-amp:warning1"></span>&rdquo;</em> and
-            <em>&ldquo;<span data-capture="c-amp:warning2"></span>&rdquo;</em>, and the run then crashed as soon as
-            the number was typed.
+            <em>&ldquo;<span data-capture="c-amp:warning2"></span>&rdquo;</em>. The run then finished without an
+            error and printed the wrong age: the typed number never reached <code>age</code>. A program can run with
+            a mistake like this in it, so read the warnings even when it runs.
           </p>
           <div data-example="c-amp"></div>
         </div>
@@ -157,9 +158,9 @@
       <section aria-labelledby="compiler">
         <h2 id="compiler">The compiler and its settings</h2>
         <ul class="guide-list">
-          <li><strong>clang 8.0.1 and lld</strong>, compiled to WebAssembly (the wasm-clang project), with the wasi-libc C library. They run in a worker in your page; your code is never sent to a server to be compiled.</li>
+          <li><strong>clang 22.1.0 and lld</strong> from LLVM 22, compiled to WebAssembly (YoWASP's build), with the wasi-libc C library from wasi-sdk 33. They run in a worker in your page; your code is never sent to a server to be compiled.</li>
           <li><strong>The defaults:</strong> <code>-std=gnu11 -O2 -Wall</code>. Warnings show next to the code without stopping the build.</li>
-          <li><strong>In Settings</strong> you can pick the C standard (c99, c11, c17, gnu11 or gnu17), the optimisation level (-O0, -O1 or -O2), and turn on <code>-Wextra</code>.</li>
+          <li><strong>In Settings</strong> you can pick the C standard (c99, c11, c17, c23, gnu11, gnu17 or gnu23), the optimisation level (-O0, -O1 or -O2), and turn on <code>-Wextra</code>.</li>
           <li><strong>Memory:</strong> a program can use up to 256 MB.</li>
         </ul>
       </section>
@@ -180,9 +181,9 @@
       <section class="guide-faq" aria-labelledby="faq">
         <h2 id="faq">Questions</h2>
         <h3>Is this GCC?</h3>
-        <p>No, it is clang 8, the C compiler of the LLVM project. Both follow the C standard; their messages are worded differently, and ExecFlow explains the common ones in plain words either way.</p>
+        <p>No, it is clang 22, the C compiler of the LLVM project. Both follow the C standard; their messages are worded differently, and ExecFlow explains the common ones in plain words either way.</p>
         <h3>Does it work offline?</h3>
-        <p>Yes, once the compiler has been downloaded. The 19.6 MB download happens once per browser, when you first run C or C++; after that, programs compile and run without a connection.</p>
+        <p>Yes, once the compiler has been downloaded. The 29.3 MB download happens once per browser, when you first run C or C++; after that, programs compile and run without a connection.</p>
         <h3>Do I need to sign up?</h3>
         <p>No. Your files are kept in your browser. Connecting GitHub, to sync files to your own private repository, is optional.</p>
         <h3>Is my code private?</h3>

@@ -1584,25 +1584,17 @@
     }
    ]
   },
-  "c-stack@webkit": {
+  "c-stack-deep@webkit": {
    "files": {
-    "main.c": "#include <stdio.h>\nint depth(int n) {\n  char buf[64];\n  sprintf(buf, \"%d\", n);\n  return depth(n + 1) + buf[0];\n}\nint main(void) {\n  printf(\"%d\\n\", depth(0));\n  return 0;\n}\n"
+    "main.c": "#include <stdio.h>\nint depth(int n) {\n  if (n == 0) return 0;\n  return depth(n - 1) * 3 % 1000003 + n % 7;\n}\nint main(void) {\n  printf(\"%d\\n\", depth(100000000));\n  return 0;\n}\n"
    },
    "status": "crashed",
-   "runMessage": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index).",
+   "runMessage": "The program ran out of stack memory: a function keeps calling itself (infinite or very deep recursion).",
    "diagnostics": [
-    {
-     "source": "clang",
-     "severity": "warning",
-     "code": "-Winfinite-recursion",
-     "message": "all paths through this function will call itself",
-     "path": "main.c",
-     "line": 2
-    },
     {
      "source": "runtime",
      "severity": "error",
-     "message": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index)",
+     "message": "The program crashed: stack overflow (infinite or very deep recursion?)",
      "path": null,
      "line": 1
     }
