@@ -45,14 +45,19 @@ test("a read-only tab coming into view leaves the writer's stashed typing for Ed
   await page.keyboard.press("Control+End");
   await page.keyboard.type("# typed before closing");
   // The writer goes away within the 400 ms autosave: it stashes the typing synchronously.
-  const stashedByWriter = await page.evaluate(() => {
+  const stash = await page.evaluate(() => {
     dispatchEvent(new Event("beforeunload"));
-    return Object.keys(localStorage).filter((k) => k.startsWith("codeeditor:recover:"));
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith("codeeditor:recover:"));
+    return keys.map((k) => [k, localStorage.getItem(k)!] as const);
   });
-  expect(stashedByWriter, "the writer stashed its typing").toHaveLength(1);
+  expect(stash, "the writer stashed its typing").toHaveLength(1);
   // And really goes away: a writer that is still there drops its own stash when it is shown again,
   // as it should (Linux WebKit showed it again while the test moved to the reader: CI, 2026-10-23).
   await page.close();
+  // Closing fires pagehide, which stashes again: if the 400 ms autosave landed first (a slow runner,
+  // CI on 70305cd), nothing is unsaved and the writer rightly removes its stash. Put back what a
+  // writer that closed before the autosave leaves, so the check below is about the reader alone.
+  await second.evaluate(([k, v]) => localStorage.setItem(k, v), stash[0]);
 
   // Closing the writer shows the reader, which must not throw that stash away.
   const seen = await second.evaluate(() => {
@@ -60,7 +65,7 @@ test("a read-only tab coming into view leaves the writer's stashed typing for Ed
     return { state: document.visibilityState, keys: Object.keys(localStorage).filter((k) => k.startsWith("codeeditor:recover:")) };
   });
   expect(seen.state, "the reader tab is in view, so it reached the visible branch").toBe("visible");
-  expect(seen.keys, "the reader dropped the writer's stash").toEqual(stashedByWriter);
+  expect(seen.keys, "the reader dropped the writer's stash").toEqual([stash[0][0]]);
   await second.close();
 });
 
