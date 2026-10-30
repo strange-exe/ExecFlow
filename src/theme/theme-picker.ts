@@ -197,15 +197,33 @@ export function createThemePickerDialog(options: { download(name: string, text: 
     return tile;
   }
 
-  /** Re-reads the saved themes and the current choice, and clears the search and filter. */
+  /** Which themes the tiles were built for: the built-in ones and the saved custom ones. */
+  let builtFor = "";
+
+  /**
+   * Re-reads the saved themes and the current choice, and clears the search and filter. The tiles
+   * are built once and kept while the themes on offer stay the same (a loaded or deleted file
+   * rebuilds them): building 22 previews took about half the opening time at 4x CPU slowdown.
+   */
   function render(): void {
     const current = chosenTheme().id;
-    byId = new Map(allThemes().map((t) => [t.id, t]));
+    const themes = allThemes();
     query = "";
     filter = "all";
     search.value = "";
     for (const f of filters) f.input.checked = f.value === "all";
     dialog.removeAttribute("data-keys");
+    const signature = themes.map((t) => `${t.id}:${t.custom ? JSON.stringify(t.base) : ""}`).join("|");
+    if (signature === builtFor) {
+      for (const tile of tiles) {
+        tile.hovered = null;
+        for (const o of tile.options) o.radio.checked = o.theme.id === current;
+      }
+      refresh();
+      return;
+    }
+    builtFor = signature;
+    byId = new Map(themes.map((t) => [t.id, t]));
     const heading = (text: string) => h("h3", { class: "theme-group" }, text);
     const grid = (ts: Tile[]) => h("div", { class: "theme-grid" }, ...ts.map((t) => t.el));
     const start = curatedFamilies().map((f) => makeTile(f, current));
