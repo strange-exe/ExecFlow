@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.20.0",
+    date: "2026-10-31",
+    title: "Python downloads when you first use it",
+    items: [
+      { kind: "changed", text: "Python (about 14 MB) now downloads the first time you open or run a Python file, with a progress bar, not on every first visit. So ExecFlow opens much faster, especially for C and C++. After that one download, Python works offline too." },
+      { kind: "changed", text: "Each Python file is checked against the copy ExecFlow was built with before it is kept. A damaged download is never kept, and Run downloads it again." },
+      { kind: "added", text: "Open a Python file offline before Python was ever downloaded, and ExecFlow tells you to connect once, rather than failing." },
+    ],
+  },
+  {
     version: "0.19.0",
     date: "2026-10-31",
     title: "A new finish on the logo",

@@ -6,6 +6,19 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.20.0] - 2026-10-31
+
+Python downloads when you first use it
+
+### Added
+
+- Open a Python file offline before Python was ever downloaded, and ExecFlow tells you to connect once, rather than failing.
+
+### Changed
+
+- Python (about 14 MB) now downloads the first time you open or run a Python file, with a progress bar, not on every first visit. So ExecFlow opens much faster, especially for C and C++. After that one download, Python works offline too.
+- Each Python file is checked against the copy ExecFlow was built with before it is kept. A damaged download is never kept, and Run downloads it again.
+
 ## [0.19.0] - 2026-10-31
 
 A new finish on the logo
