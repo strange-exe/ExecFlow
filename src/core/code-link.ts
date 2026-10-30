@@ -19,6 +19,9 @@
 // within the same length and size caps, at most MAX_LINK_FILES files. The folder name is one name;
 // each path is relative to it, at most MAX_LINK_DEPTH deep, and two files may not land on one file
 // (names compared as storage compares them) or a file sit where another file's folder is.
+//
+// Short links (src/core/short-link.ts) carry the same packed content (packFile, packFolder),
+// encrypted and stored instead of in the fragment; readPacked gives them every check here.
 import { foldKey, normalizePath, PathError } from "./paths";
 import { checkText } from "./safety";
 
@@ -157,7 +160,7 @@ export async function packFolder(folder: string, files: readonly SharedFile[]): 
 }
 
 /** The code link of packed content, opening at `origin`, or "too-long" past MAX_LINK_CHARS. */
-function linkOf(origin: string, packed: Packed): { ok: true; url: string } | { ok: false; refusal: MakeRefusal } {
+export function linkOf(origin: string, packed: Packed): { ok: true; url: string } | { ok: false; refusal: MakeRefusal } {
   const url = `${origin}/${CODE_LINK_MARK}${packed.format === 2 ? FOLDER_VERSION : VERSION}${toBase64Url(packed.bytes)}`;
   if (url.length > MAX_LINK_CHARS) return { ok: false, refusal: { kind: "too-long", chars: url.length } };
   return { ok: true, url };

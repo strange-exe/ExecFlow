@@ -863,6 +863,12 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
         return { text: await host.store.readFile(host.ws, path) };
       },
       codeLink: async (text) => (await import("../core/code-link")).makeCodeLink(location.origin, nameOf(path), text),
+      // Packed as a code link is (format 1), then encrypted and stored (src/core/short-link.ts).
+      shortLink: async (text, ttl) => {
+        const [{ packFile }, { makeShort }] = await Promise.all([import("../core/code-link"), import("./short-link-ui")]);
+        const packed = await packFile(nameOf(path), text);
+        return packed.ok ? makeShort(packed.packed, ttl) : packed;
+      },
       readOnly: () => (host.tab.canWrite() ? null : READ_ONLY_SHARE),
       notice: host.notice,
       createGist: c

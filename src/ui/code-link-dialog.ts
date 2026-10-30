@@ -7,8 +7,12 @@
 // over a file, chosen again when Add is pressed. The dialog closes only once the file is added: an
 // add that fails (a read-only tab, storage refusing it) says why inside the dialog and keeps the
 // shared file there, so Add can be pressed again.
+// A short link (/s/<id>#<key>, src/core/short-link.ts) is fetched and decrypted first ("Opening the
+// short link..." in the notice), then offered in the same preview; a link that can't be opened
+// (expired, damaged, offline) says so in the notice and opens nothing.
 import { detectLanguage } from "../core/languages";
-import { readCodeLink, readRefusalText, type SharedFile, type SharedFolder } from "../core/code-link";
+import { readCodeLink, readRefusalText, type ReadResult, type SharedFile, type SharedFolder } from "../core/code-link";
+import { openShortLink, shortLinkId, shortReadRefusalText } from "../core/short-link";
 import { dialogShell, openModal } from "./dialogs";
 import { h, plural, shown } from "./dom";
 import { freeName } from "./examples";
@@ -38,8 +42,31 @@ export interface CodeLinkDeps {
 export async function openCodeLink(hash: string, deps: CodeLinkDeps): Promise<void> {
   const read = await readCodeLink(hash);
   if (!read.ok) return void deps.notice.show(readRefusalText(read.refusal), { tone: "error" });
+  offer(read, "code link", deps);
+}
+
+/**
+ * A short link opened at `pathname` (/s/<id>) with `hash` (#<key>): fetched, decrypted and checked,
+ * then offered as a code link is. `fetch` and `online` are the page's (swappable in tests).
+ */
+export async function openShortCodeLink(pathname: string, hash: string, deps: CodeLinkDeps, net = { fetch: (input: string, init: RequestInit) => fetch(input, init), online: () => navigator.onLine }): Promise<void> {
+  const id = shortLinkId(pathname);
+  if (id === null) return void deps.notice.show(shortReadRefusalText({ kind: "damaged" }), { tone: "error" });
+  deps.notice.show("Opening the short link...", { tone: "info" });
+  let read: Awaited<ReturnType<typeof openShortLink>>;
+  try {
+    read = await openShortLink(id, hash, net);
+  } catch {
+    read = { ok: false, refusal: { kind: "unavailable" } };
+  }
+  if (!read.ok) return void deps.notice.show(shortReadRefusalText(read.refusal), { tone: "error" });
+  deps.notice.show("");
+  offer(read, "short link", deps);
+}
+
+function offer(read: Extract<ReadResult, { ok: true }>, noun: string, deps: CodeLinkDeps): void {
   if (document.querySelector("dialog[open], .menu")) {
-    return void deps.notice.show("A code link arrived while a dialog was open, so it wasn't opened. Close the dialog, then open the link again.", { tone: "info" });
+    return void deps.notice.show(`A ${noun} arrived while a dialog was open, so it wasn't opened. Close the dialog, then open the link again.`, { tone: "info" });
   }
   if ("folder" in read) return openFolder(read.folder, deps);
   const { name, text } = read.file;

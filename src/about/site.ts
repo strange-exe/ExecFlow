@@ -157,3 +157,15 @@ export function parseRewrites(text: string): Map<string, string> {
   }
   return out;
 }
+
+/**
+ * The target a path is rewritten to, or undefined: an exact source first, then a source ending in
+ * "/*" (a splat: that folder and anything under it, as Cloudflare Pages matches it; the first such
+ * rule in the file wins). Targets are used as written (no :splat placeholders here).
+ */
+export function rewriteFor(rules: ReadonlyMap<string, string>, path: string): string | undefined {
+  const exact = rules.get(path);
+  if (exact !== undefined) return exact;
+  for (const [from, to] of rules) if (from.endsWith("/*") && path.startsWith(from.slice(0, -1)) && path.length > from.length - 1) return to;
+  return undefined;
+}

@@ -4,6 +4,10 @@
 //    (src/core/code-link.ts), opened by ExecFlow. Needs no GitHub, sends nothing, made as the
 //    dialog opens; a file too long for a link (or not text) says why. Without a connection the
 //    other two choices offer Connect GitHub (.claude/tasks/code-links.md).
+// S. "Anyone with the link (a short link)" (owner's go-ahead 2026-10-30): the same content, encrypted
+//    here and kept by ExecFlow's server for 1, 30 or 90 days (src/core/short-link.ts). Made only when
+//    "Make short link" is pressed (one press, one link); needs a connection. A file too long for a
+//    code link offers it ("Make a short link instead").
 // 1. "People with access to the repository": the file on GitHub, pinned to the commit that holds
 //    its synced content (src/sync/share.ts repoFileUrl). Nothing is sent to make it. A file with
 //    changes that aren't on GitHub yet (or never synced) gets "Sync now" first: the link always
@@ -16,8 +20,8 @@
 // for Ctrl+C. Every name and address goes in as text; the only links are github.com pages built
 // here and the gist page GitHub answered with, after gistPageUrl checked it. A lazy chunk of the
 // sync screens, built per opening and removed on close. State attributes for tests: data-state
-// ("code-making", "code", "code-refused", "not-connected", "ready", "pending", "syncing", "gist",
-// "creating", "created"), data-choice,
+// ("code-making", "code", "code-refused", "short-ready", "short-making", "short", "not-connected",
+// "ready", "pending", "syncing", "gist", "creating", "created"), data-choice, data-qr,
 // data-copy ("copied", "refused"), data-visibility ("private", "public", "unknown"; data-public
 // too while public) and data-checked (the live visibility check has answered or failed).
 // Who can open the repository link: the live answer (GET /repos) when there is one, else the
@@ -27,6 +31,7 @@
 // a request waiting behind a sync's writes is dropped, and nothing is said about it.
 import type { MakeRefusal } from "../core/code-link";
 import { nameOf } from "../core/paths";
+import { shortMakeRefusalText, type ShortMakeRefusal } from "../core/short-link";
 import type { GistBody } from "../sync/github";
 // Types only: the rules come in through deps.rules (the controller's import), so this chunk never
 // shares a module with the sync chunk and Connect GitHub still loads one chunk (sync.spec.ts).
@@ -37,6 +42,7 @@ import { dialogShell, openModal } from "./dialogs";
 import { h, shown, svg } from "./dom";
 import { icon } from "./icons";
 import type { Notice } from "./notice";
+import { DEFAULT_TTL, expiryDay, expiryField, SHORT_NOTE, type LinkTtl } from "./short-link-ui";
 
 export type ShareState =
   | { kind: "not-connected" }
@@ -60,6 +66,8 @@ export interface ShareDeps {
   readText(): Promise<{ text: string } | "opaque" | "missing">;
   /** src/core/code-link.ts makeCodeLink for this file's name, opening at this site. */
   codeLink(text: string): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }>;
+  /** src/core/short-link.ts for this file's name: encrypted, stored for `ttl` seconds; `expires` in ms. */
+  shortLink(text: string, ttl: LinkTtl): Promise<{ ok: true; url: string; expires: number } | { ok: false; refusal: ShortMakeRefusal }>;
   /**
    * POST /gists with this tab's GitHub client; null when there is no token in this tab. Aborted
    * `signal` before the request goes out: nothing is sent, and it rejects with `signal.reason`.
@@ -81,7 +89,7 @@ export interface ShareDeps {
   readonly mac: boolean;
 }
 
-type Choice = "code" | "repo" | "gist";
+type Choice = "code" | "short" | "repo" | "gist";
 
 let open = false;
 
@@ -111,36 +119,35 @@ function clipboardWriteRich(html: string, text: string): Promise<void> {
 }
 
 /**
- * The QR code of `url` as an SVG drawn here (uqr gives the modules only: no markup from a library),
- * dark on light whatever the theme, as scanners expect; null when the link is too long for one.
- * Each row's dark runs become one path segment, so a version-40 code stays a short string.
+ * The QR code of `url` as an SVG drawn here (src/core/qr-plan.ts: uqr gives the modules only, no
+ * markup from a library), dark on light whatever the theme, as scanners expect; null when the link
+ * is too long for one. A link that fits at level H carries the ExecFlow mark in a cleared square at
+ * the centre (src/editor/brand-mark.ts, its own fixed colours); a longer one is the plain level L
+ * code. Each row's dark runs become one path segment, so a version-40 code stays a short string.
+ * Shared with the Choose files dialog.
  */
-async function qrCode(url: string, label: string): Promise<SVGSVGElement | null> {
-  const { encode } = await import("uqr");
-  let modules: boolean[][];
-  try {
-    // L: the most data per code; a quiet zone of 4 modules, as the QR standard asks.
-    modules = encode(url, { ecc: "L", border: 4 }).data;
-  } catch {
-    return null;
-  }
-  const n = modules.length;
-  let d = "";
-  modules.forEach((row, y) => {
-    for (let x = 0; x < n; x++) {
-      if (!row[x]) continue;
-      let run = 1;
-      while (x + run < n && row[x + run]) run++;
-      d += `M${x} ${y}h${run}v1h-${run}z`;
-      x += run - 1;
-    }
-  });
-  return svg(
+export async function qrCode(url: string, label: string, id = "share-qr"): Promise<SVGSVGElement | null> {
+  const [{ qrPlan, darkPath }, { brandMarkSvg }] = await Promise.all([import("../core/qr-plan"), import("../editor/brand-mark")]);
+  const plan = qrPlan(url);
+  if (!plan) return null;
+  const n = plan.size;
+  const code = svg(
     "svg",
-    { class: "share-qr", id: "share-qr", viewBox: `0 0 ${n} ${n}`, width: String(n * 4), height: String(n * 4), role: "img", "aria-label": label, "shape-rendering": "crispEdges" },
+    { class: "share-qr", id, viewBox: `0 0 ${n} ${n}`, width: String(n * 4), height: String(n * 4), role: "img", "aria-label": label, "data-ecc": plan.ecc, "shape-rendering": "crispEdges" },
     svg("rect", { class: "share-qr-light", width: String(n), height: String(n) }),
-    svg("path", { class: "share-qr-dark", d }),
+    svg("path", { class: "share-qr-dark", d: darkPath(plan.modules) }),
   );
+  if (plan.mark) {
+    // A nested <svg>: its width and height are in the code's units (modules); geometricPrecision so
+    // the tile's corners and the chevrons stay smooth inside a crisp-edged code.
+    const mark = brandMarkSvg(document, plan.mark.markSize);
+    mark.setAttribute("x", String(plan.mark.markAt));
+    mark.setAttribute("y", String(plan.mark.markAt));
+    mark.setAttribute("class", "share-qr-mark");
+    mark.setAttribute("shape-rendering", "geometricPrecision");
+    code.append(mark);
+  }
+  return code;
 }
 
 export async function openShareDialog(deps: ShareDeps): Promise<void> {
@@ -204,6 +211,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const codeRadio = radio("code", "Anyone with the link (the code is in the link)", [
     h("p", null, "Opens a copy in ExecFlow, without an account. The code is inside the link itself: nothing is uploaded or stored."),
   ]);
+  const shortRadio = radio("short", "Anyone with the link (a short link)", [h("p", null, `Opens a copy in ExecFlow, without an account. ${SHORT_NOTE}`)]);
   const repoWho = h("p", { class: "share-who" });
   /** The note, its tone and the attributes for a visibility (stored first, then the live answer). */
   const showAudience = (isPrivate: boolean | null) => {
@@ -225,11 +233,11 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const panel = h("div", { class: "share-panel", id: "share-panel" });
   body.append(
     h("h3", { class: "steps-title", id: "share-title" }, "Who can open the link"),
-    h("fieldset", { class: "choice-list", id: "share-choices" }, h("legend", { class: "visually-hidden" }, "Who can open the link"), codeRadio.row, repoRadio.row, gistRadio.row),
+    h("fieldset", { class: "choice-list", id: "share-choices" }, h("legend", { class: "visually-hidden" }, "Who can open the link"), codeRadio.row, shortRadio.row, repoRadio.row, gistRadio.row),
     panel,
     result,
   );
-  const choice = (): Choice => (codeRadio.input.checked ? "code" : gistRadio.input.checked ? "gist" : "repo");
+  const choice = (): Choice => (codeRadio.input.checked ? "code" : shortRadio.input.checked ? "short" : gistRadio.input.checked ? "gist" : "repo");
 
   // The repository's visibility, asked once: a public repository's link opens for anyone. No answer
   // (no token here, offline, a rate limit, a server error) keeps the stored one.
@@ -246,36 +254,41 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
 
   // ---------------------------------------------------------------- the code link
   /** The code link, or why there is none; null while it is being made (once per opening). */
-  let code: { url: string } | { problem: string } | null = null;
-  /** The code link's QR code: drawn the first time it is asked for, then only shown or hidden. */
-  let qr: "hidden" | "making" | "shown" | "too-long" = "hidden";
-  let qrSvg: SVGSVGElement | null = null;
-  let qrMade = false;
+  let code: { url: string } | { problem: string; tooLong: boolean } | null = null;
+  /** The short link once made (once per opening), and how long it is kept. */
+  let short: { url: string; expires: number } | null = null;
+  let shortMaking = false;
+  let ttl: LinkTtl = DEFAULT_TTL;
+  /** QR codes, drawn the first time each link's is asked for (null: too long for one); `qr` is the one open. */
+  const qrSvgs = new Map<string, SVGSVGElement | null>();
+  let qr: { url: string; state: "making" | "shown" | "too-long" } | null = null;
+  const qrState = (url: string) => (qr && qr.url === url ? qr.state : "hidden");
+  const focusQrToggle = () => dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
   async function toggleQr(url: string) {
-    if (qr === "making") return;
-    if (qr !== "hidden") {
-      qr = "hidden";
+    if (qrState(url) === "making") return;
+    if (qrState(url) !== "hidden") {
+      qr = null;
       render();
-      return dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
+      return focusQrToggle();
     }
-    if (!qrMade) {
-      qr = "making";
+    if (!qrSvgs.has(url)) {
+      qr = { url, state: "making" };
       render();
-      dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
+      focusQrToggle();
+      let made: SVGSVGElement | null;
       try {
-        qrSvg = await qrCode(url, `QR code of the link to ${name}`);
+        made = await qrCode(url, `QR code of the link to ${name}`);
       } catch {
-        qrSvg = null;
-        qr = "hidden";
+        qr = null;
         if (dialog.open) say("The QR code couldn't load. Check the connection, then try again.", "error");
-        return dialog.open ? (render(), dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus()) : undefined;
+        return dialog.open ? (render(), focusQrToggle()) : undefined;
       }
-      qrMade = true;
+      qrSvgs.set(url, made);
     }
-    qr = qrSvg ? "shown" : "too-long";
+    qr = { url, state: qrSvgs.get(url) ? "shown" : "too-long" };
     if (!dialog.open) return;
     render();
-    dialog.querySelector<HTMLElement>("#share-qr-toggle")?.focus();
+    focusQrToggle();
   }
   /** "Copy with title": the link named "Open <file> in ExecFlow" where links can carry a title. */
   async function copyTitled(url: string) {
@@ -302,9 +315,12 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     // "empty" and "too-many" are folder links' (makeFolderLink); one file never gets them.
     if (refusal.kind !== "too-long") return `${name} can't go in a link. ${instead}`;
     const size = refusal.chars === null ? "" : ` (it would be ${refusal.chars.toLocaleString("en")} characters)`;
-    return `${name} is too long for a code link${size}: a link holds at most 8,000 characters, so chat apps keep it whole. ${instead}`;
+    // A file too big for any link (chars null: over 256 KB) can't be a short link either.
+    const offer = refusal.chars === null ? instead : "Make a short link instead: it holds the code however long the link would be.";
+    return `${name} is too long for a code link${size}: a link holds at most 8,000 characters, so chat apps keep it whole. ${offer}`;
   };
-  async function makeCode(): Promise<{ url: string } | { problem: string }> {
+  /** The file's text, or the sentence saying why there is none to put in a link. */
+  async function textToShare(): Promise<{ text: string } | { problem: string }> {
     let read: Awaited<ReturnType<ShareDeps["readText"]>>;
     try {
       read = await deps.readText();
@@ -313,9 +329,38 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     }
     if (read === "missing") return { problem: MISSING };
     if (read === "opaque") return { problem: `${name} is kept as read-only bytes, not as text, so it can't go in a link.` };
+    return read;
+  }
+  async function makeCode(): Promise<{ url: string } | { problem: string; tooLong: boolean }> {
+    const read = await textToShare();
+    if ("problem" in read) return { problem: read.problem, tooLong: false };
     const made = await deps.codeLink(read.text).catch(() => null);
-    if (!made) return { problem: "ExecFlow couldn't make the link. Try again." };
-    return made.ok ? { url: made.url } : { problem: refusalText(made.refusal) };
+    if (!made) return { problem: "ExecFlow couldn't make the link. Try again.", tooLong: false };
+    return made.ok ? { url: made.url } : { problem: refusalText(made.refusal), tooLong: made.refusal.kind === "too-long" && made.refusal.chars !== null };
+  }
+
+  /** Make short link: taken at once, so a second press can't make a second link; refusals go in the result line. */
+  async function makeShort() {
+    if (shortMaking || short) return;
+    shortMaking = true;
+    say("");
+    render();
+    let problem: string | null = null;
+    const read = await textToShare();
+    if ("problem" in read) problem = read.problem;
+    else {
+      const made = await deps.shortLink(read.text, ttl).catch(() => null);
+      if (!made) problem = "ExecFlow couldn't make the short link. Try again.";
+      else if (made.ok) short = { url: made.url, expires: made.expires };
+      else problem = made.refusal.kind === "too-long" ? `${name} is more than a short link can hold (256 KB of text). Export it instead.` : shortMakeRefusalText(made.refusal);
+    }
+    shortMaking = false;
+    if (!dialog.open) return;
+    render();
+    if (short) {
+      say(`Made a short link, kept until ${expiryDay(short.expires)}. Copy it to share it.`, "done");
+      primary.focus();
+    } else say(problem ?? "", "error");
   }
 
   // ---------------------------------------------------------------- the link field
@@ -336,6 +381,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
 
   function currentUrl(): string | null {
     if (choice() === "code") return code && "url" in code ? code.url : null;
+    if (choice() === "short") return short?.url ?? null;
     if (choice() === "gist") return gist?.url ?? null;
     return state.kind === "connected" && state.link.kind === "ready" ? state.link.url : null;
   }
@@ -359,43 +405,72 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     primary.classList.add("primary");
     // Once a gist exists there is nothing left to cancel.
     cancel.textContent = gist ? "Close" : "Cancel";
+    /** A made link (code or short): the field, what it means, Copy with title and its QR code. */
+    const madePanel = (url: string, note: string) => {
+      const titled = h("button", { type: "button", class: "btn", id: "share-titled" }, "Copy with title");
+      titled.addEventListener("click", (e) => {
+        if (e.detail > 1) return;
+        void copyTitled(url);
+      });
+      const q = qrState(url);
+      const qrToggle = h("button", { type: "button", class: "btn", id: "share-qr-toggle", "aria-expanded": String(q !== "hidden"), "aria-controls": "share-qr-box" }, q === "hidden" ? "Show QR code" : "Hide QR code");
+      qrToggle.addEventListener("click", (e) => {
+        if (e.detail > 1) return;
+        void toggleQr(url);
+      });
+      const qrBox = h("div", { class: "share-qr-box", id: "share-qr-box" });
+      qrBox.hidden = q === "hidden";
+      const qrSvg = qrSvgs.get(url);
+      if (q === "making") qrBox.append(h("p", { class: "field-note" }, "Making the QR code..."));
+      else if (q === "too-long") qrBox.append(h("p", { class: "share-pending" }, `This link is too long for a QR code. ${c === "code" ? "Make a short link for a code a phone can read, or copy" : "Copy"} the link instead.`));
+      else if (q === "shown" && qrSvg) {
+        qrBox.append(qrSvg);
+        if (url.length > 1200) qrBox.append(h("p", { class: "field-note" }, "A long link makes a dense code: if a phone can't read it, zoom the page in or hold the phone closer, or make a short link."));
+      }
+      dialog.dataset.qr = q;
+      panel.replaceChildren(
+        h("div", { class: "field" }, h("label", { for: "share-link" }, "Link"), linkField(url)),
+        h("p", { class: "field-note", id: "share-link-note" }, note),
+        h("div", { class: "share-more" }, titled, qrToggle),
+        qrBox,
+      );
+    };
     if (c === "code") {
       if (!code) {
         dialog.dataset.state = "code-making";
         panel.replaceChildren(h("p", { class: "share-pending", id: "share-pending" }, "Making the link..."));
       } else if ("url" in code) {
         dialog.dataset.state = "code";
-        const url = code.url;
-        const titled = h("button", { type: "button", class: "btn", id: "share-titled" }, "Copy with title");
-        titled.addEventListener("click", (e) => {
-          if (e.detail > 1) return;
-          void copyTitled(url);
-        });
-        const qrToggle = h("button", { type: "button", class: "btn", id: "share-qr-toggle", "aria-expanded": String(qr !== "hidden"), "aria-controls": "share-qr-box" }, qr === "hidden" ? "Show QR code" : "Hide QR code");
-        qrToggle.addEventListener("click", (e) => {
-          if (e.detail > 1) return;
-          void toggleQr(url);
-        });
-        const qrBox = h("div", { class: "share-qr-box", id: "share-qr-box" });
-        qrBox.hidden = qr === "hidden";
-        if (qr === "making") qrBox.append(h("p", { class: "field-note" }, "Making the QR code..."));
-        else if (qr === "too-long") qrBox.append(h("p", { class: "share-pending" }, "This link is too long for a QR code. Copy the link instead."));
-        else if (qr === "shown" && qrSvg) {
-          qrBox.append(qrSvg);
-          if (url.length > 1200) qrBox.append(h("p", { class: "field-note" }, "A long link makes a dense code: if a phone can't read it, zoom the page in or hold the phone closer."));
-        }
-        dialog.dataset.qr = qr;
-        panel.replaceChildren(
-          h("div", { class: "field" }, h("label", { for: "share-link" }, "Link"), linkField(url)),
-          h("p", { class: "field-note", id: "share-link-note" }, "Anyone with the link can read the code. It's a copy of the file as it is now: later changes need a new link."),
-          h("div", { class: "share-more" }, titled, qrToggle),
-          qrBox,
-        );
+        madePanel(code.url, "Anyone with the link can read the code. It's a copy of the file as it is now: later changes need a new link.");
       } else {
         dialog.dataset.state = "code-refused";
-        panel.replaceChildren(h("p", { class: "share-pending", id: "share-pending" }, code.problem));
+        const pending = h("p", { class: "share-pending", id: "share-pending" }, code.problem);
+        if (!code.tooLong) panel.replaceChildren(pending);
+        else {
+          const instead = h("button", { type: "button", class: "btn", id: "share-use-short" }, icon("link-simple"), "Make a short link instead");
+          instead.addEventListener("click", () => {
+            shortRadio.input.checked = true;
+            say("");
+            render();
+            dialog.querySelector<HTMLElement>("#share-ttl")?.focus();
+          });
+          panel.replaceChildren(pending, h("div", { class: "share-more" }, instead));
+        }
       }
       setPrimary("copy", "Copy link");
+    } else if (c === "short") {
+      if (short) {
+        dialog.dataset.state = "short";
+        madePanel(short.url, `Anyone with the link can read the code until ${expiryDay(short.expires)}, when ExecFlow's server deletes the encrypted copy. It's a copy of the file as it is now: later changes need a new link.`);
+        setPrimary("copy", "Copy link");
+      } else {
+        dialog.dataset.state = shortMaking ? "short-making" : "short-ready";
+        delete dialog.dataset.qr;
+        const field = expiryField("share-ttl", ttl, (t) => (ttl = t));
+        panel.replaceChildren(field, h("p", { class: "field-note", id: "share-ttl-note" }, "Making it sends the encrypted code to ExecFlow's server, so it needs a connection. Nothing is sent before you press Make short link."));
+        field.querySelector("select")!.setAttribute("aria-describedby", "share-ttl-note");
+        setPrimary("link-simple", shortMaking ? "Making short link..." : "Make short link");
+      }
     } else if (state.kind !== "connected") {
       dialog.dataset.state = "not-connected";
       panel.replaceChildren(
@@ -572,6 +647,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     const url = currentUrl();
     if (url) return void copy(url);
     if (choice() === "code") return code && "problem" in code ? say(code.problem, "error") : undefined;
+    if (choice() === "short") return void makeShort();
     if (state.kind !== "connected") {
       dialog.close();
       return deps.connect();
@@ -582,7 +658,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     say(`There is no link to copy yet: press Sync now first, so the repository has ${name} as you see it.`, "error");
     syncButton?.focus();
   });
-  for (const input of [codeRadio.input, repoRadio.input, gistRadio.input]) {
+  for (const input of [codeRadio.input, shortRadio.input, repoRadio.input, gistRadio.input]) {
     input.addEventListener("change", () => {
       say("");
       delete dialog.dataset.copy;

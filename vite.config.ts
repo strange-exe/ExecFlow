@@ -6,7 +6,7 @@ import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
 import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
 import { APP_ROUTE, NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
-import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
+import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, rewriteFor, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
 import { makeCodeLink } from "./src/core/code-link.ts";
 import { loadGuideData } from "./src/pages/load.ts";
 import { expandGuide, type GuideData } from "./src/pages/render.ts";
@@ -340,7 +340,7 @@ function thirdPartyLicenses(): Plugin {
 /**
  * What search engines and link previews read (src/about/site.ts): each page's canonical link and
  * social tags, and sitemap.xml. `vite preview` also answers like Cloudflare Pages does with 404.html
- * in the build: the _redirects rewrites (GitHub's sign-in return path), the pages and files, and
+ * in the build: the _redirects rewrites (GitHub's sign-in return path, short links' /s/*), the pages and files, and
  * 404.html with a 404 for any other address, so the end-to-end tests meet the deployed site's 404s.
  */
 function site(): Plugin {
@@ -368,7 +368,7 @@ function site(): Plugin {
       const isFile = (file: string) => existsSync(`${outDir}${file}`) && statSync(`${outDir}${file}`).isFile();
       server.middlewares.use((req, res, next) => {
         const [path, query] = (req.url ?? "/").split(/\?(.*)/s);
-        const to = rewrites.get(path);
+        const to = rewriteFor(rewrites, path);
         if (to) {
           req.url = query === undefined ? to : `${to}?${query}`;
           return next();
@@ -556,7 +556,7 @@ export default defineConfig(({ mode }) => ({
         // service worker can reuse what the page already downloaded (no second 6 MB download).
         dontCacheBustURLsMatching: /^(assets|pyodide\/\d+\.\d+\.\d+-heap\d+)\//,
         navigateFallback: "/index.html",
-        // Only the editor's own addresses (/ and GitHub's sign-in return path /auth-callback) get the
+        // Only the editor's own addresses (/, GitHub's sign-in return path /auth-callback, a short link's /s/<id>) get the
         // editor; any other address the precache doesn't hold goes to the network, which answers
         // 404.html with a 404 (APP_ROUTE, src/about/fallback-deny.ts). Offline, such an address fails
         // like any uncached page. The sign-in relay (functions/api/auth/*) always answers from the

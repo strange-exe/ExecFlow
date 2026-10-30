@@ -1125,6 +1125,15 @@ a.status-btn { text-decoration: none; }
 .choose-link { display: flex; gap: var(--s2); margin: 0 0 var(--s2); }
 .choose-link[hidden] { display: none; }
 .choose-link input { flex: 1; min-width: 0; font: var(--fs-1) var(--font-code); }
+/* The short link under the code link (short-link-ui.ts): its note, then how long it is kept and
+   Make short link on one line (wrapping on a phone), then the link once made. */
+.choose-short { margin: 0 0 var(--s2); }
+.choose-short[hidden], .choose-short-row[hidden] { display: none; }
+.choose-short > .field-note { margin: 0 0 var(--s2); }
+.choose-short-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); }
+/* "Keep the link for" and its select (Share and Choose files): label and control on one line. */
+.short-ttl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.short-ttl label { font-weight: var(--w-label); }
 /* The footer, one rule for every dialog: the body and the footer share one 24 px gap (12 + 12), so
    no empty band sits above a short dialog's buttons; a --divider rule shows only while the body
    scrolls under it (data-overflow, dialogs.ts), as the header's rule does. Its buttons are primary

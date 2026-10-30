@@ -2533,10 +2533,30 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       },
     );
   }
+  // A short link (/s/<id>#<key>, src/core/short-link.ts): the page opened at that address offers what
+  // it holds once fetched and decrypted. The address goes back to / at once in a tab that can add it
+  // (the key leaves the address bar, so a reload or a bookmark doesn't keep it), as a code link's does.
+  function takeShortLink() {
+    const { pathname, hash } = location;
+    if (!pathname.startsWith("/s/") || wiped) return;
+    codeLinkChunk ??= import("./code-link-dialog");
+    codeLinkChunk.then(
+      (m) => {
+        if (wiped) return;
+        if (location.pathname === pathname && canWrite()) history.replaceState(history.state, "", `/${location.search}`);
+        return m.openShortCodeLink(pathname, hash, { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), addFolder, notice });
+      },
+      () => {
+        codeLinkChunk = null;
+        notice.show("The short link couldn't open. Check the connection, then reload the page.");
+      },
+    );
+  }
   // /move runs without cross-origin isolation (vite.config.ts "/move"), so another site that opened
   // it can keep a handle to the tab and change its fragment: there code links are never taken.
   if (location.pathname === MOVE_PATH) root.dataset.codeLinks = "off";
   else {
+    takeShortLink();
     takeCodeLink();
     window.addEventListener("hashchange", takeCodeLink);
   }
