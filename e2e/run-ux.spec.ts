@@ -64,11 +64,9 @@ test.describe("B9: Python's first start", () => {
     await expect(page.locator("#console")).toContainText("hello");
   });
 
-  // "One time" rests on the service worker's precache (vite.config.ts): with it blocked, Playwright's
-  // WebKit fetched the whole runtime from the server again on the next visit (12.2 MB of bodies,
-  // probe 2026-10-24, .claude/verify/ux-fix/u3/probe-webkit-cache.log), so that start really was a
-  // download. Here the service worker runs, as it does for a student, and no route is set (a page
-  // with routes has no HTTP cache).
+  // "One time" rests on the runtime kept in Cache Storage after the first start (0.19.0,
+  // src/runner/python-download.ts; before that, the service worker's precache). Here the service
+  // worker runs, as it does for a student, and no route is set (a page with routes has no HTTP cache).
   test.describe("with the service worker", () => {
     test.use({ serviceWorkers: "allow" });
     test("a start from this device's copy (the next visit) never mentions a download", async ({ page }) => {
@@ -100,6 +98,62 @@ test.describe("B9: Python's first start", () => {
     const phases = await recordPhases(page);
     expect((await run(page)).status).toBe("ok");
     expect(await phases()).toContain("downloading");
+  });
+
+  // The download's failure path (0.19.0: Python downloads on first use, src/runner/python-download.ts).
+  test.describe("a runtime file the site doesn't send", () => {
+    test.use(
+      tolerating(
+        /^HTTP 404: http:\/\/127\.0\.0\.1:\d+\/pyodide\/[^ ]+\/pyodide\.asm\.wasm$/,
+        /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/,
+      ),
+    );
+
+    test("says the download didn't finish, keeps none of it, and the next Run downloads it", async ({ page }) => {
+      const wasm = "**/pyodide/*/pyodide.asm.wasm";
+      await page.route(wasm, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "Not found" }));
+      await openApp(page);
+      await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+      await openFromTree(page, "main.py");
+      await expect(runtime(page)).toHaveAttribute("data-state", "failed", { timeout: 30_000 });
+      await expect(runtime(page)).toHaveText("Python couldn't start");
+      const r = await run(page, { timeout: 30_000 });
+      expect(r.status).toBe("unavailable");
+      expect(r.output).toContain("Python couldn't start: its one-time download didn't finish (the site answered pyodide.asm.wasm with HTTP 404). Press Run to try again.");
+      // The site answers again: Run is the retry, and nothing of the 404 was kept to get in its way.
+      await page.unroute(wasm);
+      const again = await run(page, { timeout: 60_000 });
+      expect(again.status, again.output).toBe("ok");
+      expect(again.output).toContain("hello");
+    });
+  });
+
+  // The download's sha256 check (each file is pinned by the build, vite.config.ts __PYODIDE_FILES__).
+  test("a runtime file that arrives damaged is never kept, and the next Run downloads it whole", async ({ page }) => {
+    const wasm = "**/pyodide/*/pyodide.asm.wasm";
+    let damaged = 0;
+    await page.route(wasm, async (route) => {
+      // The site's own file, the right size and type, with one byte changed on the way.
+      const real = await route.fetch();
+      const body = Buffer.from(await real.body());
+      body[body.length >> 1] ^= 0xff;
+      damaged += 1;
+      await route.fulfill({ response: real, body });
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+    await openFromTree(page, "main.py");
+    await expect(runtime(page)).toHaveAttribute("data-state", "failed", { timeout: 60_000 });
+    const r = await run(page, { timeout: 60_000 });
+    expect(r.status).toBe("unavailable");
+    expect(r.output).toContain("Python couldn't start: its one-time download was damaged (pyodide.asm.wasm didn't match). Press Run to try again.");
+    expect(damaged, "the damaged copy was what the worker got").toBeGreaterThan(0);
+    const kept = await page.evaluate(async () => (await (await caches.open("codeeditor-python-runtime")).keys()).map((k) => new URL(k.url).pathname.split("/").pop()));
+    expect(kept).not.toContain("pyodide.asm.wasm");
+    await page.unroute(wasm);
+    const again = await run(page, { timeout: 60_000 });
+    expect(again.status, again.output).toBe("ok");
+    expect(again.output).toContain("hello");
   });
 });
 

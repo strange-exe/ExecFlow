@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 // Python runtime worker (Pyodide 314.0.7, CPython 3.14.2), adapted from Pocket Run (same author, MIT).
 // One worker = one warm interpreter. Order of start-up, which matters:
-//   1. load Pyodide (from this device's memory snapshot when there is one),
+//   1. load Pyodide (downloaded into this device's cache the first time, python-download.ts; from
+//      this device's memory snapshot when there is one),
 //   2. load the packages the runner asked for (numpy, pandas...) from our own origin,
 //   3. install output, input, interrupts and the run helper,
 //   4. lock down: remove storage, network and cross-tab APIs, and refuse to run if any remain.
@@ -13,7 +14,7 @@ import type { PyodideAPI } from "pyodide";
 import { waitForInput } from "../runner/input-channel";
 import type { BootSource, FromPython, Stream, ToPython } from "../runner/protocol";
 import { fromPythonJson } from "../runner/python-diagnostics";
-import { hasLocalCopy, trackDownload } from "../runner/python-download";
+import { DownloadError, downloadRuntime, failureWords, missingFiles, PYTHON_CACHE, serveFromCache, trackDownload, type DownloadProgress } from "../runner/python-download";
 import { collectWritten, prepareRunFiles, writeWorkspace, type FsLike } from "../runner/python-files";
 import { RUNNER_PY } from "../runner/python-helper";
 import { canonicalName, importIndex, missingPackages, packageClosure, PYTHON_PACKAGES, type LockFile } from "../runner/python-packages";
@@ -178,21 +179,49 @@ interface Runtime {
   imports: (entry: string) => string;
 }
 
-async function boot(interrupt: SharedArrayBuffer | null, packages: string[]): Promise<Runtime> {
-  // Load the loader from our own origin so it always matches the precached runtime files.
-  const indexURL = `/pyodide/${__PYODIDE_DIR__}/`;
-  const loaderUrl = new URL(`${indexURL}pyodide.mjs`, self.location.origin).href;
-  const { loadPyodide } = (await import(/* @vite-ignore */ loaderUrl)) as typeof import("pyodide");
+/** Cache Storage's runtime cache, or null where there is none (blocked) or it can't open. */
+async function runtimeCache(): Promise<Cache | null> {
+  try {
+    return cacheStorage ? await cacheStorage.open(PYTHON_CACHE) : null;
+  } catch {
+    return null;
+  }
+}
 
+/**
+ * Puts the runtime on this device the first time (python-download.ts): its bytes are counted for
+ * the run header, and a runtime already here is said to be done at once. Returns what to undo once
+ * Pyodide has loaded: the fetch that answers Pyodide from the cache, or (no Cache Storage) the one
+ * that counts Pyodide's own download.
+ */
+async function fetchRuntime(base: string): Promise<{ end(): void }> {
+  const progress = (p: DownloadProgress) => post({ type: "progress", ...p });
+  const cache = await runtimeCache();
+  if (!cache) return trackDownload(self, __PYODIDE_BYTES__, progress);
+  const missing = await missingFiles(cache, base);
+  if (missing.length) {
+    // No request can succeed offline: say so at once rather than after each file fails.
+    if (self.navigator.onLine === false) throw new DownloadError("this device is offline", "offline");
+    const total = missing.reduce((sum, f) => sum + (__PYODIDE_FILES__[f]?.bytes ?? 0), 0);
+    const expected = Object.fromEntries(Object.entries(__PYODIDE_FILES__).map(([f, { sha256 }]) => [f, sha256]));
+    await downloadRuntime({ fetch: self.fetch.bind(self), cache, base, files: missing, expected, total, post: progress });
+  } else {
+    progress({ loaded: 0, total: 0, done: true });
+  }
+  return serveFromCache(self, cache, base);
+}
+
+async function boot(interrupt: SharedArrayBuffer | null, packages: string[]): Promise<Runtime> {
+  // The runtime comes from our own origin, so the loader always matches the files it loads.
+  const indexURL = `/pyodide/${__PYODIDE_DIR__}/`;
+  const base = new URL(indexURL, self.location.origin).href;
+  // Before the loader is imported: the first start downloads it with the rest (the service worker
+  // answers the import from the same cache once it controls the page).
+  const fetching = await fetchRuntime(base);
   let py: PyodideAPI | null = null;
   let source: BootSource = "fresh";
-  // Counts what Pyodide fetches while it loads (the first visit's ~12 MB), for the run header. The
-  // real fetch is back before any package loads, and so long before the lockdown. A runtime the
-  // service worker already keeps on this device is no download: it is said to be done at once.
-  const local = await hasLocalCopy(cacheStorage, new URL(`${indexURL}pyodide.asm.wasm`, self.location.origin).href);
-  const download = local ? null : trackDownload(self, __PYODIDE_BYTES__, (p) => post({ type: "progress", ...p }));
-  if (local) post({ type: "progress", loaded: 0, total: __PYODIDE_BYTES__, done: true });
   try {
+    const { loadPyodide } = (await import(/* @vite-ignore */ `${base}pyodide.mjs`)) as typeof import("pyodide");
     const snapshot = cacheStorage ? await readSnapshot() : null;
     if (snapshot) {
       try {
@@ -211,7 +240,7 @@ async function boot(interrupt: SharedArrayBuffer | null, packages: string[]): Pr
       }
     }
   } finally {
-    download?.end();
+    fetching.end();
   }
   return setUp(py, source, interrupt, packages);
 }
@@ -389,7 +418,11 @@ self.addEventListener("message", async ({ data }: MessageEvent<ToPython>) => {
       const rt = await booting;
       post({ type: "ready", ms: performance.now() - t0, source: rt.source, loaded: Object.keys(rt.py.loadedPackages).sort(), available: rt.available, packageMs: rt.packageMs });
     } catch (e) {
-      post({ type: "boot-failed", error: e instanceof Error ? e.message : String(e), retry: !(e instanceof PackageError) });
+      // Offline before Python was ever downloaded: the runner says so in plain words, and starting
+      // again won't help until the device is online.
+      if (e instanceof DownloadError && e.offline) return post({ type: "boot-failed", error: e.message, retry: false, offline: true });
+      const error = e instanceof DownloadError ? failureWords(e) : e instanceof Error ? e.message : String(e);
+      post({ type: "boot-failed", error, retry: !(e instanceof PackageError) });
     }
     return;
   }

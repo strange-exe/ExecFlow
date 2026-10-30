@@ -64,6 +64,11 @@ export class Runtimes {
     return python.downloadShown();
   }
 
+  /** Python couldn't start: it was never downloaded on this device, which is offline. */
+  pythonNeedsOnline(): boolean {
+    return python.needsOnline();
+  }
+
   /** The C/C++ runner if it is loaded (for the pack download offer). */
   get cppRunner(): CppRunner | null {
     return this.cppLoaded?.runner ?? null;

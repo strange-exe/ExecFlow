@@ -27,10 +27,39 @@ async function goOffline(page: Page, context: BrowserContext) {
   expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "page controlled by the service worker").toBe(true);
 }
 
-test("after the first visit the app opens offline and runs Python with live input", async ({ page, context }) => {
+/** Every URL Cache Storage holds, cache by cache. */
+const cachedUrls = (page: Page) =>
+  page.evaluate(async () => {
+    const out: Record<string, string[]> = {};
+    for (const name of await caches.keys()) out[name] = (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname);
+    return out;
+  });
+
+/** The runtime's files, as python-download.ts RUNTIME_FILES lists them. */
+const RUNTIME = ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json"];
+
+// Python downloads on its first use, not on a first visit (the owner's "On first use", 2026-10-30).
+test("a first visit keeps the app for offline use, and no part of Python", async ({ page }) => {
+  await openApp(page);
+  // The service worker registers after a quiet minute when Python isn't used, or when an offline
+  // download starts (main.ts): the second, so the test needn't wait a minute.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("codeeditor:offline-wanted")));
+  await serviceWorkerActive(page);
+  const cached = await cachedUrls(page);
+  const all = Object.values(cached).flat();
+  // The precache really ran (the editor's page is in it): the check below isn't vacuous.
+  expect(all, JSON.stringify(Object.keys(cached))).toContain("/index.html");
+  expect(all.filter((u) => u.startsWith("/pyodide/"))).toEqual([]);
+});
+
+test("after Python's first use, the app opens offline and runs Python with live input", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
   await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+  // The Python worker kept its runtime itself: no service worker controlled this first visit.
+  expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "first visit not controlled").toBe(false);
+  const kept = (await cachedUrls(page))["codeeditor-python-runtime"] ?? [];
+  expect(kept.map((u) => u.split("/").pop()).sort()).toEqual([...RUNTIME].sort());
   await serviceWorkerActive(page);
   await goOffline(page, context);
   await expect(page.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", "main.py");
@@ -38,6 +67,86 @@ test("after the first visit the app opens offline and runs Python with live inpu
   expect(r.status, r.output).toBe("ok");
   expect(r.output).toContain("Ada");
   await context.setOffline(false);
+});
+
+test.describe("offline before Python's first use", () => {
+  test.use(
+    tolerating(
+      // The loader and the runtime's files can't be fetched offline (each engine's words).
+      /^Failed to load resource: net::ERR_INTERNET_DISCONNECTED$/,
+      /^Failed to load resource: The Internet connection appears to be offline\.$/,
+      /^request failed: http:\/\/127\.0\.0\.1:\d+\/pyodide\/[^ ]+ /,
+      /^no-response: no-response :: \[\{"url":"http:\/\/127\.0\.0\.1:\d+\/pyodide\/[^"]+","error":\{\}\}\]$/,
+      /^Failed to load resource: FetchEvent\.respondWith received an error: no-response: no-response :: .*\/pyodide\//,
+      /^Fetch API cannot load http:\/\/127\.0\.0\.1:\d+\/pyodide\/[^ ]+\.$/,
+      // The offline check's own request (Chromium's console line; WebKit's page error, split at "http:/").
+      /^Failed to load resource: net::ERR_FAILED$/,
+      /offline-probe-0-py3-none-any\.whl\.?$/,
+    ),
+  );
+
+  test("Run says Python needs one online start, and runs once the device is online", async ({ page, context }) => {
+    await openApp(page);
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent("codeeditor:offline-wanted")));
+    await serviceWorkerActive(page);
+    await goOffline(page, context);
+    // The runtime's download goes through the service worker's route (vite.config.ts). Check that
+    // offline emulation reaches the service worker's own requests in this engine (an uncached file
+    // under the route must fail, not answer): Playwright's Firefox let it download Python "offline".
+    const swOffline = await page.evaluate((url) => fetch(url).then(() => false, () => true), PROBE_WHEEL);
+    test.skip(!swOffline, "this engine's offline emulation doesn't apply to the service worker's own requests");
+    await importFiles(page, [{ name: "hi.py", text: 'print("online once")\n' }]);
+    await openFromTree(page, "hi.py");
+    const runtime = page.locator("#status-runtime");
+    await expect(runtime).toHaveAttribute("data-state", "failed", { timeout: 30_000 });
+    await expect(runtime).toHaveText("Python needs a one-time download");
+    const r = await run(page, { timeout: 30_000 });
+    expect(r.status).toBe("unavailable");
+    expect(r.output).toMatch(/Python needs a one-time download \(about \d+ MB\) the first time it runs, and this device is offline\. Connect to the internet and press Run again; after that, Python works offline too\./);
+    expect(r.output).not.toContain("couldn't start");
+    // Online again: Run starts Python (the "try again" is Run itself).
+    await context.setOffline(false);
+    const again = await run(page, { timeout: 120_000 });
+    expect(again.status, again.output).toBe("ok");
+    expect(again.output).toContain("online once");
+  });
+});
+
+// The runtime's files are kept only by the Python worker, once each one's sha256 matched the build's
+// (python-download.ts). On a page the service worker controls, the worker's download passes through
+// the service worker's route for those files, which must never keep what the network sent itself
+// (sw-cache-guard.ts neverStore): a damaged copy it kept would be served on every later start.
+test("a damaged runtime file that passes through the service worker is never kept", async ({ page, context }) => {
+  await openApp(page);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("codeeditor:offline-wanted")));
+  await serviceWorkerActive(page);
+  await reloadApp(page);
+  expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "page controlled by the service worker").toBe(true);
+  const wasm = "**/pyodide/*/pyodide.asm.wasm";
+  let throughWorker = 0;
+  await context.route(wasm, async (route) => {
+    if (route.request().serviceWorker()) throughWorker += 1;
+    // The site's own file, the right size and type, with one byte changed on the way.
+    const real = await route.fetch();
+    const body = Buffer.from(await real.body());
+    body[body.length >> 1] ^= 0xff;
+    await route.fulfill({ response: real, body });
+  });
+  await importFiles(page, [{ name: "hi.py", text: 'print("whole again")\n' }]);
+  await openFromTree(page, "hi.py");
+  await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", /^(failed|ready)$/, { timeout: 60_000 });
+  // Playwright routes the service worker's own requests in Chromium only; elsewhere this is untested.
+  test.skip(throughWorker === 0, "this engine doesn't route the service worker's own requests");
+  await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "failed");
+  const r = await run(page, { timeout: 60_000 });
+  expect(r.status).toBe("unavailable");
+  expect(r.output).toContain("Python couldn't start: its one-time download was damaged (pyodide.asm.wasm didn't match). Press Run to try again.");
+  const kept = ((await cachedUrls(page))["codeeditor-python-runtime"] ?? []).map((u) => u.split("/").pop());
+  expect(kept).not.toContain("pyodide.asm.wasm");
+  await context.unroute(wasm);
+  const again = await run(page, { timeout: 120_000 });
+  expect(again.status, again.output).toBe("ok");
+  expect(again.output).toContain("whole again");
 });
 
 /** The folder vite.config.ts serves Pyodide from (version plus heap cap). */

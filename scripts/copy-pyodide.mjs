@@ -1,5 +1,5 @@
 // Copies the Pyodide runtime from node_modules into public/pyodide/<version>-heap<MB>/ so it is
-// served (and precached by the service worker) from our own origin. The folder name carries the
+// served from our own origin (and kept on a device after Python's first start). The folder name carries the
 // version and the memory cap, so a change to either is a new URL: the files are cached as immutable,
 // and an edited file at an old URL would never reach students who already have it.
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";

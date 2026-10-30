@@ -16,9 +16,10 @@ const root = document.getElementById("app");
 // A start that throws shows public/theme-boot.js's "couldn't start" screen, not a page that loads forever.
 if (root) await startWorkbench(root).catch(() => document.dispatchEvent(new Event("codeeditor:start-failed")));
 
-// Offline support. The service worker precaches the Python runtime (several MB), so it registers
-// once Python is up (its install then reuses what the page just downloaded) or after a quiet
-// minute when Python isn't used, never in the middle of the first load (Pocket Run measurement).
+// Offline support. The service worker precaches the app (the Python runtime is downloaded on its
+// first use instead, runner/python-download.ts), so it registers once Python is up (never in the
+// middle of its download) or after a quiet minute when Python isn't used, never in the middle of
+// the first load (Pocket Run measurement).
 // Updates wait for the user: an editor tab can hold unsaved text.
 let registered = false;
 function register() {

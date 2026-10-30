@@ -2,7 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { RunHooks, RunRequest } from "../core/types";
 import { GRACE_MS } from "./run-clock";
 import type { FromPython, ToPython } from "./protocol";
-import { PythonRunner } from "./python-runner";
+import { offlineMessage, PythonRunner } from "./python-runner";
 
 const AVAILABLE = ["numpy", "six", "python-dateutil", "pytz", "pandas"];
 
@@ -161,6 +161,39 @@ describe("PythonRunner", () => {
     await vi.advanceTimersByTimeAsync(2000); // the START_ATTEMPTS back-off
     expect((await p).status).toBe("ok");
     expect(workers).toHaveLength(3);
+  });
+
+  it("offline before Python was ever downloaded: says so in plain words at once, and starts once online", async () => {
+    let online = false;
+    const { runner, workers } = setUp(
+      (w) => w.emit(done()),
+      (w, msg) => (online ? ready(w, msg as never) : w.emit({ type: "boot-failed", error: "this device is offline", retry: false, offline: true })),
+    );
+    const r = await runner.run(request(), hooks());
+    expect(r.status).toBe("unavailable");
+    expect(r.message).toBe(offlineMessage());
+    expect(r.message).not.toContain("couldn't start");
+    // No retries: starting again can't help until the device is online.
+    expect(workers).toHaveLength(1);
+    expect(runner.state).toBe("failed");
+    expect(runner.needsOnline).toBe(true);
+    online = true;
+    expect((await runner.run(request(), hooks())).status).toBe("ok");
+    expect(runner.needsOnline).toBe(false);
+  });
+
+  it("a start that failed for another reason keeps its own words (never the offline message)", async () => {
+    const { runner } = setUp((w) => w.emit(done()), (w) => w.emit({ type: "boot-failed", error: "its one-time download didn't finish (the site answered pyodide.asm.wasm with HTTP 404). Press Run to try again." }));
+    const p = runner.run(request(), hooks());
+    await vi.advanceTimersByTimeAsync(2000); // the START_ATTEMPTS back-off
+    const r = await p;
+    expect(r.message).toBe("Python couldn't start: its one-time download didn't finish (the site answered pyodide.asm.wasm with HTTP 404). Press Run to try again.");
+    expect(runner.needsOnline).toBe(false);
+  });
+
+  it("offlineMessage says how big the download is when the build knows it", () => {
+    expect(offlineMessage(13_540_000)).toBe("Python needs a one-time download (about 14 MB) the first time it runs, and this device is offline. Connect to the internet and press Run again; after that, Python works offline too.");
+    expect(offlineMessage(0)).toBe("Python needs a one-time download the first time it runs, and this device is offline. Connect to the internet and press Run again; after that, Python works offline too.");
   });
 
   it("a start superseded during its retry back-off doesn't take over the runtime", async () => {

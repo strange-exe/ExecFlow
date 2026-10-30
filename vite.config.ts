@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
-import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
+import { cacheOnlyTheFile, neverStore } from "./src/about/sw-cache-guard.ts";
+import { PYTHON_CACHE, RUNTIME_FILES } from "./src/runner/python-runtime.ts";
 import { APP_ROUTE, NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
 import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
@@ -17,14 +19,30 @@ const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/pac
 const pyodideDir = `${pyodideVersion}-heap${JSON.parse(readFileSync("scripts/python-heap.json", "utf8")).mb}`;
 
 /**
- * What Python's first start downloads through fetch (src/runner/python-download.ts counts it), for
- * "Downloading Python (one time, about 12 MB)". 0 when the runtime isn't copied yet (unit tests):
- * the header then says how much has arrived.
+ * Each file Python's first start downloads, with its size (src/runner/python-download.ts counts
+ * them, for "Downloading Python (one time, about 14 MB)") and its sha256: the worker keeps a file
+ * only when the bytes it got have that sha256, as the C/C++ pack and the flowchart files are checked.
+ * Unit tests (mode "test") get an empty map when the runtime isn't copied; dev and build stop with
+ * a clear message instead, since a file without its sha256 would never be kept.
  */
-function pyodideBytes(): number {
-  const files = ["pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json"].map((f) => `public/pyodide/${pyodideDir}/${f}`);
-  return files.every((f) => existsSync(f)) ? files.reduce((sum, f) => sum + statSync(f).size, 0) : 0;
+let pyodideMemo: Record<string, { bytes: number; sha256: string }> | undefined;
+function pyodideFiles(mode: string): Record<string, { bytes: number; sha256: string }> {
+  if (pyodideMemo) return pyodideMemo;
+  const path = (f: string) => `public/pyodide/${pyodideDir}/${f}`;
+  const missing = RUNTIME_FILES.filter((f) => !existsSync(path(f)));
+  if (missing.length) {
+    if (mode === "test") return {};
+    throw new Error(`Python's runtime is missing (${missing.join(", ")}): run \`node scripts/copy-pyodide.mjs\` (npm run dev/build do this).`);
+  }
+  pyodideMemo = Object.fromEntries(
+    RUNTIME_FILES.map((f) => {
+      const bytes = readFileSync(path(f));
+      return [f, { bytes: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") }];
+    }),
+  );
+  return pyodideMemo;
 }
+const pyodideBytes = (mode: string) => Object.values(pyodideFiles(mode)).reduce((sum, f) => sum + f.bytes, 0);
 
 /**
  * The C/C++ pack manifest, written by scripts/fetch-clang.mjs (npm's predev/prebuild run it).
@@ -502,7 +520,8 @@ export default defineConfig(({ mode }) => ({
     // The release (src/about/changelog.ts's newest; a unit test keeps them equal): no request for it.
     __APP_VERSION__: JSON.stringify((JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version),
     __PYODIDE_DIR__: JSON.stringify(pyodideDir),
-    __PYODIDE_BYTES__: JSON.stringify(pyodideBytes()),
+    __PYODIDE_BYTES__: JSON.stringify(pyodideBytes(mode)),
+    __PYODIDE_FILES__: JSON.stringify(pyodideFiles(mode)),
     __CLANG_PACK__: JSON.stringify(clangPack(mode)),
     __MOVE_FROM__: JSON.stringify(MOVE_FROM),
     __MOVE_TO__: JSON.stringify(MOVE_TO),
@@ -540,21 +559,24 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        // The Python runtime is precached so the app works offline after the first visit.
-        // licenses.txt too: with the service worker in control it is served from here (and offline),
-        // where otherwise the navigate fallback below would answer it with the editor.
+        // The app itself is precached, so it opens offline after the first visit. licenses.txt too:
+        // with the service worker in control it is served from here (and offline), where otherwise
+        // the navigate fallback below would answer it with the editor.
         globPatterns: ["**/*.{js,mjs,css,html,svg,png,woff2,wasm,zip,json,txt}"],
         // The C/C++ pack (~20 MB) is downloaded by the compiler worker into its own cache when first needed.
+        // So is the Python runtime (~14 MB, the owner's "On first use", 2026-10-30): the Python worker
+        // downloads it the first time Python starts (src/runner/python-download.ts), and the route
+        // below answers its scripts from that cache, so a visit that never uses Python never fetches it.
         // _routes.json is Cloudflare's (which paths run the sign-in function), not the app's.
         // The flowchart's parser files (~4.5 MB) are not precached either: they download the first time
         // a flowchart is asked for, and are runtime-cached below.
         // The About page's code and images (assets/a/, media/) are cached when /about is opened, below.
         // move.html is the editor served without isolation for the move to the new address (movePage).
-        globIgnores: ["clang/**", "flowchart/**", "_routes.json", "assets/a/**", "media/**", "move.html"],
+        globIgnores: ["clang/**", "pyodide/**", "flowchart/**", "_routes.json", "assets/a/**", "media/**", "move.html"],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
-        // Versioned or hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the
-        // service worker can reuse what the page already downloaded (no second 6 MB download).
-        dontCacheBustURLsMatching: /^(assets|pyodide\/\d+\.\d+\.\d+-heap\d+)\//,
+        // Hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the service worker can
+        // reuse what the page already downloaded.
+        dontCacheBustURLsMatching: /^assets\//,
         navigateFallback: "/index.html",
         // Only the editor's own addresses (/ and GitHub's sign-in return path /auth-callback) get the
         // editor; any other address the precache doesn't hold goes to the network, which answers
@@ -570,6 +592,24 @@ export default defineConfig(({ mode }) => ({
         // they download the first time a program imports them, then keep working offline. The folder is
         // versioned, so cached wheels never go stale; Pyodide also checks each one's sha256 (SRI).
         runtimeCaching: [
+          // The Python runtime, once its first start has put it in PYTHON_CACHE (the Python worker
+          // does that itself: on a first visit no service worker controls the page yet). The folder is
+          // versioned, so a kept file never goes stale; the worker drops other versions' files.
+          {
+            urlPattern: new RegExp(`/pyodide/${pyodideDir.replace(/\./g, "\\.")}/(${RUNTIME_FILES.map((f) => f.replace(/\./g, "\\.")).join("|")})$`),
+            handler: "CacheFirst",
+            options: {
+              cacheName: PYTHON_CACHE,
+              cacheableResponse: { statuses: [200] },
+              // The worker stored them from fetch(), which sends no Origin header; an import is a CORS
+              // request, which does. A server that answers "Vary: Origin" (vite preview's does) would
+              // otherwise never match, and Python couldn't start offline (measured in Chromium).
+              matchOptions: { ignoreVary: true },
+              // Read only: the worker keeps a file once its sha256 matched the build's; a copy this
+              // route stored from the network (a worker's fetch it answered) would skip that check.
+              plugins: [neverStore],
+            },
+          },
           {
             urlPattern: new RegExp(`/pyodide/${pyodideDir.replace(/\./g, "\\.")}/[^/]+\\.whl$`),
             handler: "CacheFirst",
