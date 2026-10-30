@@ -48,7 +48,7 @@ describe("the WASI host", () => {
     iov(1200, 2000, 5);
     expect(call("fd_write", fd, 1200, 1, 1300)).toBe(E.SUCCESS);
     expect(dv().getUint32(1300, true)).toBe(5);
-    expect(call("fd_seek", fd, 1n, 2 /* SET */, 1400)).toBe(E.SUCCESS);
+    expect(call("fd_seek", fd, 1n, 0 /* SET, preview1 */, 1400)).toBe(E.SUCCESS);
     expect(dv().getBigUint64(1400, true)).toBe(1n);
     iov(1200, 3000, 10);
     expect(call("fd_read", fd, 1200, 1, 1300)).toBe(E.SUCCESS);
@@ -88,11 +88,15 @@ describe("the WASI host", () => {
     expect(call("fd_renumber", open("input.txt", 0), ROOT_FD)).toBe(E.NOTSUP);
   });
 
-  it("writes filestat and dirent in the snapshot-0 layout", () => {
+  it("writes filestat and dirent in the preview1 layout (wasip1.h: filestat 64 bytes, nlink 64-bit at 24, size at 32)", () => {
     const { call, dv, u8, putStr } = setup();
     const len = putStr(1000, "input.txt");
+    // Bytes past the end of a 56-byte (snapshot 0) filestat must be written too.
+    dv().setBigUint64(2056, 0xdeadn, true);
     expect(call("path_filestat_get", ROOT_FD, 0, 1000, len, 2000)).toBe(E.SUCCESS);
-    expect([dv().getUint8(2016), dv().getUint32(2020, true), dv().getBigUint64(2024, true)]).toEqual([4, 1, 4n]);
+    expect([dv().getUint8(2016), dv().getBigUint64(2024, true), dv().getBigUint64(2032, true)]).toEqual([4, 1n, 4n]);
+    expect(dv().getBigUint64(2056, true)).not.toBe(0xdeadn); // ctim
+    expect(dv().getBigUint64(2056, true)).toBe(dv().getBigUint64(2048, true));
     const dl = putStr(1000, ".");
     expect(call("path_open", ROOT_FD, 1, 1000, dl, OFLAGS.DIRECTORY, RIGHTS.ALL, RIGHTS.ALL, 0, 1100)).toBe(E.SUCCESS);
     const dir = dv().getUint32(1100, true);
@@ -129,8 +133,10 @@ describe("the WASI host", () => {
     const sub = 1000;
     dv().setBigUint64(sub, 77n, true); // userdata
     dv().setUint8(sub + 8, 0); // clock
-    dv().setUint32(sub + 24, 0, true); // REALTIME, as nanosleep asks
-    dv().setBigUint64(sub + 32, 30_000_000n, true); // 30 ms, relative
+    // preview1 (wasip1.h): the clock at 16; id 16, timeout 24, precision 32, flags 40.
+    dv().setUint32(sub + 16, 0, true); // REALTIME, as nanosleep asks
+    dv().setBigUint64(sub + 24, 30_000_000n, true); // 30 ms, relative
+    dv().setUint16(sub + 40, 0, true); // relative, not ABSTIME
     const t = performance.now();
     expect(call("poll_oneoff", sub, 2000, 1, 3000)).toBe(E.SUCCESS);
     expect(performance.now() - t).toBeGreaterThanOrEqual(25);
@@ -160,7 +166,7 @@ describe("the WASI host", () => {
     // __attribute__((import_module("__proto__"), import_name("then"))): it linked, and binding it
     // set Object.prototype.then in the worker, so instantiate() never resolved (the run hung).
     const enc8 = (s: string) => [s.length, ...enc.encode(s)];
-    const imports: [string, string][] = [["__proto__", "then"], ["wasi_unstable", "toString"], ["env", "sched_yield"], ["wasi_unstable", "sched_yield"]];
+    const imports: [string, string][] = [["__proto__", "then"], ["wasi_snapshot_preview1", "toString"], ["env", "sched_yield"], ["wasi_snapshot_preview1", "sched_yield"]];
     const body = [imports.length, ...imports.flatMap(([m, n]) => [...enc8(m), ...enc8(n), 0, 0])];
     const bytes = new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0, 1, 5, 1, 0x60, 0, 1, 0x7f, 2, body.length, ...body]);
     const module = new WebAssembly.Module(bytes);
@@ -168,9 +174,9 @@ describe("the WASI host", () => {
     const bound = importObject(module, host) as Record<string, Record<string, () => number>>;
     expect(Object.prototype.hasOwnProperty.call(Object.prototype, "then")).toBe(false);
     expect(bound["__proto__"].then()).toBe(E.NOSYS);
-    expect(bound.wasi_unstable.toString()).toBe(E.NOSYS); // not Object.prototype.toString
-    expect(bound.env.sched_yield()).toBe(E.NOSYS); // WASI functions only under wasi_unstable
-    expect(bound.wasi_unstable.sched_yield).toBe(host.imports.sched_yield);
+    expect(bound.wasi_snapshot_preview1.toString()).toBe(E.NOSYS); // not Object.prototype.toString
+    expect(bound.env.sched_yield()).toBe(E.NOSYS); // WASI functions only under wasi_snapshot_preview1
+    expect(bound.wasi_snapshot_preview1.sched_yield).toBe(host.imports.sched_yield);
     const instance = await Promise.race([WebAssembly.instantiate(module, bound), new Promise((r) => setTimeout(() => r("hung"), 1000))]);
     expect(instance).toBeInstanceOf(WebAssembly.Instance);
   });
@@ -185,5 +191,12 @@ describe("the WASI host", () => {
     expect(describeCrash(new Error("divide by zero"))).toMatch(/division by zero/);
     expect(describeCrash(new Error("remainder by zero"))).toMatch(/division by zero/);
     expect(describeCrash(new Error("unreachable"))).toMatch(/abort/);
+    // 0.17.0: a C++ throw no catch matched leaves the program as a WebAssembly.Exception.
+    const tag = new WebAssembly.Tag({ parameters: ["i32"] });
+    expect(describeCrash(new WebAssembly.Exception(tag, [1024]))).toBe("uncaught exception");
+    // A libc++abi that reaches std::terminate names it on stderr, then aborts.
+    expect(describeCrash(new Error("unreachable"), "libc++abi: terminating due to uncaught exception of type std::out_of_range: vector\n"))
+      .toBe("uncaught exception: std::out_of_range: vector");
+    expect(describeCrash(new Error("unreachable"), "some other output\n")).toMatch(/^aborted/);
   });
 });

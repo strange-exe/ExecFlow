@@ -1,14 +1,13 @@
 // Builds src/editor/data/c-library.json: the C and C++ library names the editor suggests (header
-// names, C functions with their prototypes, common constants, and std:: names), read from the
-// sysroot in the C/C++ pack (public/clang/<version>/sysroot.tar.gz, written by
-// scripts/fetch-clang.mjs). Run `npm run gen:completions:c` after the pack changes: it prints the
-// counts and every filter it applied. `--stdout` prints the JSON instead of writing the file (the
-// unit test compares the two).
+// names, C functions with their prototypes, common constants, and std:: names), read from clang 8's
+// sysroot (binji/wasm-clang, pinned in SOURCE below; 0.17.0 moved the compiler to LLVM 22, whose
+// headers this script doesn't read yet). Run `npm run gen:completions:c`: it prints the counts and
+// every filter it applied. `--stdout` prints the JSON instead of writing the file (the unit test
+// compares the two).
 //
-// The archive is untrusted until checked (SECURITY.md section 3): its SHA-256 and size must match
-// the pack's manifest.json before any entry is read; the gunzip output, the entry count and every
-// size are capped; absolute paths, "..", links and anything but plain files and folders are
-// refused. Nothing is extracted to disk.
+// The archive is untrusted until checked (SECURITY.md section 3): its size and SHA-256 must match
+// SOURCE before any entry is read; the entry count and every size are capped; absolute paths, "..",
+// links and anything but plain files and folders are refused. Nothing is extracted to disk.
 //
 // The C headers are read with a small preprocessor of our own (includes, include guards, #if
 // expressions), once per -std value the settings offer, so a declaration counts only where clang
@@ -20,10 +19,10 @@
 // comment text from the headers is copied.
 
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gzipSync } from "node:zlib";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "src", "editor", "data", "c-library.json");
@@ -31,7 +30,7 @@ const OUT = join(ROOT, "src", "editor", "data", "c-library.json");
 /** Archive caps. The real sysroot is a 1.8 MB gzip of a 9.3 MB tar with 445 entries. */
 export const LIMITS = { gzipBytes: 8 * 2 ** 20, tarBytes: 32 * 2 ** 20, entries: 2000, entryBytes: 4 * 2 ** 20 };
 
-/** The -std values the settings offer (src/ui/settings.ts C_STANDARDS, CXX_STANDARDS; the test checks). */
+/** The -std values the data is read in (clang 8's; the editor maps today's settings onto them, the test checks). */
 export const C_MODES = ["c99", "c11", "c17", "gnu11", "gnu17"];
 export const CXX_MODES = ["c++11", "c++14", "c++17", "c++2a"];
 export const MODES = [...C_MODES, ...CXX_MODES];
@@ -48,42 +47,35 @@ export const NEVER = ["gets", "tmpfile", "popen", "system"];
 
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
-/** The pack folder scripts/fetch-clang.mjs writes (it removes older ones), like vite.config.ts finds it. */
-export function packDir() {
-  const base = join(ROOT, "public", "clang");
-  const dirs = readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
-  if (dirs.length !== 1) throw new Error(`public/clang: expected one pack folder, found ${dirs.length} (run node scripts/fetch-clang.mjs)`);
-  return { dir: join(base, dirs[0]), name: dirs[0] };
-}
+/**
+ * Where the names are read from. 0.17.0 moved the compiler to LLVM 22 and wasi-sdk-33, whose headers
+ * this generator doesn't read yet (another layout, another libc++); until it does, the data stays the
+ * one read from clang 8's sysroot (binji/wasm-clang), pinned here by commit and SHA-256, and the
+ * editor reads the newer -std settings as the newest this data has (library-completion.ts DATA_MODE).
+ */
+export const SOURCE = {
+  pack: "648c4a89",
+  source: "binji/wasm-clang@648c4a89997a351eef75cdaec3ef5b89d4937dec",
+  url: "https://raw.githubusercontent.com/binji/wasm-clang/648c4a89997a351eef75cdaec3ef5b89d4937dec/sysroot.tar",
+  sha256: "2435a7b549af30c2be7ec249c405bc2e911ab0c6003012f0909ec3c131bff867",
+  rawBytes: 9297920,
+  /** Where scripts/fetch-clang.mjs kept it before 0.17.0, and where a download is kept now. */
+  cache: join(ROOT, "node_modules", ".cache", "wasm-clang", "648c4a89997a351eef75cdaec3ef5b89d4937dec", "sysroot.tar"),
+};
 
-/** Reads, size-checks, gunzips and SHA-256-checks the sysroot, then reads its entries into memory. */
-export function readSysroot() {
-  const { dir, name } = packDir();
-  const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
-  const spec = manifest.files?.["sysroot.tar"];
-  if (!spec || spec.path !== "sysroot.tar.gz" || spec.gzip !== true || !/^[0-9a-f]{64}$/.test(spec.sha256 ?? "")) {
-    throw new Error("manifest.json: no usable sysroot.tar entry");
+/** Reads (or downloads), size-checks and SHA-256-checks the pinned sysroot, then reads its entries into memory. */
+export async function readSysroot() {
+  let tar = existsSync(SOURCE.cache) ? readFileSync(SOURCE.cache) : null;
+  if (!tar || tar.length !== SOURCE.rawBytes || sha256(tar) !== SOURCE.sha256) {
+    const res = await fetch(SOURCE.url);
+    if (!res.ok) throw new Error(`could not download the pinned sysroot: HTTP ${res.status}`);
+    tar = Buffer.from(await res.arrayBuffer());
+    if (tar.length !== SOURCE.rawBytes || sha256(tar) !== SOURCE.sha256) throw new Error("the downloaded sysroot.tar doesn't match its pinned size and SHA-256; not reading it");
+    mkdirSync(dirname(SOURCE.cache), { recursive: true });
+    writeFileSync(SOURCE.cache, tar);
   }
-  return { ...unpackSysroot(readFileSync(join(dir, spec.path)), spec), pack: name, source: String(manifest.source ?? "") };
-}
-
-/** The checks on the archive bytes against the manifest entry, then the entries. */
-export function unpackSysroot(gz, spec) {
-  if (!Number.isSafeInteger(spec.rawBytes) || spec.rawBytes <= 0 || spec.rawBytes > LIMITS.tarBytes) {
-    throw new Error(`manifest.json: sysroot.tar rawBytes ${spec.rawBytes} is outside 1..${LIMITS.tarBytes}`);
-  }
-  if (gz.length > LIMITS.gzipBytes) throw new Error(`sysroot.tar.gz is ${gz.length} bytes, over the ${LIMITS.gzipBytes} cap`);
-  let tar;
-  try {
-    tar = gunzipSync(gz, { maxOutputLength: LIMITS.tarBytes });
-  } catch (e) {
-    throw new Error(`sysroot.tar.gz: gunzip failed or passed ${LIMITS.tarBytes} bytes (${e.code ?? e.message})`);
-  }
-  const digest = sha256(tar);
-  if (tar.length !== spec.rawBytes || digest !== spec.sha256) {
-    throw new Error(`sysroot.tar: size ${tar.length} / SHA-256 ${digest} differ from manifest.json (${spec.rawBytes} / ${spec.sha256}); not reading it`);
-  }
-  return { files: readTar(tar), sha256: digest };
+  if (tar.length > LIMITS.tarBytes) throw new Error(`sysroot.tar is over the ${LIMITS.tarBytes} cap`);
+  return { files: readTar(tar), sha256: SOURCE.sha256, pack: SOURCE.pack, source: SOURCE.source };
 }
 
 const SAFE_PATH = /^[A-Za-z0-9._+/-]+$/;
@@ -1025,8 +1017,8 @@ export function serialize(data) {
 }
 
 /** The whole file's text, and the collected details for the summary. */
-export function generate() {
-  const { files, sha256: digest, pack, source } = readSysroot();
+export async function generate() {
+  const { files, sha256: digest, pack, source } = await readSysroot();
   const result = collect(new Sysroot(files));
   const data = {
     header: {
@@ -1081,7 +1073,7 @@ function summary({ text, data, result }) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const out = generate();
+  const out = await generate();
   if (process.argv.includes("--stdout")) {
     process.stdout.write(out.text);
   } else {

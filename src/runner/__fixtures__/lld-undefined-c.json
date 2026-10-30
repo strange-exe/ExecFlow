@@ -2,18 +2,18 @@
  "name": "lld-undefined-c",
  "entry": "n/main.c",
  "files": {
-  "n/main.c": "#include <stdio.h>\nint helper(int);\nint main(void) {\n  char s[10];\n  gets(s);\n  return helper(2);\n}\n"
+  "n/main.c": "#include <stdio.h>\nint helper(int);\nint twice(int);\nint main(void) {\n  int n = twice(1);\n  return helper(n);\n}\n"
  },
  "units": [
   {
    "unit": "n/main.c",
    "object": "/o/lld-undefined-c-0.o",
    "ok": true,
-   "output": "/w/n/main.c:5:3: warning: implicit declaration of function 'gets' is invalid in C99 [-Wimplicit-function-declaration]\n   gets(s);\n   ^\n1 warning generated.\n\n"
+   "output": ""
   }
  ],
  "link": {
   "ok": false,
-  "output": "wasm-ld: error: /o/lld-undefined-c-0.o: undefined symbol: gets\nwasm-ld: error: /o/lld-undefined-c-0.o: undefined symbol: helper\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  "output": "wasm-ld: error: /o/lld-undefined-c-0.o: undefined symbol: twice\nwasm-ld: error: /o/lld-undefined-c-0.o: undefined symbol: helper\n"
  }
 }

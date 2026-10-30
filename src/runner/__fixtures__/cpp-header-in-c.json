@@ -9,7 +9,7 @@
    "unit": "k2/main.c",
    "object": "/o/cpp-header-in-c-0.o",
    "ok": false,
-   "output": "/w/k2/main.c:1:10:{1:10-1:20}: fatal error: 'iostream' file not found\n #include <iostream>\n          ^~~~~~~~~~\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+   "output": "/w/k2/main.c:1:10:{1:10-1:20}: fatal error: 'iostream' file not found\n #include <iostream>\n          ^~~~~~~~~~\n1 error generated.\n"
   }
  ]
 }

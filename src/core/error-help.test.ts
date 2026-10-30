@@ -84,8 +84,8 @@ const EXPECTED: Record<string, [string | null, string?][]> = {
   "cpp-string": [["cpp-std-name", "string belongs to the C++ standard library, so its full name is std::string."]],
   "c-undeclared": [["c-undeclared-suggest", "The compiler doesn't know a name totl here. It suggests total, a name it does know that is spelled alike."]],
   "c-undeclared-plain": [["c-undeclared", "The compiler doesn't know a name count at this point."]],
-  "c-implicit-lib": [["c-implicit-library", "printf is a library function, but this file doesn't include the header that declares it, so the compiler has to guess how to call it."]],
-  "c-implicit-lib-sqrt": [["c-implicit-library", "sqrt is a library function, but this file doesn't include the header that declares it, so the compiler has to guess how to call it."]],
+  "c-implicit-lib": [["c-implicit-library", "printf is a library function, but this file doesn't include the header that declares it, so the compiler doesn't know how to call it."]],
+  "c-implicit-lib-sqrt": [["c-implicit-library", "sqrt is a library function, but this file doesn't include the header that declares it, so the compiler doesn't know how to call it."]],
   "c-implicit-fn": [["c-implicit-function", "twice is called before the compiler has seen it declared, so it doesn't know its parameters or what it returns."]],
   // C and C++: punctuation
   "c-semicolon": [["c-semicolon", "The compiler expected a ; here. In C and C++ each statement and declaration ends with a semicolon."]],
@@ -115,20 +115,25 @@ const EXPECTED: Record<string, [string | null, string?][]> = {
   "cpp-no-match-type": [["cpp-no-matching-type", "No version of twice takes the values in this call: its 1st value has type std::string, and the function wants int."]],
   // C and C++: pointers and members
   "c-ptr": [["c-pointer-types", "A pointer to one type is used where a pointer to another is expected (double * and int *), so the data would be read as the wrong type."]],
-  "c-ptr-pass": [["c-pointer-types", "A pointer to one type is used where a pointer to another is expected (double [3] and int *), so the data would be read as the wrong type."]],
+  "c-ptr-pass": [["c-pointer-types", "A pointer to one type is used where a pointer to another is expected (double[3] and int *), so the data would be read as the wrong type."]],
   "c-int-ptr": [["c-int-to-pointer", "A plain int value is used where a pointer (int *, an address) is expected."]],
   "c-member-ptr": [["c-member-pointer", "The value before the dot is a pointer (struct point *), so its members are reached with -> instead of a dot."]],
-  "cpp-member": [["c-no-member-suggest", "std::string has no member called lenght. The compiler suggests length, which it does have."]],
+  "cpp-member": [["c-no-member", "std::string has no member called lenght."]],
+  "c-member-typo": [["c-no-member", "struct list has no member called lenght."]],
   "c-member": [["c-no-member", "struct point has no member called z."]],
   // Linking: the error gets the help; the runner's own hint (an info row) gets none.
   "c-link": [["link-undefined", "The program uses helper, but none of its files defines it (writes its body), so its parts can't be joined into one program."], [null]],
   "cpp-link": [["link-undefined", "The program uses helper, but none of its files defines it (writes its body), so its parts can't be joined into one program."], [null]],
-  "c-link-typo": [["c-implicit-function"], ["link-undefined", "The program uses prinft, but none of its files defines it (writes its body), so its parts can't be joined into one program."]],
+  // clang 22 stops at the call (an error since C99) and suggests the name; the link is never reached.
+  "c-link-typo": [["c-implicit-function-suggest", "No function called prinft is declared. The compiler suggests printf, which is."]],
   // Crashes, as this app reports them (cpp-wasi.ts describeCrash): the same words in all three engines,
   // except deep recursion in WebKit, which reports an invalid memory access.
   "c-segv": [["crash-memory", "The program read or wrote memory outside what it owns (a segmentation fault, on most computers). Common causes: an array index past the end or below 0, a bad pointer, or recursion that never stops."]],
   "c-null": [["crash-abort"]],
-  "c-stack": [["c-infinite-recursion", "Every way through this function calls the function again, so it can never finish: the program would run out of stack."], ["crash-stack", "A function called itself (or functions called each other) so many times that the program ran out of stack memory."]],
+  // clang 22 turns this tail recursion into a loop at -O2: the warning stays, and the run hits the time limit.
+  "c-stack": [["c-infinite-recursion", "Every way through this function calls the function again, so it can never finish: the program would run out of stack."]],
+  "c-stack-deep": [["crash-stack", "A function called itself (or functions called each other) so many times that the program ran out of stack memory."]],
+  "cpp-uncaught": [["crash-uncaught", "Something in the program used throw, and no catch block was waiting for that kind of exception, so C++ ended the program."]],
   "c-stack@webkit": [["c-infinite-recursion"], ["crash-memory"]],
   "c-div-zero": [["crash-division", "The program divided a whole number by zero (with / or %), which has no answer, so it was stopped."]],
 };

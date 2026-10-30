@@ -11,17 +11,17 @@
    "unit": "o/main.cpp",
    "object": "/o/lld-extern-c-0.o",
    "ok": true,
-   "output": "\n"
+   "output": ""
   },
   {
    "unit": "o/add.c",
    "object": "/o/lld-extern-c-1.o",
    "ok": true,
-   "output": "\n"
+   "output": ""
   }
  ],
  "link": {
   "ok": false,
-  "output": "wasm-ld: error: /o/lld-extern-c-0.o: undefined symbol: add(int, int)\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  "output": "wasm-ld: error: /o/lld-extern-c-0.o: undefined symbol: add(int, int)\n"
  }
 }

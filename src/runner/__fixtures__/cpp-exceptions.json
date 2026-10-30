@@ -8,8 +8,8 @@
   {
    "unit": "i/main.cpp",
    "object": "/o/cpp-exceptions-0.o",
-   "ok": false,
-   "output": "/w/i/main.cpp:2:20: error: cannot use 'throw' with exceptions disabled\n int main() { try { throw std::runtime_error(\"x\"); } catch (...) {} }\n                    ^\n/w/i/main.cpp:2:14: error: cannot use 'try' with exceptions disabled\n int main() { try { throw std::runtime_error(\"x\"); } catch (...) {} }\n              ^\n2 errors generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+   "ok": true,
+   "output": ""
   }
  ]
 }

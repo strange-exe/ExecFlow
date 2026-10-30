@@ -469,6 +469,9 @@ describe("a crash in words (B13)", () => {
     ["a call through a bad function pointer", "The program called a function through a bad function pointer."],
     ["out of memory (Cannot allocate)", "The program ran out of memory (Cannot allocate)."],
     ["RuntimeError: something new", "The program stopped with an error: RuntimeError: something new."],
+    // 0.17.0, C++ exceptions: with and without libc++abi's own words.
+    ["uncaught exception", "The program threw an exception and no catch caught it."],
+    ["uncaught exception: std::out_of_range: vector", "The program threw std::out_of_range and no catch caught it: vector."],
   ];
   it.each(CASES)("%s", (crash, sentence) => {
     expect(crashMessage(crash)).toBe(sentence);

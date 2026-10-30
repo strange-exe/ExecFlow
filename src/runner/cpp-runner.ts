@@ -46,6 +46,11 @@ export function summarize(diagnostics: readonly ToolDiagnostic[]): string {
  */
 export function crashMessage(crash: string): string {
   const after = (prefix: string) => crash.slice(prefix.length).trim();
+  if (crash.startsWith("uncaught exception:")) {
+    const [type, ...what] = after("uncaught exception:").split(": ");
+    return `The program threw ${type} and no catch caught it${what.length ? `: ${what.join(": ")}` : ""}.`;
+  }
+  if (crash === "uncaught exception") return "The program threw an exception and no catch caught it.";
   if (crash.startsWith("stack overflow")) return "The program ran out of stack memory: a function keeps calling itself (infinite or very deep recursion).";
   if (crash.startsWith("invalid memory access")) return "The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range.";
   if (crash.startsWith("aborted")) return "The program stopped itself: abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with.";

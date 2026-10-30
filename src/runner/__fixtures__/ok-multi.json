@@ -11,17 +11,17 @@
    "unit": "v/main.cpp",
    "object": "/o/ok-multi-0.o",
    "ok": true,
-   "output": "\n"
+   "output": ""
   },
   {
    "unit": "v/util.cpp",
    "object": "/o/ok-multi-1.o",
    "ok": true,
-   "output": "\n"
+   "output": ""
   }
  ],
  "link": {
   "ok": true,
-  "output": "\n"
+  "output": ""
  }
 }

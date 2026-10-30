@@ -9,7 +9,7 @@
    "unit": "e/main.c",
    "object": "/o/utf8-identifier-0.o",
    "ok": false,
-   "output": "/w/e/main.c:3:18: error: use of undeclared identifier 'naïve'\n   return café + naïve;\n                 ^\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+   "output": "/w/e/main.c:3:18:{3:18-3:24}: error: use of undeclared identifier 'naïve'\n   return café + naïve;\n                 ^~~~~\n1 error generated.\n"
   }
  ]
 }

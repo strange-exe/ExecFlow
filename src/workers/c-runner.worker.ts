@@ -27,6 +27,8 @@ self.onmessage = async ({ data }: MessageEvent<ToProgram>) => {
   const enc = new TextEncoder();
   let written = 0;
   let truncated = false;
+  /** The end of what the program wrote to stderr: an uncaught C++ exception names itself there (describeCrash). */
+  let stderrTail = "";
   const decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() };
 
   let chunks: { stream: "stdout" | "stderr"; text: string }[] = [];
@@ -62,6 +64,7 @@ self.onmessage = async ({ data }: MessageEvent<ToProgram>) => {
     write(stream, bytes) {
       const take = Math.min(bytes.length, data.outputCap - written);
       const text = decoders[stream].decode(bytes.subarray(0, take), { stream: true });
+      if (stream === "stderr") stderrTail = (stderrTail + text).slice(-1024);
       const last = chunks[chunks.length - 1];
       if (last?.stream === stream) last.text += text;
       else chunks.push({ stream, text });
@@ -86,7 +89,7 @@ self.onmessage = async ({ data }: MessageEvent<ToProgram>) => {
   } catch (e) {
     if (e instanceof Exit) exitCode = e.code;
     else if (e instanceof OutputLimit) exitCode = -1;
-    else { exitCode = -1; crash = describeCrash(e); }
+    else { exitCode = -1; crash = describeCrash(e, stderrTail); }
   }
   flush();
   const changed = fs.changes().filter((f) => f.bytes.length <= MAX_WRITTEN_BYTES).slice(0, MAX_WRITTEN);

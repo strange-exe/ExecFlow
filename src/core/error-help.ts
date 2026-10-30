@@ -326,17 +326,29 @@ const ENTRIES: readonly Entry[] = [
   },
   {
     id: "c-implicit-library", sources: CC,
-    match: /^implicitly declaring library function '(?<fn>[^']+)' with type/,
+    // clang 22 (0.17.0): "call to undeclared library function ..., ISO C99 and later do not support
+    // implicit function declarations", an error; clang 8: "implicitly declaring library function ...".
+    match: /^(?:implicitly declaring|call to undeclared) library function '(?<fn>[^']+)' with type/,
     more: (_f, rest) => {
       const m = findIn(rest, /include the header <(?<header>[^>]+)>/);
       return m?.groups ? { include: `#include <${m.groups.header}>` } : null;
     },
-    means: "{fn} is a library function, but this file doesn't include the header that declares it, so the compiler has to guess how to call it.",
+    means: "{fn} is a library function, but this file doesn't include the header that declares it, so the compiler doesn't know how to call it.",
     tips: "Add {include} at the top of the file, with the other #include lines.",
   },
   {
+    id: "c-implicit-function-suggest", sources: CC,
+    match: /^(?:implicit declaration of function|call to undeclared function) '(?<fn>[^']+)'(?: is invalid in C99|; ISO C99 and later do not support implicit function declarations)$/,
+    more: (_f, rest) => {
+      const m = findIn(rest, /^did you mean '(?<suggestion>[^']+)'\?$/);
+      return m?.groups ? { suggestion: m.groups.suggestion } : null;
+    },
+    means: "No function called {fn} is declared. The compiler suggests {suggestion}, which is.",
+    tips: "Check the spelling and the capital letters, and write {suggestion} if that is the function you meant.",
+  },
+  {
     id: "c-implicit-function", sources: CC,
-    match: /^implicit declaration of function '(?<fn>[^']+)' is invalid in C99$/,
+    match: /^(?:implicit declaration of function|call to undeclared function) '(?<fn>[^']+)'(?: is invalid in C99|; ISO C99 and later do not support implicit function declarations)$/,
     means: "{fn} is called before the compiler has seen it declared, so it doesn't know its parameters or what it returns.",
     tips: "If {fn} is your own function, move it above main, or put its prototype (its first line, ending in `;`) before the call. If not, check the spelling and the #include lines.",
   },
@@ -384,13 +396,13 @@ const ENTRIES: readonly Entry[] = [
   },
   {
     id: "c-return-some-paths", sources: CC,
-    match: /^control may reach end of non-void function$/,
+    match: /^(?:control may reach end of non-void function|non-void function does not return a value in all control paths)$/,
     means: "This function promises to return a value, but on some paths it reaches its closing `}` without a return, and the caller then gets no defined value.",
     tips: "Make every path end in a `return`, for example by adding one after the last if.",
   },
   {
     id: "c-return-missing", sources: CC,
-    match: /^control reaches end of non-void function$/,
+    match: /^(?:control reaches end of non-void function|non-void function does not return a value)$/,
     means: "This function promises to return a value (its type isn't void), but it reaches its closing `}` without a return.",
     tips: "Add `return` with a value before the closing `}`, or make the function void if it shouldn't give anything back.",
   },
@@ -454,12 +466,8 @@ const ENTRIES: readonly Entry[] = [
     tips: "Write `->` instead of `.` here, like `p->x`.",
   },
   {
-    id: "c-no-member-suggest", sources: CC,
-    match: /^no member named '(?<member>[^']+)' in '(?<type>[^']+)'; did you mean '(?<suggestion>[^']+)'\?$/,
-    means: "{type} has no member called {member}. The compiler suggests {suggestion}, which it does have.",
-    tips: "Check the spelling and the capital letters of the name after the dot.",
-  },
-  {
+    // clang 22 (0.17.0) no longer suggests a member name ("...; did you mean 'length'?"), so the entry
+    // that explained the suggestion is gone; this one covers every misspelt member.
     id: "c-no-member", sources: CC,
     match: /^no member named '(?<member>[^']+)' in '(?<type>[^']+)'$/,
     means: "{type} has no member called {member}.",
@@ -497,6 +505,13 @@ const ENTRIES: readonly Entry[] = [
     match: /^The program crashed: integer division by zero\b/,
     means: "The program divided a whole number by zero (with `/` or `%`), which has no answer, so it was stopped.",
     tips: "Check the value you divide by before the division. If it can be 0 (from input, or a count that is still 0), test it first.",
+  },
+  {
+    // 0.17.0: C++ exceptions work; one that no catch matches ends the program (std::terminate).
+    id: "crash-uncaught", sources: ["runtime"],
+    match: /^The program crashed: uncaught exception\b/,
+    means: "Something in the program used `throw`, and no `catch` block was waiting for that kind of exception, so C++ ended the program.",
+    tips: "Put the code that can throw inside `try { ... }` and add a `catch` for that type, or `catch (const std::exception& e)` for the library's own exceptions, then print `e.what()`.",
   },
   {
     id: "crash-abort", sources: ["runtime"],

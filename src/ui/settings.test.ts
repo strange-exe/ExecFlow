@@ -24,7 +24,7 @@ describe("settings", () => {
   });
 
   it("clamps numbers and drops values it doesn't know", () => {
-    const s = cleanSettings({ codeSize: 99, timeLimitS: "0", outputLimitK: -5, cStd: "c23", opt: "3", wall: "yes", extra: true });
+    const s = cleanSettings({ codeSize: 99, timeLimitS: "0", outputLimitK: -5, cStd: "c29", opt: "3", wall: "yes", extra: true });
     expect(s.codeSize).toBe(20);
     expect(s.timeLimitS).toBe(1);
     expect(s.outputLimitK).toBe(16);
@@ -32,6 +32,13 @@ describe("settings", () => {
     expect(s.opt).toBe("2");
     expect(s.wall).toBe(true);
     expect(s).not.toHaveProperty("extra");
+  });
+
+  // 0.17.0 (clang 22): C++20 is itself, and C++23 and C23 are offered.
+  it("reads a saved c++2a as c++20, keeps the new standards, and still drops unknown ones", () => {
+    expect(cleanSettings({ cxxStd: "c++2a" }).cxxStd).toBe("c++20");
+    expect(cleanSettings({ cxxStd: "c++23", cStd: "c23" })).toMatchObject({ cxxStd: "c++23", cStd: "c23" });
+    expect(cleanSettings({ cxxStd: "c++26" }).cxxStd).toBe("c++17");
   });
 
   it("keeps suggestions while typing on unless a stored false says otherwise", () => {

@@ -10,7 +10,7 @@
    "unit": "my prog/main.c",
    "object": "/o/space-in-path-0.o",
    "ok": false,
-   "output": "/w/my prog/main.c:2:36: error: use of undeclared identifier 'nope'\n int main(void) { return twice(2) + nope; }\n                                    ^\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+   "output": "/w/my prog/main.c:2:36:{2:36-2:40}: error: use of undeclared identifier 'nope'\n int main(void) { return twice(2) + nope; }\n                                    ^~~~\n1 error generated.\n"
   }
  ]
 }

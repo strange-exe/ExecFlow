@@ -13,7 +13,8 @@ export const E = {
 
 export const FILETYPE = { CHARACTER_DEVICE: 2, DIRECTORY: 3, REGULAR_FILE: 4 } as const;
 /** wasi_unstable (snapshot 0) order: CUR, END, SET. (preview1 later changed it to SET, CUR, END.) */
-export const WHENCE = { CUR: 0, END: 1, SET: 2 } as const;
+/** preview1 (wasip1.h): SET=0, CUR=1, END=2 (snapshot 0, before 0.17.0, had CUR=0, END=1, SET=2). */
+export const WHENCE = { SET: 0, CUR: 1, END: 2 } as const;
 export const OFLAGS = { CREAT: 1, DIRECTORY: 2, EXCL: 4, TRUNC: 8 } as const;
 export const FDFLAGS = { APPEND: 1 } as const;
 export const RIGHTS = { FD_READ: 0x2n, FD_WRITE: 0x40n, ALL: 0x1fffffffn } as const;

@@ -1,8 +1,9 @@
-// The WASI ("wasi_unstable", snapshot 0) imports a compiled C/C++ program runs against, adapted from
+// The WASI ("wasi_snapshot_preview1") imports a compiled C/C++ program runs against, adapted from
 // Pocket Run's runner shim (same author, MIT). Console I/O goes to the page; files go to the
-// in-memory program folder (cpp-wasi-fs.ts); nothing else exists. Layouts follow this sysroot's
-// include/wasi/core.h (filestat is 56 bytes with a 32-bit nlink, subscriptions are 56 bytes,
-// whence is CUR=0, END=1, SET=2). Any import not listed here returns ENOSYS.
+// in-memory program folder (cpp-wasi-fs.ts); nothing else exists. Layouts follow wasi-sdk-33's
+// include/wasm32-wasip1/wasi/wasip1.h (filestat is 64 bytes with a 64-bit nlink, subscriptions are
+// 48 bytes, whence is SET=0, CUR=1, END=2). Any import not listed here returns ENOSYS.
+// (Until 0.17.0 this was "wasi_unstable", snapshot 0, for clang 8's wasi-libc: other layouts.)
 
 import { waitForInput } from "./input-channel";
 import { E, FILETYPE, ROOT_FD, WasiFs } from "./cpp-wasi-fs";
@@ -99,16 +100,17 @@ export function createWasi(opts: WasiOptions): WasiHost {
     view().setUint32(sizePtr, list.reduce((n, s) => n + enc.encode(s).length + 1, 0), true);
     return E.SUCCESS;
   };
+  /** A filestat (preview1: 64 bytes; dev 0, ino 8, filetype 16, nlink 24 as 64 bits, size 32, atim 40, mtim 48, ctim 56). */
   const writeStat = (buf: number, filetype: number, size: number, ino: bigint, mtime: bigint) => {
     const dv = view();
-    for (let i = 0; i < 56; i++) dv.setUint8(buf + i, 0);
+    for (let i = 0; i < 64; i++) dv.setUint8(buf + i, 0);
     dv.setBigUint64(buf + 8, ino, true);
     dv.setUint8(buf + 16, filetype);
-    dv.setUint32(buf + 20, 1, true);
-    dv.setBigUint64(buf + 24, BigInt(size), true);
-    dv.setBigUint64(buf + 32, mtime, true);
+    dv.setBigUint64(buf + 24, 1n, true);
+    dv.setBigUint64(buf + 32, BigInt(size), true);
     dv.setBigUint64(buf + 40, mtime, true);
     dv.setBigUint64(buf + 48, mtime, true);
+    dv.setBigUint64(buf + 56, mtime, true);
   };
   // fd 0-2 are the console until freopen (fd_renumber) puts a file of the program folder there.
   const isConsole = (fd: number) => fd >= 0 && fd <= 2 && !fs.has(fd);
@@ -337,12 +339,13 @@ export function createWasi(opts: WasiOptions): WasiHost {
       let waitMs = Infinity;
       let events = 0;
       for (let i = 0; i < count; i++) {
-        const sub = inPtr + i * 56;
+        // preview1 subscription: 48 bytes; userdata 0, tag 8, then the clock at 16 (id 16, timeout 24, precision 32, flags 40).
+        const sub = inPtr + i * 48;
         const type = dv.getUint8(sub + 8);
         if (type === EVENTTYPE_CLOCK) {
-          const id = dv.getUint32(sub + 24, true);
-          const timeout = dv.getBigUint64(sub + 32, true);
-          const flags = dv.getUint16(sub + 48, true);
+          const id = dv.getUint32(sub + 16, true);
+          const timeout = dv.getBigUint64(sub + 24, true);
+          const flags = dv.getUint16(sub + 40, true);
           const now = nowNs(id) ?? nowNs(CLOCK.MONOTONIC)!;
           const ns = flags & SUBSCRIPTION_CLOCK_ABSTIME ? timeout - now : timeout;
           waitMs = Math.min(waitMs, Math.max(0, Number(ns) / 1e6));
@@ -399,15 +402,26 @@ export function importObject(module: WebAssembly.Module, host: WasiHost): WebAss
   for (const imp of WebAssembly.Module.imports(module)) {
     if (imp.kind !== "function") continue;
     const table = (imports[imp.module] ??= Object.create(null));
-    const own = imp.module === "wasi_unstable" && Object.prototype.hasOwnProperty.call(host.imports, imp.name);
+    const own = imp.module === "wasi_snapshot_preview1" && Object.prototype.hasOwnProperty.call(host.imports, imp.name);
     table[imp.name] = own ? host.imports[imp.name] : () => E.NOSYS;
   }
   return imports;
 }
 
 /** Turns a WebAssembly trap into words a student can act on (wording differs per engine). */
-export function describeCrash(e: unknown): string {
+export function describeCrash(e: unknown, stderr = ""): string {
+  // 0.17.0 (C++ exceptions): with WebAssembly's exception instructions a throw that no catch matches
+  // leaves the program as a WebAssembly.Exception (std::terminate isn't reached; measured in Chromium
+  // and Node with wasi-sdk-33's libc++abi). Say so rather than "aborted".
+  if (typeof WebAssembly !== "undefined" && typeof WebAssembly.Exception === "function" && e instanceof WebAssembly.Exception) return "uncaught exception";
   const message = e instanceof Error ? e.message : String(e);
+  // A libc++abi that does reach std::terminate names the exception on stderr first, then aborts. The
+  // type ends at the first ": " (a type has "::" but never a colon and a space), then what() follows.
+  const uncaught = /^libc\+\+abi: terminating due to uncaught exception of type (.+)$/m.exec(stderr.trimEnd());
+  if (uncaught && /unreachable/i.test(message)) {
+    const [type, ...what] = uncaught[1].split(": ");
+    return `uncaught exception: ${type.trim()}${what.length ? `: ${what.join(": ").trim()}` : ""}`;
+  }
   // Chrome / Firefox / Safari: "Maximum call stack size exceeded" / "too much recursion",
   // "memory access out of bounds" / "Out of bounds memory access", "divide by zero" / "Division by zero".
   if (/call stack|too much recursion|stack overflow/i.test(message)) return "stack overflow (infinite or very deep recursion?)";

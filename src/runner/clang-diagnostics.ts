@@ -58,13 +58,40 @@ export function workspaceMap(paths: Iterable<WsPath>, mount = "/w"): PathMap {
   };
 }
 
-/** "<vector>" for /include/c++/v1/vector, "<stdio.h>" for /include/stdio.h. */
+/**
+ * "<vector>" for the C++ library's vector, "<stdio.h>" for the C library's or clang's own stdio.h
+ * (0.17.0 layout: wasi-sdk's exceptions build under /sysroot, clang's resource headers under /usr,
+ * ExecFlow's bits/stdc++.h under /ce/include).
+ */
 export function systemHeaderName(memfs: string): string {
   const norm = normalizeMemfsPath(memfs);
-  for (const dir of ["/include/c++/v1/", "/lib/clang/8.0.1/include/", "/include/"]) {
-    if (norm.startsWith(dir)) return `<${norm.slice(dir.length)}>`;
+  for (const dir of [
+    "/sysroot/include/wasm32-wasip1/eh/c++/v1/", "/sysroot/include/wasm32-wasip1/eh/", "/sysroot/include/wasm32-wasip1/",
+    "/sysroot/include/", "/usr/include/", "/ce/include/",
+  ]) {
+    if (!norm.startsWith(dir)) continue;
+    const rel = norm.slice(dir.length);
+    const header = libcxxHeaderOf(rel);
+    // libc++ keeps most of its code in internal parts no one includes: name the header a student
+    // wrote, and the part (a line number belongs to the part's file).
+    return header ? `<${header}> (${rel})` : `<${rel}>`;
   }
   return norm;
+}
+
+/** The standard headers whose code libc++ (22) splits into an internal "__<name>/" folder. */
+const LIBCXX_PARTS = new Set([
+  "algorithm", "atomic", "bit", "charconv", "chrono", "compare", "concepts", "coroutine", "exception", "expected",
+  "filesystem", "format", "functional", "ios", "iterator", "mdspan", "memory", "memory_resource", "mutex", "numeric",
+  "ostream", "random", "ranges", "string", "system_error", "thread", "tuple", "type_traits", "utility", "variant", "vector",
+]);
+
+/** "algorithm" for libc++'s "__algorithm/comp.h" (also "cmath" for "__math/...", "locale" for "__locale_dir/..."). */
+function libcxxHeaderOf(rel: string): string | null {
+  const m = /^__([a-z_]+)\//.exec(rel);
+  if (!m) return null;
+  const name = m[1] === "math" ? "cmath" : m[1] === "locale_dir" ? "locale" : m[1];
+  return name === "cmath" || name === "locale" || LIBCXX_PARTS.has(name) ? name : null;
 }
 
 /** Undoes raw_ostream::write_escaped: \\ \" \n \t and 3-digit octal bytes, then decodes UTF-8. */

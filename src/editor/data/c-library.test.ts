@@ -1,13 +1,13 @@
 /// <reference types="node" />
 // The generated C and C++ library data (scripts/gen-c-completions.mjs): its shape, the names that
 // must and must never appear, sorting, the sysroot it came from, and that a fresh run of the
-// generator gives the same bytes. The pack (public/clang/, fetched by `npm run build`'s prebuild)
-// is only needed for the checks against its manifest and the regeneration; the rest read the
-// committed file.
+// generator gives the same bytes. Since 0.17.0 the data is read from clang 8's sysroot, pinned in
+// the generator (not from the LLVM 22 pack, whose headers the generator doesn't read yet).
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { C_STANDARDS, CXX_STANDARDS } from "../../ui/settings";
+import { dataMode } from "../library-completion";
 
 interface CFunction { name: string; header: string; proto: string; modes?: string[] }
 interface CMacro { name: string; header: string; kind: string; value?: string; modes?: string[] }
@@ -23,17 +23,6 @@ interface Library {
 const FILE = "src/editor/data/c-library.json";
 const bytes = readFileSync(FILE);
 const data = JSON.parse(bytes.toString("utf8")) as Library;
-const packDir = existsSync("public/clang") ? readdirSync("public/clang").find((d) => existsSync(`public/clang/${d}/manifest.json`)) : undefined;
-/**
- * The tests that need the pack. Locally it may not be fetched yet, and they are skipped; CI fetches
- * it before the unit tests (.github/workflows/ci.yml), so there a missing pack fails them instead of
- * passing a hand-edited c-library.json unchecked (review finding F5, 2026-10-19).
- */
-const withPack = packDir || process.env.CI ? it : it.skip;
-const pack = () => {
-  expect(packDir, "the C/C++ pack in public/clang/ (node scripts/fetch-clang.mjs)").toBeDefined();
-  return packDir!;
-};
 const NEVER = ["gets", "tmpfile", "popen", "system"];
 const sorted = (list: string[]) => [...list].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
@@ -52,23 +41,22 @@ describe("c-library.json", () => {
     }
   });
 
-  it("records the sysroot SHA-256 that scripts/fetch-clang.mjs pins", () => {
-    const pinned = /"sysroot\.tar":\s*\{\s*sha256:\s*"([0-9a-f]{64})"/.exec(readFileSync("scripts/fetch-clang.mjs", "utf8"))?.[1];
+  it("records the sysroot it was read from: clang 8's, pinned in the generator (0.17.0 keeps this data)", () => {
+    const generator = readFileSync("scripts/gen-c-completions.mjs", "utf8");
+    const pinned = /sha256: "([0-9a-f]{64})"/.exec(generator)?.[1];
     expect(pinned).toBeDefined();
     expect(data.header.sysrootSha256).toBe(pinned);
+    expect(data.header.pack).toBe(/pack: "([0-9a-f]{8})"/.exec(generator)?.[1]);
   });
 
-  withPack("records the same SHA-256 as the pack's manifest.json", () => {
-    const manifest = JSON.parse(readFileSync(`public/clang/${pack()}/manifest.json`, "utf8"));
-    expect(data.header.sysrootSha256).toBe(manifest.files["sysroot.tar"].sha256);
-    expect(data.header.pack).toBe(manifest.version);
-  });
-
-  it("knows the same -std settings as the settings dialog", () => {
-    expect(data.header.modes.c).toEqual([...C_STANDARDS]);
-    expect(data.header.modes.cpp).toEqual([...CXX_STANDARDS]);
-    const all = new Set([...C_STANDARDS, ...CXX_STANDARDS] as string[]);
-    for (const entry of [...data.functions, ...data.macros]) for (const m of entry.modes ?? []) expect(all.has(m), `${entry.name}: ${m}`).toBe(true);
+  it("reads every -std setting the settings dialog offers as one of its own standards", () => {
+    const modes = new Set([...data.header.modes.c, ...data.header.modes.cpp]);
+    for (const std of [...C_STANDARDS, ...CXX_STANDARDS]) expect(modes.has(dataMode(std)), std).toBe(true);
+    // The newer settings read as the newest the data has.
+    expect(dataMode("c++20")).toBe("c++2a");
+    expect(dataMode("c++23")).toBe("c++2a");
+    expect(dataMode("gnu23")).toBe("gnu17");
+    for (const entry of [...data.functions, ...data.macros]) for (const m of entry.modes ?? []) expect(modes.has(m), `${entry.name}: ${m}`).toBe(true);
   });
 
   it("never offers a function that doesn't link in this C library", () => {
@@ -150,8 +138,8 @@ describe("c-library.json", () => {
     expect(bytes.includes(Buffer.from([92, 117]))).toBe(false); // no backslash-u escapes
   });
 
-  withPack("is exactly what the generator writes now", () => {
-    pack();
+  // The generator reads the pinned sysroot from node_modules/.cache, downloading it (checked) when it is missing.
+  it("is exactly what the generator writes now", () => {
     const fresh = execFileSync(process.execPath, ["scripts/gen-c-completions.mjs", "--stdout"], { timeout: 60_000, maxBuffer: 16 * 2 ** 20 });
     expect(Buffer.compare(fresh, bytes)).toBe(0);
   }, 60_000);

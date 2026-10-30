@@ -9,11 +9,11 @@
    "unit": "t/main.cpp",
    "object": "/o/lld-vtable-0.o",
    "ok": true,
-   "output": "\n"
+   "output": ""
   }
  ],
  "link": {
   "ok": false,
-  "output": "wasm-ld: error: /o/lld-vtable-0.o: undefined symbol: vtable for Shape\nwasm-ld: error: /o/lld-vtable-0.o: undefined symbol: Shape::area() const\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  "output": "wasm-ld: error: /o/lld-vtable-0.o: undefined symbol: vtable for Shape\nwasm-ld: error: /o/lld-vtable-0.o: undefined symbol: Shape::area() const\n"
  }
 }

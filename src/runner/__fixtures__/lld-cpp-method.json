@@ -10,11 +10,11 @@
    "unit": "u/main.cpp",
    "object": "/o/lld-cpp-method-0.o",
    "ok": true,
-   "output": "\n"
+   "output": ""
   }
  ],
  "link": {
   "ok": false,
-  "output": "wasm-ld: error: /o/lld-cpp-method-0.o: undefined symbol: ns::A::f(int) const\nwasm-ld: error: /o/lld-cpp-method-0.o: undefined symbol: int ns::g<int>(int)\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+  "output": "wasm-ld: error: /o/lld-cpp-method-0.o: undefined symbol: ns::A::f(int) const\nwasm-ld: error: /o/lld-cpp-method-0.o: undefined symbol: int ns::g<int>(int)\n"
  }
 }

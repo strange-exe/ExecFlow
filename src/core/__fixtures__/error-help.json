@@ -1,5 +1,5 @@
 {
- "about": "Diagnostics captured on 2026-10-23 by running each program through ExecFlow's own runners (src/runner/python-runner.ts with Pyodide 314.0.7, src/runner/cpp-workers.ts with clang and wasm-ld 8 from binji/wasm-clang 648c4a89) in Chromium, with the app's default build settings (gnu11, c++17, -O2, -Wall). Keys with @firefox or @webkit are runs whose words differed in that engine. Never edited by hand.",
+ "about": "Diagnostics captured on 2026-10-23 by running each program through ExecFlow's own runners (src/runner/python-runner.ts with Pyodide 314.0.7, src/runner/cpp-workers.ts with LLVM 22 (YoWASP clang 22.0.0-git20542-10) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) and wasi-sdk-33, C/C++ cases re-captured on 2026-10-30 for 0.17.0) in Chromium, with the app's default build settings (gnu11, c++17, -O2, -Wall). Keys with @firefox or @webkit are runs whose words differed in that engine. Never edited by hand.",
  "cases": {
   "py-name-suggest": {
    "files": {
@@ -806,7 +806,7 @@
      "severity": "error",
      "message": "use of undeclared identifier 'cout'; did you mean 'std::cout'?",
      "notes": [
-      "<iostream>:54: 'std::cout' declared here"
+      "<iostream>:57: 'std::cout' declared here"
      ],
      "path": "main.cpp",
      "line": 3
@@ -816,7 +816,7 @@
      "severity": "error",
      "message": "use of undeclared identifier 'endl'; did you mean 'std::endl'?",
      "notes": [
-      "<ostream>:1000: 'std::endl' declared here"
+      "<ostream> (__ostream/basic_ostream.h):542: 'std::endl' declared here"
      ],
      "path": "main.cpp",
      "line": 3
@@ -835,7 +835,7 @@
      "severity": "error",
      "message": "unknown type name 'string'; did you mean 'std::string'?",
      "notes": [
-      "<iosfwd>:211: 'std::string' declared here"
+      "<__fwd/string.h>:45: 'std::string' declared here"
      ],
      "path": "main.cpp",
      "line": 3
@@ -846,13 +846,14 @@
    "files": {
     "main.c": "int main(void) {\n  printf(\"Hi\\n\");\n  return 0;\n}\n"
    },
-   "status": "ok",
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
+     "severity": "error",
      "code": "-Wimplicit-function-declaration",
-     "message": "implicitly declaring library function 'printf' with type 'int (const char *, ...)'",
+     "message": "call to undeclared library function 'printf' with type 'int (const char *, ...)'; ISO C99 and later do not support implicit function declarations",
      "notes": [
       "include the header <stdio.h> or explicitly provide a declaration for 'printf'"
      ],
@@ -865,13 +866,14 @@
    "files": {
     "main.c": "#include <stdio.h>\nint main(void) {\n  printf(\"%f\\n\", sqrt(2.0));\n  return 0;\n}\n"
    },
-   "status": "ok",
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
+     "severity": "error",
      "code": "-Wimplicit-function-declaration",
-     "message": "implicitly declaring library function 'sqrt' with type 'double (double)'",
+     "message": "call to undeclared library function 'sqrt' with type 'double (double)'; ISO C99 and later do not support implicit function declarations",
      "notes": [
       "include the header <math.h> or explicitly provide a declaration for 'sqrt'"
      ],
@@ -884,13 +886,14 @@
    "files": {
     "main.c": "#include <stdio.h>\nint main(void) {\n  printf(\"%d\\n\", twice(4));\n  return 0;\n}\nint twice(int x) { return 2 * x; }\n"
    },
-   "status": "ok",
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
+     "severity": "error",
      "code": "-Wimplicit-function-declaration",
-     "message": "implicit declaration of function 'twice' is invalid in C99",
+     "message": "call to undeclared function 'twice'; ISO C99 and later do not support implicit function declarations",
      "path": "main.c",
      "line": 3
     }
@@ -1012,7 +1015,7 @@
     {
      "source": "clang",
      "severity": "warning",
-     "code": "-Wformat",
+     "code": "-Wformat-insufficient-args",
      "message": "more '%' conversions than data arguments",
      "path": "main.c",
      "line": 4
@@ -1063,7 +1066,7 @@
    },
    "stdin": "100000000\n",
    "status": "crashed",
-   "runMessage": "The program crashed: invalid memory access (like a segmentation fault: a bad pointer or array index).",
+   "runMessage": "The program used memory it doesn't own, like a segmentation fault: often a bad pointer or an array index out of range.",
    "diagnostics": [
     {
      "source": "runtime",
@@ -1079,7 +1082,7 @@
     "main.c": "#include <stdio.h>\nint main(void) {\n  int *p = NULL;\n  *p = 5;\n  printf(\"%d\\n\", *p);\n  return 0;\n}\n"
    },
    "status": "crashed",
-   "runMessage": "The program crashed: aborted (abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with).",
+   "runMessage": "The program stopped itself: abort() was called, an assert failed, or a function is defined with other parameter types than it was declared with.",
    "diagnostics": [
     {
      "source": "runtime",
@@ -1094,8 +1097,8 @@
    "files": {
     "main.c": "#include <stdio.h>\nint depth(int n) {\n  char buf[64];\n  sprintf(buf, \"%d\", n);\n  return depth(n + 1) + buf[0];\n}\nint main(void) {\n  printf(\"%d\\n\", depth(0));\n  return 0;\n}\n"
    },
-   "status": "crashed",
-   "runMessage": "The program crashed: stack overflow (infinite or very deep recursion?).",
+   "status": "timeout",
+   "runMessage": "The program ran for longer than 15 s and was stopped (time spent waiting for input doesn't count).",
    "diagnostics": [
     {
      "source": "clang",
@@ -1104,13 +1107,6 @@
      "message": "all paths through this function will call itself",
      "path": "main.c",
      "line": 2
-    },
-    {
-     "source": "runtime",
-     "severity": "error",
-     "message": "The program crashed: stack overflow (infinite or very deep recursion?)",
-     "path": null,
-     "line": 1
     }
    ]
   },
@@ -1120,7 +1116,7 @@
    },
    "stdin": "10 0\n",
    "status": "crashed",
-   "runMessage": "The program crashed: integer division by zero.",
+   "runMessage": "The program divided a whole number by zero.",
    "diagnostics": [
     {
      "source": "runtime",
@@ -1141,7 +1137,7 @@
      "source": "clang",
      "severity": "warning",
      "code": "-Wreturn-type",
-     "message": "control may reach end of non-void function",
+     "message": "non-void function does not return a value in all control paths",
      "path": "main.c",
      "line": 4
     }
@@ -1165,7 +1161,7 @@
      "source": "clang",
      "severity": "warning",
      "code": "-Wreturn-type",
-     "message": "control reaches end of non-void function",
+     "message": "non-void function does not return a value",
      "path": "main.c",
      "line": 3
     }
@@ -1182,7 +1178,7 @@
      "source": "clang",
      "severity": "warning",
      "code": "-Wreturn-type",
-     "message": "control may reach end of non-void function",
+     "message": "non-void function does not return a value in all control paths",
      "path": "main.cpp",
      "line": 3
     }
@@ -1192,11 +1188,12 @@
    "files": {
     "main.c": "int main(void) {\n  int x = 1;\n  double *p = &x;\n  return (int)*p;\n}\n"
    },
-   "status": "ok",
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
+     "severity": "error",
      "code": "-Wincompatible-pointer-types",
      "message": "incompatible pointer types initializing 'double *' with an expression of type 'int *'",
      "path": "main.c",
@@ -1208,13 +1205,14 @@
    "files": {
     "main.c": "void fill(int *a) { a[0] = 1; }\nint main(void) {\n  double d[3];\n  fill(d);\n  return 0;\n}\n"
    },
-   "status": "ok",
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
+     "severity": "error",
      "code": "-Wincompatible-pointer-types",
-     "message": "incompatible pointer types passing 'double [3]' to parameter of type 'int *'",
+     "message": "incompatible pointer types passing 'double[3]' to parameter of type 'int *'",
      "notes": [
       "passing argument to parameter 'a' here"
      ],
@@ -1227,11 +1225,12 @@
    "files": {
     "main.c": "int main(void) {\n  int x = 5;\n  int *p = x;\n  return *p;\n}\n"
    },
-   "status": "ok",
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
+     "severity": "error",
      "code": "-Wint-conversion",
      "message": "incompatible integer to pointer conversion initializing 'int *' with an expression of type 'int'; take the address with &",
      "path": "main.c",
@@ -1265,10 +1264,7 @@
     {
      "source": "clang",
      "severity": "error",
-     "message": "no member named 'lenght' in 'std::__2::basic_string<char>'; did you mean 'length'?",
-     "notes": [
-      "<string>:955: 'length' declared here"
-     ],
+     "message": "no member named 'lenght' in 'std::string'",
      "path": "main.cpp",
      "line": 4
     }
@@ -1343,20 +1339,17 @@
     "main.c": "#include <stdio.h>\nint main(void) {\n  prinft(\"Hi\\n\");\n  return 0;\n}\n"
    },
    "status": "build-failed",
-   "runMessage": "The program didn't link: 1 error in main.c.",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
    "diagnostics": [
     {
      "source": "clang",
-     "severity": "warning",
-     "code": "-Wimplicit-function-declaration",
-     "message": "implicit declaration of function 'prinft' is invalid in C99",
-     "path": "main.c",
-     "line": 3
-    },
-    {
-     "source": "wasm-ld",
      "severity": "error",
-     "message": "undefined symbol: prinft",
+     "code": "-Wimplicit-function-declaration",
+     "message": "call to undeclared function 'prinft'; ISO C99 and later do not support implicit function declarations",
+     "notes": [
+      "did you mean 'printf'?",
+      "<stdio.h>:126: 'printf' declared here"
+     ],
      "path": "main.c",
      "line": 3
     }
@@ -1393,7 +1386,7 @@
      "severity": "error",
      "message": "no matching function for call to 'twice'",
      "notes": [
-      "candidate function not viable: no known conversion from 'std::string' (aka 'basic_string<char, char_traits<char>, allocator<char> >') to 'int' for 1st argument"
+      "candidate function not viable: no known conversion from 'std::string' (aka 'basic_string<char>') to 'int' for 1st argument"
      ],
      "path": "main.cpp",
      "line": 5
@@ -1469,13 +1462,61 @@
      "severity": "error",
      "message": "no matching function for call to 'max'",
      "notes": [
-      "<algorithm>:2529: candidate template ignored: deduced conflicting types for parameter '_Tp' ('int' vs. 'double')",
-      "<algorithm>:2539: candidate template ignored: could not match 'initializer_list<type-parameter-0-0>' against 'int'",
-      "<algorithm>:2521: candidate function template not viable: requires 3 arguments, but 2 were provided",
-      "<algorithm>:2547: candidate function template not viable: requires single argument '__t', but 2 arguments were provided"
+      "<algorithm> (__algorithm/max.h):35: candidate template ignored: deduced conflicting types for parameter '_Tp' ('int' vs. 'double')",
+      "<algorithm> (__algorithm/max.h):43: candidate template ignored: could not match 'initializer_list<_Tp>' against 'int'",
+      "<algorithm> (__algorithm/max.h):48: candidate function template not viable: requires single argument '__t', but 2 arguments were provided",
+      "<algorithm> (__algorithm/max.h):29: candidate function template not viable: requires 3 arguments, but 2 were provided"
      ],
      "path": "main.cpp",
      "line": 4
+    }
+   ]
+  },
+  "c-stack-deep": {
+   "files": {
+    "main.c": "#include <stdio.h>\nint depth(int n) {\n  if (n == 0) return 0;\n  return depth(n - 1) * 3 % 1000003 + n % 7;\n}\nint main(void) {\n  printf(\"%d\\n\", depth(100000000));\n  return 0;\n}\n"
+   },
+   "status": "crashed",
+   "runMessage": "The program ran out of stack memory: a function keeps calling itself (infinite or very deep recursion).",
+   "diagnostics": [
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: stack overflow (infinite or very deep recursion?)",
+     "path": null,
+     "line": 1
+    }
+   ]
+  },
+  "c-member-typo": {
+   "files": {
+    "main.c": "#include <stdio.h>\nstruct list { int length; };\nint main(void) {\n  struct list l = { 3 };\n  printf(\"%d\\n\", l.lenght);\n  return 0;\n}\n"
+   },
+   "status": "build-failed",
+   "runMessage": "The program didn't compile: 1 error in main.c.",
+   "diagnostics": [
+    {
+     "source": "clang",
+     "severity": "error",
+     "message": "no member named 'lenght' in 'struct list'",
+     "path": "main.c",
+     "line": 5
+    }
+   ]
+  },
+  "cpp-uncaught": {
+   "files": {
+    "main.cpp": "#include <iostream>\n#include <stdexcept>\nint divide(int a, int b) {\n  if (b == 0) throw std::invalid_argument(\"division by zero\");\n  return a / b;\n}\nint main() {\n  std::cout << divide(4, 2) << \"\\n\";\n  std::cout << divide(1, 0) << \"\\n\";\n}\n"
+   },
+   "status": "crashed",
+   "runMessage": "The program threw an exception and no catch caught it.",
+   "diagnostics": [
+    {
+     "source": "runtime",
+     "severity": "error",
+     "message": "The program crashed: uncaught exception",
+     "path": null,
+     "line": 1
     }
    ]
   },

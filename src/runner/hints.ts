@@ -74,7 +74,7 @@ const RULES: [string, Rule][] = [
     };
   }],
   ["gets", (input) => {
-    // gets() was removed from C in C11 (it can't be used safely); the linker reports "undefined symbol: gets".
+    // gets() was removed from C in C11 (it can't be used safely); clang 22 reports "call to undeclared function 'gets'".
     const found = findIn(input.sources, /\bgets\s*\(/);
     return found && {
       ...found,
@@ -102,20 +102,12 @@ const RULES: [string, Rule][] = [
         'Write scanf(" %c", ...) with a space before %c to skip it.',
     };
   }],
-  ["exceptions", (input) => {
-    const d = input.diagnostics.find((x) => isClang(x) && /with exceptions disabled/.test(x.message));
-    return d && {
-      loc: fromTool(d),
-      text: "Note: C++ exceptions (try / throw / catch) aren't supported by this in-browser compiler. " +
-        "Report problems with return values (or std::optional) instead.",
-    };
-  }],
   ["backend", (input) => {
     const d = input.diagnostics.find((x) => isClang(x) && /error in backend/.test(x.message));
     return d && {
       loc: fromTool(d),
-      text: "Note: the compiler couldn't turn this code into WebAssembly. thread_local variables and some " +
-        "low-level features aren't supported in the browser.",
+      text: "Note: the compiler couldn't turn this code into WebAssembly. Some low-level features (threads, " +
+        "inline assembly) aren't supported in the browser.",
     };
   }],
   ["cpp-header-in-c", (input) => {

@@ -11,7 +11,7 @@
    "unit": "c/main.c",
    "object": "/o/nested-include-0.o",
    "ok": false,
-   "output": "In file included from /w/c/main.c:1:\nIn file included from /w/c/inc/outer.h:1:\n/w/c/inc/../lib/inner.h:1:33: error: use of undeclared identifier 'undefined_name'\n static int inner(void) { return undefined_name; }\n                                 ^\n1 error generated.\n\u001b[91mError: process exited with code 1.\u001b[0m\n"
+   "output": "In file included from /w/c/main.c:1:\nIn file included from /w/c/inc/outer.h:1:\n/w/c/inc/../lib/inner.h:1:33:{1:33-1:47}: error: use of undeclared identifier 'undefined_name'\n static int inner(void) { return undefined_name; }\n                                 ^~~~~~~~~~~~~~\n1 error generated.\n"
   }
  ]
 }

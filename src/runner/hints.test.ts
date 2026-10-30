@@ -83,16 +83,25 @@ describe("hints for multi-file programs", () => {
 
   it("explains a function that is declared but never defined", () => {
     const hints = hintsFor("lld-undefined-c");
-    expect(hints.map((h) => h.code)).toEqual(["gets", "never-defined"]);
-    expect(hints[1]).toMatchObject({ path: "n/main.c", line: 2, col: 4 });
-    expect(hints[1].message).toContain("helper is declared but never defined");
+    expect(hints.map((h) => h.code)).toEqual(["never-defined"]);
+    expect(hints[0].path).toBe("n/main.c");
+    expect(hints[0].message).toMatch(/(twice|helper) is declared but never defined/);
   });
 
-  it("explains missing vtables, missing main, exceptions and the WebAssembly backend", () => {
+  it("explains gets(), which the C library no longer declares", () => {
+    // clang 22: "call to undeclared function 'gets'" at compile time (clang 8 failed at the link).
+    expect(codes("warnings-notes-fixits")).toContain("gets");
+  });
+
+  it("explains missing vtables, missing main and the WebAssembly backend; exceptions need no note since 0.17.0", () => {
     expect(codes("lld-vtable")).toContain("vtable");
-    expect(codes("lld-no-main")).toEqual(["no-main"]);
-    expect(codes("cpp-exceptions")).toEqual(["exceptions"]);
-    expect(codes("backend-thread-local")).toEqual(["backend"]);
+    // The worker's own "undefined symbol: main" (clang.worker.ts, wasm-object.ts).
+    const noMain: ToolDiagnostic[] = [{ path: null, line: 1, unit: "utf16", base: 0, severity: "error", message: "undefined symbol: main", source: "wasm-ld" }];
+    expect(one("int helper(void) { return 1; }", "build-failed", noMain).map((h) => h.code)).toEqual(["no-main"]);
+    // try / throw / catch compile now: nothing to explain.
+    expect(codes("cpp-exceptions")).toEqual([]);
+    const backend: ToolDiagnostic[] = [{ path: null, line: 1, unit: "utf8-byte", base: 1, severity: "error", message: "error in backend: Cannot select: x", source: "clang" }];
+    expect(one("int main(void) { return 0; }", "build-failed", backend).map((h) => h.code)).toEqual(["backend"]);
   });
 
   it("explains a C++ header in a C file", () => {

@@ -2,8 +2,10 @@
 // on read, so an edited or old entry can't put the app in a bad state.
 import type { BuildOptions } from "../core/types";
 
-export const C_STANDARDS = ["c99", "c11", "c17", "gnu11", "gnu17"] as const;
-export const CXX_STANDARDS = ["c++11", "c++14", "c++17", "c++2a"] as const;
+export const C_STANDARDS = ["c99", "c11", "c17", "c23", "gnu11", "gnu17", "gnu23"] as const;
+// 0.17.0 (clang 22): C++20 in full, and C++23. "c++2a", saved by earlier versions, reads as c++20.
+export const CXX_STANDARDS = ["c++11", "c++14", "c++17", "c++20", "c++23"] as const;
+const CXX_RENAMED: Record<string, (typeof CXX_STANDARDS)[number]> = { "c++2a": "c++20" };
 export const OPT_LEVELS = ["0", "1", "2"] as const;
 
 export interface Settings {
@@ -75,7 +77,7 @@ export function cleanSettings(input: unknown): Settings {
     timeLimitS: clampInt(d.timeLimitS, LIMITS.timeLimitS, s.timeLimitS),
     outputLimitK: clampInt(d.outputLimitK, LIMITS.outputLimitK, s.outputLimitK),
     cStd: oneOf(C_STANDARDS, d.cStd, s.cStd),
-    cxxStd: oneOf(CXX_STANDARDS, d.cxxStd, s.cxxStd),
+    cxxStd: oneOf(CXX_STANDARDS, (typeof d.cxxStd === "string" && CXX_RENAMED[d.cxxStd]) || d.cxxStd, s.cxxStd),
     opt: oneOf(OPT_LEVELS, d.opt, s.opt),
     wall: bool(d.wall, s.wall),
     wextra: bool(d.wextra, s.wextra),

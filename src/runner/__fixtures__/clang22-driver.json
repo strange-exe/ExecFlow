@@ -1,0 +1,74 @@
+{
+  "llvm": "clang version 22.1.0 (https://codeberg.org/YoWASP/llvm-project 9560ae0f2cc440e4fc891fddbc119da6f56daa59)",
+  "probes": {
+    "c": {
+      "args": [
+        "clang",
+        "-###",
+        "--target=wasm32-wasip1",
+        "--sysroot=/sysroot",
+        "-fno-color-diagnostics",
+        "-fdiagnostics-print-source-range-info",
+        "-fdiagnostics-show-option",
+        "-fdiagnostics-parseable-fixits",
+        "-fmessage-length=0",
+        "-ferror-limit=50",
+        "-fno-diagnostics-show-line-numbers",
+        "-isystem",
+        "/ce/include",
+        "-c",
+        "/ce/probe.c",
+        "-o",
+        "/ce/probe.o"
+      ],
+      "output": "clang version 22.1.0 (https://codeberg.org/YoWASP/llvm-project 9560ae0f2cc440e4fc891fddbc119da6f56daa59)\nTarget: wasm32-unknown-wasip1\nThread model: posix\nInstalledDir: \nBuild config: +assertions\n (in-process)\n \"\" \"clang\" \"-cc1\" \"-triple\" \"wasm32-unknown-wasip1\" \"-emit-obj\" \"-disable-free\" \"-clear-ast-before-backend\" \"-main-file-name\" \"probe.c\" \"-mrelocation-model\" \"static\" \"-mframe-pointer=none\" \"-ffp-contract=on\" \"-fno-rounding-math\" \"-mconstructor-aliases\" \"-target-cpu\" \"generic\" \"-fvisibility=hidden\" \"-debugger-tuning=gdb\" \"-fdebug-compilation-dir=/\" \"-fcoverage-compilation-dir=/\" \"-resource-dir\" \"/usr\" \"-isystem\" \"/ce/include\" \"-isysroot\" \"/sysroot\" \"-internal-isystem\" \"/usr/include\" \"-internal-isystem\" \"/sysroot/include/wasm32-wasip1\" \"-internal-isystem\" \"/sysroot/include\" \"-ferror-limit\" \"50\" \"-fdiagnostics-print-source-range-info\" \"-fdiagnostics-parseable-fixits\" \"-fgnuc-version=4.2.1\" \"-fskip-odr-check-in-gmf\" \"-fno-diagnostics-show-line-numbers\" \"-o\" \"/ce/probe.o\" \"-x\" \"c\" \"/ce/probe.c\"\n"
+    },
+    "cpp": {
+      "args": [
+        "clang++",
+        "-###",
+        "--target=wasm32-wasip1",
+        "--sysroot=/sysroot",
+        "-fwasm-exceptions",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-nostdinc++",
+        "-isystem",
+        "/sysroot/include/wasm32-wasip1/eh/c++/v1",
+        "-isystem",
+        "/sysroot/include/wasm32-wasip1/eh",
+        "-fno-color-diagnostics",
+        "-fdiagnostics-print-source-range-info",
+        "-fdiagnostics-show-option",
+        "-fdiagnostics-parseable-fixits",
+        "-fmessage-length=0",
+        "-ferror-limit=50",
+        "-fno-diagnostics-show-line-numbers",
+        "-isystem",
+        "/ce/include",
+        "-c",
+        "/ce/probe.cpp",
+        "-o",
+        "/ce/probe.o"
+      ],
+      "output": "clang version 22.1.0 (https://codeberg.org/YoWASP/llvm-project 9560ae0f2cc440e4fc891fddbc119da6f56daa59)\nTarget: wasm32-unknown-wasip1\nThread model: posix\nInstalledDir: \nBuild config: +assertions\n (in-process)\n \"\" \"clang++\" \"-cc1\" \"-triple\" \"wasm32-unknown-wasip1\" \"-emit-obj\" \"-disable-free\" \"-clear-ast-before-backend\" \"-main-file-name\" \"probe.cpp\" \"-mrelocation-model\" \"static\" \"-mframe-pointer=none\" \"-ffp-contract=on\" \"-fno-rounding-math\" \"-mconstructor-aliases\" \"-target-feature\" \"+exception-handling\" \"-target-feature\" \"+multivalue\" \"-target-feature\" \"+reference-types\" \"-exception-model=wasm\" \"-mllvm\" \"-wasm-enable-eh\" \"-target-cpu\" \"generic\" \"-fvisibility=hidden\" \"-debugger-tuning=gdb\" \"-fdebug-compilation-dir=/\" \"-fcoverage-compilation-dir=/\" \"-nostdinc++\" \"-resource-dir\" \"/usr\" \"-isystem\" \"/sysroot/include/wasm32-wasip1/eh/c++/v1\" \"-isystem\" \"/sysroot/include/wasm32-wasip1/eh\" \"-isystem\" \"/ce/include\" \"-isysroot\" \"/sysroot\" \"-internal-isystem\" \"/usr/include\" \"-internal-isystem\" \"/sysroot/include/wasm32-wasip1\" \"-internal-isystem\" \"/sysroot/include\" \"-fdeprecated-macro\" \"-ferror-limit\" \"50\" \"-fdiagnostics-print-source-range-info\" \"-fdiagnostics-parseable-fixits\" \"-fgnuc-version=4.2.1\" \"-fskip-odr-check-in-gmf\" \"-fcxx-exceptions\" \"-fexceptions\" \"-exception-model=wasm\" \"-fno-diagnostics-show-line-numbers\" \"-mllvm\" \"-wasm-use-legacy-eh=false\" \"-o\" \"/ce/probe.o\" \"-x\" \"c++\" \"/ce/probe.cpp\"\n"
+    },
+    "link": {
+      "args": [
+        "clang++",
+        "-###",
+        "--target=wasm32-wasip1",
+        "--sysroot=/sysroot",
+        "-fwasm-exceptions",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-L/sysroot/lib/wasm32-wasip1/eh",
+        "/ce/probe.o",
+        "-lunwind",
+        "-o",
+        "/ce/probe.wasm"
+      ],
+      "output": "clang version 22.1.0 (https://codeberg.org/YoWASP/llvm-project 9560ae0f2cc440e4fc891fddbc119da6f56daa59)\nTarget: wasm32-unknown-wasip1\nThread model: posix\nInstalledDir: \nBuild config: +assertions\nclang++: warning: argument unused during compilation: '-mllvm -wasm-use-legacy-eh=false' [-Wunused-command-line-argument]\n \"wasm-ld\" \"-m\" \"wasm32\" \"-L/sysroot/lib/wasm32-wasip1/eh\" \"-L/usr/lib/wasm32-unknown-wasip1\" \"-L/sysroot/lib/wasm32-wasip1\" \"/sysroot/lib/wasm32-wasip1/crt1-command.o\" \"/ce/probe.o\" \"-lunwind\" \"-lc++\" \"-lc++abi\" \"-lc\" \"/usr/lib/wasm32-unknown-wasip1/libclang_rt.builtins.a\" \"-o\" \"/ce/probe.wasm\"\n"
+    }
+  }
+}

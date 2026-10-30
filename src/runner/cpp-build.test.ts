@@ -1,41 +1,49 @@
+/// <reference types="node" />
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { WorkspaceFile } from "../core/types";
-import { checkBuildOptions, cOnly, DEFAULT_BUILD, findQuotedInclude, includeClosure, semanticArgs, unitArgs, wantsPch } from "./cpp-build";
+import { cc1Template, parseDriverJobs, PROBE } from "./clang-jobs";
+import { checkBuildOptions, DEFAULT_BUILD, findQuotedInclude, includeClosure, semanticArgs, unitArgs, wantsPch } from "./cpp-build";
 import { definesMain, includesBits, quotedIncludes, stripComments, stripCommentsAndStrings } from "./cpp-scan";
 import { normalizeMemfsPath, parseDepfile } from "./cpp-depfile";
 
-const COMMON = ["-disable-free", "-isysroot", "/", "-internal-isystem", "/include/c++/v1", "-internal-isystem", "/include", "-internal-isystem", "/lib/clang/8.0.1/include", "-ferror-limit", "19", "-fmessage-length", "80"];
+// The real driver's templates (clang 22, captured in __fixtures__/clang22-driver.json).
+const driver = JSON.parse(readFileSync("src/runner/__fixtures__/clang22-driver.json", "utf8")) as { probes: Record<"c" | "cpp", { output: string }> };
+const COMMON_C = cc1Template(parseDriverJobs(driver.probes.c.output), PROBE.c);
+const COMMON = cc1Template(parseDriverJobs(driver.probes.cpp.output), PROBE.cpp);
 const map = (spec: Record<string, string>) => new Map<string, WorkspaceFile>(Object.entries(spec).map(([path, text]) => [path, { path, text }]));
 
 describe("compiler arguments", () => {
-  it("compiles a C unit without libc++'s headers, with diagnostics made parseable", () => {
-    const args = unitArgs({ unit: { path: "lab/main.c", lang: "c" }, root: "lab", common: COMMON, options: DEFAULT_BUILD, id: "abc", pch: "/pch/k.pch" });
-    expect(args).not.toContain("/include/c++/v1");
+  it("compiles a C unit from the C template, with diagnostics made parseable", () => {
+    const args = unitArgs({ unit: { path: "lab/main.c", lang: "c" }, root: "lab", common: COMMON_C, options: DEFAULT_BUILD, id: "abc", pch: "/pch/k.pch" });
+    expect(args.some((a) => a.includes("c++/v1"))).toBe(false);
     expect(args).not.toContain("-include-pch"); // never for C
     expect(args.slice(0, 2)).toEqual(["-cc1", "-emit-obj"]);
     expect(args.join(" ")).toContain("-std=gnu11 -O2 -Wall -iquote /w/lab -dependency-file /d/abc.d -MT obj -o /o/abc.o -x c /w/lab/main.c");
-    // The later -fmessage-length / -ferror-limit win over binji's 80 and 19.
-    expect(args.lastIndexOf("-fmessage-length")).toBeGreaterThan(args.indexOf("-fmessage-length"));
-    expect(args[args.lastIndexOf("-fmessage-length") + 1]).toBe("0");
-    // A C tentative definition ("int count;") is a common symbol, which crashes clang 8 for wasm.
-    expect(args).toContain("-fno-common");
+    // Parseable diagnostics, in cc1's spelling from the driver (no line wrapping is cc1's default): up to 50 errors.
+    expect(args.filter((a) => a === "-ferror-limit")).toHaveLength(1);
+    expect(args[args.indexOf("-ferror-limit") + 1]).toBe("50");
+    expect(args).toContain("-fdiagnostics-parseable-fixits");
+    expect(args).toContain("-fdiagnostics-print-source-range-info");
   });
 
-  it("gives a C++ unit the precompiled header when asked", () => {
+  it("gives a C++ unit exceptions and, when asked, the precompiled header", () => {
     const args = unitArgs({ unit: { path: "x.cpp", lang: "cpp" }, root: "", common: COMMON, options: DEFAULT_BUILD, id: "id", pch: "/pch/k.pch" });
+    expect(args).toContain("-fcxx-exceptions");
+    expect(args).toContain("-exception-model=wasm");
     expect(args.join(" ")).toContain("-std=c++17 -O2 -Wall -iquote /w -include-pch /pch/k.pch");
     expect(args.slice(-3)).toEqual(["-x", "c++", "/w/x.cpp"]);
-    expect(cOnly(COMMON)).toEqual(COMMON.filter((a, i) => !(a === "-internal-isystem" && COMMON[i + 1] === "/include/c++/v1") && a !== "/include/c++/v1"));
     // The PCH key's input: exactly what it was with the old empty defines list, so cached PCHs stay valid.
     expect(semanticArgs("cpp", DEFAULT_BUILD)).toEqual(["-std=c++17", "-O2"]);
     expect(semanticArgs("c", DEFAULT_BUILD)).toEqual(["-std=gnu11", "-O2"]);
   });
 
-  it("keeps only options clang 8 accepts, and says what it changed", () => {
-    const r = checkBuildOptions({ cStd: "c99", cxxStd: "c++20", opt: "1", warnings: ["-Wall", "-Wextra", "-o", "x"] });
-    expect(r.options).toEqual({ cStd: "c99", cxxStd: "c++2a", opt: "1", warnings: ["-Wall", "-Wextra"] });
+  it("keeps only options clang 22 accepts, reads the old spellings as today's, and says what it changed", () => {
+    const r = checkBuildOptions({ cStd: "c99", cxxStd: "c++2a", opt: "1", warnings: ["-Wall", "-Wextra", "-o", "x"] });
+    expect(r.options).toEqual({ cStd: "c99", cxxStd: "c++20", opt: "1", warnings: ["-Wall", "-Wextra"] });
     expect(r.problems).toEqual(['the warning option "-o" was left out', 'the warning option "x" was left out']);
-    const bad = checkBuildOptions({ cStd: "c23", cxxStd: "c++26", opt: "3" as never, warnings: [] });
+    expect(checkBuildOptions({ ...DEFAULT_BUILD, cStd: "c2x", cxxStd: "c++23" }).options).toMatchObject({ cStd: "c23", cxxStd: "c++23" });
+    const bad = checkBuildOptions({ cStd: "c29", cxxStd: "c++29", opt: "3" as never, warnings: [] });
     expect(bad.options).toMatchObject({ cStd: "gnu11", cxxStd: "c++17", opt: "2" });
     expect(bad.problems).toHaveLength(3);
     expect(checkBuildOptions(undefined)).toEqual({ options: DEFAULT_BUILD, problems: [] });

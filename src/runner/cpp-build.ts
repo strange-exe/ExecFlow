@@ -11,20 +11,23 @@ import { memfsPath, quoteDir, type BuildUnit } from "./program";
  */
 export const DEFAULT_BUILD: BuildOptions = { cStd: "gnu11", cxxStd: "c++17", opt: "2", warnings: ["-Wall"] };
 
-// clang 8 accepts these (LangStandards.def at llvmorg-8.0.1); "c++20" is spelled c++2a there.
-const C_STDS = new Set(["c89", "c90", "c99", "c11", "c17", "c18", "gnu89", "gnu90", "gnu99", "gnu11", "gnu17", "gnu18"]);
-const CXX_STDS = new Set(["c++98", "c++03", "c++11", "c++14", "c++17", "c++2a", "gnu++98", "gnu++03", "gnu++11", "gnu++14", "gnu++17", "gnu++2a"]);
-const CXX_ALIASES: Record<string, string> = { "c++20": "c++2a", "gnu++20": "gnu++2a", "c++1z": "c++17", "c++1y": "c++14", "c++0x": "c++11" };
+// clang 22 accepts these (clang/include/clang/Basic/LangStandards.def at llvmorg-22); the old
+// spellings (c++2a from settings saved before 0.17.0, c2x ...) are read as their names today.
+const C_STDS = new Set(["c89", "c90", "c99", "c11", "c17", "c18", "c23", "gnu89", "gnu90", "gnu99", "gnu11", "gnu17", "gnu18", "gnu23"]);
+const CXX_STDS = new Set(["c++98", "c++03", "c++11", "c++14", "c++17", "c++20", "c++23", "gnu++98", "gnu++03", "gnu++11", "gnu++14", "gnu++17", "gnu++20", "gnu++23"]);
+const CXX_ALIASES: Record<string, string> = { "c++2a": "c++20", "gnu++2a": "gnu++20", "c++2b": "c++23", "gnu++2b": "gnu++23", "c++1z": "c++17", "c++1y": "c++14", "c++0x": "c++11" };
+const C_ALIASES: Record<string, string> = { c2x: "c23", gnu2x: "gnu23" };
 const WARNING = /^(?:-W[A-Za-z0-9][A-Za-z0-9=+,_-]*|-w|-pedantic|-pedantic-errors)$/;
 
 /**
- * Build options with anything clang 8 wouldn't accept replaced by the default, and why. Only the
+ * Build options with anything clang wouldn't accept replaced by the default, and why. Only the
  * known fields are read: a request from an older page that still carries `defines` builds without them.
  */
 export function checkBuildOptions(options: BuildOptions | undefined): { options: BuildOptions; problems: string[] } {
   if (!options) return { options: DEFAULT_BUILD, problems: [] };
   const problems: string[] = [];
-  const cStd = options.cStd.trim().toLowerCase().replace(/^-std=/, "");
+  const rawC = options.cStd.trim().toLowerCase().replace(/^-std=/, "");
+  const cStd = C_ALIASES[rawC] ?? rawC;
   const rawCxx = options.cxxStd.trim().toLowerCase().replace(/^-std=/, "");
   const cxxStd = CXX_ALIASES[rawCxx] ?? rawCxx;
   const opt = options.opt;
@@ -41,17 +44,6 @@ export function checkBuildOptions(options: BuildOptions | undefined): { options:
   return { options: out, problems };
 }
 
-/** Plain diagnostic output: one parseable line per message, plus fix-its (see clang-diagnostics.ts). */
-export const DIAG_FLAGS = [
-  "-fno-color-diagnostics", "-fdiagnostics-print-source-range-info", "-fdiagnostics-show-option",
-  "-fdiagnostics-parseable-fixits", "-fmessage-length", "0", "-ferror-limit", "50",
-];
-
-/** clang's C++ headers must not be on the C include path (they shadow <math.h> etc.). */
-export function cOnly(args: readonly string[]): string[] {
-  return args.filter((arg, i, all) => arg !== "/include/c++/v1" && !(arg === "-internal-isystem" && all[i + 1] === "/include/c++/v1"));
-}
-
 /** Flags that change what a header means (so they are part of the PCH key); warnings don't. */
 export function semanticArgs(lang: "c" | "cpp", options: BuildOptions): string[] {
   return [`-std=${lang === "c" ? options.cStd : options.cxxStd}`, `-O${options.opt}`];
@@ -60,7 +52,7 @@ export function semanticArgs(lang: "c" | "cpp", options: BuildOptions): string[]
 export interface UnitArgs {
   unit: BuildUnit;
   root: WsPath;
-  /** binji's clangCommonArgs, without -fcolor-diagnostics. */
+  /** The unit's language's cc1 template (clang-jobs.ts cc1Template): the driver's own flags for this target. */
   common: readonly string[];
   options: BuildOptions;
   /** Short id: /o/<id>.o and /d/<id>.d (flat, because clang can't create directories). */
@@ -73,10 +65,8 @@ export function unitArgs(a: UnitArgs): string[] {
   const c = a.unit.lang === "c";
   return [
     "-cc1", "-emit-obj",
-    // -fno-common: LLVM 8's wasm backend can't emit common symbols, so a C tentative definition
-    // ("int count;" at file scope) crashed clang. The clang driver passes it for wasm; cc1 doesn't.
-    ...(c ? [...cOnly(a.common), "-fno-common"] : a.common),
-    ...DIAG_FLAGS,
+    // The diagnostics flags are in the template (clang-jobs.ts PROBES), in cc1's own spelling.
+    ...a.common,
     ...semanticArgs(a.unit.lang, a.options),
     ...a.options.warnings,
     // -iquote, not -I: a user's time.h or string.h must not hijack the library's own <...> includes.

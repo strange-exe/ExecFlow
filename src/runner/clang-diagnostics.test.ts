@@ -52,9 +52,10 @@ describe("clang output", () => {
     // (clang skips -Wunused-variable in a function that has errors)
     expect(d.map((x) => [x.severity, at(x), x.message])).toEqual([
       ["error", "a/main.c:5:24", "expected ';' after expression"],
-      ["error", "a/main.c:6:10", "use of undeclared identifier 'x'"],
+      ["error", "a/main.c:6:10-6:11", "use of undeclared identifier 'x'"],
     ]);
-    expect(compile("warnings-notes-fixits").find((x) => x.code === "-Wint-conversion")).toMatchObject({ severity: "warning", line: 6, col: 7, endLine: 6, endCol: 17 });
+    // An error since clang 15 (it was a warning in clang 8): int i = "text";
+    expect(compile("warnings-notes-fixits").find((x) => x.code === "-Wint-conversion")).toMatchObject({ severity: "error", line: 6, col: 7, endLine: 6, endCol: 17 });
     const semi = d.find((x) => x.message.startsWith("expected ';'"))!;
     expect(semi.fixes).toEqual([{ path: "a/main.c", line: 5, col: 24, endLine: 5, endCol: 24, unit: "utf8-byte", base: 1, insert: ";" }]);
     expect(d.every((x) => x.unit === "utf8-byte" && x.base === 1 && x.source === "clang")).toBe(true);
@@ -73,7 +74,7 @@ describe("clang output", () => {
 
   it("normalises ../ in include paths and keeps the include chain (innermost first)", () => {
     const [d] = compile("nested-include");
-    expect(at(d)).toBe("c/lib/inner.h:1:33");
+    expect(at(d)).toBe("c/lib/inner.h:1:33-1:47");
     expect(d.notes?.map((n) => `${n.path}:${n.line}`)).toEqual(["c/inc/outer.h:1", "c/main.c:1"]);
   });
 
@@ -104,7 +105,8 @@ describe("clang output", () => {
     ]);
     expect(parens.fixes).toBeUndefined();
     expect(d.some((x) => x.code === "-Wimplicit-function-declaration")).toBe(true);
-    expect(d.some((x) => x.code === "-Wformat")).toBe(true);
+    // clang 22 names the -Wformat subgroup ("-Wformat-insufficient-args").
+    expect(d.some((x) => x.code?.startsWith("-Wformat"))).toBe(true);
   });
 
   it("shows notes from system headers by header name, without a workspace path", () => {
@@ -113,7 +115,7 @@ describe("clang output", () => {
     expect(d[0].notes?.[0]).toMatchObject({ path: "g/main.cpp", line: 3, message: "included from here" });
     const conv = d.find((x) => x.message.startsWith("no viable conversion"))!;
     expect(at(conv)).toBe("g/main.cpp:7:15-7:20");
-    expect(conv.notes?.[0]).toMatchObject({ path: null, message: expect.stringMatching(/^<string>:800: candidate constructor not viable/) });
+    expect(conv.notes?.[0]).toMatchObject({ path: null, message: expect.stringMatching(/^<string>:\d+: candidate constructor not viable/) });
   });
 
   it("moves an error inside the standard library to the user's line that led there, once", () => {
@@ -121,7 +123,8 @@ describe("clang output", () => {
     expect(d).toHaveLength(1);
     expect(at(d[0])).toBe("h/main.cpp:6:8");
     expect(d[0].message).toMatch(/^invalid operands to binary expression \('const P' and 'const P'\) \(and \d+ more errors inside the standard library\)$/);
-    expect(d[0].notes?.[0].message).toBe("reported inside <algorithm>, line 716");
+    // libc++ 22 keeps <algorithm>'s code in internal parts: the note names both, with the part's line.
+    expect(d[0].notes?.[0].message).toMatch(/^reported inside <algorithm> \(__algorithm\/[a-z_]+\.h\), line \d+$/);
   });
 
   it("reads messages without a location", () => {
@@ -129,18 +132,19 @@ describe("clang output", () => {
     const last = d[d.length - 1];
     expect(last).toMatchObject({ path: null, severity: "error", message: "too many errors emitted, stopping now", code: "-ferror-limit=" });
     expect(d.filter((x) => x.path === "j/main.c")).toHaveLength(50);
-    const backend = compile("backend-thread-local");
-    expect(backend).toHaveLength(1);
-    expect(backend[0]).toMatchObject({ path: null, severity: "error" });
-    expect(backend[0].message).toMatch(/^error in backend: Cannot select: .*GlobalTLSAddress.*\nIn function: __original_main$/);
+    // clang 8 failed in its backend on thread_local ("Cannot select: GlobalTLSAddress"); clang 22 compiles it.
+    expect(compile("backend-thread-local")).toEqual([]);
+    const backend = parseClangOutput("error: error in backend: Cannot select: t1: i32 = GlobalTLSAddress\nIn function: __original_main\n", workspaceMap([]), "/w/m/main.cpp");
+    expect(backend.diagnostics).toHaveLength(1);
+    expect(backend.diagnostics[0]).toMatchObject({ path: null, severity: "error" });
   });
 
   it("handles missing headers, macro notes and paths with spaces", () => {
     expect(compile("include-not-found").map((x) => [at(x), x.message])).toEqual([["k/main.c:2:10-2:21", "'missing.h' file not found"]]);
     const [macro] = compile("macro-expansion");
-    expect(at(macro)).toBe("l/main.c:3:10");
-    expect(macro.notes).toEqual([{ path: "l/main.c", line: 1, col: 31, unit: "utf8-byte", base: 1, message: "expanded from macro 'TWICE'" }]);
-    expect(compile("space-in-path").map(at)).toEqual(["my prog/main.c:2:36"]);
+    expect(at(macro)).toBe("l/main.c:3:10-3:18");
+    expect(macro.notes).toEqual([{ path: "l/main.c", line: 1, col: 31, endLine: 1, endCol: 38, unit: "utf8-byte", base: 1, message: "expanded from macro 'TWICE'" }]);
+    expect(compile("space-in-path").map(at)).toEqual(["my prog/main.c:2:36-2:40"]);
   });
 
   it("removes the toolchain's own wrapper and recognises a crash of the tool itself", () => {
@@ -164,10 +168,16 @@ describe("clang output", () => {
     expect(out.diagnostics.map((d) => d.message)).toEqual(["real"]);
   });
 
-  it("names system headers", () => {
-    expect(systemHeaderName("/include/c++/v1/vector")).toBe("<vector>");
-    expect(systemHeaderName("/include/stdio.h")).toBe("<stdio.h>");
-    expect(systemHeaderName("/lib/clang/8.0.1/include/stddef.h")).toBe("<stddef.h>");
+  it("names system headers, and the header a libc++ internal part belongs to", () => {
+    expect(systemHeaderName("/sysroot/include/wasm32-wasip1/eh/c++/v1/vector")).toBe("<vector>");
+    expect(systemHeaderName("/sysroot/include/wasm32-wasip1/stdio.h")).toBe("<stdio.h>");
+    expect(systemHeaderName("/usr/include/stddef.h")).toBe("<stddef.h>");
+    expect(systemHeaderName("/ce/include/bits/stdc++.h")).toBe("<bits/stdc++.h>");
+    expect(systemHeaderName("/sysroot/include/wasm32-wasip1/eh/c++/v1/__algorithm/comp.h")).toBe("<algorithm> (__algorithm/comp.h)");
+    expect(systemHeaderName("/sysroot/include/wasm32-wasip1/eh/c++/v1/__math/traits.h")).toBe("<cmath> (__math/traits.h)");
+    // An internal part with no header of its own keeps its path.
+    expect(systemHeaderName("/sysroot/include/wasm32-wasip1/eh/c++/v1/__config")).toBe("<__config>");
+    expect(systemHeaderName("/sysroot/include/wasm32-wasip1/eh/c++/v1/__fwd/string.h")).toBe("<__fwd/string.h>");
   });
 });
 
@@ -175,7 +185,7 @@ describe("wasm-ld output", () => {
   it("locates undefined symbols at their first use in the unit (heuristic)", () => {
     const d = link("lld-undefined-c");
     expect(d.map((x) => [x.message, at(x), x.heuristic])).toEqual([
-      ["undefined symbol: gets", "n/main.c:5:2-5:6", true],
+      ["undefined symbol: twice", "n/main.c:5:10-5:15", true],
       ["undefined symbol: helper", "n/main.c:6:9-6:15", true],
     ]);
     expect(d[0].unit).toBe("utf16");
@@ -195,8 +205,10 @@ describe("wasm-ld output", () => {
     expect(link("lld-header-definition").map(at)).toEqual(["r/counter.h:1:4-1:11"]);
   });
 
-  it("reports a missing main for the program as a whole", () => {
-    expect(link("lld-no-main")).toEqual([{ path: null, line: 1, unit: "utf16", base: 0, severity: "error", message: "undefined symbol: main", source: "wasm-ld" }]);
+  it("has nothing to say about a missing main any more: wasi-libc's weak start-up symbols let it link", () => {
+    // The worker finds it in the objects instead (wasm-object.ts, its test) and reports
+    // "undefined symbol: main" itself, the way clang 8's wasm-ld did.
+    expect(link("lld-no-main")).toEqual([]);
   });
 
   it("finds the class of a missing vtable and C++ methods and templates", () => {

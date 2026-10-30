@@ -527,6 +527,13 @@ function cachedC(lib: CLibrary, key: string, build: () => Completion[]): readonl
   return list;
 }
 
+/**
+ * The data (c-library.json, scripts/gen-c-completions.mjs) was read from clang 8's headers and names
+ * its standards that way. Standards added with clang 22 in 0.17.0 read as the newest the data has.
+ */
+const DATA_MODE: Record<string, string> = { "c++20": "c++2a", "c++23": "c++2a", c23: "c17", gnu23: "gnu17" };
+export const dataMode = (std: string): string => DATA_MODE[std] ?? std;
+
 /** The C++ standard `std` names, as an index into the data's order (an unknown value counts as the default, c++17). */
 function cxxLevel(lib: CLibrary, std: string): number {
   const order = lib.header.modes.cpp;
@@ -606,7 +613,7 @@ function stdOptions(lib: CLibrary, std: string): readonly Completion[] {
     return lib.std
       .filter((s) => order.includes(s.since) && order.indexOf(s.since) <= limit)
       .map((s) => {
-        const newer = s.since !== order[0] ? `C++${s.since.slice(3)}` : null;
+        const newer = s.since !== order[0] ? `C++${s.since === "c++2a" ? "20" : s.since.slice(3)}` : null;
         return boosted(BEGINNER.stdNames, {
           label: s.name, type: s.kind, ...(newer ? { detail: newer } : {}), section: sectionFor(s.header),
           info: `Declared in <${s.header}>${newer ? `, since ${newer}` : ""}`,
@@ -631,7 +638,7 @@ export function includeSource(lang: CLang): CompletionSource {
       const lib = loaded("c", context);
       if (!lib) return null;
       const close = state.sliceDoc(pos, pos + 1) === ">" ? "" : ">";
-      const options = headerOptions(lib, lang, contextOf(state).standards().cpp).map((o) => ({ ...o, apply: o.label + close }));
+      const options = headerOptions(lib, lang, dataMode(contextOf(state).standards().cpp)).map((o) => ({ ...o, apply: o.label + close }));
       return { from: pos - system[1].length, options, validFor: HEADER_CHARS };
     }
     const quoted = QUOTED_INCLUDE.exec(before);
@@ -661,7 +668,7 @@ export function cLibrarySource(lang: CLang, keywords: readonly string[] = []): C
     if (!word && !context.explicit) return null;
     const lib = loaded("c", context);
     if (!lib) return null;
-    const std = contextOf(context.state).standards()[lang];
+    const std = dataMode(contextOf(context.state).standards()[lang]);
     return { from: word ? word.from : context.pos, options: [...libraryOptions(lib, lang, std, skip)], validFor: WORD };
   };
 }
@@ -677,7 +684,7 @@ export const stdSource: CompletionSource = unless(notAfterStd, (context) => {
   const m = STD_SCOPE.exec(lineBefore(state, pos))!;
   const lib = loaded("c", context);
   if (!lib) return null;
-  return { from: pos - m[1].length, options: [...stdOptions(lib, contextOf(state).standards().cpp)], validFor: WORD };
+  return { from: pos - m[1].length, options: [...stdOptions(lib, dataMode(contextOf(state).standards().cpp))], validFor: WORD };
 });
 
 // ---------------------------------------------------------------- C++: after `using namespace std;`
@@ -802,7 +809,7 @@ function usingStdOptions(lib: CLibrary, std: string): readonly Completion[] {
       .filter((s) => order.includes(s.since) && order.indexOf(s.since) <= limit)
       .filter((s) => !keywords.has(s.name) && !(cNames.has(s.name) && cWrapper(lib, s.header)))
       .map((s) => {
-        const newer = s.since !== order[0] ? `C++${s.since.slice(3)}` : null;
+        const newer = s.since !== order[0] ? `C++${s.since === "c++2a" ? "20" : s.since.slice(3)}` : null;
         const rank = BEGINNER.stdNames.indexOf(s.name);
         return {
           label: s.name, type: s.kind, ...(newer ? { detail: newer } : {}), boost: rank >= 0 ? -1 - rank : -20,
@@ -824,5 +831,5 @@ export const usingStdSource: CompletionSource = (context) => {
   if (!usingStdAt(context.state, context.pos)) return null;
   const lib = loaded("c", context);
   if (!lib) return null;
-  return { from: word ? word.from : context.pos, options: [...usingStdOptions(lib, contextOf(context.state).standards().cpp)], validFor: WORD };
+  return { from: word ? word.from : context.pos, options: [...usingStdOptions(lib, dataMode(contextOf(context.state).standards().cpp))], validFor: WORD };
 };
