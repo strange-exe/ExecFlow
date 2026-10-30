@@ -1,7 +1,8 @@
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { DownloadError, downloadRuntime, missingFiles, RUNTIME_FILES, serveFromCache, trackDownload, type DownloadProgress, type RuntimeCache } from "./python-download";
+import { beforeAll, describe, expect, it } from "vitest";
+import { sha256Hex } from "../flowchart/download";
+import { DownloadError, downloadRuntime, failureWords, missingFiles, RUNTIME_FILES, serveFromCache, trackDownload, type DownloadProgress, type RuntimeCache } from "./python-download";
 
 /** A body that arrives in `sizes` pieces, one per read. */
 const body = (sizes: number[]) =>
@@ -116,6 +117,11 @@ function site(sizes: Record<string, number>, answer?: (url: string) => Response 
 
 const SIZES = { "pyodide.mjs": 10, "pyodide.asm.mjs": 100, "pyodide.asm.wasm": 1000, "python_stdlib.zip": 300, "pyodide-lock.json": 20 };
 const TOTAL = Object.values(SIZES).reduce((a, b) => a + b, 0);
+/** Each file's sha256, as the build pins it (__PYODIDE_FILES__): the site above serves zero bytes. */
+const SHAS: Record<string, string> = {};
+beforeAll(async () => {
+  for (const [file, n] of Object.entries(SIZES)) SHAS[file] = await sha256Hex(new Uint8Array(n));
+});
 
 describe("RUNTIME_FILES", () => {
   it("are exactly the files scripts/copy-pyodide.mjs puts in the runtime folder", () => {
@@ -145,7 +151,7 @@ describe("downloadRuntime", () => {
     const { fetch, asked } = site(SIZES);
     const posts: DownloadProgress[] = [];
     let clock = 0;
-    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, total: TOTAL, post: (p) => posts.push(p), now: () => (clock += 200) });
+    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p), now: () => (clock += 200) });
     expect(asked).toEqual(RUNTIME_FILES.map((f) => BASE + f));
     expect([...cache.entries.keys()].sort()).toEqual(RUNTIME_FILES.map((f) => BASE + f).sort());
     expect(cache.entries.get(BASE + "pyodide.asm.wasm")!.body.byteLength).toBe(1000);
@@ -161,7 +167,7 @@ describe("downloadRuntime", () => {
   it("downloads only the files it is given (the rest are already here)", async () => {
     const cache = new FakeCache();
     const { fetch, asked } = site(SIZES);
-    await downloadRuntime({ fetch, cache, base: BASE, files: ["python_stdlib.zip"], total: 300, post: () => {} });
+    await downloadRuntime({ fetch, cache, base: BASE, files: ["python_stdlib.zip"], expected: SHAS, total: 300, post: () => {} });
     expect(asked).toEqual([BASE + "python_stdlib.zip"]);
   });
 
@@ -169,7 +175,7 @@ describe("downloadRuntime", () => {
     const cache = new FakeCache();
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? Promise.reject(new TypeError("Failed to fetch")) : null));
     const posts: DownloadProgress[] = [];
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, total: TOTAL, post: (p) => posts.push(p) });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p) });
     await expect(failed).rejects.toBeInstanceOf(DownloadError);
     await expect(failed).rejects.toMatchObject({ offline: true, message: expect.stringContaining("pyodide.asm.wasm") });
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
@@ -184,7 +190,7 @@ describe("downloadRuntime", () => {
   ])("%s is a failed download (not offline), and is never kept", async (_name, response, message) => {
     const cache = new FakeCache();
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? response() : null));
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, total: TOTAL, post: () => {} });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: () => {} });
     await expect(failed).rejects.toMatchObject({ offline: false, message: expect.stringMatching(message) });
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
     // The other files finished first (none is cut off when the runner drops the worker), and stay
@@ -196,7 +202,7 @@ describe("downloadRuntime", () => {
     const cache = new FakeCache();
     const broken = () => new Response(new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(10)); }, pull(c) { c.error(new Error("network error")); } }), { status: 200, headers: { "content-type": "application/wasm" } });
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? broken() : null));
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, total: TOTAL, post: () => {} });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: () => {} });
     await expect(failed).rejects.toMatchObject({ offline: false, message: expect.stringContaining("stopped") });
     await settle();
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
@@ -207,9 +213,52 @@ describe("downloadRuntime", () => {
     cache.failPuts = true;
     const { fetch } = site(SIZES);
     const posts: DownloadProgress[] = [];
-    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, total: TOTAL, post: (p) => posts.push(p) });
+    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p) });
     expect(posts.at(-1)).toEqual({ loaded: TOTAL, total: TOTAL, done: true });
     expect(cache.entries.size).toBe(0);
+  });
+
+  it("a file whose bytes don't match the build's sha256 is damaged: none of it is kept, the rest is", async () => {
+    const cache = new FakeCache();
+    // The right size and type, one byte changed (a proxy, a bad mirror, a flipped bit).
+    const bad = () => {
+      const bytes = new Uint8Array(1000);
+      bytes[500] = 1;
+      return new Response(bytes, { status: 200, headers: { "content-type": "application/wasm" } });
+    };
+    const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? bad() : null));
+    const posts: DownloadProgress[] = [];
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p) });
+    await expect(failed).rejects.toBeInstanceOf(DownloadError);
+    await expect(failed).rejects.toMatchObject({ kind: "damaged", offline: false, message: "pyodide.asm.wasm didn't match" });
+    expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
+    expect(await missingFiles(cache, BASE)).toEqual(["pyodide.asm.wasm"]);
+    expect(posts.at(-1)?.done).toBe(true);
+  });
+
+  it("a file the build has no sha256 for is never kept (it fails closed)", async () => {
+    const cache = new FakeCache();
+    const { fetch } = site(SIZES);
+    const { "pyodide.asm.wasm": _left, ...pins } = SHAS;
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: pins, total: TOTAL, post: () => {} });
+    await expect(failed).rejects.toMatchObject({ kind: "damaged", message: "pyodide.asm.wasm didn't match" });
+    expect(await missingFiles(cache, BASE)).toEqual(["pyodide.asm.wasm"]);
+  });
+
+  it("keeps a file only as the bytes it checked, with its type", async () => {
+    const cache = new FakeCache();
+    const { fetch } = site(SIZES);
+    await downloadRuntime({ fetch, cache, base: BASE, files: ["pyodide.asm.wasm"], expected: SHAS, total: 1000, post: () => {} });
+    const kept = await cache.match(BASE + "pyodide.asm.wasm");
+    expect(await sha256Hex(new Uint8Array(await kept!.arrayBuffer()))).toBe(SHAS["pyodide.asm.wasm"]);
+    expect(kept!.headers.get("content-type")).toBe("application/wasm");
+  });
+});
+
+describe("failureWords", () => {
+  it("says what went wrong after \"Python couldn't start: \", in plain words", () => {
+    expect(failureWords(new DownloadError("pyodide.asm.wasm didn't match", "damaged"))).toBe("its one-time download was damaged (pyodide.asm.wasm didn't match). Press Run to try again.");
+    expect(failureWords(new DownloadError("the site answered pyodide.asm.wasm with HTTP 404", "failed"))).toBe("its one-time download didn't finish (the site answered pyodide.asm.wasm with HTTP 404). Press Run to try again.");
   });
 });
 

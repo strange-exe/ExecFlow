@@ -112,6 +112,43 @@ test.describe("offline before Python's first use", () => {
   });
 });
 
+// The runtime's files are kept only by the Python worker, once each one's sha256 matched the build's
+// (python-download.ts). On a page the service worker controls, the worker's download passes through
+// the service worker's route for those files, which must never keep what the network sent itself
+// (sw-cache-guard.ts neverStore): a damaged copy it kept would be served on every later start.
+test("a damaged runtime file that passes through the service worker is never kept", async ({ page, context }) => {
+  await openApp(page);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("codeeditor:offline-wanted")));
+  await serviceWorkerActive(page);
+  await reloadApp(page);
+  expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)), "page controlled by the service worker").toBe(true);
+  const wasm = "**/pyodide/*/pyodide.asm.wasm";
+  let throughWorker = 0;
+  await context.route(wasm, async (route) => {
+    if (route.request().serviceWorker()) throughWorker += 1;
+    // The site's own file, the right size and type, with one byte changed on the way.
+    const real = await route.fetch();
+    const body = Buffer.from(await real.body());
+    body[body.length >> 1] ^= 0xff;
+    await route.fulfill({ response: real, body });
+  });
+  await importFiles(page, [{ name: "hi.py", text: 'print("whole again")\n' }]);
+  await openFromTree(page, "hi.py");
+  await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", /^(failed|ready)$/, { timeout: 60_000 });
+  // Playwright routes the service worker's own requests in Chromium only; elsewhere this is untested.
+  test.skip(throughWorker === 0, "this engine doesn't route the service worker's own requests");
+  await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "failed");
+  const r = await run(page, { timeout: 60_000 });
+  expect(r.status).toBe("unavailable");
+  expect(r.output).toContain("Python couldn't start: its one-time download was damaged (pyodide.asm.wasm didn't match). Press Run to try again.");
+  const kept = ((await cachedUrls(page))["codeeditor-python-runtime"] ?? []).map((u) => u.split("/").pop());
+  expect(kept).not.toContain("pyodide.asm.wasm");
+  await context.unroute(wasm);
+  const again = await run(page, { timeout: 120_000 });
+  expect(again.status, again.output).toBe("ok");
+  expect(again.output).toContain("whole again");
+});
+
 /** The folder vite.config.ts serves Pyodide from (version plus heap cap). */
 const PYODIDE_DIR = `${JSON.parse(readFileSync("node_modules/pyodide/package.json", "utf8")).version}-heap${JSON.parse(readFileSync("scripts/python-heap.json", "utf8")).mb}`;
 const PROBE_WHEEL = `/pyodide/${PYODIDE_DIR}/offline-probe-0-py3-none-any.whl`;

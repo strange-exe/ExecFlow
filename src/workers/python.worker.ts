@@ -14,7 +14,7 @@ import type { PyodideAPI } from "pyodide";
 import { waitForInput } from "../runner/input-channel";
 import type { BootSource, FromPython, Stream, ToPython } from "../runner/protocol";
 import { fromPythonJson } from "../runner/python-diagnostics";
-import { DownloadError, downloadRuntime, missingFiles, PYTHON_CACHE, serveFromCache, trackDownload, type DownloadProgress } from "../runner/python-download";
+import { DownloadError, downloadRuntime, failureWords, missingFiles, PYTHON_CACHE, serveFromCache, trackDownload, type DownloadProgress } from "../runner/python-download";
 import { collectWritten, prepareRunFiles, writeWorkspace, type FsLike } from "../runner/python-files";
 import { RUNNER_PY } from "../runner/python-helper";
 import { canonicalName, importIndex, missingPackages, packageClosure, PYTHON_PACKAGES, type LockFile } from "../runner/python-packages";
@@ -201,9 +201,10 @@ async function fetchRuntime(base: string): Promise<{ end(): void }> {
   const missing = await missingFiles(cache, base);
   if (missing.length) {
     // No request can succeed offline: say so at once rather than after each file fails.
-    if (self.navigator.onLine === false) throw new DownloadError("this device is offline", true);
-    const total = missing.reduce((sum, f) => sum + (__PYODIDE_FILES__[f] ?? 0), 0);
-    await downloadRuntime({ fetch: self.fetch.bind(self), cache, base, files: missing, total, post: progress });
+    if (self.navigator.onLine === false) throw new DownloadError("this device is offline", "offline");
+    const total = missing.reduce((sum, f) => sum + (__PYODIDE_FILES__[f]?.bytes ?? 0), 0);
+    const expected = Object.fromEntries(Object.entries(__PYODIDE_FILES__).map(([f, { sha256 }]) => [f, sha256]));
+    await downloadRuntime({ fetch: self.fetch.bind(self), cache, base, files: missing, expected, total, post: progress });
   } else {
     progress({ loaded: 0, total: 0, done: true });
   }
@@ -420,7 +421,7 @@ self.addEventListener("message", async ({ data }: MessageEvent<ToPython>) => {
       // Offline before Python was ever downloaded: the runner says so in plain words, and starting
       // again won't help until the device is online.
       if (e instanceof DownloadError && e.offline) return post({ type: "boot-failed", error: e.message, retry: false, offline: true });
-      const error = e instanceof DownloadError ? `its one-time download didn't finish (${e.message}). Press Run to try again.` : e instanceof Error ? e.message : String(e);
+      const error = e instanceof DownloadError ? failureWords(e) : e instanceof Error ? e.message : String(e);
       post({ type: "boot-failed", error, retry: !(e instanceof PackageError) });
     }
     return;

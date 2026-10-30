@@ -14,6 +14,7 @@
 // any package loads, and so long before the worker's lockdown and any user code.
 
 import { cacheOnlyTheFile } from "../about/sw-cache-guard";
+import { sha256Hex } from "../flowchart/download";
 import { RUNTIME_FILES } from "./python-runtime";
 
 export { PYTHON_CACHE, RUNTIME_FILES } from "./python-runtime";
@@ -53,13 +54,26 @@ export async function missingFiles(cache: RuntimeCache, base: string, files: rea
 }
 
 /**
- * Why the runtime didn't download. `offline`: no answer at all (the request itself failed), which
- * is what a device without a connection sees; otherwise the site answered, but not with the file.
+ * Why the runtime didn't download. "offline": no answer at all (the request itself failed), which
+ * is what a device without a connection sees; "failed": the site answered, but not with the file;
+ * "damaged": a file arrived whole but isn't the one this build was made with (its sha256 differs).
  */
 export class DownloadError extends Error {
-  constructor(message: string, readonly offline: boolean) {
+  readonly offline: boolean;
+  constructor(
+    message: string,
+    readonly kind: "offline" | "failed" | "damaged",
+  ) {
     super(message);
+    this.offline = kind === "offline";
   }
+}
+
+/** What follows "Python couldn't start: " for a download that went wrong while online. */
+export function failureWords(e: DownloadError): string {
+  return e.kind === "damaged"
+    ? `its one-time download was damaged (${e.message}). Press Run to try again.`
+    : `its one-time download didn't finish (${e.message}). Press Run to try again.`;
 }
 
 /** Calls `post` with the running total at most every PROGRESS_MS (`end` always sends the last). */
@@ -88,14 +102,18 @@ function reporter(total: number, post: (p: DownloadProgress) => void, now: () =>
  * every PROGRESS_MS, then `done: true` once all are in or one failed). Entries of other runtime
  * versions go first: the folder name carries the version, so they are never used again. A file
  * is kept only as the site's own copy (status 200, never the fallback page under its URL,
- * sw-cache-guard.ts); anything else throws a DownloadError and keeps nothing for that file.
- * The cache refusing a file (storage full) doesn't stop the start: Pyodide then fetches it itself.
+ * sw-cache-guard.ts) and only when its bytes have the sha256 the build pinned (`expected`, as the
+ * C/C++ pack and the flowchart files are checked); a file with no pinned sha256 is never kept.
+ * Anything else throws a DownloadError and keeps nothing for that file. The cache refusing a file
+ * (storage full) doesn't stop the start: Pyodide then fetches it itself.
  */
 export async function downloadRuntime(opts: {
   fetch: typeof fetch;
   cache: RuntimeCache;
   base: string;
   files: readonly string[];
+  /** Each file's sha256 (lowercase hex), from the build (__PYODIDE_FILES__). */
+  expected: Readonly<Record<string, string>>;
   total: number;
   post: (p: DownloadProgress) => void;
   now?: () => number;
@@ -113,25 +131,39 @@ export async function downloadRuntime(opts: {
         try {
           response = await opts.fetch(url);
         } catch (e) {
-          throw new DownloadError(`${file} couldn't be fetched (${(e as Error).message || "no connection"})`, true);
+          throw new DownloadError(`${file} couldn't be fetched (${(e as Error).message || "no connection"})`, "offline");
         }
-        if (response.status !== 200) throw new DownloadError(`the site answered ${file} with HTTP ${response.status}`, false);
+        if (response.status !== 200) throw new DownloadError(`the site answered ${file} with HTTP ${response.status}`, "failed");
         if (!(await cacheOnlyTheFile.cacheWillUpdate({ request: new Request(url), response }))) {
-          throw new DownloadError(`the site sent a page instead of ${file}`, false);
+          throw new DownloadError(`the site sent a page instead of ${file}`, "failed");
         }
-        const kept = cache.put(url, response.clone()).catch(() => {});
+        // The body is held until its sha256 is known: nothing reaches the cache before the check.
+        const chunks: Uint8Array[] = [];
+        let size = 0;
         const reader = response.body?.getReader();
         try {
           for (;;) {
             if (!reader) break;
             const { done, value } = await reader.read();
             if (done) break;
+            chunks.push(value);
+            size += value.byteLength;
             progress.add(value.byteLength);
           }
         } catch (e) {
-          throw new DownloadError(`the download of ${file} stopped (${(e as Error).message || "connection lost"})`, false);
+          throw new DownloadError(`the download of ${file} stopped (${(e as Error).message || "connection lost"})`, "failed");
         }
-        await kept;
+        const bytes = new Uint8Array(size);
+        let at = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, at);
+          at += chunk.byteLength;
+        }
+        const pinned = opts.expected[file];
+        if (!pinned || (await sha256Hex(bytes)) !== pinned) throw new DownloadError(`${file} didn't match`, "damaged");
+        const type = response.headers.get("content-type");
+        const copy = new Response(bytes, { status: 200, headers: type ? { "content-type": type } : {} });
+        await cache.put(url, copy).catch(() => {});
       }),
     );
     const failed = settled.find((s) => s.status === "rejected");

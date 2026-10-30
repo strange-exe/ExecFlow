@@ -127,6 +127,34 @@ test.describe("B9: Python's first start", () => {
       expect(again.output).toContain("hello");
     });
   });
+
+  // The download's sha256 check (each file is pinned by the build, vite.config.ts __PYODIDE_FILES__).
+  test("a runtime file that arrives damaged is never kept, and the next Run downloads it whole", async ({ page }) => {
+    const wasm = "**/pyodide/*/pyodide.asm.wasm";
+    let damaged = 0;
+    await page.route(wasm, async (route) => {
+      // The site's own file, the right size and type, with one byte changed on the way.
+      const real = await route.fetch();
+      const body = Buffer.from(await real.body());
+      body[body.length >> 1] ^= 0xff;
+      damaged += 1;
+      await route.fulfill({ response: real, body });
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+    await openFromTree(page, "main.py");
+    await expect(runtime(page)).toHaveAttribute("data-state", "failed", { timeout: 60_000 });
+    const r = await run(page, { timeout: 60_000 });
+    expect(r.status).toBe("unavailable");
+    expect(r.output).toContain("Python couldn't start: its one-time download was damaged (pyodide.asm.wasm didn't match). Press Run to try again.");
+    expect(damaged, "the damaged copy was what the worker got").toBeGreaterThan(0);
+    const kept = await page.evaluate(async () => (await (await caches.open("codeeditor-python-runtime")).keys()).map((k) => new URL(k.url).pathname.split("/").pop()));
+    expect(kept).not.toContain("pyodide.asm.wasm");
+    await page.unroute(wasm);
+    const again = await run(page, { timeout: 60_000 });
+    expect(again.status, again.output).toBe("ok");
+    expect(again.output).toContain("hello");
+  });
 });
 
 test.describe("B10: the C/C++ first run", () => {

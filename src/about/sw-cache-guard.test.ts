@@ -4,7 +4,7 @@
 // index.html (200 text/html), and that page must never be stored under a .webp, .js or .wasm URL.
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { cacheOnlyTheFile } from "./sw-cache-guard";
+import { cacheOnlyTheFile, neverStore } from "./sw-cache-guard";
 
 const answer = (path: string, type: string | null) => {
   const response = new Response("x", { status: 200, headers: type ? { "content-type": type } : {} });
@@ -40,5 +40,13 @@ describe("cacheOnlyTheFile (vite.config.ts runtimeCaching)", () => {
     expect(await fn({ request: new Request("https://code-editor.test/media/a.12345678.webp"), response })).toBeNull();
     const good = new Response("x", { headers: { "content-type": "image/webp" } });
     expect(await fn({ request: new Request("https://code-editor.test/media/a.12345678.webp"), response: good })).toBe(good);
+  });
+});
+
+describe("neverStore (the Python runtime's route: only the worker that checks sha256 keeps a file)", () => {
+  it("stores nothing, even the right file, and works on its own as sw.js runs it", async () => {
+    expect(await neverStore.cacheWillUpdate()).toBeNull();
+    const fn = runInNewContext(`(${neverStore.cacheWillUpdate.toString()})`, {}) as typeof neverStore.cacheWillUpdate;
+    expect(await fn()).toBeNull();
   });
 });

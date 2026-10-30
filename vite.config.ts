@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { FLOWCHART_DIR, PACK_FILES } from "./src/flowchart/pack.ts";
-import { cacheOnlyTheFile } from "./src/about/sw-cache-guard.ts";
+import { cacheOnlyTheFile, neverStore } from "./src/about/sw-cache-guard.ts";
 import { PYTHON_CACHE, RUNTIME_FILES } from "./src/runner/python-runtime.ts";
 import { APP_ROUTE, NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
@@ -18,16 +19,30 @@ const pyodideVersion: string = JSON.parse(readFileSync("node_modules/pyodide/pac
 const pyodideDir = `${pyodideVersion}-heap${JSON.parse(readFileSync("scripts/python-heap.json", "utf8")).mb}`;
 
 /**
- * Each file Python's first start downloads (src/runner/python-download.ts counts them), for
- * "Downloading Python (one time, about 14 MB)". Empty when the runtime isn't copied yet (unit
- * tests): the header then says how much has arrived.
+ * Each file Python's first start downloads, with its size (src/runner/python-download.ts counts
+ * them, for "Downloading Python (one time, about 14 MB)") and its sha256: the worker keeps a file
+ * only when the bytes it got have that sha256, as the C/C++ pack and the flowchart files are checked.
+ * Unit tests (mode "test") get an empty map when the runtime isn't copied; dev and build stop with
+ * a clear message instead, since a file without its sha256 would never be kept.
  */
-function pyodideFiles(): Record<string, number> {
+let pyodideMemo: Record<string, { bytes: number; sha256: string }> | undefined;
+function pyodideFiles(mode: string): Record<string, { bytes: number; sha256: string }> {
+  if (pyodideMemo) return pyodideMemo;
   const path = (f: string) => `public/pyodide/${pyodideDir}/${f}`;
-  if (!RUNTIME_FILES.every((f) => existsSync(path(f)))) return {};
-  return Object.fromEntries(RUNTIME_FILES.map((f) => [f, statSync(path(f)).size]));
+  const missing = RUNTIME_FILES.filter((f) => !existsSync(path(f)));
+  if (missing.length) {
+    if (mode === "test") return {};
+    throw new Error(`Python's runtime is missing (${missing.join(", ")}): run \`node scripts/copy-pyodide.mjs\` (npm run dev/build do this).`);
+  }
+  pyodideMemo = Object.fromEntries(
+    RUNTIME_FILES.map((f) => {
+      const bytes = readFileSync(path(f));
+      return [f, { bytes: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") }];
+    }),
+  );
+  return pyodideMemo;
 }
-const pyodideBytes = Object.values(pyodideFiles()).reduce((sum, n) => sum + n, 0);
+const pyodideBytes = (mode: string) => Object.values(pyodideFiles(mode)).reduce((sum, f) => sum + f.bytes, 0);
 
 /**
  * The C/C++ pack manifest, written by scripts/fetch-clang.mjs (npm's predev/prebuild run it).
@@ -505,8 +520,8 @@ export default defineConfig(({ mode }) => ({
     // The release (src/about/changelog.ts's newest; a unit test keeps them equal): no request for it.
     __APP_VERSION__: JSON.stringify((JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version),
     __PYODIDE_DIR__: JSON.stringify(pyodideDir),
-    __PYODIDE_BYTES__: JSON.stringify(pyodideBytes),
-    __PYODIDE_FILES__: JSON.stringify(pyodideFiles()),
+    __PYODIDE_BYTES__: JSON.stringify(pyodideBytes(mode)),
+    __PYODIDE_FILES__: JSON.stringify(pyodideFiles(mode)),
     __CLANG_PACK__: JSON.stringify(clangPack(mode)),
     __MOVE_FROM__: JSON.stringify(MOVE_FROM),
     __MOVE_TO__: JSON.stringify(MOVE_TO),
@@ -590,7 +605,9 @@ export default defineConfig(({ mode }) => ({
               // request, which does. A server that answers "Vary: Origin" (vite preview's does) would
               // otherwise never match, and Python couldn't start offline (measured in Chromium).
               matchOptions: { ignoreVary: true },
-              plugins: [cacheOnlyTheFile],
+              // Read only: the worker keeps a file once its sha256 matched the build's; a copy this
+              // route stored from the network (a worker's fetch it answered) would skip that check.
+              plugins: [neverStore],
             },
           },
           {

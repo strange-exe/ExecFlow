@@ -21,3 +21,13 @@ export const cacheOnlyTheFile = {
     return fits ? response : null;
   },
 };
+
+/**
+ * For a cache that only its own writer may fill: the service worker reads from it but never stores
+ * what the network sent. Python's runtime is kept by the Python worker, and only once each file's
+ * sha256 matched the build's (src/runner/python-download.ts); a copy the service worker stored on
+ * its own would skip that check. Self-contained, like cacheOnlyTheFile (its source goes into sw.js).
+ */
+export const neverStore = {
+  cacheWillUpdate: async (): Promise<Response | null> => null,
+};

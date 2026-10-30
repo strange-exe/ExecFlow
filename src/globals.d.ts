@@ -7,8 +7,11 @@ declare const __PYODIDE_DIR__: string;
 /** Bytes Python's first start downloads (every file of its runtime); 0 when not known. Set by vite.config.ts. */
 declare const __PYODIDE_BYTES__: number;
 
-/** Each runtime file's bytes by name (python-download.ts RUNTIME_FILES); empty when not known. Set by vite.config.ts. */
-declare const __PYODIDE_FILES__: Record<string, number>;
+/**
+ * Each runtime file's size and sha256 (lowercase hex) by name (python-download.ts RUNTIME_FILES);
+ * empty only in unit tests. Set by vite.config.ts.
+ */
+declare const __PYODIDE_FILES__: Record<string, { bytes: number; sha256: string }>;
 
 /** The site's old address ("https://code-editor.abhinesh.codes"), set by vite.config.ts: it shows the move banner. */
 declare const __MOVE_FROM__: string;
