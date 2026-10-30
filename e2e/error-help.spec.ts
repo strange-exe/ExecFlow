@@ -7,7 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import {
   afterFetch, expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, responseBodies, run, setCode, showPanel, showView, test,
-  tolerating, waitReady,
+  tolerating, unrouteAfterFetch, waitReady,
 } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -149,7 +149,7 @@ test.describe("the help's chunk", () => {
     await expect(problemRow(page, "typo.py", 2).locator("button.problem")).toBeVisible();
     await expect(page.locator(".err-help")).toHaveCount(0);
     expect(refused).toBeGreaterThan(0);
-    await page.unrouteAll({ behavior: "wait" });
+    await unrouteAfterFetch(page);
     await showPanel(page, "output");
     expect((await run(page)).status).toBe("error");
     // Playwright's WebKit keeps a failed dynamic import() failed for the whole context (lessons.md

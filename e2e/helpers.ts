@@ -314,15 +314,40 @@ export function responseBodies<T>(page: Page, wanted: (path: string) => boolean,
  * drop the request, and answering then throws "Route is already handled!", which fails the test though
  * nothing is wrong (WebKit on the CI runner: design.spec's Shortcuts chunk test, run 40535415597,
  * 2026-10-27). Only that error is ignored: the request it would have answered is gone.
+ * Such a route stays unanswered in Playwright's eyes, so `page.unrouteAll({ behavior: "wait" })`
+ * waits for it forever: use unrouteAfterFetch instead, which waits for these handlers themselves.
  */
 export function afterFetch(handler: (route: Route) => Promise<void>) {
   return async (route: Route) => {
+    const running = (async () => {
+      try {
+        await handler(route);
+      } catch (e) {
+        if (!String(e).includes("Route is already handled")) throw e;
+      }
+    })();
+    inFlight.add(running);
     try {
-      await handler(route);
-    } catch (e) {
-      if (!String(e).includes("Route is already handled")) throw e;
+      await running;
+    } finally {
+      inFlight.delete(running);
     }
   };
+}
+
+/** afterFetch handlers still running (one test at a time per worker). */
+const inFlight = new Set<Promise<void>>();
+
+/**
+ * Removes the page's routes once every afterFetch handler has finished. A reload or navigation
+ * that cancels a request while its handler awaits route.fetch() makes the answer throw "Route is
+ * already handled" (Chromium and Firefox, Playwright 1.64; .claude/verify/probe/route-reload.spec.ts),
+ * and Playwright then never counts that handler done: unrouteAll({ behavior: "wait" }) hung until
+ * the test timed out (args.spec's reload test, about one Firefox run in three under load).
+ */
+export async function unrouteAfterFetch(page: Page) {
+  await Promise.all([...inFlight].map((p) => p.catch(() => {})));
+  await page.unrouteAll();
 }
 
 /** Reloads and waits for the workbench to be ready again (downloads the reload cancels don't count). */

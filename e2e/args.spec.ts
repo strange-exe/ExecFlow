@@ -5,7 +5,7 @@
 // that words them.
 import type { APIResponse, Page, Route } from "@playwright/test";
 import { formatArgs, parseArgs } from "../src/runner/run-args";
-import { afterFetch, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, test, tolerating, treeItem } from "./helpers";
+import { afterFetch, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, test, tolerating, treeItem, unrouteAfterFetch } from "./helpers";
 import { connectGitHub, routeGitHub, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -349,7 +349,7 @@ test.describe("the Arguments field's chunk can't load", () => {
     await expect(page.locator("#app")).toHaveAttribute("data-run", "idle");
     expect(await runs(page)).toBe(before);
     await expect(row(page)).toBeHidden();
-    await page.unrouteAll({ behavior: "wait" });
+    await unrouteAfterFetch(page);
     if (browserName === "webkit") {
       // Playwright's WebKit keeps a failed dynamic import() failed for the whole context, reloads
       // included (lessons.md 2026-10-21; measured here too): Run keeps saying so, and never hangs.
@@ -384,9 +384,11 @@ test.describe("the Arguments field's chunk can't load", () => {
       refused++;
       await route.fulfill({ status: 404, body: "" });
     });
+    // The route is in place before the reload, so a chunk the old page was still fetching can be
+    // cancelled inside its handler: unrouteAfterFetch, not unrouteAll's "wait", which hung on it.
     await reloadApp(page);
     await expect.poll(() => refused).toBeGreaterThan(0);
-    await page.unrouteAll({ behavior: "wait" });
+    await unrouteAfterFetch(page);
     // The guard (args-field.ts argsFor): the run reads the saved texts before it reads one.
     const result = await run(page);
     expect(result.status).toBe("ok");
@@ -419,7 +421,7 @@ test("saved arguments reach a Run pressed while the field's chunk is still loadi
   await expect(page.locator("#app")).toHaveAttribute("data-run", "running");
   release();
   await expect(page.locator("#app")).toHaveAttribute("data-runs", String(before + 1), { timeout: 45_000 });
-  await page.unrouteAll({ behavior: "wait" });
+  await unrouteAfterFetch(page);
   // The guard (args-field.ts argsFor): the run reads the saved texts before it reads one.
   expect(await printedArgv(page)).toEqual([script("show.py"), "1", "two words"]);
   await expect(page.locator("#run-args")).toHaveText('1 "two words"');

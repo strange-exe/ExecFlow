@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, openThemePicker, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, waitReady } from "./helpers";
+import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, openThemePicker, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, unrouteAfterFetch, waitReady } from "./helpers";
 
 // Desktop and phone, light and dark. Each test loads, emulates, reloads and
 // proves the theme is really active before checking anything. These reload right after the first
@@ -571,7 +571,7 @@ test.describe("the Shortcuts list's chunk", () => {
     await expect(notice).toHaveAttribute("data-empty", "false");
     await expect(page.locator("dialog[open]")).toHaveCount(0);
     expect(refused).toBeGreaterThan(0);
-    await page.unrouteAll({ behavior: "wait" });
+    await unrouteAfterFetch(page);
     // Playwright's WebKit keeps a failed dynamic import() failed for the whole context (lessons.md
     // 2026-10-21; args.spec records the same): the button keeps saying so there, and never hangs.
     await page.getByRole("button", { name: "Dismiss notice" }).click();
