@@ -5,8 +5,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { layoutChart, type LaidEdge } from "./layout";
-import type { FlowChart } from "./model";
-import { arrowCorners, arrowLength, renderChart, roundedPath, stepList } from "./render";
+import type { FlowChart, FlowNode } from "./model";
+import { arrowCorners, arrowLength, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList } from "./render";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 
@@ -197,6 +197,25 @@ describe("flowchart renderer", () => {
 
   // The line always meets the arrowhead's base: a 9 px head when the last leg has room for it and a
   // corner, a smaller one (5 px at least) when a searched jump turns into a box's side just before it.
+  it("the legend names every box kind once, and each swatch is its kind's shape in its kind's colours", () => {
+    const kinds: FlowNode["kind"][] = ["start", "end", "process", "io", "decision", "call", "connector"];
+    const named = LEGEND.flatMap((e) => (e.also ? [e.kind, e.also] : [e.kind]));
+    expect([...named].sort()).toEqual([...kinds].sort());
+    expect(LEGEND.map((e) => e.words)).toEqual(["Start and end", "Step", "Input or output", "Decision", "Function call", "Label or go to"]);
+    const shapeTags: Record<string, string[]> = { start: ["rect"], end: ["rect"], process: ["rect"], io: ["polygon"], decision: ["polygon"], call: ["rect", "line", "line"], connector: ["circle"] };
+    for (const kind of kinds) {
+      const sw = kindSwatch(kind, fakeDocument as unknown as Document) as unknown as FakeElement;
+      expect(sw.getAttribute("aria-hidden"), kind).toBe("true");
+      const parts = sw.children.filter((c): c is FakeElement => c instanceof FakeElement);
+      expect(parts.map((p) => p.tagName), kind).toEqual(shapeTags[kind]);
+      const hue = kindHue(kind);
+      const style = parts[0].getAttribute("style")!;
+      // The view's own style strings: the hue's outline over its tint, or the neutral box.
+      expect(style, kind).toContain(hue ? `stroke:var(--${hue})` : "stroke:var(--border-strong)");
+      expect(style, kind).toContain(hue ? `color-mix(in srgb, var(--${hue})` : "fill:var(--surface-raised)");
+    }
+  });
+
   it("arrowheads fit their last leg, and the last corner's curve ends before the head", () => {
     const edge = (points: { x: number; y: number }[]): LaidEdge => ({ from: 1, to: 2, kind: "jump", points });
     const roomy = edge([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 40 }]);
