@@ -20,6 +20,17 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.15.0",
+    date: "2026-10-30",
+    title: "Every theme on show in Settings",
+    items: [
+      { kind: "changed", text: "Settings opens on the colour themes: 45 themes in 22 families, each with a small preview of code in its own colours, and its light and dark forms side by side." },
+      { kind: "added", text: "Search the themes by name, or show only light or only dark ones. The search and the filter stay at the top while you scroll the themes." },
+      { kind: "changed", text: "Six themes lead under Start here; the rest follow A to Z, and themes you loaded from a file come last." },
+      { kind: "changed", text: "A theme applies the moment you choose it, with the mouse or the arrow keys, and Settings opens on the one you use." },
+    ],
+  },
+  {
     version: "0.14.0",
     date: "2026-10-30",
     title: "A flowchart that fits, with a key to its shapes",
