@@ -91,9 +91,24 @@ async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+/**
+ * Compressed bytes handed to the decoder at a time. Deflate inflates at most about 1,000:1, so one
+ * slice makes at most about 1 MB: a short link's 264 KiB, handed over whole, could make 250 MB at once.
+ */
+const INFLATE_SLICE = 1024;
+
 /** The inflated bytes, "too-big" as soon as they pass `cap`, null when the data isn't valid deflate. */
 async function inflate(bytes: Uint8Array, cap: number): Promise<Uint8Array | "too-big" | null> {
-  const reader = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream(FORMAT)).getReader();
+  const decoder = new DecompressionStream(FORMAT);
+  const writer = decoder.writable.getWriter();
+  const reader = decoder.readable.getReader();
+  // Each write waits until the decoder has taken the slice before, and the decoder waits for its
+  // output to be read: the next slice goes in only as fast as the loop below reads and counts.
+  const feeding = (async () => {
+    for (let at = 0; at < bytes.length; at += INFLATE_SLICE) await writer.write(bytes.subarray(at, at + INFLATE_SLICE) as Uint8Array<ArrayBuffer>);
+    await writer.close();
+  })();
+  feeding.catch(() => {}); // a refusal below aborts it; damaged data rejects the read too
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
@@ -103,11 +118,14 @@ async function inflate(bytes: Uint8Array, cap: number): Promise<Uint8Array | "to
       total += value.length;
       if (total > cap) {
         void reader.cancel().catch(() => {});
+        void writer.abort().catch(() => {});
         return "too-big";
       }
       chunks.push(value);
     }
+    await feeding;
   } catch {
+    void writer.abort().catch(() => {});
     return null;
   }
   const out = new Uint8Array(total);
