@@ -378,7 +378,7 @@ test("the file menu is grouped by separators that are not focusable and that the
   }
   const labels = await menu.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector(".menu-label")!.textContent));
   // Nothing is selected in main.py: the Capture snippet item names no lines (it explains on click).
-  expect(labels).toEqual(["Open", "Run", "Close tab", "Share link...", "Download", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Save as PDF...", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
+  expect(labels).toEqual(["Open", "Run", "Close tab", "Share link...", "Download", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Choose files to download or share...", "Save as PDF...", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
   // Down walks every item in order, never a separator, and wraps; Up comes back over them.
   const seen: string[] = [];
   for (let i = 0; i < labels.length; i++) {
