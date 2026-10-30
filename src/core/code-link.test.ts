@@ -2,8 +2,8 @@
 // Code links (code-link.ts): a link made here opens to the same file, and a hostile link (cut off,
 // a deflate bomb, the wrong shape, a bad name, Trojan Source text) is refused with its reason.
 import { deflateRawSync } from "node:zlib";
-import { describe, expect, it } from "vitest";
-import { MAX_INFLATED_BYTES, MAX_LINK_CHARS, MAX_LINK_FILES, isCodeLink, makeCodeLink, makeFolderLink, readCodeLink, readRefusalText } from "./code-link";
+import { describe, expect, it, vi } from "vitest";
+import { MAX_INFLATED_BYTES, MAX_LINK_CHARS, MAX_LINK_FILES, isCodeLink, makeCodeLink, makeFolderLink, readCodeLink, readPacked, readRefusalText } from "./code-link";
 
 const ORIGIN = "https://execflow.abhinesh.codes";
 const hashOf = (url: string) => url.slice(url.indexOf("#"));
@@ -86,6 +86,41 @@ describe("reading a hostile or damaged link", () => {
     const bomb = forge(Buffer.alloc(5 * 1024 * 1024));
     expect(bomb.length).toBeLessThan(MAX_LINK_CHARS);
     expect(await readCodeLink(bomb)).toEqual({ ok: false, refusal: { kind: "too-big" } });
+  });
+
+  it("a short link's bigger bomb is fed to the decoder in small slices, and feeding stops soon after the cap", async () => {
+    // A short link holds up to 264 KiB, which can inflate to over 250 MB: handed to the decoder whole,
+    // one write could make all of it at once. Every write the decoder gets is recorded here.
+    const writes: number[] = [];
+    const Real = globalThis.DecompressionStream;
+    class Spy extends Real {
+      get writable() {
+        const inner = super.writable.getWriter();
+        return new WritableStream<BufferSource>({
+          async write(chunk) {
+            writes.push(chunk.byteLength);
+            await inner.write(chunk);
+          },
+          close: () => inner.close(),
+          abort: (reason) => inner.abort(reason),
+        });
+      }
+    }
+    vi.stubGlobal("DecompressionStream", Spy);
+    try {
+      const bytes = new Uint8Array(deflateRawSync(Buffer.alloc(32 * 1024 * 1024)));
+      expect(bytes.length).toBeGreaterThan(16 * 1024);
+      expect(await readPacked({ format: 1, bytes })).toEqual({ ok: false, refusal: { kind: "too-big" } });
+      expect(writes.length).toBeGreaterThan(0);
+      expect(Math.max(...writes)).toBeLessThanOrEqual(1024);
+      // Feeding stopped long before the end. (Node's decoder takes up to 16 KiB ahead of its output;
+      // a browser's, a TransformStream, takes one slice.)
+      const fed = writes.reduce((a, b) => a + b, 0);
+      expect(fed).toBeLessThanOrEqual(17 * 1024);
+      expect(fed).toBeLessThan(bytes.length / 1.5);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("a fragment longer than any link made is refused before decoding", async () => {

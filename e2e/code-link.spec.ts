@@ -7,6 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { deflateRawSync } from "node:zlib";
 import { makeCodeLink } from "../src/core/code-link";
+import { darkPath, qrPlan } from "../src/core/qr-plan";
 import { expect, expectActive, importFiles, openApp, showFiles, test, treeItem, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -177,8 +178,8 @@ test.describe("an add that fails keeps the shared file in the dialog", () => {
     await expect(second.locator("#code-link-result")).toHaveAttribute("data-tone", "warning");
     await expect(second.locator("#code-link-result")).toContainText("read-only");
     await expect(preview(second)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
-    // The link stays in this tab's address bar, to open in the editing tab.
-    expect(new URL(second.url()).hash).toBe(hash);
+    // The code left this tab's address bar too, before any other script ran (e2e/link-fragment.spec.ts).
+    expect(new URL(second.url()).hash).toBe("");
     await page.evaluate((h) => (location.hash = h), hash);
     await expect(dialog(page)).toHaveAttribute("data-state", "ready");
     await page.locator("#code-link-add").click();
@@ -289,24 +290,17 @@ test("Show QR code draws the link's code, module for module, dark on light in a 
   const qr = page.locator("#share-qr");
   await expect(qr).toHaveAttribute("role", "img");
   await expect(qr).toHaveAttribute("aria-label", "QR code of the link to hello.c");
-  // The same modules as the library gives in Node for the same link.
-  const { encode } = await import("uqr");
-  const modules = encode(url, { ecc: "L", border: 4 }).data;
-  let d = "";
-  modules.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) {
-      if (!row[x]) continue;
-      let run = 1;
-      while (x + run < row.length && row[x + run]) run++;
-      d += `M${x} ${y}h${run}v1h-${run}z`;
-      x += run - 1;
-    }
-  });
-  expect(await qr.locator("path").getAttribute("d")).toBe(d);
-  const fills = await qr.evaluate((s) => [getComputedStyle(s.querySelector("rect")!).fill, getComputedStyle(s.querySelector("path")!).fill]);
+  // The same modules as the plan made in Node for the same link: a short link fits level H, so the
+  // centre is cleared for the ExecFlow mark (src/core/qr-plan.ts; read back with jsQR in short-links.spec.ts).
+  const plan = qrPlan(url)!;
+  expect(plan.ecc).toBe("H");
+  await expect(qr).toHaveAttribute("data-ecc", "H");
+  expect(await qr.locator(".share-qr-dark").getAttribute("d")).toBe(darkPath(plan.modules));
+  await expect(qr.locator(".share-qr-mark")).toHaveCount(1);
+  const fills = await qr.evaluate((s) => [getComputedStyle(s.querySelector(".share-qr-light")!).fill, getComputedStyle(s.querySelector(".share-qr-dark")!).fill]);
   expect(fills).toEqual(["rgb(255, 255, 255)", "rgb(0, 0, 0)"]);
   const box = (await qr.boundingBox())!;
-  expect(box.width).toBeGreaterThanOrEqual(modules.length * 2);
+  expect(box.width).toBeGreaterThanOrEqual(plan.size * 2);
   await toggle.click();
   await expect(page.locator("#share-qr-box")).toBeHidden();
   await expect(toggle).toBeFocused();
@@ -324,7 +318,7 @@ test("a link too long for a QR code says so (and is still a link)", async ({ pag
   await expect(page.locator("#share-qr")).toHaveCount(0);
 });
 
-test("a file too long for a link says why in the Share dialog, and offers no link", async ({ page }) => {
+test("a file too long for a link says why in the Share dialog, and offers a short link instead of a code link", async ({ page }) => {
   let seed = 11;
   const noise = Array.from({ length: 12000 }, () => String.fromCharCode(97 + ((seed = (seed * 48271) % 2147483647) % 26))).join("");
   await openApp(page);
@@ -334,8 +328,11 @@ test("a file too long for a link says why in the Share dialog, and offers no lin
   await expect(page.locator("dialog#share-dialog")).toHaveAttribute("data-state", "code-refused");
   await expect(page.locator("#share-pending")).toContainText("data.txt is too long for a code link");
   await expect(page.locator("#share-link")).toHaveCount(0);
-  // Ending the panel, the sentence leaves no empty band above the buttons (WebKit on CI measured 32 px).
-  expect(await page.locator("#share-pending").evaluate((p) => getComputedStyle(p).marginBottom)).toBe("0px");
+  // Within 256 KB a short link holds it (short-links.spec.ts makes one from here).
+  await expect(page.locator("#share-pending")).toContainText("Make a short link instead");
+  await expect(page.locator("#share-use-short")).toBeVisible();
+  // Ending the panel, the last row leaves no empty band above the buttons (WebKit on CI measured 32 px).
+  expect(await page.locator("#share-pending + .share-more").evaluate((p) => [p === p.parentElement!.lastElementChild, getComputedStyle(p).marginBottom])).toEqual([true, "0px"]);
   await page.locator("#share-primary").click();
   await expect(page.locator("#share-result")).toHaveAttribute("data-tone", "error");
 });

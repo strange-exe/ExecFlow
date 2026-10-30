@@ -83,7 +83,7 @@
               <div class="legal-meta">
                 <p class="legal-updated">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
-                  <span>Last updated</span> <time datetime="2026-10-28">28 October 2026</time>
+                  <span>Last updated</span> <time datetime="2026-10-31">31 October 2026</time>
                 </p>
                 <a href="/terms"
                   >Read the Terms<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg
@@ -180,6 +180,22 @@
                   uploaded or stored anywhere: anyone who has the link can read it, for as long as they have it. Opening one shows
                   the code first and adds it to your files only when you choose (a shared folder as a new folder).
                 </li>
+                <li>
+                  A <strong>short link</strong> keeps the same copy on ExecFlow's server instead, locked (encrypted) in your
+                  browser before it is sent. The server stores only the locked bytes and the date they expire, after 1, 30 or 90
+                  days as you choose; then they are deleted. The key that unlocks them is the part of the link after the
+                  <code>#</code>, which never reaches the server, so ExecFlow can't read your code. Anyone who has the full link
+                  can read it until it expires, and it can't be deleted sooner. To limit misuse, the server counts the short
+                  links made and opened from each network for an hour, by a scrambled (hashed) form of its IP address (for a
+                  newer IPv6 address, of its first half, which names the network) that is never stored with the link. It also
+                  counts how many short links are made each day in all, which identifies no one.
+                </li>
+                <li>
+                  When a code link or a short link opens, ExecFlow takes the part after the <code>#</code> out of the address bar
+                  before anything else on the page runs, including the analytics script described under <a href="#hosting">Hosting</a>,
+                  so a reload or a bookmark doesn't keep it. Your browser's own history can still list the full link: on a shared
+                  computer, delete it there.
+                </li>
                 <li>A <strong>link to the file in your repository</strong> uploads nothing new. Only people who can see the repository can open it.</li>
                 <li>
                   A <strong>secret gist</strong> puts a copy of one file on your GitHub account. Anyone who has the link can read it,
@@ -198,7 +214,7 @@
               <p>
                 ExecFlow also uses <strong>Cloudflare Web Analytics</strong>, which Cloudflare adds to each page. When a page
                 loads and when you leave it, a small Cloudflare script reports to Cloudflare, through this site's address, how long the page took to load and
-                which page it was (without anything after a "?" in the address). Cloudflare says it
+                which page it was (without anything after a "?" or a "#" in the address). Cloudflare says it
                 <a href="https://developers.cloudflare.com/web-analytics/about/">doesn't collect visitors' personal data</a>.
                 It never sees your code, your files or what you type. ExecFlow's own code adds no other tracking or
                 advertising, and sets no cookies.
@@ -225,6 +241,7 @@
                   and delete any personal access token you made for it.
                 </li>
                 <li>Files in your repository, their commits and any secret gists are yours on GitHub: delete them there.</li>
+                <li>A short link's locked copy is deleted from ExecFlow's server when the link expires.</li>
                 <li>The downloaded tools stay in the browser's cache until you clear this site's data in your browser's settings.</li>
               </ul>
             </section>

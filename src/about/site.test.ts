@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CALLBACK_PATH } from "../sync/auth-callback";
 import { CHANGELOG } from "./changelog";
-import { HTML_INPUT, ORIGIN, PAGES, SOCIAL_CARD, headTags, lastUpdated, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./site";
+import { HTML_INPUT, ORIGIN, PAGES, SOCIAL_CARD, headTags, lastUpdated, pageDates, pagesFile, parseRewrites, rewriteFor, servedPath, sitemapXml, withHeadTags } from "./site";
 
 const read = (file: string) => readFileSync(file, "utf8");
 const titleOf = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "";
@@ -191,11 +191,28 @@ describe("real 404s (Cloudflare Pages serves 404.html, so no editor under every 
   it("_redirects serves the editor at /auth-callback, where GitHub sends a student back after sign-in", () => {
     const rewrites = parseRewrites(read("public/_redirects"));
     expect(rewrites.get(CALLBACK_PATH)).toBe("/");
-    expect(rewrites.size).toBe(1);
+    expect(rewrites.size).toBe(2);
+  });
+
+  it("_redirects serves the editor at /s/<id>, a short link's address (src/core/short-link.ts)", () => {
+    const rewrites = parseRewrites(read("public/_redirects"));
+    expect(rewriteFor(rewrites, "/s/Ab3dEf9hIj")).toBe("/");
+    expect(rewriteFor(rewrites, "/s/")).toBe(undefined);
+    expect(rewriteFor(rewrites, "/s")).toBe(undefined);
+    expect(rewriteFor(rewrites, "/sx/Ab3dEf9hIj")).toBe(undefined);
+    expect(rewriteFor(rewrites, "/api/links/Ab3dEf9hIj")).toBe(undefined);
   });
 
   it("parseRewrites keeps 200 rules only and skips comments", () => {
     expect([...parseRewrites("# note\n/a /b 200\n/c /d 301\n\n/e /f\n")]).toEqual([["/a", "/b"]]);
+  });
+
+  it("rewriteFor matches exact sources first, then splats", () => {
+    const rules = parseRewrites("/x/* /splat 200\n/x/a /exact 200\n");
+    expect(rewriteFor(rules, "/x/a")).toBe("/exact");
+    expect(rewriteFor(rules, "/x/b/c")).toBe("/splat");
+    expect(rewriteFor(rules, "/x/")).toBe(undefined);
+    expect(rewriteFor(rules, "/y/a")).toBe(undefined);
   });
 });
 

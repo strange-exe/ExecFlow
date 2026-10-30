@@ -8,7 +8,7 @@ import { cacheOnlyTheFile, neverStore } from "./src/about/sw-cache-guard.ts";
 import { PYTHON_CACHE, RUNTIME_FILES } from "./src/runner/python-runtime.ts";
 import { APP_ROUTE, NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
-import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
+import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, rewriteFor, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
 import { makeCodeLink } from "./src/core/code-link.ts";
 import { loadGuideData } from "./src/pages/load.ts";
 import { expandGuide, type GuideData } from "./src/pages/render.ts";
@@ -184,6 +184,10 @@ const securityRules: [string, Record<string, string>][] = [
   // (Cloudflare Pages _headers; the preview server below does the same).
   // https://developers.cloudflare.com/pages/configuration/headers/
   ["/move", { [`${DETACH}Cross-Origin-Opener-Policy`]: "", [`${DETACH}Cross-Origin-Embedder-Policy`]: "" }],
+  // A short link's address (/s/<id>, src/core/short-link.ts) is someone's shared code, never a page
+  // to index. /api/links/* needs no rule: _headers doesn't apply to Pages Functions' responses, and
+  // server/short-links.ts sends its own Cache-Control: no-store, nosniff and CSP on every answer.
+  ["/s/*", { "X-Robots-Tag": "noindex" }],
 ];
 
 /** Hashed and versioned files never change; everything else revalidates on every visit. */
@@ -358,7 +362,7 @@ function thirdPartyLicenses(): Plugin {
 /**
  * What search engines and link previews read (src/about/site.ts): each page's canonical link and
  * social tags, and sitemap.xml. `vite preview` also answers like Cloudflare Pages does with 404.html
- * in the build: the _redirects rewrites (GitHub's sign-in return path), the pages and files, and
+ * in the build: the _redirects rewrites (GitHub's sign-in return path, short links' /s/*), the pages and files, and
  * 404.html with a 404 for any other address, so the end-to-end tests meet the deployed site's 404s.
  */
 function site(): Plugin {
@@ -386,7 +390,7 @@ function site(): Plugin {
       const isFile = (file: string) => existsSync(`${outDir}${file}`) && statSync(`${outDir}${file}`).isFile();
       server.middlewares.use((req, res, next) => {
         const [path, query] = (req.url ?? "/").split(/\?(.*)/s);
-        const to = rewrites.get(path);
+        const to = rewriteFor(rewrites, path);
         if (to) {
           req.url = query === undefined ? to : `${to}?${query}`;
           return next();
@@ -578,7 +582,7 @@ export default defineConfig(({ mode }) => ({
         // reuse what the page already downloaded.
         dontCacheBustURLsMatching: /^assets\//,
         navigateFallback: "/index.html",
-        // Only the editor's own addresses (/ and GitHub's sign-in return path /auth-callback) get the
+        // Only the editor's own addresses (/, GitHub's sign-in return path /auth-callback, a short link's /s/<id>) get the
         // editor; any other address the precache doesn't hold goes to the network, which answers
         // 404.html with a 404 (APP_ROUTE, src/about/fallback-deny.ts). Offline, such an address fails
         // like any uncached page. The sign-in relay (functions/api/auth/*) always answers from the

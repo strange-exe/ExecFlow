@@ -116,7 +116,48 @@ test("a shared folder opens in another browser as a new folder, previewed first;
   await other.close();
 });
 
-test("a selection too big for a link says how big, keeps Download, and makes no link", async ({ page }) => {
+test("a file unticked while Share link is packing is in no link: neither the code link nor a short link is offered", async ({ page }) => {
+  // Packing (CompressionStream) waits on window.__packGate while it is set, so the ticks can change mid-pack.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __packGate?: Promise<void> | null; CompressionStream: typeof CompressionStream };
+    const Real = w.CompressionStream;
+    w.CompressionStream = class extends Real {
+      get readable() {
+        const real = super.readable;
+        const gate = w.__packGate;
+        if (!gate) return real;
+        return real.pipeThrough(new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>({ async transform(chunk, out) { await gate; out.enqueue(chunk); } }));
+      }
+    };
+  });
+  await openApp(page);
+  await lab(page);
+  const dialog = await openChooser(page);
+  await box(page, "notes.txt").uncheck();
+  await box(page, "lab1").check();
+  await page.evaluate(() => {
+    const w = window as unknown as { __packGate: Promise<void>; __releasePack: () => void };
+    w.__packGate = new Promise((resolve) => (w.__releasePack = resolve));
+  });
+  await dialog.locator("#choose-share").click();
+  await expect(dialog).toHaveAttribute("data-state", "sharing");
+  await box(page, "lab1/util.h").uncheck();
+  await expect(dialog.locator("#choose-summary")).toContainText("1 file ticked");
+  await page.evaluate(() => (window as unknown as { __releasePack: () => void }).__releasePack());
+  await expect(dialog).toHaveAttribute("data-state", "ready");
+  // The pack for main.c and util.h finished, and was dropped: no link, no short link to make from it.
+  await expect(dialog.locator("#choose-link")).toBeHidden();
+  await expect(dialog.locator("#choose-short")).toBeHidden();
+  await expect(dialog).not.toHaveAttribute("data-short", /./);
+  // Share link again: the link holds main.c alone (format 1, one file).
+  await page.evaluate(() => ((window as unknown as { __packGate: null }).__packGate = null));
+  await dialog.locator("#choose-share").click();
+  await expect(dialog).toHaveAttribute("data-state", "shared");
+  expect(await dialog.locator("#choose-link").inputValue()).toMatch(/\/#code=1\.[A-Za-z0-9_-]+$/);
+  await expect(dialog.locator("#choose-result")).toContainText("The link holds 1 file.");
+});
+
+test("a selection too big for a link says how big, keeps Download, and makes no code link (a short link is offered)", async ({ page }) => {
   await openApp(page);
   // Text that doesn't compress: a random-looking sequence, well past 8,000 characters as a link.
   let seed = 3;
@@ -132,6 +173,9 @@ test("a selection too big for a link says how big, keeps Download, and makes no 
   await expect(dialog.locator("#choose-link")).toBeHidden();
   await expect(dialog).toHaveAttribute("data-state", "ready");
   await expect(dialog.locator("#choose-download")).toHaveText("Download big.zip");
+  // Nothing is sent until Make short link is pressed (short-links.spec.ts makes one).
+  await expect(dialog.locator("#choose-result")).toContainText("Make a short link below, or download them as a .zip.");
+  await expect(dialog).toHaveAttribute("data-short", "ready");
 });
 
 test("a hostile folder link (a path that climbs out) is refused with its reason, before any preview", async ({ page }) => {

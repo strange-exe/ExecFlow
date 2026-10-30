@@ -5,13 +5,19 @@
 // itself, more as a .zip that the button names); Share link puts them in a code link (one file:
 // format 1; more: a folder link, format 2) within the 8,000-character limit, and says when they
 // don't fit. Read-only GitHub files are listed but can't be ticked: their text isn't stored here.
-// A lazy chunk. State attribute for tests: data-state ("ready", "downloading", "sharing", "shared").
-import { makeCodeLink, makeFolderLink, MAX_LINK_CHARS, MAX_LINK_FILES, type MakeRefusal } from "../core/code-link";
+// Once Share link has run, a short link of the same files is offered too (src/core/short-link.ts:
+// encrypted here, kept by ExecFlow's server for the time picked), also when they are too big for a
+// code link; it is made only on "Make short link" and needs a connection.
+// A lazy chunk. State attributes for tests: data-state ("ready", "downloading", "sharing", "shared"),
+// data-short ("ready", "making", "made"; absent while no short link is offered).
+import { linkOf, MAX_LINK_CHARS, MAX_LINK_FILES, packFile, packFolder, type MakeRefusal, type Packed } from "../core/code-link";
 import { isInside, joinPath, nameOf, parentOf } from "../core/paths";
+import { shortMakeRefusalText } from "../core/short-link";
 import { coverPicks, linkFolder, zipName } from "../storage/export-pick";
 import { dialogShell, openModal } from "./dialogs";
 import { h, plural, shown } from "./dom";
 import { icon } from "./icons";
+import { DEFAULT_TTL, expiryDay, expiryField, makeShort, SHORT_NOTE, type LinkTtl } from "./short-link-ui";
 
 export interface ChooseFilesDeps {
   /** Every text file of the workspace, with its text (LF line ends, as stored). */
@@ -85,9 +91,29 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
   const linkField = h("input", { type: "text", id: "choose-link", readonly: "", "aria-label": "The link", spellcheck: "false" }) as HTMLInputElement;
   const copyButton = h("button", { type: "button", class: "btn", id: "choose-copy" }, icon("copy"), "Copy link");
   const linkPanel = h("div", { class: "choose-link", hidden: "" }, linkField, copyButton);
+  // The short link: how long it is kept and Make short link, then the link itself.
+  let ttl: LinkTtl = DEFAULT_TTL;
+  const makeShortButton = h("button", { type: "button", class: "btn", id: "choose-short" }, icon("link-simple"), h("span", { class: "choose-short-label" }, "Make short link"));
+  const shortField = h("input", { type: "text", id: "choose-short-link", readonly: "", "aria-label": "The short link", spellcheck: "false" }) as HTMLInputElement;
+  const shortCopy = h("button", { type: "button", class: "btn", id: "choose-short-copy" }, icon("copy"), "Copy short link");
+  const shortMade = h("div", { class: "choose-link", hidden: "" }, shortField, shortCopy);
+  const shortRow = h("div", { class: "choose-short-row" }, expiryField("choose-ttl", ttl, (t) => (ttl = t)), makeShortButton);
+  const shortPanel = h("div", { class: "choose-short", hidden: "" }, h("p", { class: "field-note", id: "choose-short-note" }, `Or a short link: ${SHORT_NOTE}`), shortRow, shortMade);
+  /** What Share link packed last (the short link carries the same), and a short link being made. */
+  let packedNow: Packed | null = null;
+  /** Counts tick changes: a pack started before the latest one is for other files, and is dropped. */
+  let ticks = 0;
+  let shortBusy = false;
+  function hideShort() {
+    packedNow = null;
+    shortPanel.hidden = true;
+    shortMade.hidden = true;
+    shortRow.hidden = false;
+    delete dialog.dataset.short;
+  }
   const lede = h("p", { id: "choose-files-lede" }, "Tick files, or whole folders. Download saves them to this computer; Share link puts them in a link that opens in ExecFlow, with nothing stored on a server.");
   const empty = h("p", { class: "field-note", id: "choose-empty" }, "There are no files to download or share yet.");
-  body.append(lede, all.length ? h("div", { class: "choose-scroll" }, tree) : empty, summary, linkPanel, result);
+  body.append(lede, all.length ? h("div", { class: "choose-scroll" }, tree) : empty, summary, linkPanel, shortPanel, result);
   dialog.setAttribute("aria-describedby", "choose-files-lede");
 
   const cancel = h("button", { type: "button", class: "btn", id: "choose-cancel" }, "Cancel");
@@ -117,8 +143,10 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
     const p = picks();
     const one = p.length === 1 && size.has(p[0]);
     (download.querySelector(".choose-download-label") as HTMLElement).textContent = t.length ? `Download ${one ? shown(nameOf(p[0])) : zipName(p, deps.workspace)}` : "Download";
-    // The link made for other ticks is out of date.
+    // The links made, or being packed, for other ticks are out of date.
+    ticks++;
     linkPanel.hidden = true;
+    hideShort();
     if (dialog.dataset.state === "shared") dialog.dataset.state = "ready";
   }
   tree.addEventListener("change", (e) => {
@@ -151,7 +179,8 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
   const refusalText = (r: MakeRefusal): string => {
     switch (r.kind) {
       case "too-long":
-        return `These files are too big for a link${r.chars === null ? "" : ` (it would be ${r.chars.toLocaleString("en")} characters)`}: a link holds at most ${MAX_LINK_CHARS.toLocaleString("en")} characters, so chat apps keep it whole. Download them as a .zip instead.`;
+        // Within 256 KB (chars known) a short link holds them; past it, nothing but a .zip does.
+        return `These files are too big for a link${r.chars === null ? "" : ` (it would be ${r.chars.toLocaleString("en")} characters)`}: a link holds at most ${MAX_LINK_CHARS.toLocaleString("en")} characters, so chat apps keep it whole. ${r.chars === null ? "Download them as a .zip instead." : "Make a short link below, or download them as a .zip."}`;
       case "too-many":
         return `A link holds at most ${MAX_LINK_FILES} files. Tick fewer, or download them as a .zip.`;
       case "empty":
@@ -169,22 +198,74 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
     busy = true;
     dialog.dataset.state = "sharing";
     say("");
-    const made = t.length === 1
-      ? await makeCodeLink(deps.origin, nameOf(t[0]), files.find((f) => f.path === t[0])!.text)
+    hideShort();
+    const started = ticks;
+    const packed = t.length === 1
+      ? await packFile(nameOf(t[0]), files.find((f) => f.path === t[0])!.text)
       : await (async () => {
           const folder = linkFolder(picks(), files);
-          return makeFolderLink(deps.origin, folder.name, folder.files);
+          return packFolder(folder.name, folder.files);
         })();
     busy = false;
+    // The ticks changed while it was packing (or the dialog closed): these files aren't the ones
+    // ticked now, so neither the link nor a short link is offered for them. Share link packs again.
+    if (ticks !== started || !dialog.open) {
+      dialog.dataset.state = "ready";
+      return;
+    }
+    const made = packed.ok ? linkOf(deps.origin, packed.packed) : packed;
+    // A short link holds what a code link can't: offered whenever the files are packed.
+    if (packed.ok) {
+      packedNow = packed.packed;
+      shortPanel.hidden = false;
+      dialog.dataset.short = "ready";
+    }
     if (!made.ok) {
       dialog.dataset.state = "ready";
-      return say(refusalText(made.refusal), "warning");
+      say(refusalText(made.refusal), "warning");
+      return packed.ok ? makeShortButton.focus() : undefined;
     }
     linkField.value = made.url;
     linkPanel.hidden = false;
     dialog.dataset.state = "shared";
     say(`The link holds ${plural(t.length, "file")}. Anyone with it can read them; it opens them in ExecFlow without running anything.`);
     copyButton.focus();
+  });
+
+  makeShortButton.addEventListener("click", async (e) => {
+    if (e.detail > 1 || shortBusy || !packedNow || dialog.dataset.short === "made") return;
+    const packed = packedNow;
+    shortBusy = true;
+    dialog.dataset.short = "making";
+    makeShortButton.setAttribute("aria-busy", "true");
+    (makeShortButton.querySelector(".choose-short-label") as HTMLElement).textContent = "Making short link...";
+    say("");
+    const made = await makeShort(packed, ttl).catch(() => null);
+    shortBusy = false;
+    makeShortButton.removeAttribute("aria-busy");
+    (makeShortButton.querySelector(".choose-short-label") as HTMLElement).textContent = "Make short link";
+    // The ticks changed while it was being made: that link is for other files.
+    if (packedNow !== packed || !dialog.open) return;
+    if (!made || !made.ok) {
+      dialog.dataset.short = "ready";
+      return say(made ? shortMakeRefusalText(made.refusal) : "ExecFlow couldn't make the short link. Try again.", "error");
+    }
+    shortField.value = made.url;
+    shortMade.hidden = false;
+    shortRow.hidden = true;
+    dialog.dataset.short = "made";
+    say(`Made a short link, kept until ${expiryDay(made.expires)}. Anyone with it can read the files until then; it opens them in ExecFlow without running anything.`);
+    shortCopy.focus();
+  });
+  shortCopy.addEventListener("click", async () => {
+    try {
+      await (deps.writeText ?? ((text: string) => navigator.clipboard.writeText(text)))(shortField.value);
+      say("Copied the short link.");
+    } catch {
+      shortField.focus();
+      shortField.select();
+      say("The browser didn't let ExecFlow copy it: the link is selected, so copy it from the field.", "warning");
+    }
   });
   copyButton.addEventListener("click", async () => {
     try {

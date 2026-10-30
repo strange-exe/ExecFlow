@@ -7,11 +7,13 @@ import { GUIDE_PATH } from "../pages/routes";
 export const FILE_URL = /^[^?]*\/[^/?]+\.(?!html(?:[?]|$))[^/.?]+(?:[?].*)?$/;
 
 // The only addresses the navigation fallback answers with the editor (navigateFallbackAllowlist): the
-// editor itself and GitHub's sign-in return path (src/sync/auth-callback.ts), with any query. Every
-// other unknown address goes to the network, which answers the site's 404 page with a 404, so the
-// service worker never turns a missing page back into the editor. Offline, such an address fails
-// like any uncached page. /about, /privacy and /terms never reach here: the precache answers them.
-export const APP_ROUTE = /^\/(?:auth-callback)?(?:[?].*)?$/;
+// editor itself, GitHub's sign-in return path (src/sync/auth-callback.ts) and a short link's address
+// (/s/ and a 10-character id, src/core/short-link.ts; offline it opens the editor, which says the link
+// needs a connection), with any query. Every other unknown address goes to the network, which answers
+// the site's 404 page with a 404, so the service worker never turns a missing page back into the
+// editor. Offline, such an address fails like any uncached page. /about, /privacy and /terms never
+// reach here: the precache answers them.
+export const APP_ROUTE = /^\/(?:auth-callback|s\/[0-9A-Za-z]{10})?(?:[?].*)?$/;
 
 /**
  * The whole navigateFallbackDenylist: the sign-in relay (functions/api/auth/*) always answers from

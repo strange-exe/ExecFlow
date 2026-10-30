@@ -175,9 +175,11 @@ test("every icon index.html declares is there, in its declared format and size: 
   expect(icons.filter((i) => i.where.split(" ").includes("icon")).map((i) => i.type).sort(), "favicons").toEqual(["image/png", "image/svg+xml"]);
   const touch = icons.filter((i) => i.where === "apple-touch-icon");
   expect(touch, "one apple-touch-icon").toHaveLength(1);
-  // Relative icon hrefs (lessons.md, Setu); the manifest link is the plugin's root path.
+  // Root paths: the editor is also served at /s/<id> (short links), where relative hrefs would point
+  // under /s/ (short-links.spec.ts loads the icons there). The Setu lesson's relative hrefs are for a
+  // site served under a subpath; this one is always at the root (its manifest and workers are too).
   const hrefs = await page.$$eval('link[rel~="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]', (els) => els.map((e) => e.getAttribute("href") ?? ""));
-  expect(hrefs.filter((h) => h !== "/manifest.webmanifest" && h.startsWith("/")), "icon hrefs are relative").toEqual([]);
+  expect(hrefs.filter((h) => !h.startsWith("/") || h.startsWith("//")), "icon hrefs are root paths").toEqual([]);
   for (const icon of icons) await checkIcon(request, icon);
   // iOS draws the apple-touch-icon as given and rounds it itself: a square, fully opaque PNG.
   const px = await imageFacts(page, touch[0].url);

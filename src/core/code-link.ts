@@ -19,6 +19,9 @@
 // within the same length and size caps, at most MAX_LINK_FILES files. The folder name is one name;
 // each path is relative to it, at most MAX_LINK_DEPTH deep, and two files may not land on one file
 // (names compared as storage compares them) or a file sit where another file's folder is.
+//
+// Short links (src/core/short-link.ts) carry the same packed content (packFile, packFolder),
+// encrypted and stored instead of in the fragment; readPacked gives them every check here.
 import { foldKey, normalizePath, PathError } from "./paths";
 import { checkText } from "./safety";
 
@@ -88,9 +91,24 @@ async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+/**
+ * Compressed bytes handed to the decoder at a time. Deflate inflates at most about 1,000:1, so one
+ * slice makes at most about 1 MB: a short link's 264 KiB, handed over whole, could make 250 MB at once.
+ */
+const INFLATE_SLICE = 1024;
+
 /** The inflated bytes, "too-big" as soon as they pass `cap`, null when the data isn't valid deflate. */
 async function inflate(bytes: Uint8Array, cap: number): Promise<Uint8Array | "too-big" | null> {
-  const reader = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream(FORMAT)).getReader();
+  const decoder = new DecompressionStream(FORMAT);
+  const writer = decoder.writable.getWriter();
+  const reader = decoder.readable.getReader();
+  // Each write waits until the decoder has taken the slice before, and the decoder waits for its
+  // output to be read: the next slice goes in only as fast as the loop below reads and counts.
+  const feeding = (async () => {
+    for (let at = 0; at < bytes.length; at += INFLATE_SLICE) await writer.write(bytes.subarray(at, at + INFLATE_SLICE) as Uint8Array<ArrayBuffer>);
+    await writer.close();
+  })();
+  feeding.catch(() => {}); // a refusal below aborts it; damaged data rejects the read too
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
@@ -100,11 +118,14 @@ async function inflate(bytes: Uint8Array, cap: number): Promise<Uint8Array | "to
       total += value.length;
       if (total > cap) {
         void reader.cancel().catch(() => {});
+        void writer.abort().catch(() => {});
         return "too-big";
       }
       chunks.push(value);
     }
+    await feeding;
   } catch {
+    void writer.abort().catch(() => {});
     return null;
   }
   const out = new Uint8Array(total);
@@ -116,24 +137,34 @@ async function inflate(bytes: Uint8Array, cap: number): Promise<Uint8Array | "to
   return out;
 }
 
-/** The link for `name` holding `text`, opening at `origin` (e.g. "https://execflow.abhinesh.codes"). */
-export async function makeCodeLink(origin: string, name: string, text: string): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }> {
+/**
+ * A link's content before it becomes a link: its format (1: one file, 2: a folder) and the deflated
+ * JSON. A code link puts it in the fragment as base64url; a short link (src/core/short-link.ts)
+ * encrypts it, so both are read by readPacked with the same checks.
+ */
+export interface Packed {
+  format: 1 | 2;
+  bytes: Uint8Array;
+}
+
+type PackResult = { ok: true; packed: Packed } | { ok: false; refusal: MakeRefusal };
+
+/** `name` holding `text`, packed (format 1); refused as makeCodeLink refuses, but for the link's length. */
+export async function packFile(name: string, text: string): Promise<PackResult> {
   if (!canCompress()) return { ok: false, refusal: { kind: "unsupported" } };
   const checked = checkText(text);
   if (!checked.ok) return { ok: false, refusal: { kind: "not-text", reason: checked.reason } };
   const json = new TextEncoder().encode(JSON.stringify({ n: name, t: text }));
   // More than a link may inflate to can't be opened anyway: refused without compressing it.
   if (json.length > MAX_INFLATED_BYTES) return { ok: false, refusal: { kind: "too-long", chars: null } };
-  const url = `${origin}/${CODE_LINK_MARK}${VERSION}${toBase64Url(await deflate(json))}`;
-  if (url.length > MAX_LINK_CHARS) return { ok: false, refusal: { kind: "too-long", chars: url.length } };
-  return { ok: true, url };
+  return { ok: true, packed: { format: 1, bytes: await deflate(json) } };
 }
 
 /**
- * The link for a folder named `folder` holding `files` (paths relative to it), opening at `origin`.
- * The caller passes workspace files, so their paths are already valid; the reader checks them anyway.
+ * A folder named `folder` holding `files` (paths relative to it), packed (format 2). The caller
+ * passes workspace files, so their paths are already valid; the reader checks them anyway.
  */
-export async function makeFolderLink(origin: string, folder: string, files: readonly SharedFile[]): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }> {
+export async function packFolder(folder: string, files: readonly SharedFile[]): Promise<PackResult> {
   if (!files.length) return { ok: false, refusal: { kind: "empty" } };
   if (files.length > MAX_LINK_FILES) return { ok: false, refusal: { kind: "too-many" } };
   if (!canCompress()) return { ok: false, refusal: { kind: "unsupported" } };
@@ -143,9 +174,26 @@ export async function makeFolderLink(origin: string, folder: string, files: read
   }
   const json = new TextEncoder().encode(JSON.stringify({ d: folder, f: files.map((f) => ({ n: f.name, t: f.text })) }));
   if (json.length > MAX_INFLATED_BYTES) return { ok: false, refusal: { kind: "too-long", chars: null } };
-  const url = `${origin}/${CODE_LINK_MARK}${FOLDER_VERSION}${toBase64Url(await deflate(json))}`;
+  return { ok: true, packed: { format: 2, bytes: await deflate(json) } };
+}
+
+/** The code link of packed content, opening at `origin`, or "too-long" past MAX_LINK_CHARS. */
+export function linkOf(origin: string, packed: Packed): { ok: true; url: string } | { ok: false; refusal: MakeRefusal } {
+  const url = `${origin}/${CODE_LINK_MARK}${packed.format === 2 ? FOLDER_VERSION : VERSION}${toBase64Url(packed.bytes)}`;
   if (url.length > MAX_LINK_CHARS) return { ok: false, refusal: { kind: "too-long", chars: url.length } };
   return { ok: true, url };
+}
+
+/** The link for `name` holding `text`, opening at `origin` (e.g. "https://execflow.abhinesh.codes"). */
+export async function makeCodeLink(origin: string, name: string, text: string): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }> {
+  const packed = await packFile(name, text);
+  return packed.ok ? linkOf(origin, packed.packed) : packed;
+}
+
+/** The link for a folder named `folder` holding `files` (paths relative to it), opening at `origin`. */
+export async function makeFolderLink(origin: string, folder: string, files: readonly SharedFile[]): Promise<{ ok: true; url: string } | { ok: false; refusal: MakeRefusal }> {
+  const packed = await packFolder(folder, files);
+  return packed.ok ? linkOf(origin, packed.packed) : packed;
 }
 
 /** Whether `hash` (location.hash) is a code link, of any version. */
@@ -159,8 +207,10 @@ const fail = (refusal: ReadRefusal): Fail => ({ ok: false, refusal });
 const isRecord = (value: unknown, keys: string): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).sort().join(",") === keys;
 
+export type ReadResult = { ok: true; file: SharedFile } | { ok: true; folder: SharedFolder } | Fail;
+
 /** The file (format 1) or folder (format 2) a code link's fragment (location.hash) carries, or why it can't be opened. */
-export async function readCodeLink(hash: string): Promise<{ ok: true; file: SharedFile } | { ok: true; folder: SharedFolder } | Fail> {
+export async function readCodeLink(hash: string): Promise<ReadResult> {
   if (!isCodeLink(hash) || hash.length > MAX_LINK_CHARS) return fail({ kind: hash.length > MAX_LINK_CHARS ? "too-big" : "damaged" });
   const body = hash.slice(CODE_LINK_MARK.length);
   const version = body.startsWith(VERSION) ? VERSION : body.startsWith(FOLDER_VERSION) ? FOLDER_VERSION : null;
@@ -168,7 +218,18 @@ export async function readCodeLink(hash: string): Promise<{ ok: true; file: Shar
   if (!canCompress()) return fail({ kind: "unsupported" });
   const packed = fromBase64Url(body.slice(version.length));
   if (!packed) return fail({ kind: "damaged" });
-  const inflated = await inflate(packed, MAX_INFLATED_BYTES);
+  return readPacked({ format: version === FOLDER_VERSION ? 2 : 1, bytes: packed });
+}
+
+/**
+ * Packed content (a code link's, or a short link's once decrypted) as a file or folder, with every
+ * check a code link gets: the inflated size capped while it streams, the exact JSON shape, names,
+ * paths, depth, file count and text. Whoever made the bytes, nothing unchecked comes out.
+ */
+export async function readPacked({ format, bytes }: Packed): Promise<ReadResult> {
+  if (format !== 1 && format !== 2) return fail({ kind: "damaged" });
+  if (!canCompress()) return fail({ kind: "unsupported" });
+  const inflated = await inflate(bytes, MAX_INFLATED_BYTES);
   if (inflated === "too-big") return fail({ kind: "too-big" });
   if (!inflated) return fail({ kind: "damaged" });
   let parsed: unknown;
@@ -177,7 +238,7 @@ export async function readCodeLink(hash: string): Promise<{ ok: true; file: Shar
   } catch {
     return fail({ kind: "damaged" });
   }
-  if (version === FOLDER_VERSION) return readFolder(parsed);
+  if (format === 2) return readFolder(parsed);
   const record = parsed as Record<string, unknown>;
   if (!isRecord(parsed, "n,t") || typeof record.n !== "string" || typeof record.t !== "string") return fail({ kind: "damaged" });
   let name: string;
@@ -247,20 +308,20 @@ function toLf(text: string): { ok: true; text: string } | { ok: false; reason: s
   return { ok: true, text: text.replaceAll("\r\n", "\n") };
 }
 
-/** One sentence for a link that couldn't be opened. */
-export function readRefusalText(refusal: ReadRefusal): string {
+/** One sentence for a link that couldn't be opened; `noun` names it ("short link" for src/core/short-link.ts). */
+export function readRefusalText(refusal: ReadRefusal, noun = "code link"): string {
   switch (refusal.kind) {
     case "unsupported":
-      return "This browser can't open code links. Open the link in a current Chrome, Edge, Firefox or Safari.";
+      return `This browser can't open ${noun}s. Open the link in a current Chrome, Edge, Firefox or Safari.`;
     case "damaged":
-      return "This code link is damaged or incomplete (it may have been cut off when it was sent), so nothing was opened. Ask for the link again.";
+      return `This ${noun} is damaged or incomplete (it may have been cut off when it was sent), so nothing was opened. Ask for the link again.`;
     case "too-big":
-      return "This code link holds more than a code link can, so nothing was opened. Ask for the file another way.";
+      return `This ${noun} holds more than a ${noun} can, so nothing was opened. Ask for the file another way.`;
     case "too-many":
-      return `This code link holds more than ${MAX_LINK_FILES} files, more than a code link may, so nothing was opened. Ask for the files as a .zip.`;
+      return `This ${noun} holds more than ${MAX_LINK_FILES} files, more than a ${noun} may, so nothing was opened. Ask for the files as a .zip.`;
     case "bad-name":
-      return `This code link's file name can't be used (${refusal.reason}), so nothing was opened.`;
+      return `This ${noun}'s file name can't be used (${refusal.reason}), so nothing was opened.`;
     case "not-text":
-      return `This code link wasn't opened: ${refusal.reason}.`;
+      return `This ${noun} wasn't opened: ${refusal.reason}.`;
   }
 }

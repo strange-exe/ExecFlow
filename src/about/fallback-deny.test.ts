@@ -9,11 +9,11 @@ import { APP_ROUTE, FILE_URL } from "./fallback-deny";
 // Any other address goes to the network, which answers 404.html with a 404 (Cloudflare Pages); the
 // other pages (/about, /privacy, /terms) are answered by the precache itself, not the fallback.
 describe("APP_ROUTE (navigateFallbackAllowlist)", () => {
-  it.each(["/", "/?x=a.b", "/auth-callback", "/auth-callback?code=a.b&state=c.d", "/auth-callback?error=access_denied"])("%s is the editor", (url) => {
+  it.each(["/", "/?x=a.b", "/auth-callback", "/auth-callback?code=a.b&state=c.d", "/auth-callback?error=access_denied", "/s/Ab3dEf9hIj", "/s/0123456789?x=1"])("%s is the editor", (url) => {
     expect(APP_ROUTE.test(url)).toBe(true);
   });
 
-  it.each(["/nope", "/about", "/privacy", "/auth-callback/x", "/auth-callbackx", "/index", "//", "/x?/"])("%s is not: the network or the precache answers", (url) => {
+  it.each(["/nope", "/about", "/privacy", "/auth-callback/x", "/auth-callbackx", "/index", "//", "/x?/", "/s/", "/s", "/s/Ab3dEf9hI", "/s/Ab3dEf9hIjk", "/s/Ab3dEf9hI-", "/s/Ab3dEf9hIj/", "/s/../../etc/x", "/s/Ab3dEf9hIj/x.js"])("%s is not: the network or the precache answers", (url) => {
     expect(APP_ROUTE.test(url)).toBe(false);
   });
 });

@@ -135,8 +135,9 @@ export const MAX_ORIGINS = 4;
  * ALLOWED_ORIGIN: one exact origin, or several separated by commas (spaces around a comma are
  * ignored). Every entry must be an exact origin; no wildcards. One bad or empty entry, or more than
  * MAX_ORIGINS, and the whole value is refused, so the relay fails closed rather than half-open.
+ * The short links' function (server/short-links.ts) applies the same rule.
  */
-function originsOf(value: unknown): string[] | null {
+export function originsOf(value: unknown): string[] | null {
   if (typeof value !== "string" || value.length > MAX_ORIGINS * 201) return null;
   const entries = value.split(",").map((e) => e.trim());
   if (entries.length > MAX_ORIGINS || !entries.every(isOrigin)) return null;
@@ -213,9 +214,9 @@ async function jsonBody(request: Request): Promise<BodyResult> {
  * Same site only: the Origin header equals one listed origin exactly, and the browser's own
  * Sec-Fetch-Site says same-origin when it sends one. Returns the matched LIST ENTRY (callers derive
  * URLs from it, never from the header), "" for an allowed request with no Origin (a same-origin GET
- * sends none), or null to refuse.
+ * sends none), or null to refuse. Shared with server/short-links.ts.
  */
-function matchOrigin(request: Request, origins: readonly string[], requireOrigin: boolean): string | null {
+export function matchOrigin(request: Request, origins: readonly string[], requireOrigin: boolean): string | null {
   const site = request.headers.get("sec-fetch-site");
   if (site !== null && site !== "same-origin") return null;
   const sent = request.headers.get("origin");
