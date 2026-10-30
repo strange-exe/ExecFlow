@@ -508,7 +508,8 @@ for (const key of ["Enter", "Space"] as const) {
     await page.keyboard.press("Shift+Tab");
     await expect(page.locator("#file-actions")).toBeFocused();
     await page.keyboard.press("Enter");
-    for (let i = 0; i < 2; i++) {
+    // Type-ahead "c" steps through every item starting with C (Close, Choose files..., Capture snippet).
+    for (let i = 0; i < 4; i++) {
       await page.keyboard.press("c");
       if (((await page.evaluate(() => document.activeElement?.querySelector(".menu-label")?.textContent)) ?? "").startsWith("Capture snippet")) break;
     }
@@ -1626,10 +1627,12 @@ test("31: a held Enter exports once, and a held Enter on the file menu item open
   const now = await captures(page);
   await page.locator("#file-actions").focus();
   await page.keyboard.press("Enter");
-  for (let i = 0; i < 2; i++) {
+  // Type-ahead "c" steps through every item starting with C (Close, Choose files..., Capture snippet).
+  for (let i = 0; i < 4; i++) {
     if (((await page.evaluate(() => document.activeElement?.querySelector(".menu-label")?.textContent)) ?? "").startsWith("Capture snippet")) break;
     await page.keyboard.press("c");
   }
+  expect(await page.evaluate(() => document.activeElement?.querySelector(".menu-label")?.textContent)).toMatch(/^Capture snippet/);
   await page.keyboard.down("Enter");
   await page.keyboard.down("Enter");
   await page.keyboard.up("Enter");
