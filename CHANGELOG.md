@@ -6,6 +6,26 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.21.0] - 2026-10-31
+
+Short links, and QR codes with the ExecFlow mark
+
+### Added
+
+- Share a file, or files and folders from Choose files, as a short link (/s/...). Your code is encrypted on your device and kept by ExecFlow's server for 1, 30 or 90 days, as you pick; the key stays in the link and never reaches the server.
+- Code too long for a code link? Share and Choose files now offer a short link instead of only a .zip.
+- QR codes carry the ExecFlow mark when it fits, and short links make small, easy-to-scan codes.
+
+### Changed
+
+- Short links are limited per network (300 opened and 50 made an hour), with at most 800 made a day in all, so the free storage stays open for everyone. Short link addresses are never listed by search engines.
+
+### Fixed
+
+- A code link's code now leaves the address bar as soon as the page opens, in every tab, before any other script runs. A link that can't load says to open the link again.
+- In Choose files, unticking a file while the link is being made no longer gives a link that still holds it.
+- Going offline as you press Make short link says the device is offline, rather than that the link couldn't be made.
+
 ## [0.20.0] - 2026-10-31
 
 Python downloads when you first use it
