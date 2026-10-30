@@ -301,6 +301,54 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   return svg;
 }
 
+/**
+ * The legend's entries in reading order: a name for each shape, and the kinds drawn with it (start
+ * and end share the terminator). The view lists only the entries its chart uses.
+ */
+export const LEGEND: readonly { kind: FlowNode["kind"]; also?: FlowNode["kind"]; words: string }[] = [
+  { kind: "start", also: "end", words: "Start and end" },
+  { kind: "process", words: "Step" },
+  { kind: "io", words: "Input or output" },
+  { kind: "decision", words: "Decision" },
+  { kind: "call", words: "Function call" },
+  { kind: "connector", words: "Label or go to" },
+];
+
+/**
+ * A 24 x 14 picture of a kind's shape for the legend, in the very style its boxes are drawn with
+ * (the same outline, tint and width), so the legend can't drift from the chart. Decorative: the
+ * words beside it say the kind.
+ */
+export function kindSwatch(kind: FlowNode["kind"], doc: SvgDocument = document, look: ChartLook = VIEW_LOOK): SVGSVGElement {
+  const STYLE = styles(look);
+  const hue = kindHue(kind);
+  const style = STYLE.kindShape(hue);
+  const svg = el(doc, "svg", { xmlns: NS, viewBox: "0 0 24 14", width: 24, height: 14, "aria-hidden": "true", focusable: "false" });
+  const parts: SVGElement[] = (() => {
+    switch (kind) {
+      case "start":
+      case "end":
+        return [el(doc, "rect", { x: 1, y: 1, width: 22, height: 12, rx: 6, style })];
+      case "decision":
+        return [el(doc, "polygon", { points: "12,1 23,7 12,13 1,7", style })];
+      case "io":
+        return [el(doc, "polygon", { points: "6,1 23,1 18,13 1,13", style })];
+      case "call":
+        return [
+          el(doc, "rect", { x: 1, y: 1, width: 22, height: 12, rx: 1, style }),
+          el(doc, "line", { x1: 5, y1: 1, x2: 5, y2: 13, style: STYLE.kindBar(hue) }),
+          el(doc, "line", { x1: 19, y1: 1, x2: 19, y2: 13, style: STYLE.kindBar(hue) }),
+        ];
+      case "connector":
+        return [el(doc, "circle", { cx: 12, cy: 7, r: 6, style })];
+      default:
+        return [el(doc, "rect", { x: 1, y: 1, width: 22, height: 12, rx: 1, style })];
+    }
+  })();
+  for (const p of parts) svg.appendChild(p);
+  return svg;
+}
+
 /** Where control goes after a box, in words: "Next: step 4." or "Yes: step 5. No: step 6." */
 function next(node: FlowNode, out: FlowEdge[]): string {
   if (node.kind === "connector" && out.length === 1 && out[0].kind === "link") return `: step ${out[0].to + 1}.`;

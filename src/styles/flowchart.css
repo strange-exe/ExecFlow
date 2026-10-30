@@ -1,17 +1,21 @@
 /* The Flowchart view (src/ui/flowchart-view.ts; a lazy chunk with its script). Signal tokens only.
    Reading order: 1. the chart on the code ground, 2. the toolbar's picker and zoom (quiet tier),
-   3. Full screen at the toolbar's right end. The boxes' own colours are set by render.ts from the
+   3. Full screen at the toolbar's right end; the legend under the chart stays in the quiet tier.
+   One bar (Workbench Pro, item 6): the Output tab's tool row is hidden on this tab (app.css).
+   The boxes' own colours are set by render.ts from the
    same tokens; here only what the view adds: the stage, the toolbar, the banner, the states, and the
    rings for focus (brass, solid) and for the caret's box (location, dashed: never colour alone). */
 
-.fc-view { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); color: var(--text); }
+/* A size container: the bar drops its words by its own width (the console's column), not the window's. */
+.fc-view { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); color: var(--text); container: fc-view / inline-size; }
 
 /* ------------------------------------------------------------------ toolbar (quiet tier) */
 .fc-toolbar {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s3);
+  gap: var(--s1) var(--s3);
   min-width: 0;
   padding: var(--s1) var(--s2) var(--s1) var(--s3);
   border-bottom: 1px solid var(--border);
@@ -19,10 +23,11 @@
 }
 .fc-toolbar[hidden] { display: none; }
 .fc-group { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
-.fc-spacer { flex: 1; }
-.fc-label { color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); }
+.fc-end { margin-left: auto; }
+.fc-label { color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); white-space: nowrap; }
 .fc-picker {
-  min-width: 0;
+  /* Room for a short name ("main") before the bar squeezes it. */
+  min-width: 9ch;
   max-width: 24ch;
   min-height: var(--target);
   padding: 0 var(--s2);
@@ -46,10 +51,24 @@
   color: var(--text-secondary);
   font-size: var(--fs-2);
   line-height: var(--lh-2);
+  white-space: nowrap;
 }
 .fc-tool:hover { background: var(--hover); color: var(--text); }
 .fc-tool[aria-expanded="true"] { color: var(--text); }
-.fc-tool .icon { width: var(--icon-md); height: var(--icon-md); }
+.fc-tool .icon { width: var(--icon-md); height: var(--icon-md); flex: none; }
+.fc-tool > * { pointer-events: none; }
+/* Fit is a word (the mock's chip): an edge so it reads as a button beside the two zoom icons. */
+.fc-fit { padding: 0 var(--s3); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text); font-weight: var(--w-label); }
+
+/* Narrow bars keep every control and drop words, widest first: the picker's label and Export's word
+   (its download glyph is familiar), then Steps as text's. Each keeps its name for screen readers. */
+@container fc-view (max-width: 599px) {
+  .fc-label, #fc-export .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@container fc-view (max-width: 439px) {
+  .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .fc-toolbar { gap: var(--s1); }
+}
 
 /* ------------------------------------------------------------------ an export's result (polite status) */
 /* Empty, it keeps no height but stays in the page, so its first words are heard. */
@@ -74,7 +93,9 @@
 .fc-banner-text { flex: 1 1 20ch; }
 
 /* ------------------------------------------------------------------ the chart */
-.fc-stage { flex: 1 1 auto; min-height: 0; overflow: auto; cursor: grab; touch-action: none; background: var(--bg); }
+/* A zero basis: the stage's height never depends on the drawing's, since fit sizes the drawing from
+   the stage's height (an auto basis let the two feed each other: WebKit's "ResizeObserver loop"). */
+.fc-stage { flex: 1 1 0; min-height: 0; overflow: auto; cursor: grab; touch-action: none; background: var(--bg); }
 .fc-stage[hidden] { display: none; }
 .fc-stage:active { cursor: grabbing; }
 .fc-stage svg { display: block; margin: 0 auto; }
@@ -83,6 +104,27 @@
 .fc-ring { fill: none; stroke: none; pointer-events: none; }
 .fc-node[data-current="true"] .fc-ring { stroke: var(--location); stroke-width: 2; stroke-dasharray: 5 3; }
 .fc-node:focus-visible .fc-ring { stroke: var(--focus); stroke-width: 2.5; stroke-dasharray: none; }
+
+/* ------------------------------------------------------------------ the legend (quiet tier) */
+/* Under the chart: the shapes it uses, each drawn by render.ts in its boxes' own colours, then its
+   name in the secondary ink. Wraps to a second line on a narrow card. */
+.fc-legend {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s4);
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--fs-hint);
+  line-height: var(--lh-hint);
+  list-style: none;
+}
+.fc-legend[hidden] { display: none; }
+.fc-legend li { display: flex; align-items: center; gap: var(--s2); white-space: nowrap; }
+.fc-legend svg { display: block; flex: none; overflow: visible; }
 
 /* ------------------------------------------------------------------ steps as text */
 .fc-steps {
@@ -137,9 +179,9 @@
 .fc-dialog[open] { display: flex; }
 .fc-dialog .fc-view { flex: 1; }
 
+/* Phones: the bar's words go by the container rules above (the view is the screen's width). */
 @media (max-width: 899px) {
   .fc-toolbar { gap: var(--s1); padding-left: var(--s2); }
   .fc-picker { min-height: var(--tool); max-width: 16ch; }
-  .fc-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .fc-tool span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .fc-legend { gap: var(--s1) var(--s3); padding: var(--s1) var(--s2); }
 }

@@ -6,6 +6,23 @@ Every change to CodeEditor that reached the site, newest first. The format is ba
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.14.0] - 2026-10-30
+
+A flowchart that fits, with a key to its shapes
+
+### Added
+
+- A key under the flowchart names each shape it uses: start and end, step, input or output, decision, function call, and label.
+
+### Changed
+
+- The flowchart opens fitted whole in its panel, so you see from Start to the end without scrolling. A very long one stays readable and scrolls down.
+- Its controls sit in one bar: the function, zoom out, zoom in, Fit, Steps as text, Export and Full screen.
+
+### Fixed
+
+- On medium-width screens, a C or C++ file waiting for its one-time download no longer pushes the Run button out of the window.
+
 ## [0.13.0] - 2026-10-30
 
 A new editor layout

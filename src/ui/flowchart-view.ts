@@ -1,7 +1,9 @@
 // The Flowchart view (a lazy chunk: the workbench imports it the first time the Flowchart tab or
 // phone view opens; the worker and the grammars load when it first draws). It follows the open file:
 // a chart per function (entry point first, a picker for the rest), redrawn 300 ms after typing stops
-// while it is on screen. Reading order: 1. the chart, 2. the picker and zoom, 3. Full screen.
+// while it is on screen. Reading order: 1. the chart, 2. the picker and zoom, 3. Full screen; the
+// legend under the chart names the shapes it uses. The chart is fitted whole to the card when it
+// opens (fit(), down to FIT_FLOOR), and refitted as the card resizes until the student zooms.
 //
 // The chart is one Tab stop: a list of boxes in reading order (arrows, Home, End). Enter or Space,
 // or a click, goes to the box's lines in the code; arrows only show the lines (the focus stays in the
@@ -11,7 +13,6 @@
 import "../styles/flowchart.css";
 import arrowsInPath from "@phosphor-icons/core/assets/regular/arrows-in.svg?raw";
 import arrowsOutPath from "@phosphor-icons/core/assets/regular/arrows-out.svg?raw";
-import framePath from "@phosphor-icons/core/assets/regular/frame-corners.svg?raw";
 import listPath from "@phosphor-icons/core/assets/regular/list-numbers.svg?raw";
 import minusPath from "@phosphor-icons/core/assets/regular/magnifying-glass-minus.svg?raw";
 import plusPath from "@phosphor-icons/core/assets/regular/magnifying-glass-plus.svg?raw";
@@ -26,7 +27,7 @@ import { BRAND_MARK } from "../editor/brand-mark";
 import {
   chooseExportScale, drawExport, exportFileName, exportSize, exportSvg, footerWhat, markSpot, printColors, type ExportColors, type ExportInput, type ExportLook,
 } from "../flowchart/export";
-import { renderChart, stepList } from "../flowchart/render";
+import { kindSwatch, LEGEND, renderChart, stepList } from "../flowchart/render";
 import { openModal } from "./dialogs";
 import { downloadBlob, h, svg } from "./dom";
 import { icon, pathData } from "./icons";
@@ -69,9 +70,11 @@ export const REDRAW_MS = 300;
 /** The loading words wait this long (the Doherty threshold), so a quick draw shows no flash of text. */
 export const LOADING_WORDS_MS = 400;
 const ZOOM = { min: 0.25, max: 2, step: 1.25 };
+/** Fit draws no smaller than this to fit a chart whole: the boxes' 13 px words stay about 10 px. */
+export const FIT_FLOOR = 0.75;
 
 // The panel's Maximise uses the corners icons; full screen, a different thing, uses arrows.
-const LOCAL_ICONS = { minus: minusPath, plus: plusPath, frame: framePath, list: listPath, out: arrowsOutPath, in: arrowsInPath };
+const LOCAL_ICONS = { minus: minusPath, plus: plusPath, list: listPath, out: arrowsOutPath, in: arrowsInPath };
 function localIcon(name: keyof typeof LOCAL_ICONS) {
   return svg(
     "svg",
@@ -87,20 +90,21 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   const picker = h("select", { id: "fc-picker", class: "fc-picker" });
   const pickerLabel = h("label", { class: "fc-label", for: "fc-picker" }, "Function");
   const zoomOut = h("button", { type: "button", class: "icon-btn", id: "fc-zoom-out", "aria-label": "Zoom out", title: "Zoom out (Ctrl+wheel)" }, localIcon("minus"));
-  const fitButton = h("button", { type: "button", class: "icon-btn", id: "fc-fit", "aria-label": "Fit to the width", title: "Fit to the width" }, localIcon("frame"));
   const zoomIn = h("button", { type: "button", class: "icon-btn", id: "fc-zoom-in", "aria-label": "Zoom in", title: "Zoom in (Ctrl+wheel)" }, localIcon("plus"));
-  const stepsToggle = h("button", { type: "button", class: "fc-tool", id: "fc-steps-toggle", "aria-expanded": "false", "aria-controls": "fc-steps" }, localIcon("list"), h("span", null, "Steps as text"));
+  // A word, not an icon (Workbench Pro): "Fit" is clearer than a frame glyph, and short enough for a phone.
+  const fitButton = h("button", { type: "button", class: "fc-tool fc-fit", id: "fc-fit", title: "Fit the whole chart in view" }, "Fit");
+  const stepsToggle = h("button", { type: "button", class: "fc-tool", id: "fc-steps-toggle", "aria-expanded": "false", "aria-controls": "fc-steps", title: "Steps as text" }, localIcon("list"), h("span", { class: "fc-tool-words" }, "Steps as text"));
   const fullButton = h("button", { type: "button", class: "icon-btn", id: "fc-full", "aria-label": "Full screen", title: "Full screen" }, localIcon("out"));
-  const exportButton = h("button", { type: "button", class: "fc-tool", id: "fc-export", title: "Export the flowchart" }, icon("download-simple"), h("span", null, "Export"));
+  const exportButton = h("button", { type: "button", class: "fc-tool", id: "fc-export", title: "Export the flowchart" }, icon("download-simple"), h("span", { class: "fc-tool-words" }, "Export"));
+  // One bar (Workbench Pro, item 6): the function, then zoom (out, in, Fit), then the chart's
+  // other views and outputs at the end. The Output tab's tool row is hidden on this tab (app.css).
   const toolbar = h(
     "div",
     { class: "fc-toolbar" },
-    h("div", { class: "fc-group" }, pickerLabel, picker),
-    h("div", { class: "fc-group", role: "group", "aria-label": "Zoom" }, zoomOut, fitButton, zoomIn),
-    h("div", { class: "fc-spacer" }),
-    stepsToggle,
-    exportButton,
-    fullButton,
+    h("div", { class: "fc-group fc-pick" }, pickerLabel, picker),
+    h("div", { class: "fc-group", role: "group", "aria-label": "Zoom" }, zoomOut, zoomIn, fitButton),
+    // At the bar's end; on a very narrow bar (a 320 px phone) these three wrap together to a second row.
+    h("div", { class: "fc-group fc-end" }, stepsToggle, exportButton, fullButton),
   );
   // An export's result, said politely (Capture snippet's status line).
   const status = h("p", { class: "fc-status", id: "fc-status", role: "status" });
@@ -109,6 +113,9 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   const banner = h("div", { class: "fc-banner" }, icon("warning", "fc-banner-icon"), bannerText, bannerGo);
   banner.hidden = true;
   const stage = h("div", { class: "fc-stage" });
+  // The shapes this chart uses, each with its name (a list: a screen reader hears how many).
+  const legend = h("ul", { class: "fc-legend", "aria-label": "Shapes" });
+  legend.hidden = true;
   // A Tab stop of its own, so a long outline scrolls by keyboard (WCAG 2.1.1; WebKit scrolls a box
   // only once something in it has focus).
   const steps = h("ol", { class: "fc-steps", id: "fc-steps", "aria-label": "Steps as text", tabindex: "0" });
@@ -119,7 +126,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   retry.hidden = true;
   // A polite live region: what the view says (loading, a mistake, too big, failed) is heard once.
   const message = h("div", { class: "fc-message", role: "status" }, messageText, skeleton, retry);
-  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, status, banner, stage, steps, message);
+  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, status, banner, stage, legend, steps, message);
   panel.append(root);
   const dialog = h("dialog", { class: "fc-dialog", id: "fc-dialog", "aria-label": "Flowchart, full screen" });
 
@@ -160,6 +167,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     retry.hidden = !canRetry;
     const drawn = state === "ready";
     stage.hidden = !drawn;
+    legend.hidden = !drawn;
     steps.hidden = !drawn || stepsToggle.getAttribute("aria-expanded") !== "true";
     // The picker stays for a function that is too big (another may fit); zoom needs a drawing.
     toolbar.hidden = !(drawn || state === "too-big");
@@ -283,6 +291,10 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     svgEl = renderChart(result, layout);
     stage.replaceChildren(svgEl);
     steps.replaceChildren(...stepList(result).map((s) => h("li", null, s.text)));
+    const kinds = new Set(result.nodes.map((n) => n.kind));
+    legend.replaceChildren(
+      ...LEGEND.filter((e) => kinds.has(e.kind) || (e.also !== undefined && kinds.has(e.also))).map((e) => h("li", { "data-kind": e.kind }, kindSwatch(e.kind), e.words)),
+    );
     setState("ready");
     if (file.syntaxError !== undefined) {
       bannerText.textContent = `Line ${file.syntaxError} has a mistake, so this part of the chart may be incomplete.`;
@@ -316,12 +328,23 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
       stage.scrollTop = (stage.scrollTop + anchor.y) * ratio - anchor.y;
     }
   }
+  /**
+   * Fit (on opening, and the Fit button): the whole chart in the card, never larger than full size.
+   * A chart too tall to fit whole above FIT_FLOOR stops there and scrolls down; one too wide for
+   * the floor still fits the width (no sideways scrolling).
+   */
   function fit() {
     if (!layout) return;
-    const room = stage.clientWidth - 16;
+    const across = stage.clientWidth - 16;
+    const down = stage.clientHeight - 16;
     fitting = true;
     // Not laid out yet (hidden): drawn at full size, fitted when shown.
-    zoom = room > 0 ? clamp(Math.min(1, room / layout.width), ZOOM.min, ZOOM.max) : 1;
+    if (across <= 0 || down <= 0) zoom = 1;
+    else {
+      const width = Math.min(1, across / layout.width);
+      const whole = Math.min(width, down / layout.height);
+      zoom = clamp(whole >= FIT_FLOOR ? whole : Math.min(width, FIT_FLOOR), ZOOM.min, ZOOM.max);
+    }
     applyZoom();
   }
   function zoomBy(factor: number, anchor?: { x: number; y: number }) {
