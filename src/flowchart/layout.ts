@@ -769,8 +769,11 @@ const OVERLAP = 6;
 const CROSS = 12;
 const MAX_EXPANSIONS = 400_000;
 
-/** Search steps left for one whole layout (shared by every search in it), its clock (performance.now() ms), and whether the clock ran out. */
-type Budget = { left: number; deadline: number; late: boolean };
+/**
+ * Search steps left for one whole layout (shared by every search in it), its clock (performance.now()
+ * ms), whether the clock ran out, and the grid cells it may still make (MAX_GRID_CELLS).
+ */
+type Budget = { left: number; deadline: number; late: boolean; cells: number };
 /**
  * Search steps (heap pops) one layout may take in all. A line's search walks the grid cell by cell,
  * so a long ladder of breaks and continues costs (jumps x ladder length): 395 of them took 5.5 s.
@@ -790,8 +793,21 @@ export const LAYOUT_MS = 1000;
  * structured clone, so a slow laptop gets the worker's "too big" message, not a stopped worker.
  */
 export const JOB_MS = 1800;
-/** What a layout spent: search steps per tier (inside the loop, whole chart, greedy, squeezed). */
-export type LayoutStats = { tiers: [number, number, number, number] };
+/**
+ * Search grid cells one layout may make in all (every grid it makes counts). A cell costs 52 bytes
+ * (12 for its steps, 40 for the search's 5 states), so this caps a layout at about 104 MB. The
+ * grid grows with the square of a ladder's length: the longest ladder the step budget can draw
+ * (145 arms) makes 1.5 million cells, while the 395-arm ladder asked for 11 million, twice
+ * (1.1 GB): allocating that in the worker and letting it go held the page still for 400 ms and
+ * more in WebKit, and it would end the tab on a phone. Past the cap the chart is too big at once,
+ * before any search.
+ */
+export const MAX_GRID_CELLS = 2_000_000;
+/**
+ * What a layout spent: search steps per tier (inside the loop, whole chart, greedy, squeezed), and
+ * the cells of the grids it made (added to when given).
+ */
+export type LayoutStats = { tiers: [number, number, number, number]; cells?: number };
 
 class Grid {
   readonly xs: number[];
@@ -816,6 +832,8 @@ class Grid {
     boxes: LaidBox[],
     fixed: Owned[],
     goals: { from: Point; goal: Goal }[],
+    /** Told the grid's cell count before anything is allocated; it throws to refuse the grid. */
+    charge: (cells: number) => void,
     /** The area searched, when not the whole chart: its border is the outer ring. */
     private readonly region?: Rect,
   ) {
@@ -864,9 +882,10 @@ class Grid {
     }
     this.xs = [...xs].sort((a, b) => a - b);
     this.ys = [...ys].sort((a, b) => a - b);
+    const n = this.xs.length * this.ys.length;
+    charge(n);
     this.xs.forEach((v, i) => this.xi.set(v, i));
     this.ys.forEach((v, i) => this.yi.set(v, i));
-    const n = this.xs.length * this.ys.length;
     this.vBlock = new Uint8Array(n);
     this.hBlock = new Uint8Array(n);
     this.vUsed = new Int32Array(n);
@@ -1167,7 +1186,7 @@ function simplify(pts: Point[]): Point[] {
 
 /** The layout of one chart: positioned boxes and routed edges, in pixels from the top-left. */
 export function layoutChart(chart: FlowChart, { stats, deadline = Infinity }: { stats?: LayoutStats; deadline?: number } = {}): Layout {
-  const budget: Budget = { left: LAYOUT_BUDGET, deadline, late: false };
+  const budget: Budget = { left: LAYOUT_BUDGET, deadline, late: false, cells: MAX_GRID_CELLS };
   const sizes = new Map(chart.nodes.map((n) => [n.id, boxSize(n)]));
   const frame = new Builder(sizes).build(chart.body);
   const router = new Router();
@@ -1207,6 +1226,11 @@ export function layoutChart(chart: FlowChart, { stats, deadline = Infinity }: { 
   const found: Owned[] = [];
   // One grid per loop area (small, so the search's memory stays small), and one for the whole chart.
   const grids = new Map<string, Grid>();
+  const charge = (cells: number) => {
+    if (cells > budget.cells) throw new TooBig("it has too many break and continue lines to draw");
+    budget.cells -= cells;
+    if (stats) stats.cells = (stats.cells ?? 0) + cells;
+  };
   const gridFor = (region: Rect | undefined): Grid => {
     const key = region ? `${region.x0},${region.y0},${region.x1},${region.y1}` : "all";
     let g = grids.get(key);
@@ -1218,6 +1242,7 @@ export function layoutChart(chart: FlowChart, { stats, deadline = Infinity }: { 
         [...boxes, ...reserved].filter(meets),
         [...lines, ...found].flatMap(clip),
         searches.filter((s) => inside(s.from)),
+        charge,
         region,
       );
       grids.set(key, g);

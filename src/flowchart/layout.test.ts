@@ -4,7 +4,7 @@
 // run outside their loop, and the same model always gives the same layout.
 import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ARROW_ROOM, CHANNEL, LAYOUT_BUDGET, labelRect, layoutChart, rectMeetsBox, type Layout, type LayoutStats, type LaidBox, type Point } from "./layout";
+import { ARROW_ROOM, CHANNEL, LAYOUT_BUDGET, MAX_GRID_CELLS, labelRect, layoutChart, rectMeetsBox, type Layout, type LayoutStats, type LaidBox, type Point } from "./layout";
 import { TooBig, entryOf, type FlowChart, type Step } from "./model";
 import { arrowLength } from "./render";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
@@ -310,14 +310,20 @@ describe("structured layout", () => {
     expect(ms, `layout took ${Math.round(ms)} ms`).toBeLessThan(250);
   }, 30_000);
 
-  test("a ladder of 395 breaks and continues in a do-while is too big, quickly (the attack pass's worst case)", async () => {
-    const ladder = Array.from({ length: 395 }, (_, i) => `${i ? "else " : ""}if (x == ${i}) ${i % 2 ? "continue" : "break"};`).join("\n");
-    const chart = ok((await chartFile("c", `int main(void) {\n  int x = 99;\n  do {\n${ladder}\n  } while (x--);\n  return 0;\n}\n`)).charts[0]);
-    expect(chart.nodes.length).toBeGreaterThan(390);
-    // The step budget (deterministic): without it this took 5.5 s on the dev PC.
+  /** A do-while whose body is a ladder of `arms` else-ifs, each a break or a continue (the attack pass's shape). */
+  const ladderChart = async (arms: number) => {
+    const ladder = Array.from({ length: arms }, (_, i) => `${i ? "else " : ""}if (x == ${i}) ${i % 2 ? "continue" : "break"};`).join("\n");
+    return ok((await chartFile("c", `int main(void) {\n  int x = 99;\n  do {\n${ladder}\n  } while (x--);\n  return 0;\n}\n`)).charts[0]);
+  };
+  const spent = (s: LayoutStats) => s.tiers.reduce((a, b) => a + b, 0);
+
+  test("a ladder of 150 breaks and continues is too big: past the step budget, and on time past the worker's deadline", async () => {
+    // Its grid fits (MAX_GRID_CELLS), so the search runs until the step budget stops it (deterministic).
+    const chart = await ladderChart(150);
     const stats: LayoutStats = { tiers: [0, 0, 0, 0] };
     expect(() => layoutChart(chart, { stats })).toThrow(/too many break and continue lines to draw/);
-    expect(stats.tiers.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(LAYOUT_BUDGET + 4);
+    expect(spent(stats)).toBeGreaterThanOrEqual(LAYOUT_BUDGET);
+    expect(spent(stats)).toBeLessThanOrEqual(LAYOUT_BUDGET + 4);
     // The worker's deadline: the same answer, on time, however slow the computer. The search stops
     // far short of the step budget (counted, so a busy test machine can't hide it); the time bound
     // is loose because placing the boxes and grids before the search isn't on the clock.
@@ -325,8 +331,29 @@ describe("structured layout", () => {
     const t = performance.now();
     expect(() => layoutChart(chart, { stats: timed, deadline: t + 200 })).toThrow(/too many break and continue lines to draw/);
     const ms = performance.now() - t;
-    expect(timed.tiers.reduce((a, b) => a + b, 0)).toBeLessThan(LAYOUT_BUDGET / 2);
+    expect(spent(timed)).toBeGreaterThan(0);
+    expect(spent(timed)).toBeLessThan(LAYOUT_BUDGET / 2);
     expect(ms, `layout took ${Math.round(ms)} ms`).toBeLessThan(1500);
+  }, 30_000);
+
+  test("a ladder of 395 breaks and continues is too big before its search grid is made (the attack pass's worst case)", async () => {
+    // Its grid would be 11 million cells, twice: 1.1 GB with the search's buffers, which held a
+    // WebKit page still for 400 ms and more as the worker let it go. No grid, no search, no clock.
+    const chart = await ladderChart(395);
+    expect(chart.nodes.length).toBeGreaterThan(390);
+    const stats: LayoutStats = { tiers: [0, 0, 0, 0] };
+    expect(() => layoutChart(chart, { stats })).toThrow(/too many break and continue lines to draw/);
+    expect(stats.cells ?? 0).toBe(0);
+    expect(spent(stats)).toBe(0);
+  }, 30_000);
+
+  test("the grid cap refuses no chart that draws: the longest ladder that fits the step budget fits the cap", async () => {
+    const chart = await ladderChart(145);
+    const stats: LayoutStats = { tiers: [0, 0, 0, 0] };
+    expectGoodLayout(chart, layoutChart(chart, { stats }));
+    expect(spent(stats)).toBeGreaterThan(LAYOUT_BUDGET * 0.9);
+    expect(stats.cells).toBeGreaterThan(MAX_GRID_CELLS / 2);
+    expect(stats.cells).toBeLessThanOrEqual(MAX_GRID_CELLS);
   }, 30_000);
 
   test("a menu of 80 cases and a 100-arm ladder, past what students write, still lay out", async () => {
