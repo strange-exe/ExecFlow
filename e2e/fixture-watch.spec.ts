@@ -105,6 +105,30 @@ test("WebKit's blocked-load line for a main-thread chunk is not excused", async 
   await page.evaluate((o) => console.error(`Cannot load ${o}/assets/Ab12-cd.js due to access control checks.`), origin);
 });
 
+// WebKit's bare "internal error" line is excused only next to a font that failed that way.
+test("WebKit's internal-error line with no font failure is not excused", async ({ page }, info) => {
+  test.skip(info.project.name !== "webkit", "the tolerance applies in WebKit only");
+  test.fail();
+  await openApp(page);
+  await page.evaluate(() => console.error("Failed to load resource: WebKit encountered an internal error"));
+});
+
+// A load that never ends fails at openApp's own deadline, before the test's, and names what is open.
+test("a load that never ends names the requests still open", async ({ page }) => {
+  test.setTimeout(25_000); // openApp's deadline: 10 s
+  await page.route("**/held-image.png", () => {}); // held: the load event waits for it
+  await page.addInitScript(() => {
+    addEventListener("DOMContentLoaded", () => {
+      const img = document.createElement("img");
+      img.src = "/held-image.png";
+      img.alt = "";
+      document.body.append(img);
+    });
+  });
+  const failed = await openApp(page).then(() => null, (e: Error) => e.message);
+  expect(failed).toMatch(/Timeout 10000ms exceeded.*; requests still open: image \/held-image\.png \(\d+ ms\)/);
+});
+
 // Smoke test, not a proof: setOffline records each state in an init script, and Playwright leaves
 // the order of several init scripts undefined, so a reload after going offline and back must still
 // start online. Playwright normally keeps registration order, so this also passes without the

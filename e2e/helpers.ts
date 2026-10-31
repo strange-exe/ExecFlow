@@ -44,6 +44,16 @@ const WEBKIT_RECOVERED_WORKER_BLOCK = [
  */
 const FIREFOX_CANCELLED_FONT = /^\[JavaScript Error: "downloadable font: download failed \(.*\): status=2152398850 source: \S+\.woff2"\]$/;
 
+/**
+ * Linux WebKit's network process can fail one of the app's own fonts from the local server with
+ * this, and the page falls back to the next font in its stack (CI on a86b85e, 2026-10-31,
+ * short-links.spec; never seen locally in 150 runs). Excused in WebKit only, for a hashed .woff2
+ * under /assets/, and its console line only when such a font failed in the same tab within 2 s.
+ * A missing or broken font is still a failure: an HTTP 404 or a decode error words itself otherwise.
+ */
+const WEBKIT_FONT_INTERNAL = /^request failed: http:\/\/127\.0\.0\.1:\d+\/assets\/[\w-]+\.woff2 WebKit encountered an internal error$/;
+const WEBKIT_INTERNAL_LOG = /^Failed to load resource: WebKit encountered an internal error$/;
+
 /** How each engine words a request it cancelled (not one that failed). Exported for fixture-watch.spec.ts. */
 export const CANCELLED =/^(net::ERR_ABORTED|NS_BINDING_ABORTED|Load request cancelled)$/;
 
@@ -181,8 +191,12 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
     (engine === "firefox" && FIREFOX_CANCELLED_FONT.test(text));
   /** Messages a navigation can explain: checked against the navigations once the test ends. */
   const ifNavigated: { text: string; at: number }[] = [];
+  /** WebKit's internal-error font failures, and the console lines only one of them explains. */
+  const fontFailures: number[] = [];
+  const ifFontFailed: { text: string; at: number }[] = [];
   const record = (text: string) => {
     if (tolerated(text)) return;
+    if (engine === "webkit" && WEBKIT_INTERNAL_LOG.test(text)) return void ifFontFailed.push({ text, at: Date.now() });
     if (
       (engine === "webkit" && WEBKIT_CANCELLED_WORKER_LOAD.some((re) => re.test(text))) ||
       (engine === "firefox" && FIREFOX_CANCELLED_WORKER_LOG.test(text))
@@ -201,7 +215,10 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
   // window either side in ifNavigated.
   const navigations: number[] = [];
   const startedAt = new WeakMap<Request, number>();
-  const cancelled: { text: string; started: number; failed: number }[] = [];
+  const cancelled: { text: string; started: number; failed: number; detail: string }[] = [];
+  // For a cancellation nothing explains: whether its answer had already come (Chromium reported a
+  // short link's fetch the page did read as ERR_ABORTED, no navigation: CI on a86b85e, 2026-10-31).
+  const answered = new WeakMap<Request, { status: number; at: number }>();
   const startsDocument = (r: Request) => {
     try {
       return r.isNavigationRequest() && r.frame() === page.mainFrame();
@@ -221,12 +238,18 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
     const reason = (r.failure()?.errorText ?? "").trim();
     const text = `request failed: ${r.url()} ${reason}`;
     if (tolerated(text)) return;
+    if (engine === "webkit" && WEBKIT_FONT_INTERNAL.test(text)) return void fontFailures.push(Date.now());
     if (engine === "firefox" && FIREFOX_CANCELLED_PYODIDE.test(text)) return void ifNavigated.push({ text, at: Date.now() });
     // A request whose start wasn't seen needs a navigation within 2 s either side of the cancel.
-    if (CANCELLED.test(reason)) cancelled.push({ text, started: startedAt.get(r) ?? Date.now() - 2000, failed: Date.now() });
+    if (CANCELLED.test(reason)) {
+      const got = answered.get(r);
+      const detail = `${r.resourceType()}, ${got ? `answered ${got.status} at ${got.at - (startedAt.get(r) ?? got.at)} ms` : "no answer"}`;
+      cancelled.push({ text, started: startedAt.get(r) ?? Date.now() - 2000, failed: Date.now(), detail });
+    }
     else errors.push(text);
   });
   page.on("response", (r) => {
+    answered.set(r.request(), { status: r.status(), at: Date.now() });
     const text = `HTTP ${r.status()}: ${r.url()}`;
     if (r.status() >= 400 && !tolerated(text)) errors.push(text);
   });
@@ -235,10 +258,13 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
       if (navigations.some((t) => t >= c.started && t <= c.failed + 2000)) continue;
       // The timings say why no navigation explains it (ms from the first navigation).
       const zero = navigations[0] ?? c.started;
-      errors.push(`${c.text} (started ${c.started - zero}, failed ${c.failed - zero}, navigations ${navigations.map((t) => t - zero).join(" ")})`);
+      errors.push(`${c.text} (${c.detail}; started ${c.started - zero}, failed ${c.failed - zero}, navigations ${navigations.map((t) => t - zero).join(" ")})`);
     }
     for (const m of ifNavigated) {
       if (!navigations.some((t) => t >= m.at - 2000 && t <= m.at + 2000)) errors.push(m.text);
+    }
+    for (const m of ifFontFailed) {
+      if (!fontFailures.some((t) => t >= m.at - 2000 && t <= m.at + 2000)) errors.push(m.text);
     }
   };
 }
@@ -273,10 +299,42 @@ export async function openIn(page: Page, path: string, colorScheme?: "light" | "
 
 // ---------------------------------------------------------------- the workbench (UI specs)
 
-/** Opens the app and waits until the workbench says it is ready (storage open, tabs restored). */
+/**
+ * Opens the app and waits until the workbench says it is ready (storage open, tabs restored).
+ * A load that never ends (Linux WebKit on CI, multitab-edge.spec, 2026-10-30 and 10-31: a second
+ * tab's goto passed the 90 s test timeout) names the requests still open, in the error CI shows,
+ * so it needs a deadline of its own before the test's.
+ */
 export async function openApp(page: Page, path = "/") {
-  await page.goto(path);
+  const open = new Map<Request, number>();
+  const started = (r: Request) => void open.set(r, Date.now());
+  const ended = (r: Request) => void open.delete(r);
+  page.on("request", started);
+  page.on("requestfinished", ended);
+  page.on("requestfailed", ended);
+  try {
+    await page.goto(path, { timeout: gotoDeadline() });
+  } catch (e) {
+    const now = Date.now();
+    const pending = [...open].map(([r, at]) => `${r.resourceType()} ${new URL(r.url()).pathname} (${now - at} ms)`);
+    throw new Error(`${e instanceof Error ? e.message.split("\n")[0] : String(e)}; requests still open: ${pending.join(", ") || "none"}`);
+  } finally {
+    page.off("request", started);
+    page.off("requestfinished", ended);
+    page.off("requestfailed", ended);
+  }
   await waitReady(page);
+}
+
+/** 15 s before the test's own timeout (at least 10 s); no deadline of its own outside a test (0). */
+function gotoDeadline(): number {
+  let timeout: number;
+  try {
+    timeout = base.info().timeout;
+  } catch {
+    return 0;
+  }
+  return timeout === 0 ? 0 : Math.max(10_000, timeout - 15_000);
 }
 
 export async function waitReady(page: Page) {
