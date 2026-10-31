@@ -640,7 +640,7 @@ export default defineConfig(({ mode }) => ({
           // The About page's code and its images, once /about was opened. Both have content-hashed names
           // (media/: src/about/media.test.ts), so a cached copy is never stale.
           {
-            urlPattern: /\/(assets\/a\/[^/]+\.js|media\/[^/]+\.webp)$/,
+            urlPattern: /\/(assets\/a\/[^/]+\.js|media\/[^/]+\.(webp|avif))$/,
             handler: "CacheFirst",
             options: {
               cacheName: "codeeditor-about",

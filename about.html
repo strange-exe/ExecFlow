@@ -12,7 +12,8 @@
     <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
     <script src="theme-boot.js"></script>
     <link rel="stylesheet" href="/src/styles/about.css" />
-    <link rel="preload" as="image" href="/media/about-scene.5d85575b.webp" type="image/webp" />
+    <!-- The AVIF the poster's <picture> picks; a browser without AVIF skips this preload (type) and loads the WebP. -->
+    <link rel="preload" as="image" href="/media/about-scene.79bc158d.avif" type="image/avif" />
   </head>
   <body class="about">
     <a class="about-skip" href="#content">Skip to the content</a>
@@ -45,7 +46,10 @@
           </div>
         </div>
         <div class="about-scene" data-scene="poster" data-frames="0">
-          <img class="about-poster" src="/media/about-scene.5d85575b.webp" width="720" height="720" alt="" fetchpriority="high" />
+          <picture>
+            <source srcset="/media/about-scene.79bc158d.avif" type="image/avif" />
+            <img class="about-poster" src="/media/about-scene.5d85575b.webp" width="720" height="720" alt="" fetchpriority="high" />
+          </picture>
           <p class="about-scene-text">
             A flowchart in 3D: a start, a step, a decision with a loop back, an output and an end, the shapes the
             Flowchart tab draws for your code.
@@ -69,7 +73,10 @@
         </div>
         <figure class="about-shot">
           <picture>
-            <source srcset="/media/about-flowchart-dark.b15aa4c6.webp" media="(prefers-color-scheme: dark)" />
+            <!-- AVIF first, WebP after; the dark pair follows the page's theme (page.ts shot()). -->
+            <source srcset="/media/about-flowchart-dark.a8532232.avif" type="image/avif" media="(prefers-color-scheme: dark)" />
+            <source srcset="/media/about-flowchart-dark.b15aa4c6.webp" type="image/webp" media="(prefers-color-scheme: dark)" />
+            <source srcset="/media/about-flowchart-light.4b86e408.avif" type="image/avif" />
             <img src="/media/about-flowchart-light.76ec11c3.webp" width="1200" height="900" alt="The ExecFlow window: a C program, and below it the program's flowchart, with a loop and a decision." loading="lazy" decoding="async" />
           </picture>
         </figure>

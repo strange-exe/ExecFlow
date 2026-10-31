@@ -70,7 +70,7 @@ test.describe("the About page", () => {
     // theme's, and Firefox aborts the fetch it had started (measured 2026-10-29, 1 run in 6). That
     // cancel of the device's picture is the switch itself, so it alone is excused, here only; the
     // saved theme's picture must still load (asserted below).
-    test.use(tolerating(new RegExp(`^request failed: http://127\\.0\\.0\\.1:\\d+/media/about-flowchart-${device}\\.[0-9a-f]+\\.webp NS_BINDING_ABORTED$`)));
+    test.use(tolerating(new RegExp(`^request failed: http://127\\.0\\.0\\.1:\\d+/media/about-flowchart-${device}\\.[0-9a-f]+\\.(avif|webp) NS_BINDING_ABORTED$`)));
     test(`a saved ${saved} theme on a ${device} device shows the ${saved} flowchart screenshot`, async ({ page }) => {
       await page.goto("/about");
       // A fixed theme (Signal Dark or Signal Light), not "match device": theme-boot.js paints it whatever the device says.
@@ -80,7 +80,50 @@ test.describe("the About page", () => {
       const shot = page.locator(".about-shot img");
       await shot.scrollIntoViewIfNeeded();
       await expect.poll(() => shot.evaluate((i: HTMLImageElement) => (i.complete ? i.currentSrc : ""))).toContain(`/media/about-flowchart-${saved}.`);
+      expect(await shot.evaluate((i: HTMLImageElement) => i.naturalWidth), "the saved theme's picture decoded").toBeGreaterThan(0);
     });
+    });
+  }
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`${scheme}: each picture offers AVIF first with a WebP fallback, and the browser loads an image`, async ({ page }, info) => {
+      await openIn(page, "/about", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      for (const [picture, base] of [
+        [".about-scene picture", "about-scene"],
+        [".about-shot picture", `about-flowchart-${scheme}`],
+      ] as const) {
+        const img = page.locator(`${picture} > img`);
+        // The fallback and the reserved size stay on the <img>.
+        await expect(img).toHaveAttribute("src", /\/media\/[a-z-]+\.[0-9a-f]{8}\.webp$/);
+        expect(Number(await img.getAttribute("width"))).toBeGreaterThan(0);
+        expect(Number(await img.getAttribute("height"))).toBeGreaterThan(0);
+        // The first source that fits this page's theme is the AVIF one.
+        const offered = await page.locator(picture).evaluate((p) =>
+          [...p.querySelectorAll("source")].filter((s) => !s.media || matchMedia(s.media).matches).map((s) => ({ type: s.type, srcset: s.srcset })),
+        );
+        expect(offered[0]?.type, `${picture}: AVIF first`).toBe("image/avif");
+        expect(offered[0]?.srcset).toMatch(new RegExp(`^/media/${base}\\.[0-9a-f]{8}\\.avif$`));
+        // The file is there, an AVIF (ISO BMFF "ftyp" box, brand "avif"), served as one.
+        const res = await page.request.get(offered[0]!.srcset);
+        expect(res.status(), offered[0]!.srcset).toBe(200);
+        expect(res.headers()["content-type"]).toBe("image/avif");
+        expect((await res.body()).subarray(4, 12).toString("latin1")).toBe("ftypavif");
+        // And the browser really shows a picture (a broken AVIF never falls back to the WebP).
+        await img.scrollIntoViewIfNeeded();
+        await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0), { timeout: 15_000 }).toBe(true);
+        const src = await img.evaluate((i: HTMLImageElement) => i.currentSrc);
+        expect(src, `${picture}: the theme's picture`).toContain(`/media/${base}.`);
+        // An engine that decodes this AVIF shows it; one that can't (Playwright's WebKit on Windows,
+        // measured 2026-10-31) skips the source by its type and shows the WebP instead.
+        const decodes = await page.evaluate(async (url) => {
+          const probe = new Image();
+          probe.src = url;
+          return probe.decode().then(() => probe.naturalWidth > 0, () => false);
+        }, offered[0]!.srcset);
+        expect(src, `${picture}: ${decodes ? "the AVIF" : "the WebP fallback"} was picked`).toMatch(decodes ? /\.avif$/ : /\.webp$/);
+        if (info.project.name !== "webkit") expect(decodes, `${info.project.name} decodes AVIF`).toBe(true);
+      }
     });
   }
 
