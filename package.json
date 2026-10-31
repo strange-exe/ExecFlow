@@ -1,7 +1,7 @@
 {
   "name": "code-editor",
   "private": true,
-  "version": "0.22.1",
+  "version": "0.23.0",
   "type": "module",
   "scripts": {
     "predev": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs && node scripts/fetch-flowchart-grammars.mjs",

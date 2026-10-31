@@ -6,6 +6,15 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.23.0] - 2026-10-31
+
+A lighter About page, and the new mark in the launch video
+
+### Changed
+
+- The About page's pictures load as AVIF where your browser supports it, about a third smaller than before; other browsers keep the WebP pictures.
+- The launch video and its poster show the new blue-to-teal ExecFlow mark, and the video is a little smaller.
+
 ## [0.22.1] - 2026-10-31
 
 Huge flowcharts are turned down sooner

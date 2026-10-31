@@ -20,6 +20,15 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.23.0",
+    date: "2026-10-31",
+    title: "A lighter About page, and the new mark in the launch video",
+    items: [
+      { kind: "changed", text: "The About page's pictures load as AVIF where your browser supports it, about a third smaller than before; other browsers keep the WebP pictures." },
+      { kind: "changed", text: "The launch video and its poster show the new blue-to-teal ExecFlow mark, and the video is a little smaller." },
+    ],
+  },
+  {
     version: "0.22.1",
     date: "2026-10-31",
     title: "Huge flowcharts are turned down sooner",
