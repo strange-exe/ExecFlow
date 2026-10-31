@@ -109,6 +109,8 @@ export type FromPython =
       retry?: boolean;
       /** The runtime isn't on this device yet and the device is offline (python-download.ts). */
       offline?: boolean;
+      /** false: this browser keeps nothing (no Cache Storage), so every start downloads the runtime. */
+      kept?: boolean;
     }
   | OutputMessage
   | OutputBatchMessage

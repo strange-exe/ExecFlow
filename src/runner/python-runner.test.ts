@@ -210,6 +210,20 @@ describe("PythonRunner", () => {
     expect(offlineMessage(0)).toBe("Python needs a one-time download the first time it runs, and this device is offline. Connect to the internet and press Run again; after that, Python works offline too.");
   });
 
+  it("offline in a browser that keeps nothing (no Cache Storage): never promises a one-time download or offline use", async () => {
+    const { runner } = setUp(
+      (w) => w.emit(done()),
+      (w) => w.emit({ type: "boot-failed", error: "this device is offline", retry: false, offline: true, kept: false }),
+    );
+    const r = await runner.run(request(), hooks());
+    expect(r.status).toBe("unavailable");
+    expect(r.message).toBe(offlineMessage(undefined, false));
+    expect(r.message).not.toContain("one-time");
+    expect(r.message).not.toContain("works offline");
+    expect(runner.needsOnline).toBe(true);
+    expect(offlineMessage(13_540_000, false)).toBe("This browser doesn't let ExecFlow keep Python on this device, so Python downloads (about 14 MB) each time it starts, and this device is offline. Connect to the internet and press Run again.");
+  });
+
   it("a start superseded during its retry back-off doesn't take over the runtime", async () => {
     let starts = 0;
     const { runner, workers } = setUp((w) => w.emit(done()), (w, msg) => (++starts === 1 ? w.emit({ type: "boot-failed", error: "blocked" }) : ready(w, msg as never)));

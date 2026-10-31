@@ -204,7 +204,7 @@ async function fetchRuntime(base: string, verify: boolean): Promise<{ end(): voi
   const missing = cache ? await missingFiles(cache, base, undefined, verify ? __PYODIDE_FILES__ : undefined, checked) : [...RUNTIME_FILES];
   if (missing.length) {
     // No request can succeed offline: say so at once rather than after each file fails.
-    if (self.navigator.onLine === false) throw new DownloadError("this device is offline", "offline");
+    if (self.navigator.onLine === false) throw new DownloadError("this device is offline", "offline", cache !== null);
     const total = missing.reduce((sum, f) => sum + (__PYODIDE_FILES__[f]?.bytes ?? 0), 0);
     await downloadRuntime({ fetch: self.fetch.bind(self), cache, checked, base, files: missing, expected: __PYODIDE_FILES__, total, post: progress });
   } else {
@@ -423,7 +423,7 @@ self.addEventListener("message", async ({ data }: MessageEvent<ToPython>) => {
     } catch (e) {
       // Offline before Python was ever downloaded: the runner says so in plain words, and starting
       // again won't help until the device is online.
-      if (e instanceof DownloadError && e.offline) return post({ type: "boot-failed", error: e.message, retry: false, offline: true });
+      if (e instanceof DownloadError && e.offline) return post({ type: "boot-failed", error: e.message, retry: false, offline: true, kept: e.kept });
       const error = e instanceof DownloadError ? failureWords(e) : e instanceof Error ? e.message : String(e);
       post({ type: "boot-failed", error, retry: !(e instanceof PackageError) });
     }

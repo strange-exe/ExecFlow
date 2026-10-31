@@ -47,10 +47,12 @@ const list = (names: readonly string[]) => names.join(", ");
 
 /**
  * Said when Python's first start finds the device offline (python-download.ts): the runtime is
- * downloaded the first time Python is used, and kept for offline use from then on.
+ * downloaded the first time Python is used, and kept for offline use from then on. A browser that
+ * keeps nothing (`kept` false: no Cache Storage) downloads it at every start instead.
  */
-export function offlineMessage(bytes: number = __PYODIDE_BYTES__): string {
+export function offlineMessage(bytes: number = __PYODIDE_BYTES__, kept = true): string {
   const size = bytes > 0 ? ` (about ${Math.round(bytes / 1e6)} MB)` : "";
+  if (!kept) return `This browser doesn't let ExecFlow keep Python on this device, so Python downloads${size} each time it starts, and this device is offline. Connect to the internet and press Run again.`;
   return `Python needs a one-time download${size} the first time it runs, and this device is offline. Connect to the internet and press Run again; after that, Python works offline too.`;
 }
 
@@ -59,6 +61,8 @@ export class PythonRunner {
   bootError = "";
   /** The last start failed because the runtime isn't on this device and the device is offline. */
   needsOnline = false;
+  /** With needsOnline: false when this browser keeps nothing, so every start downloads. */
+  private kept = true;
 
   private listeners = new Set<(state: PythonState) => void>();
   private worker: Worker | null = null;
@@ -192,6 +196,7 @@ export class PythonRunner {
           if (attempt >= START_ATTEMPTS || (e as { retry?: boolean }).retry === false) {
             this.bootError = (e as Error).message;
             this.needsOnline = (e as { offline?: boolean }).offline === true;
+            this.kept = (e as { kept?: boolean }).kept !== false;
             this.download = null;
             this.setState("failed");
             throw e;
@@ -221,10 +226,10 @@ export class PythonRunner {
         worker.removeEventListener("message", onMessage);
         worker.removeEventListener("error", onError);
       };
-      const fail = (message: string, retry = true, offline = false) => {
+      const fail = (message: string, retry = true, offline = false, kept = true) => {
         detach();
         worker.terminate();
-        reject(Object.assign(new Error(message), { retry, offline }));
+        reject(Object.assign(new Error(message), { retry, offline, kept }));
       };
       const onError = (e: ErrorEvent) => {
         e.preventDefault(); // handled here (we retry); otherwise browsers also report it as uncaught
@@ -234,7 +239,7 @@ export class PythonRunner {
         // Sent while Pyodide loads, before any user code (still type-checked in onProgress).
         if (data.type === "progress") return void (gen === this.generation && this.onProgress(data));
         if (data.type !== "ready" && data.type !== "boot-failed") return;
-        if (data.type === "boot-failed") return fail(String(data.error), data.retry !== false, data.offline === true);
+        if (data.type === "boot-failed") return fail(String(data.error), data.retry !== false, data.offline === true, data.kept !== false);
         detach();
         // Ready even if superseded: that worker's check of the runtime passed all the same.
         this.runtimeVerified = true;
@@ -299,7 +304,7 @@ export class PythonRunner {
         const waited = await this.whenReady(cancelled).finally(unfollow);
         if (waited === "cancelled") return stopped;
         if (waited === "failed") {
-          const message = this.needsOnline ? offlineMessage() : `Python couldn't start: ${this.bootError}`;
+          const message = this.needsOnline ? offlineMessage(undefined, this.kept) : `Python couldn't start: ${this.bootError}`;
           return { status: "unavailable", exitCode: null, diagnostics: [], message, ms: {} };
         }
 

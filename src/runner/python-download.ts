@@ -179,6 +179,8 @@ export class DownloadError extends Error {
   constructor(
     message: string,
     readonly kind: "offline" | "failed" | "damaged",
+    /** false: nothing is kept on this device (no Cache Storage), so every start downloads. */
+    readonly kept = true,
   ) {
     super(message);
     this.offline = kind === "offline";
