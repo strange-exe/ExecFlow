@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.22.0",
+    date: "2026-10-31",
+    title: "The guides, one click from the start",
+    items: [
+      { kind: "added", text: "The first screen links to the guides for running Python, C and C++ and for flowcharts from code, so you can read how ExecFlow works before you write anything." },
+    ],
+  },
+  {
     version: "0.21.0",
     date: "2026-10-31",
     title: "Short links, and QR codes with the ExecFlow mark",

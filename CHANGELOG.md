@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.22.0] - 2026-10-31
+
+The guides, one click from the start
+
+### Added
+
+- The first screen links to the guides for running Python, C and C++ and for flowcharts from code, so you can read how ExecFlow works before you write anything.
+
 ## [0.21.0] - 2026-10-31
 
 Short links, and QR codes with the ExecFlow mark
