@@ -52,6 +52,8 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
     const html = await page(route.file);
     const url = `${SITE}${route.path}`;
     expect(attr(html, /<title>([^<]*)<\/title>/)).toBe(route.title);
+    // A results page shows about 60 characters of a title; the rest is cut off.
+    expect(route.title.length).toBeLessThanOrEqual(60);
     expect(attr(html, /<link rel="canonical" href="([^"]+)"/)).toBe(url);
     expect(attr(html, /<meta property="og:url" content="([^"]+)"/)).toBe(url);
     const description = attr(html, /<meta name="description" content="([^"]+)"/)!;
@@ -68,7 +70,7 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
     levels.forEach((level, i) => i && expect(level - levels[i - 1], `heading ${i}`).toBeLessThanOrEqual(1));
   });
 
-  it("links to the other three guides, the About page, the privacy page and the editor; no placeholder is left", async () => {
+  it("links to every other guide, the About page, the privacy page and the editor; no placeholder is left", async () => {
     const html = await page(route.file);
     for (const other of GUIDE_ROUTES) expect(html).toContain(`href="${other.path}"`);
     for (const path of ["/about", "/privacy", "/"]) expect(html).toContain(`href="${path}"`);
@@ -117,11 +119,14 @@ describe("the pages' examples", () => {
   });
 
   it("every flowchart example has its export, its steps, and a chart beside its code", async () => {
-    const html = await page("flowchart-from-code.html");
+    const pages = await Promise.all(GUIDE_ROUTES.map((r) => page(r.file)));
     for (const [id, ex] of Object.entries(EXAMPLES).filter(([, e]) => e.chart)) {
       expect(data.captured.examples[id].steps?.length, id).toBeGreaterThan(3);
       expect(data.charts[id]).toContain(`<title>Flowchart of ${ex.chart} in ${ex.name}</title>`);
-      expect(html).toContain(`id="chart-${id}"`);
+      // On exactly one page, inside the pair that holds its code.
+      const on = pages.filter((html) => html.includes(`id="chart-${id}"`));
+      expect(on, id).toHaveLength(1);
+      expect(on[0], id).toMatch(new RegExp(`<div class="fc-pair">\\s*<div class="ex" id="ex-${id}">(?:(?!fc-pair).)*?<figure class="fc-figure" id="chart-${id}">`, "s"));
     }
   });
 
@@ -217,8 +222,97 @@ describe("NAVIGATE_DENYLIST (the service worker's navigateFallbackDenylist)", ()
   });
 });
 
+describe("/flowchart-examples (phase 2)", () => {
+  const FILE = "flowchart-examples.html";
+  // Each exercise: its heading id, and its examples' id stem (fe-<stem>-c, -py, -bug).
+  const EXERCISES = [
+    ["largest", "largest"],
+    ["even-odd", "evenodd"],
+    ["factorial", "fact"],
+    ["prime", "prime"],
+    ["fibonacci", "fib"],
+    ["sum-of-digits", "digits"],
+    ["reverse", "reverse"],
+    ["simple-interest", "interest"],
+  ] as const;
+  const LANG: Record<string, string> = { c: "C", py: "Python" };
+  const exercise = (html: string, heading: string) => attr(html, new RegExp(`<div class="guide-example">\\s*<h3 id="${heading}">([\\s\\S]*?)</div>\\s*(?=<div class="guide-example">|</section>)`))!;
+
+  it("is a guide route, and every fe- example is registered, captured and used on it", async () => {
+    expect(GUIDE_ROUTES.some((r) => r.path === "/flowchart-examples" && r.file === FILE)).toBe(true);
+    const html = await page(FILE);
+    const ids = Object.keys(EXAMPLES).filter((id) => id.startsWith("fe-"));
+    expect(ids).toHaveLength(EXERCISES.length * 3);
+    for (const id of ids) {
+      expect(data.captured.examples[id]?.output.length, `${id}: captured output`).toBeGreaterThan(0);
+      expect(html.match(new RegExp(`id="ex-${id}"`, "g")), id).toHaveLength(1);
+    }
+  });
+
+  it("each of the eight exercises has an algorithm, C and Python programs, one chart that names its language, and a mistake with its real run", async () => {
+    const html = await page(FILE);
+    const h3s = [...html.matchAll(/<div class="guide-example">\s*<h3 id="([\w-]+)">/g)].map((m) => m[1]);
+    expect(h3s).toEqual(EXERCISES.map(([h]) => h));
+    for (const [heading, stem] of EXERCISES) {
+      const block = exercise(html, heading);
+      expect(block, heading).toBeTruthy();
+      // The algorithm, as numbered steps, before any code.
+      expect(block.indexOf('<ol class="guide-list">'), `${heading}: algorithm`).toBeGreaterThan(-1);
+      expect(block.indexOf('<ol class="guide-list">')).toBeLessThan(block.indexOf('<div class="ex"'));
+      for (const lang of ["c", "py", "bug"]) expect(block, `${heading}: fe-${stem}-${lang}`).toContain(`id="ex-fe-${stem}-${lang}"`);
+      const charts = [...block.matchAll(/id="chart-fe-([\w]+)-(c|py)"/g)];
+      expect(charts, `${heading}: one chart`).toHaveLength(1);
+      const [, chartStem, chartLang] = charts[0];
+      expect(chartStem).toBe(stem);
+      expect(EXAMPLES[`fe-${stem}-${chartLang}`].chart).toBeTruthy();
+      // The page says which program the chart was drawn from, and says it right.
+      expect(block.replace(/\s+/g, " "), `${heading}: names the chart's language`).toContain(`The flowchart is drawn from the ${LANG[chartLang]} program`);
+      // The mistake comes after the correct programs, and its run is the real one (no "ok" claimed for an error).
+      expect(block.indexOf(`id="ex-fe-${stem}-bug"`)).toBeGreaterThan(block.indexOf(`id="ex-fe-${stem}-${chartLang === "c" ? "py" : "c"}"`));
+      expect(block).toContain("<strong>A common mistake:</strong>");
+    }
+  });
+
+  it("names a mistake only with what the program really printed", async () => {
+    const out = (id: string) => data.captured.examples[id].output;
+    expect(out("fe-largest-bug")).toMatch(/Largest: 3\n$/);
+    expect(out("fe-evenodd-bug")).toMatch(/-7 is even\n$/);
+    expect(out("fe-fact-bug")).toMatch(/Factorial of 13 is 1932053504\n$/);
+    expect(out("fe-prime-bug")).toMatch(/7 is not prime\n$/);
+    expect(out("fe-fib-bug").trim().split("\n").pop()!.trim().split(" ")).toHaveLength(6);
+    expect(out("fe-digits-bug")).toMatch(/Sum of digits: 15\.5/);
+    expect(out("fe-reverse-bug")).toMatch(/Reverse of 0 is 4321\n$/);
+    expect(errorLine(data.captured.examples["fe-interest-bug"])).toBe("TypeError: can't multiply sequence by non-int of type 'str'");
+    // ...and the correct programs give the right answers for the same kind of input.
+    expect(out("fe-largest-py")).toMatch(/Largest: 8\n$/);
+    expect(out("fe-evenodd-c")).toMatch(/-7 is odd\n$/);
+    expect(out("fe-fact-c")).toMatch(/Factorial of 5 is 120\n$/);
+    expect(out("fe-fact-py")).toMatch(/Factorial of 0 is 1\n$/);
+    expect(out("fe-prime-c")).toMatch(/97 is prime\n$/);
+    expect(out("fe-fib-c")).toMatch(/0 1 1 2 3 5 8 13 21 34 \n$/);
+    expect(out("fe-digits-py")).toMatch(/Sum of digits: 8\n$/);
+    expect(out("fe-reverse-py")).toMatch(/Reverse of 1200 is 21\n$/);
+    expect(out("fe-interest-c")).toMatch(/Simple interest: 1125\.00\n$/);
+  });
+
+  it("links the other guides, and stays light enough to load on a phone (under 150 KB of HTML)", async () => {
+    const html = await page(FILE);
+    for (const path of ["/flowchart-from-code", "/python", "/c", "/cpp", "/"]) expect(html).toContain(`href="${path}"`);
+    expect(Buffer.byteLength(html, "utf8")).toBeLessThan(150 * 1024);
+    // No em or en dash in the copy (written as entities in this ASCII file), and no exclamation in prose.
+    expect(html).not.toMatch(/&mdash;|&ndash;|&#821[12];/);
+  });
+
+  it("every other guide links back to it, in its guide list", async () => {
+    for (const route of GUIDE_ROUTES.filter((r) => r.file !== FILE)) {
+      const html = await page(route.file);
+      expect(attr(html, /<nav class="guide-nav" aria-label="Guides">([\s\S]*?)<\/nav>/), route.path).toContain('<a href="/flowchart-examples">');
+    }
+  });
+});
+
 describe("GUIDE_PATH (navigateFallbackDenylist)", () => {
-  it.each(["/python", "/python.html", "/python/", "/c", "/cpp?ref=x", "/flowchart-from-code", "/flowchart-from-code.html?a=b.c"])("%s is a guide page, never the editor", (url) => {
+  it.each(["/python", "/python.html", "/python/", "/c", "/cpp?ref=x", "/flowchart-from-code", "/flowchart-from-code.html?a=b.c", "/flowchart-examples", "/flowchart-examples?ref=x"])("%s is a guide page, never the editor", (url) => {
     expect(GUIDE_PATH.test(url)).toBe(true);
   });
   it.each(["/", "/about", "/pythonx", "/c/x", "/cpp.js", "/assets/c.js", "/?x=/python"])("%s is not", (url) => {

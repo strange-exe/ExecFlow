@@ -1,4 +1,4 @@
-/* The guide pages (flowchart-from-code.html, python.html, c.html, cpp.html): the About page's look
+/* The guide pages (flowchart-from-code.html, python.html, c.html, cpp.html, flowchart-examples.html): the About page's look
    (header, buttons, type, tokens, footer) for reading and examples. Reading order: 1. the headline
    and its lede, 2. the key facts, 3. the examples (code, then what it printed), 4. the limits and
    the FAQ. No script but theme-boot.js, which paints the saved light or dark theme. */
@@ -125,6 +125,11 @@
 }
 .guide-example > h3 {
   margin-top: 0;
+}
+/* /flowchart-examples: prose after a code frame or a chart starts a new step, so it gets room. */
+.guide-exercises .guide-example > .ex + p,
+.guide-exercises .guide-example > .fc-pair + p {
+  margin-top: var(--s4);
 }
 .ex {
   margin-top: var(--s3);

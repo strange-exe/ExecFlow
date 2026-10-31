@@ -18,6 +18,8 @@ export const GUIDE_ROUTES: readonly GuideRoute[] = [
   { path: "/python", file: "python.html", title: "Run Python online in your browser | ExecFlow" },
   { path: "/c", file: "c.html", title: "Run C online in your browser | ExecFlow" },
   { path: "/cpp", file: "cpp.html", title: "Run C++ online in your browser | ExecFlow" },
+  // Phase 2 (.claude/seo/plan-phase2.md): eight classic exercises, each with its flowchart.
+  { path: "/flowchart-examples", file: "flowchart-examples.html", title: "Flowchart examples with C and Python programs | ExecFlow" },
 ];
 
 /** A guide page's path, with or without ".html" or a trailing slash, and with any query string. */
