@@ -19,7 +19,7 @@ describe("APP_ROUTE (navigateFallbackAllowlist)", () => {
 });
 
 describe("FILE_URL (navigateFallbackDenylist)", () => {
-  it.each(["/licenses.txt", "/media/x.mp4", "/media/launch-0.16.0.8fb45e33.mp4", "/media/x.mp4?v=2", "/privacy.pdf?x=a.b"])("%s is a file: the network answers", (url) => {
+  it.each(["/licenses.txt", "/media/x.mp4", "/media/launch-0.22.0.ec553551.mp4", "/media/x.mp4?v=2", "/privacy.pdf?x=a.b"])("%s is a file: the network answers", (url) => {
     expect(FILE_URL.test(url)).toBe(true);
   });
 
