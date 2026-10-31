@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.24.0",
+    date: "2026-10-31",
+    title: "Python's download is checked more closely",
+    items: [
+      { kind: "changed", text: "Python's download stops as soon as a file is bigger than it should be, and Python runs only from files whose fingerprint matches the one this version of ExecFlow expects, even when your browser couldn't keep them." },
+      { kind: "changed", text: "The copy of Python kept on your device is checked again once each time you open ExecFlow; a copy that changed is downloaded again." },
+      { kind: "fixed", text: "Offline in a browser that keeps nothing on your device, Python now says it downloads each time it starts, instead of promising a one-time download." },
+    ],
+  },
+  {
     version: "0.23.0",
     date: "2026-10-31",
     title: "A lighter About page, and the new mark in the launch video",

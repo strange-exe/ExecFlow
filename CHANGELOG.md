@@ -6,6 +6,19 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.24.0] - 2026-10-31
+
+Python's download is checked more closely
+
+### Changed
+
+- Python's download stops as soon as a file is bigger than it should be, and Python runs only from files whose fingerprint matches the one this version of ExecFlow expects, even when your browser couldn't keep them.
+- The copy of Python kept on your device is checked again once each time you open ExecFlow; a copy that changed is downloaded again.
+
+### Fixed
+
+- Offline in a browser that keeps nothing on your device, Python now says it downloads each time it starts, instead of promising a one-time download.
+
 ## [0.23.0] - 2026-10-31
 
 A lighter About page, and the new mark in the launch video
