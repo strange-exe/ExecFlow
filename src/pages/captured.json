@@ -381,6 +381,283 @@
       "problems": [
         "Errorno matching member function for call to 'push_back'marks.cpp:7:11clang"
       ]
+    },
+    "ie-if-py": {
+      "status": "ok",
+      "output": "Enter a number: -7\nDistance from zero: 7\n",
+      "outputChars": 41,
+      "runlog": "distance.py\nFinished\nexit code 0\nran in 124 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: n = int(input(\"Enter a number: \")). Next: step 3.",
+        "3. Decision: n < 0 ? Yes: step 4. No: step 5.",
+        "4. n = -n. Next: step 5.",
+        "5. Input or output: print(\"Distance from zero:\", n). Next: step 6.",
+        "6. End."
+      ]
+    },
+    "ie-ifelse-py": {
+      "status": "ok",
+      "output": "Your age: 15\nYou can vote in 3 years.\n",
+      "outputChars": 38,
+      "runlog": "vote.py\nFinished\nexit code 0\nran in 18 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: age = int(input(\"Your age: \")). Next: step 3.",
+        "3. Decision: age >= 18 ? Yes: step 4. No: step 5.",
+        "4. Input or output: print(\"You can vote.\"). Next: step 6.",
+        "5. Input or output: print(\"You can vote in\", 18 - age, \"years.\"). Next: step 6.",
+        "6. End."
+      ]
+    },
+    "ie-ladder-py": {
+      "status": "ok",
+      "output": "Marks out of 100: 82\nGrade B\n",
+      "outputChars": 29,
+      "runlog": "grade.py\nFinished\nexit code 0\nran in 24 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: marks = int(input(\"Marks out of 100: \")). Next: step 3.",
+        "3. Decision: marks >= 90 ? Yes: step 4. No: step 5.",
+        "4. Input or output: print(\"Grade A\"). Next: step 12.",
+        "5. Decision: marks >= 75 ? Yes: step 6. No: step 7.",
+        "6. Input or output: print(\"Grade B\"). Next: step 12.",
+        "7. Decision: marks >= 60 ? Yes: step 8. No: step 9.",
+        "8. Input or output: print(\"Grade C\"). Next: step 12.",
+        "9. Decision: marks >= 40 ? Yes: step 10. No: step 11.",
+        "10. Input or output: print(\"Grade D\"). Next: step 12.",
+        "11. Input or output: print(\"Grade F\"). Next: step 12.",
+        "12. End."
+      ]
+    },
+    "ie-nested-py": {
+      "status": "ok",
+      "output": "Year: 2000\n2000 is a leap year.\n",
+      "outputChars": 32,
+      "runlog": "leap.py\nFinished\nexit code 0\nran in 19 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: year = int(input(\"Year: \")). Next: step 3.",
+        "3. Decision: year % 4 == 0 ? Yes: step 4. No: step 9.",
+        "4. Decision: year % 100 == 0 ? Yes: step 5. No: step 8.",
+        "5. Decision: year % 400 == 0 ? Yes: step 6. No: step 7.",
+        "6. Input or output: print(year, \"is a leap year.\"). Next: step 10.",
+        "7. Input or output: print(year, \"is not a leap year.\"). Next: step 10.",
+        "8. Input or output: print(year, \"is a leap year.\"). Next: step 10.",
+        "9. Input or output: print(year, \"is not a leap year.\"). Next: step 10.",
+        "10. End."
+      ]
+    },
+    "ie-match-py": {
+      "status": "ok",
+      "output": "First number: 8\nOperator (+, - or *): *\nSecond number: 5\n40\n",
+      "outputChars": 60,
+      "runlog": "calc.py\nFinished\nexit code 0\nran in 25 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: a = int(input(\"First number: \")). Next: step 3.",
+        "3. Input or output: op = input(\"Operator (+, - or *): \"). Next: step 4.",
+        "4. Input or output: b = int(input(\"Second number: \")). Next: step 5.",
+        "5. match op: (shown as one step). Next: step 6.",
+        "6. End."
+      ]
+    },
+    "ie-assign-py": {
+      "status": "error",
+      "output": "  File \"full_marks.py\", line 2\n    if marks = 100:\n       ^^^^^^^^^^^\nSyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?\n",
+      "outputChars": 144,
+      "runlog": "full_marks.py\nExited with code 1\nran in 43 ms\nSyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?\nfull_marks.py, line 2\n\nA single = gives a variable a value. Python found one where it expected a comparison, such as the condition of an if or a while.\n\nTo compare two values, write == (two equals signs).",
+      "help": {
+        "id": "py-assign-compare",
+        "means": "A single = gives a variable a value. Python found one where it expected a comparison, such as the condition of an if or a while.",
+        "tips": "To compare two values, write == (two equals signs)."
+      },
+      "problems": [
+        "ErrorSyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?full_marks.py:2:4python SyntaxErrorA single = gives a variable a value. Python found one where it expected a comparison, such as the condition of an if or a while.To compare two values, write == (two equals signs)."
+      ]
+    },
+    "ie-if-c": {
+      "status": "ok",
+      "output": "Enter a number: -7\nDistance from zero: 7\n",
+      "outputChars": 41,
+      "runlog": "distance.c\nFinished\nexit code 0\nbuilt in 1.0 s\nran in 6 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n. Next: step 3.",
+        "3. Input or output: printf(\"Enter a number: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. Decision: n < 0 ? Yes: step 6. No: step 7.",
+        "6. n = -n. Next: step 7.",
+        "7. Input or output: printf(\"Distance from zero: %d\\n\", n). Next: step 8.",
+        "8. End: return 0."
+      ]
+    },
+    "ie-ifelse-c": {
+      "status": "ok",
+      "output": "Your age: 15\nYou can vote in 3 years.\n",
+      "outputChars": 38,
+      "runlog": "vote.c\nFinished\nexit code 0\nbuilt in 839 ms\nran in 5 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int age. Next: step 3.",
+        "3. Input or output: printf(\"Your age: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &age). Next: step 5.",
+        "5. Decision: age >= 18 ? Yes: step 6. No: step 7.",
+        "6. Input or output: printf(\"You can vote.\\n\"). Next: step 8.",
+        "7. Input or output: printf(\"You can vote in %d years.\\n\", 18 - age). Next: step 8.",
+        "8. End: return 0."
+      ]
+    },
+    "ie-ladder-c": {
+      "status": "ok",
+      "output": "Marks out of 100: 82\nGrade B\n",
+      "outputChars": 29,
+      "runlog": "grade.c\nFinished\nexit code 0\nbuilt in 1.1 s\nran in 6 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int marks. Next: step 3.",
+        "3. Input or output: printf(\"Marks out of 100: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &marks). Next: step 5.",
+        "5. Decision: marks >= 90 ? Yes: step 6. No: step 7.",
+        "6. Input or output: printf(\"Grade A\\n\"). Next: step 14.",
+        "7. Decision: marks >= 75 ? Yes: step 8. No: step 9.",
+        "8. Input or output: printf(\"Grade B\\n\"). Next: step 14.",
+        "9. Decision: marks >= 60 ? Yes: step 10. No: step 11.",
+        "10. Input or output: printf(\"Grade C\\n\"). Next: step 14.",
+        "11. Decision: marks >= 40 ? Yes: step 12. No: step 13.",
+        "12. Input or output: printf(\"Grade D\\n\"). Next: step 14.",
+        "13. Input or output: printf(\"Grade F\\n\"). Next: step 14.",
+        "14. End: return 0."
+      ]
+    },
+    "ie-nested-c": {
+      "status": "ok",
+      "output": "Year: 1900\n1900 is not a leap year.\n",
+      "outputChars": 36,
+      "runlog": "leap.c\nFinished\nexit code 0\nbuilt in 800 ms\nran in 5 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int year. Next: step 3.",
+        "3. Input or output: printf(\"Year: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &year). Next: step 5.",
+        "5. Decision: year % 4 == 0 ? Yes: step 6. No: step 11.",
+        "6. Decision: year % 100 == 0 ? Yes: step 7. No: step 10.",
+        "7. Decision: year % 400 == 0 ? Yes: step 8. No: step 9.",
+        "8. Input or output: printf(\"%d is a leap year.\\n\", year). Next: step 12.",
+        "9. Input or output: printf(\"%d is not a leap year.\\n\", year). Next: step 12.",
+        "10. Input or output: printf(\"%d is a leap year.\\n\", year). Next: step 12.",
+        "11. Input or output: printf(\"%d is not a leap year.\\n\", year). Next: step 12.",
+        "12. End: return 0."
+      ]
+    },
+    "ie-switch-c": {
+      "status": "ok",
+      "output": "Calculation (like 6 + 2): 8 * 5\n40\n",
+      "outputChars": 35,
+      "runlog": "calc.c\nFinished\nexit code 0\nbuilt in 1.0 s\nran in 4 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int a, b; char op. Next: step 3.",
+        "3. Input or output: printf(\"Calculation (like 6 + 2): \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d %c %d\", &a, &op, &b). Next: step 5.",
+        "5. Decision: op ? '+': step 6. '-': step 7. '*': step 8. default: step 9.",
+        "6. Input or output: printf(\"%d\\n\", a + b). Next: step 10.",
+        "7. Input or output: printf(\"%d\\n\", a - b). Next: step 10.",
+        "8. Input or output: printf(\"%d\\n\", a * b). Next: step 10.",
+        "9. Input or output: printf(\"Unknown operator %c\\n\", op). Next: step 10.",
+        "10. End: return 0."
+      ]
+    },
+    "ie-fall-c": {
+      "status": "ok",
+      "output": "1 Tea, 2 Coffee, 3 Juice. Your choice: 2\nCoffee\nJuice\nNo such drink\n",
+      "outputChars": 68,
+      "runlog": "drinks.c\nFinished\nexit code 0\nbuilt in 655 ms\nran in 6 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int choice. Next: step 3.",
+        "3. Input or output: printf(\"1 Tea, 2 Coffee, 3 Juice. Your choice: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &choice). Next: step 5.",
+        "5. Decision: choice ? 1: step 6. 2: step 7. 3: step 8. default: step 9.",
+        "6. Input or output: printf(\"Tea\\n\"). Next: step 7.",
+        "7. Input or output: printf(\"Coffee\\n\"). Next: step 8.",
+        "8. Input or output: printf(\"Juice\\n\"). Next: step 9.",
+        "9. Input or output: printf(\"No such drink\\n\"). Next: step 10.",
+        "10. End: return 0."
+      ]
+    },
+    "ie-assign-c": {
+      "status": "ok",
+      "output": "Marks out of 100: 35\nFull marks!\n The build had 1 warning: see Problems, or the marks in the code.\n",
+      "outputChars": 99,
+      "runlog": "full_marks.c\nFinished\nexit code 0\nbuilt in 315 ms\nran in 6 ms",
+      "help": null,
+      "problems": [
+        "Warningusing the result of an assignment as a condition without parenthesesfull_marks.c:7:15clang -Wparentheses"
+      ]
+    },
+    "ie-strcmp-c": {
+      "status": "ok",
+      "output": "Type yes or no: yes\nThat was not yes.\n The build had 1 warning: see Problems, or the marks in the code.\n",
+      "outputChars": 104,
+      "runlog": "answer.c\nFinished\nexit code 0\nbuilt in 943 ms\nran in 7 ms",
+      "help": null,
+      "problems": [
+        "Warningresult of comparison against a string literal is unspecified (use an explicit string comparison function instead)answer.c:7:16clang -Wstring-compare"
+      ]
+    },
+    "ie-strcmp-fix-c": {
+      "status": "ok",
+      "output": "Type yes or no: yes\nYou said yes.\n",
+      "outputChars": 34,
+      "runlog": "answer_fixed.c\nFinished\nexit code 0\nbuilt in 1.1 s\nran in 10 ms",
+      "help": null,
+      "problems": []
+    },
+    "ie-dangling-c": {
+      "status": "ok",
+      "output": "Age: 15\nTicket (1 yes, 0 no): 1\n The build had 1 warning: see Problems, or the marks in the code.\n",
+      "outputChars": 98,
+      "runlog": "entry.c\nFinished\nexit code 0\nbuilt in 653 ms\nran in 5 ms",
+      "help": null,
+      "problems": [
+        "Warningadd explicit braces to avoid dangling elseentry.c:12:5clang -Wdangling-else"
+      ],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int age, ticket. Next: step 3.",
+        "3. Input or output: printf(\"Age: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &age). Next: step 5.",
+        "5. Input or output: printf(\"Ticket (1 yes, 0 no): \"). Next: step 6.",
+        "6. Input or output: scanf(\"%d\", &ticket). Next: step 7.",
+        "7. Decision: age >= 18 ? Yes: step 8. No: step 11.",
+        "8. Decision: ticket == 1 ? Yes: step 9. No: step 10.",
+        "9. Input or output: printf(\"Come in.\\n\"). Next: step 11.",
+        "10. Input or output: printf(\"Sorry, you must be 18.\\n\"). Next: step 11.",
+        "11. End: return 0."
+      ]
     }
   }
 }

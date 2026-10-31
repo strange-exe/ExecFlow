@@ -9,7 +9,7 @@ import { makeCodeLink, readCodeLink } from "../core/code-link";
 import { printColors } from "../flowchart/export";
 import { EXAMPLES } from "./examples";
 import { loadGuideData } from "./load";
-import { chartSvg, colorTokens, errorLine, escapeHtml, expandGuide, outputHtml, warningText, type CapturedRun } from "./render";
+import { chartSvg, colorTokens, errorLine, escapeHtml, expandGuide, outputHtml, warningText, WIDE_CHART, type CapturedRun } from "./render";
 import { GUIDE_PATH, GUIDE_ROUTES, SITE } from "./routes";
 import { NAVIGATE_DENYLIST } from "../about/fallback-deny";
 
@@ -117,7 +117,7 @@ describe("the pages' examples", () => {
   });
 
   it("every flowchart example has its export, its steps, and a chart beside its code", async () => {
-    const html = await page("flowchart-from-code.html");
+    const html = (await Promise.all(GUIDE_ROUTES.map((r) => page(r.file)))).join("\n");
     for (const [id, ex] of Object.entries(EXAMPLES).filter(([, e]) => e.chart)) {
       expect(data.captured.examples[id].steps?.length, id).toBeGreaterThan(3);
       expect(data.charts[id]).toContain(`<title>Flowchart of ${ex.chart} in ${ex.name}</title>`);
@@ -206,6 +206,93 @@ describe("what the pages say matches the app (fact review)", () => {
     const html = (await page("python.html")).replace(/\s+/g, " ");
     expect(html).not.toContain("4,096 thousand characters");
     expect(html).toContain("counted in thousands of characters of 1,024 each (the default, 512, is the 524,288 above)");
+  });
+});
+
+describe("/if-else-flowcharts", () => {
+  const FILE = "if-else-flowcharts.html";
+  const mine = Object.keys(EXAMPLES).filter((id) => id.startsWith("ie-"));
+  const section = (html: string, id: string) => attr(html, new RegExp(`<section aria-labelledby="${id}">([\\s\\S]*?)</section>`)) ?? "";
+
+  it("is a guide route, with a title short enough for a results page", () => {
+    const route = GUIDE_ROUTES.find((r) => r.path === "/if-else-flowcharts");
+    expect(route?.file).toBe(FILE);
+    expect(route!.title.length).toBeLessThanOrEqual(60);
+    expect(GUIDE_PATH.test("/if-else-flowcharts?ref=x")).toBe(true);
+    expect(NAVIGATE_DENYLIST.some((re) => re.test("/if-else-flowcharts"))).toBe(true);
+  });
+
+  it("shows each of its examples on the page, with a captured run, and a chart beside every charted one", async () => {
+    const html = await page(FILE);
+    expect(mine.length).toBeGreaterThanOrEqual(12);
+    for (const id of mine) {
+      const run = data.captured.examples[id];
+      expect(run, `${id}: no captured run`).toBeDefined();
+      expect(html, id).toContain(`id="ex-${id}"`);
+      // Every line typed in was really read by the program (the console echoes it).
+      for (const typed of data.sources[id].stdin) expect(run.output, `${id} typed ${typed}`).toContain(typed);
+      if (EXAMPLES[id].chart) {
+        expect(html, id).toContain(`id="chart-${id}"`);
+        // The chart sits in the same pair as its code.
+        expect(html, id).toMatch(new RegExp(`<div class="fc-pair(?: fc-wide)?">\\s*<div class="ex" id="ex-${id}">(?:(?!fc-pair)[\\s\\S])*?<figure class="fc-figure" id="chart-${id}">`));
+      }
+    }
+    // Both languages for every decision the page teaches (switch is C's; match is Python's).
+    for (const topic of ["if", "ifelse", "ladder", "nested"]) {
+      expect(mine).toContain(`ie-${topic}-c`);
+      expect(mine).toContain(`ie-${topic}-py`);
+    }
+  });
+
+  it("links to the flowchart, Python, C and C++ guides and the editor", async () => {
+    const html = await page(FILE);
+    for (const path of ["/flowchart-from-code", "/python", "/c", "/cpp", "/"]) expect(html).toContain(`href="${path}"`);
+  });
+
+  it("puts a wide chart under its code at full width, in a frame that scrolls on a phone, and a narrower one beside it", async () => {
+    const html = await page(FILE);
+    expect(WIDE_CHART).toBe(640);
+    let wides = 0;
+    for (const id of mine.filter((i) => EXAMPLES[i].chart)) {
+      const width = Number(/viewBox="0 0 ([\d.]+) /.exec(chartSvg(data.charts[id], "x"))![1]);
+      const wide = new RegExp(`<div class="fc-pair fc-wide">\\s*<div class="ex" id="ex-${id}">`).test(html);
+      expect(wide, `${id} is ${width} px wide`).toBe(width > WIDE_CHART);
+      // A wide chart's frame scrolls sideways under 900 px, so it is a named keyboard stop.
+      const frame = attr(html, new RegExp(`<figure class="fc-figure" id="chart-${id}">(<div [^>]*>)`))!;
+      expect(frame, id).toBe(
+        width > WIDE_CHART ? `<div class="fc-frame fc-frame-wide" tabindex="0" role="group" aria-label="Flowchart of ${EXAMPLES[id].chart} in ${EXAMPLES[id].name}, scrolls sideways on a narrow screen">` : `<div class="fc-frame">`,
+      );
+      if (width > WIDE_CHART) wides++;
+    }
+    expect(wides).toBeGreaterThanOrEqual(4);
+  });
+
+  // What the page says about the app and the compiler comes from the capture run (fact review).
+  it("quotes the compiler's warnings and the Python version from the capture run, never typed", () => {
+    const source = readFileSync(FILE, "utf8");
+    for (const spec of ["ie-assign-c:warning1", "ie-strcmp-c:warning1", "ie-dangling-c:warning1", "py-version:first"]) {
+      expect(source).toContain(`<span data-capture="${spec}"></span>`);
+    }
+    expect(data.captured.examples["py-version"].output).toMatch(/^Python 3\.(1\d|[2-9]\d)\./);
+    expect(warningText(data.captured.examples["ie-dangling-c"], "entry.c", 1)).toBe("add explicit braces to avoid dangling else");
+  });
+
+  it("says match is shown as one step only while the app really draws it so, and states the runs' real results", async () => {
+    const html = (await page(FILE)).replace(/\s+/g, " ");
+    const matchSteps = data.captured.examples["ie-match-py"].steps!;
+    expect(matchSteps.some((s) => s.startsWith("5. match op: (shown as one step)"))).toBe(true);
+    expect(section(html, "match")).toContain("<em>shown as one step</em>");
+    // The fall-through: choosing 2 printed Coffee, Juice and No such drink, and the page says so.
+    const fall = data.captured.examples["ie-fall-c"].output.split("\n").slice(1, 4);
+    expect(fall).toEqual(["Coffee", "Juice", "No such drink"]);
+    expect(section(html, "switch")).toContain("prints Coffee, then Juice, then No such drink");
+    // The dangling else: after the two prompts, nothing at all (only the app's note on the warning).
+    const dangling = data.captured.examples["ie-dangling-c"].output.replace(/\n$/, "").split("\n");
+    expect(dangling.slice(0, 2)).toEqual(["Age: 15", "Ticket (1 yes, 0 no): 1"]);
+    expect(dangling.slice(2).every((l) => l.startsWith(" "))).toBe(true);
+    expect(section(html, "mistakes")).toContain("no message at all");
+    // = for ==: 35 typed, and still Full marks!
+    expect(data.captured.examples["ie-assign-c"].output).toContain("Marks out of 100: 35\nFull marks!\n");
   });
 });
 

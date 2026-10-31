@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>If-else flowcharts: decisions in C and Python | ExecFlow</title>
+    <meta name="description" content="How if, if-else, else-if ladders, nested if, switch and match look in a flowchart, with C and Python programs, their real output and common mistakes." />
+    <link rel="canonical" href="https://execflow.abhinesh.codes/if-else-flowcharts" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="ExecFlow" />
+    <meta property="og:title" content="If-else flowcharts: decisions in C and Python" />
+    <meta property="og:description" content="if, else if, nested if, switch and match drawn as flowcharts, with C and Python programs, their real runs and the usual mistakes." />
+    <meta property="og:url" content="https://execflow.abhinesh.codes/if-else-flowcharts" />
+    <meta property="og:image" content="https://execflow.abhinesh.codes/icons/mark-v2-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="If-else flowcharts: decisions in C and Python" />
+    <meta name="twitter:description" content="if, else if, nested if, switch and match drawn as flowcharts, with C and Python programs, their real runs and the usual mistakes." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/guide.css" />
+  </head>
+  <body class="about guide">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+    <nav class="guide-nav" aria-label="Guides">
+      <ul>
+        <li><a href="/flowchart-from-code">Flowchart from code</a></li>
+        <li><a href="/if-else-flowcharts" aria-current="page">If-else flowcharts</a></li>
+        <li><a href="/python">Run Python</a></li>
+        <li><a href="/c">Run C</a></li>
+        <li><a href="/cpp">Run C++</a></li>
+      </ul>
+    </nav>
+
+    <main id="content">
+      <section class="guide-hero" aria-labelledby="title">
+        <h1 id="title">If-else flowcharts: decisions in C and Python</h1>
+        <p class="about-lede">
+          A decision in a program is a question with two answers, Yes and No. In a flowchart it is a diamond, and each
+          answer is an arrow to the steps that run for it. This page shows each kind of decision in C and in Python: a
+          short program, the flowchart ExecFlow drew for it, and what it printed when it ran.
+        </p>
+        <div class="about-ctas">
+          <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          <a class="about-btn about-btn-ghost" href="#if">Start with if</a>
+        </div>
+        <dl class="guide-facts">
+          <div><dt>Decisions</dt><dd>if, else, else if, nested if, switch, match</dd></div>
+          <div><dt>Languages</dt><dd>C and Python</dd></div>
+          <div><dt>Python in ExecFlow</dt><dd><span data-capture="py-version:first"></span></dd></div>
+          <div><dt>Every chart</dt><dd>Drawn by ExecFlow from the code</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="diamond">
+        <h2 id="diamond">The diamond and its Yes and No arrows</h2>
+        <p>
+          ExecFlow draws the test of an <code>if</code> as a diamond holding the condition and a question mark, such as
+          <code>n &lt; 0 ?</code>. Two arrows leave it. The one labelled <strong>Yes</strong> is taken when the condition
+          is true, the one labelled <strong>No</strong> when it is false. Yes is green and No is red, but the words are
+          always there, so a chart printed in black and white reads the same. Below the diamond the two paths meet again,
+          and the program carries on from there.
+        </p>
+        <p>
+          In C a condition is true when its value is not 0. In Python it is true for <code>True</code>, and also for a
+          number that isn't 0 or a string or list that isn't empty.
+        </p>
+        <p>
+          Input and output (<code>scanf</code>, <code>printf</code>, <code>input</code>, <code>print</code>) are slanted
+          boxes, and other steps are rectangles. A C chart has a box for the declaration, such as <code>int n</code>, and
+          ends at <code>return 0</code>. A Python chart starts at the file's first line and ends at End. The
+          <a href="/flowchart-from-code">flowchart from code guide</a> lists every shape.
+        </p>
+      </section>
+
+      <section aria-labelledby="examples">
+        <h2 id="examples">How the examples work</h2>
+        <p>
+          Each program below is shown with the chart ExecFlow drew for it, from its own SVG export, in this page's
+          colours, and with the output it printed when it ran in ExecFlow. What was typed while it ran is in bold.
+          <strong>Open in ExecFlow</strong> shows the program in ExecFlow as a preview first.
+          <strong>Add to my files</strong> puts it in the editor, where you can change it, type other input and watch
+          the chart follow; nothing runs until you press Run.
+        </p>
+        <p>
+          On a phone, a wide chart keeps its size and scrolls sideways. <strong>Steps as text</strong>, under each
+          chart, lists the same boxes and arrows in words.
+        </p>
+      </section>
+
+      <section aria-labelledby="if">
+        <h2 id="if">if: do something only when the condition is true</h2>
+        <p>
+          An <code>if</code> with no <code>else</code> has one branch. When the condition is false, nothing extra happens
+          and the program goes straight on. This program prints how far a number is from zero: a negative number is
+          made positive first.
+        </p>
+        <div class="guide-example">
+          <h3 id="if-c">In C</h3>
+          <div class="fc-pair">
+            <div data-example="ie-if-c"></div>
+            <div data-flowchart="ie-if-c"></div>
+          </div>
+        </div>
+        <div class="guide-example">
+          <h3 id="if-py">In Python</h3>
+          <div class="fc-pair">
+            <div data-example="ie-if-py"></div>
+            <div data-flowchart="ie-if-py"></div>
+          </div>
+          <p>
+            The Yes arrow goes down through <code>n = -n</code>. The No arrow goes around it on the right, and both
+            arrive at the line that prints. With -7 typed, the test says Yes, so 7 is printed. A positive number takes
+            the No arrow and is printed as it is.
+          </p>
+          <p>
+            In C the lines that belong to the <code>if</code> are the ones between <code>{</code> and <code>}</code>; in
+            Python they are the indented lines under it. The charts have the same shape. The C chart has two more boxes:
+            the declaration <code>int n</code>, and a <code>printf</code> for the prompt, which Python's
+            <code>input()</code> shows in the same step that reads the number.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="if-else">
+        <h2 id="if-else">if-else: one of two</h2>
+        <p>
+          With <code>else</code>, each arrow leads to a box of its own. Exactly one of the two branches runs, never both
+          and never neither.
+        </p>
+        <div class="guide-example">
+          <h3 id="if-else-c">In C</h3>
+          <div class="fc-pair">
+            <div data-example="ie-ifelse-c"></div>
+            <div data-flowchart="ie-ifelse-c"></div>
+          </div>
+        </div>
+        <div class="guide-example">
+          <h3 id="if-else-py">In Python</h3>
+          <div class="fc-pair">
+            <div data-example="ie-ifelse-py"></div>
+            <div data-flowchart="ie-ifelse-py"></div>
+          </div>
+          <p>
+            Yes leads to the left branch and No to the right one, and they meet before the end. With 15 typed,
+            <code>age &gt;= 18</code> is false, so the No branch runs and works out <code>18 - age</code>.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="else-if">
+        <h2 id="else-if">The else-if ladder: one of many</h2>
+        <p>
+          For more than two outcomes, chain the tests: <code>else if</code> in C, <code>elif</code> in Python. A grade
+          calculator is the usual example.
+        </p>
+        <div class="guide-example">
+          <h3 id="else-if-c">In C</h3>
+          <div class="fc-pair fc-wide">
+            <div data-example="ie-ladder-c"></div>
+            <div data-flowchart="ie-ladder-c"></div>
+          </div>
+        </div>
+        <div class="guide-example">
+          <h3 id="else-if-py">In Python</h3>
+          <div class="fc-pair fc-wide">
+            <div data-example="ie-ladder-py"></div>
+            <div data-flowchart="ie-ladder-py"></div>
+          </div>
+          <p>
+            Each test is a diamond of its own on the No arrow of the one before it, so the chart steps down to the right
+            like a ladder. The tests are asked in order and the first Yes wins; the tests after it are skipped. With 82,
+            <code>marks &gt;= 90</code> says No, <code>marks &gt;= 75</code> says Yes, and the program prints Grade B
+            without asking about 60 or 40. The last <code>else</code> takes whatever is left, here any mark below 40.
+          </p>
+          <p>
+            The order matters. The second test can be just <code>marks &gt;= 75</code>, not
+            <code>marks &gt;= 75 &amp;&amp; marks &lt; 90</code>, because the first test has already sent every mark of
+            90 or more to Grade A. Put <code>marks &gt;= 40</code> first and every mark from 40 to 100 gets a D. These
+            programs also don't check that the marks are between 0 and 100: a real one would test that first.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="nested">
+        <h2 id="nested">Nested if: a decision inside a decision</h2>
+        <p>
+          An <code>if</code> inside another <code>if</code> is a second question asked on one branch of the first. Leap
+          years are the classic case. A year divisible by 4 is a leap year, except a year divisible by 100, which is a
+          leap year only if it is also divisible by 400. So 2000 was a leap year and 1900 was not.
+        </p>
+        <div class="guide-example">
+          <h3 id="nested-c">In C</h3>
+          <div class="fc-pair fc-wide">
+            <div data-example="ie-nested-c"></div>
+            <div data-flowchart="ie-nested-c"></div>
+          </div>
+        </div>
+        <div class="guide-example">
+          <h3 id="nested-py">In Python</h3>
+          <div class="fc-pair fc-wide">
+            <div data-example="ie-nested-py"></div>
+            <div data-flowchart="ie-nested-py"></div>
+          </div>
+          <p>
+            Each inner diamond hangs from the Yes arrow of the one above it. For 1900 the C program answers Yes (divisible
+            by 4), Yes (by 100) and No (not by 400): not a leap year. The Python program, given 2000, answers Yes three
+            times.
+          </p>
+          <p>
+            The same rule fits in one condition: <code>(year % 4 == 0 &amp;&amp; year % 100 != 0) || year % 400 == 0</code>
+            in C, with <code>and</code> and <code>or</code> in Python. The nested form is easier to follow on a chart,
+            with one question per diamond.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="switch">
+        <h2 id="switch">switch in C: one value, many cases</h2>
+        <p>
+          A <code>switch</code> compares one value with a list of cases. Each case is a constant whole number or a
+          character such as <code>'+'</code>: not a string, and not a test such as <code>marks &gt;= 90</code>. When no
+          case matches, <code>default</code> runs.
+        </p>
+        <div class="guide-example">
+          <h3 id="switch-c">A calculator with break</h3>
+          <div class="fc-pair fc-wide">
+            <div data-example="ie-switch-c"></div>
+            <div data-flowchart="ie-switch-c"></div>
+          </div>
+          <p>
+            ExecFlow draws the <code>switch</code> as one diamond holding the value, <code>op ?</code>, with one column
+            per case, each arrow labelled with its case. Every case ends with <code>break</code>, which leaves the
+            <code>switch</code>, so each column goes straight down to <code>return 0</code>. With <code>8 * 5</code>
+            typed, <code>scanf</code> reads 8 into <code>a</code>, <code>*</code> into <code>op</code> and 5 into
+            <code>b</code>; <code>op</code> matches <code>'*'</code> and the program prints 40. There is no
+            <code>/</code> case because dividing by 0 would need a check first.
+          </p>
+        </div>
+        <div class="guide-example">
+          <h3 id="fall-through">The fall-through mistake: a missing break</h3>
+          <div class="fc-pair fc-wide">
+            <div data-example="ie-fall-c"></div>
+            <div data-flowchart="ie-fall-c"></div>
+          </div>
+          <p>
+            Without <code>break</code> a case doesn't stop at its own lines: the program carries on into the next case's
+            lines, and the next, to the end of the <code>switch</code>. So choosing 2 prints Coffee, then Juice, then No
+            such drink. The chart shows it: each column's arrow runs into the top of the next column instead of down to
+            the end. ExecFlow's compiler gave no warning for this program, so the chart and the output are where it
+            shows.
+          </p>
+          <p>
+            The fix is a <code>break;</code> at the end of each case. Falling through is right only when two cases share
+            one body, written with nothing between them, as in <code>case 'y': case 'Y':</code>. ExecFlow draws such
+            cases as one column labelled with both.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="match">
+        <h2 id="match">match in Python 3.10 and later</h2>
+        <p>
+          Python has no <code>switch</code>. Since Python 3.10 it has <code>match</code>, which compares a value with
+          the pattern after each <code>case</code>; <code>case _</code> matches anything, like <code>default</code>.
+          ExecFlow runs <span data-capture="py-version:first"></span>, so <code>match</code> works there. On Python 3.9
+          or older it is a syntax error. There is no <code>break</code>: only the first matching case runs, and nothing
+          falls through.
+        </p>
+        <div class="guide-example">
+          <h3 id="match-py">The calculator with match</h3>
+          <div class="fc-pair">
+            <div data-example="ie-match-py"></div>
+            <div data-flowchart="ie-match-py"></div>
+          </div>
+          <p>
+            The program runs, but the chart doesn't open the <code>match</code> up. ExecFlow draws the whole
+            <code>match</code> as one box with the note <em>shown as one step</em>, as the chart beside it shows, so it
+            can't show the branches. To see them as diamonds, write the same choice as an <code>if</code> and
+            <code>elif</code> ladder (<code>if op == "+":</code>, then <code>elif op == "-":</code> and so on), which
+            ExecFlow draws test by test, like the grade calculator above.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="mistakes">
+        <h2 id="mistakes">Common mistakes</h2>
+
+        <div class="guide-example">
+          <h3 id="assign">= instead of == in C</h3>
+          <div data-example="ie-assign-c"></div>
+          <p>
+            A single <code>=</code> assigns. <code>if (marks = 100)</code> puts 100 into <code>marks</code>, and the
+            condition's value is that 100, which isn't 0, so it is always true. With 35 typed, the program still takes the
+            Yes branch and prints the full-marks line. clang compiles it with a warning, which ExecFlow lists under Problems and marks in the code:
+          </p>
+          <p class="guide-quote"><span data-capture="ie-assign-c:warning1"></span></p>
+          <p>Write <code>==</code> to compare: <code>if (marks == 100)</code>.</p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="assign-py">The same line in Python</h3>
+          <div data-example="ie-assign-py"></div>
+          <p>
+            Python refuses it before anything runs: it reads the whole file first and stops at line 2, so the program
+            never asks for the marks.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="strings">Comparing strings with == in C</h3>
+          <div data-example="ie-strcmp-c"></div>
+          <p>
+            In C, <code>answer == "yes"</code> doesn't compare the letters. It compares two addresses: where the array
+            <code>answer</code> is in memory, and where the text <code>"yes"</code> is. They are different places, so the
+            test is false even when you typed yes. clang warns:
+          </p>
+          <p class="guide-quote"><span data-capture="ie-strcmp-c:warning1"></span></p>
+          <p>
+            Compare the letters with <code>strcmp</code> from <code>&lt;string.h&gt;</code>, which returns 0 when the two
+            strings are equal:
+          </p>
+          <div data-example="ie-strcmp-fix-c"></div>
+          <p>In Python, <code>==</code> compares the text itself, so <code>answer == "yes"</code> works there.</p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="dangling">The dangling else</h3>
+          <div class="fc-pair">
+            <div data-example="ie-dangling-c"></div>
+            <div data-flowchart="ie-dangling-c"></div>
+          </div>
+          <p>
+            The indentation says the <code>else</code> belongs to <code>if (age &gt;= 18)</code>, but C ignores
+            indentation. Without braces, an <code>else</code> belongs to the nearest <code>if</code> before it that has
+            no <code>else</code>, here <code>if (ticket == 1)</code>. So a 15-year-old with a ticket gets no message at
+            all. The chart shows where the <code>else</code> really went: it is the No arrow of the second diamond, and
+            the first diamond's No arrow goes straight to <code>return 0</code>. clang warns:
+          </p>
+          <p class="guide-quote"><span data-capture="ie-dangling-c:warning1"></span></p>
+          <p>
+            Put braces around the inner <code>if</code>, as in
+            <code>if (age &gt;= 18) { if (ticket == 1) ... } else ...</code>, and the <code>else</code> belongs to the
+            outer one. Python has no dangling else: an <code>else</code> belongs
+            to the <code>if</code> at the same indentation.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="own">
+        <h2 id="own">Draw the chart of your own program</h2>
+        <p>
+          Open the <a href="/">editor</a>, paste your program into a file ending in <code>.c</code> or <code>.py</code>,
+          and open the <strong>Flowchart</strong> tab. The chart follows the code as you type, and
+          <strong>Export</strong> saves it as a PNG or an SVG for a record or a report. The
+          <a href="/flowchart-from-code">flowchart from code guide</a> covers loops, functions and export.
+        </p>
+      </section>
+
+      <section aria-labelledby="more">
+        <h2 id="more">More guides</h2>
+        <ul class="guide-more">
+          <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: loops, early returns, every shape, and exporting PNG or SVG.</li>
+          <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 22, and what a crash looks like.</li>
+          <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas.</li>
+          <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
+          <li><a href="/about">About ExecFlow</a>: everything the editor does, and what changed lately.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/ExecFlow">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>

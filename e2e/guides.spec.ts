@@ -72,8 +72,9 @@ for (const route of GUIDE_ROUTES) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, "sideways scroll").toBeLessThanOrEqual(0);
       // Nor is any output or chart cut off inside its frame (the frames clip what overflows). A code
-      // block keeps its lines whole (a wrapped Python line reads as two) and scrolls sideways instead.
-      const clipped = await page.locator("pre:not(.ex-code), svg.fc-chart, .ex-bar").evaluateAll((els) =>
+      // block keeps its lines whole (a wrapped Python line reads as two) and scrolls sideways instead,
+      // as does a wide chart's frame (render.ts WIDE_CHART; checked in its page's own tests).
+      const clipped = await page.locator("pre:not(.ex-code), .fc-frame:not(.fc-frame-wide) > svg.fc-chart, .ex-bar").evaluateAll((els) =>
         els.filter((el) => el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().right > document.documentElement.clientWidth).map((el) => el.className.toString() || el.tagName),
       );
       expect(clipped, "content wider than its frame").toEqual([]);
@@ -181,6 +182,67 @@ for (const route of GUIDE_ROUTES) {
     });
   });
 }
+
+// /if-else-flowcharts: every charted program has its chart beside it, and the guides link both ways.
+test.describe("/if-else-flowcharts, its own checks", () => {
+  const charted = Object.entries(EXAMPLES).filter(([id, e]) => id.startsWith("ie-") && e.chart).map(([id]) => id);
+
+  test("each charted program has its own chart beside its code, with its steps as text", async ({ page }) => {
+    await page.goto("/if-else-flowcharts");
+    expect(charted.length).toBeGreaterThanOrEqual(10);
+    await expect(page.locator("svg.fc-chart")).toHaveCount(charted.length);
+    for (const id of charted) {
+      const pair = page.locator(".fc-pair").filter({ has: page.locator(`#ex-${id}`) });
+      await expect(pair).toHaveCount(1);
+      await expect(pair.locator(`#chart-${id} svg.fc-chart`)).toBeVisible();
+      await expect(pair.locator(`#chart-${id} .fc-steps li`)).toHaveCount(data.captured.examples[id].steps!.length);
+    }
+  });
+
+  test("on a phone a wide chart keeps its own size in a frame that scrolls sideways; on a desktop it fits", async ({ page }) => {
+    const sizes = () =>
+      page.locator(".fc-frame").evaluateAll((els) =>
+        els.map((f) => {
+          const svg = f.querySelector("svg")!;
+          return {
+            wide: f.classList.contains("fc-frame-wide"),
+            natural: Number(svg.getAttribute("width")),
+            drawn: Math.round(svg.getBoundingClientRect().width),
+            scrolls: f.scrollWidth > f.clientWidth + 1,
+            overflowX: getComputedStyle(f).overflowX,
+            right: f.getBoundingClientRect().right,
+          };
+        }),
+      );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/if-else-flowcharts");
+    const phone = await sizes();
+    expect(phone.filter((s) => s.wide).length).toBeGreaterThanOrEqual(4);
+    for (const s of phone) {
+      expect(s.right, "frame inside the page").toBeLessThanOrEqual(390);
+      if (s.wide) expect(s, "wide chart at its own size, scrolling").toMatchObject({ drawn: s.natural, scrolls: true, overflowX: "auto" });
+      else expect(s.scrolls, "narrow chart fits").toBe(false);
+    }
+    // The frame scrolls from the keyboard: focus it, press the right arrow.
+    const frame = page.locator(".fc-frame-wide").first();
+    await frame.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => frame.evaluate((f) => f.scrollLeft)).toBeGreaterThan(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/if-else-flowcharts");
+    for (const s of await sizes()) expect(s.scrolls, "fits on a desktop").toBe(false);
+  });
+
+  test("links to the flowchart, Python, C and C++ guides and the editor, and each of them links back", async ({ page }) => {
+    await page.goto("/if-else-flowcharts");
+    for (const path of ["/flowchart-from-code", "/python", "/c", "/cpp", "/"]) await expect(page.locator(`main a[href="${path}"]`).first()).toBeVisible();
+    for (const route of GUIDE_ROUTES.filter((r) => r.path !== "/if-else-flowcharts")) {
+      await page.goto(route.path);
+      await expect(page.locator('main a[href="/if-else-flowcharts"]'), route.path).toHaveCount(1);
+      await expect(page.locator('nav.guide-nav a[href="/if-else-flowcharts"]'), route.path).toHaveCount(1);
+    }
+  });
+});
 
 test.describe("with the service worker", () => {
   test.use({ serviceWorkers: "allow" });
