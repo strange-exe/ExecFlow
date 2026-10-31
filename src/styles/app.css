@@ -658,6 +658,10 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 @media (pointer: coarse) { .empty-hint { display: none; } }
 .empty-starters { margin: var(--s3) 0 var(--s6); color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); }
 .empty-starters .starter { font-family: var(--font-name); }
+/* The guides line: the starters' tier, last, under the ruled list. Links sit in the sentence as
+   24 px text targets, like the starters (inline-flex: an inline <a> ignores min-height). */
+.empty-guides { margin: var(--s5) 0 0; color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); }
+a.text-btn { display: inline-flex; align-items: center; }
 .text-btn { min-height: var(--target); padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .text-btn:hover { text-decoration-thickness: 2px; }
 .text-btn:disabled { color: var(--text-muted); text-decoration: none; }

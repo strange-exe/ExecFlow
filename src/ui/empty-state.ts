@@ -67,7 +67,29 @@ export function emptyWorkspace(actions: EmptyActions, readOnly: boolean): HTMLEl
     ),
     h("p", { class: "empty-starters", role: "group", "aria-labelledby": "empty-title" }, ...sentence),
     h("ul", { class: "empty-options", "aria-label": "Other ways to start" }, ...[examples, importFiles, importFolder, connect].map((b) => h("li", null, b))),
+    guideLinks(),
   );
+}
+
+/**
+ * The guide pages (src/pages/routes.ts), last and quiet: a real link to each, so students and
+ * crawlers that render "/" reach them (owner's decision, 2026-10-31). A new tab, like the status
+ * bar's About, so nothing typed here is lost.
+ */
+const GUIDES = [
+  { path: "/python", label: "Run Python" },
+  { path: "/c", label: "Run C" },
+  { path: "/cpp", label: "Run C++" },
+  { path: "/flowchart-from-code", label: "Flowchart from code" },
+] as const;
+
+function guideLinks(): HTMLElement {
+  const sentence: (Node | string)[] = ["New to it? Read a guide: "];
+  GUIDES.forEach((g, i) => {
+    const link = h("a", { class: "text-btn", href: g.path, target: "_blank", rel: "noopener noreferrer", title: `${g.label} guide (opens in a new tab)` }, g.label);
+    sentence.push(link, i === GUIDES.length - 1 ? "." : i === GUIDES.length - 2 ? " or " : ", ");
+  });
+  return h("nav", { class: "empty-guides", "aria-label": "Guides" }, ...sentence);
 }
 
 /**

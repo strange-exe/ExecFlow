@@ -70,7 +70,7 @@ test.describe("search and sharing", () => {
     await expect(page.getByRole("heading", { level: 1, name: "ExecFlow" })).toHaveCount(1);
   });
 
-  test("without JavaScript, the home page says what ExecFlow is and links to About, Privacy and Terms; with it, that text is gone", async ({ browser, page }) => {
+  test("without JavaScript, the home page says what ExecFlow is and links to the four guides, About, Privacy and Terms; with it, that text is gone", async ({ browser, page }) => {
     const off = await browser.newContext({ javaScriptEnabled: false });
     const plain = await off.newPage();
     await plain.goto("/");
@@ -79,6 +79,12 @@ test.describe("search and sharing", () => {
     await expect(summary).toContainText("Python, C and C++");
     await expect(summary).toContainText("nothing to install");
     for (const name of ["About ExecFlow", "Privacy", "Terms"]) await expect(summary.getByRole("link", { name })).toBeVisible();
+    // Every guide, by its own title (src/pages/routes.ts), so a new guide shows up here too.
+    for (const route of GUIDE_ROUTES) {
+      const link = summary.getByRole("link", { name: route.title.replace(/ \| ExecFlow$/, ""), exact: true });
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute("href", route.path);
+    }
     await off.close();
     await openApp(page);
     await expect(page.getByText("nothing to install")).toHaveCount(0);
@@ -106,6 +112,73 @@ test.describe("search and sharing", () => {
       expect(await about.evaluate((el) => el.matches(":focus-visible") && getComputedStyle(el).outlineStyle !== "none")).toBe(true);
       expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     });
+  }
+
+  // A crawler that renders "/" saw an app with links only to About, Privacy and Terms (Bing, owner's
+  // decision 2026-10-31): the first-visit screen links to every guide with a real, visible <a href>,
+  // after its ways to start, opening in a new tab like About so nothing typed is lost.
+  const GUIDE_LINKS = [
+    { name: "Run Python", path: "/python" },
+    { name: "Run C", path: "/c" },
+    { name: "Run C++", path: "/cpp" },
+    { name: "Flowchart from code", path: "/flowchart-from-code" },
+  ];
+  for (const vp of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]) {
+    for (const scheme of ["light", "dark"] as const) {
+      test(`${vp.name} ${scheme}: the first-visit screen links to the four guides, in order after the ways to start, 24 px targets, no sideways scroll, axe clean`, async ({ page }) => {
+        await page.setViewportSize(vp);
+        await openIn(page, "/", scheme);
+        await expect(page.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+        await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+        const empty = page.locator('.empty-state[data-empty="workspace"]');
+        await expect(empty).toBeVisible();
+        const guides = empty.getByRole("navigation", { name: "Guides" });
+        await expect(guides).toBeVisible();
+        const links = guides.getByRole("link");
+        await expect(links).toHaveCount(GUIDE_LINKS.length);
+        // Every guide the site has, and nothing else.
+        expect(GUIDE_LINKS.map((g) => g.path).sort()).toEqual(GUIDE_ROUTES.map((r) => r.path).sort());
+        for (const [i, g] of GUIDE_LINKS.entries()) {
+          const link = links.nth(i);
+          await expect(link).toHaveAccessibleName(g.name);
+          await expect(link).toHaveAttribute("href", g.path);
+          await expect(link).toHaveAttribute("target", "_blank");
+          await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+          await expect(link).toBeVisible();
+          const r = (await link.boundingBox())!;
+          expect(Math.min(r.width, r.height), `${g.name}: a 24 px target`).toBeGreaterThanOrEqual(24);
+          // Real text a crawler reads: not hidden, not clipped, painted with some contrast.
+          expect(await link.evaluate((el) => getComputedStyle(el).visibility === "visible" && Number(getComputedStyle(el).opacity) === 1)).toBe(true);
+        }
+        // Keyboard: from the last way to start, Tab walks the guides in order, each with a focus ring.
+        // Safari by default (and Playwright's WebKit on Windows) leaves links out of the Tab order
+        // (about.spec.ts): there, each link's ring is checked by focusing it straight after a key press.
+        await empty.getByRole("button", { name: "Connect GitHub" }).focus();
+        await page.keyboard.press("Tab");
+        const linksAreStops = await links.first().evaluate((a) => a === document.activeElement);
+        if (!linksAreStops) expect(test.info().project.name, "only WebKit may skip links").toBe("webkit");
+        for (const [i, g] of GUIDE_LINKS.entries()) {
+          if (!linksAreStops) {
+            await page.keyboard.press("Shift");
+            await links.nth(i).focus();
+          } else if (i > 0) await page.keyboard.press("Tab");
+          await expect(links.nth(i)).toBeFocused();
+          expect(await links.nth(i).evaluate((el) => el.matches(":focus-visible") && getComputedStyle(el).outlineStyle !== "none"), `${g.name}: focus ring`).toBe(true);
+        }
+        // Inside its column and the page: no sideways scroll.
+        const box = (await empty.boundingBox())!;
+        const nav = (await guides.boundingBox())!;
+        expect(nav.x).toBeGreaterThanOrEqual(box.x - 0.5);
+        expect(nav.x + nav.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+        await page.screenshot({ path: test.info().outputPath(`guides-${vp.name}-${scheme}.png`), animations: "disabled" });
+        const axe = await new AxeBuilder({ page }).include('.empty-state[data-empty="workspace"]').withTags(AXE_TAGS).analyze();
+        expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}`)).toEqual([]);
+      });
+    }
   }
 
   test("robots.txt names the sitemap, and sitemap.xml lists the four pages and the four guides", async ({ request }) => {
