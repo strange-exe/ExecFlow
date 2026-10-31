@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.22.1",
+    date: "2026-10-31",
+    title: "Huge flowcharts are turned down sooner",
+    items: [
+      { kind: "fixed", text: "A function with hundreds of break and continue lines is now called too big to draw in about a second instead of two or three, without the page pausing while it is worked out." },
+    ],
+  },
+  {
     version: "0.22.0",
     date: "2026-10-31",
     title: "The guides, one click from the start",

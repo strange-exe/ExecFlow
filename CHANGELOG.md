@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.22.1] - 2026-10-31
+
+Huge flowcharts are turned down sooner
+
+### Fixed
+
+- A function with hundreds of break and continue lines is now called too big to draw in about a second instead of two or three, without the page pausing while it is worked out.
+
 ## [0.22.0] - 2026-10-31
 
 The guides, one click from the start
