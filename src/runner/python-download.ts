@@ -9,19 +9,28 @@
 // service worker answers the two scripts (imported, so not fetched) from the same cache once it
 // controls the page: offline after one online start, Python still starts.
 //
-// What the sha256 pin covers: every copy this cache keeps, and so everything Pyodide fetches and,
-// on a page the service worker controls, the two scripts it imports. On a page no service worker
-// controls (a first visit, or with service workers blocked) the import of pyodide.mjs, and its own
-// import of pyodide.asm.mjs, go to the network like the app's own scripts, unchecked
+// What the sha256 pin covers, exactly. Pyodide fetches three of the files: the .wasm, the standard
+// library and the lock file (whose sha256 values loadPackage then trusts for every package).
+//   - The first start of a page answers each of them from bytes this worker hashed itself: the
+//     ones it downloaded, or the cache's copies it re-checked (missingFiles), held in memory until
+//     Pyodide has loaded. That holds when the cache refused a copy (storage full), when there is
+//     no Cache Storage (the files then download, checked, on every start and are never kept), and
+//     when another tab changed the cache in between (serveFromCache).
+//   - Later starts of the same page answer from the cache's copies without hashing them again
+//     (missingFiles says why), as does a first start for a copy it couldn't read at the time.
+//   - A file in neither place is refused rather than fetched unchecked.
+// The two scripts are imported, not fetched. On a page the service worker controls they come from
+// the cache's copies (checked when kept, re-checked by each page's first start); on a page no
+// service worker controls (a first visit, or service workers blocked) the import of pyodide.mjs,
+// and its own import of pyodide.asm.mjs, go to the network like the app's own scripts, unchecked
 // (e2e/run-ux.spec.ts shows it). Routing them through the checked bytes would mean importing a
 // blob: or data: URL, which the CSP's script-src 'self' forbids, and allowing either would widen
 // what an injected script could load (Pyodide's createPyodideModule option still needs the glue
 // imported from somewhere). So on such a page the scripts are trusted as the app's own are: same
 // origin, over HTTPS.
 //
-// Without Cache Storage (blocked) nothing is kept: Pyodide fetches the runtime itself each start,
-// and trackDownload counts those bytes instead. Either way, fetch is back to the real one before
-// any package loads, and so long before the worker's lockdown and any user code.
+// fetch is back to the real one before any package loads, and so long before the worker's lockdown
+// and any user code.
 
 import { cacheOnlyTheFile } from "../about/sw-cache-guard";
 import { sha256Hex } from "../flowchart/download";
@@ -57,11 +66,49 @@ export interface RuntimeCache {
   delete(request: Request, options?: CacheQueryOptions): Promise<boolean>;
 }
 
+/** Runtime files' bytes this worker hashed itself, by absolute URL, with their content type. */
+export type CheckedFiles = Map<string, { bytes: Uint8Array<ArrayBuffer>; type: string | null }>;
+
+/**
+ * Reads `body` whole, calling `onPiece` with each piece's size; or, as soon as it passes `max`
+ * bytes, stops, cancels it (nothing more of it is wanted: MDN ReadableStreamDefaultReader.cancel)
+ * and returns "over", so no more than `max` bytes are ever held. A read error is thrown.
+ */
+async function readCapped(body: ReadableStream<Uint8Array> | null, max: number, onPiece: (n: number) => void = () => {}): Promise<Uint8Array<ArrayBuffer> | "over"> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  if (body) {
+    const reader = body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > max) {
+        await reader.cancel().catch(() => {});
+        return "over";
+      }
+      chunks.push(value);
+      onPiece(value.byteLength);
+    }
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return bytes;
+}
+
 /**
  * The runtime's files that `cache` doesn't hold yet, for the folder `base` (an absolute URL ending
- * in "/"). With `verify` (the build's pins), each held copy is also read and hashed: one whose
- * bytes aren't the pinned ones (or that has no pin) is dropped and counts as missing, so it is
- * downloaded, and checked, again.
+ * in "/"). With `verify` (the build's pins), each held copy is also read, no further than its
+ * pinned size, and hashed: one that is bigger than that, isn't the pinned bytes, or has no pin is
+ * dropped and counts as missing, so it is downloaded, and checked, again. One that matched goes in
+ * `checked`, so this worker answers Pyodide from exactly the bytes it hashed. One that can't be
+ * read now (memory pressure, an I/O error) is no evidence of damage: it is kept and used from the
+ * cache unchecked, as every later start of the page uses it, rather than dropped, which offline
+ * would leave Python unable to start. The next page load checks it again.
  *
  * Why re-check at all: a copy was checked when it was downloaded, but Cache Storage keeps whatever
  * is put there, and the service worker answers the runtime's imports from it unchecked (CacheFirst).
@@ -71,35 +118,55 @@ export interface RuntimeCache {
  * page starts a new worker after every folder change, hard stop or new package set. User code
  * can't reach Cache Storage (lockdown.ts), so nothing a program does can change a copy between
  * starts; only code of the page itself could, and that code could do worse.
- * One file at a time, so at most the largest file (the .wasm) is held in memory at once.
+ *
+ * Two tabs starting Python at once can race: this worker hashes a damaged copy, another tab's
+ * worker replaces it with a checked one, and this worker's delete then drops that good copy. That
+ * costs one more download (this worker then downloads and keeps a checked copy itself), never an
+ * unchecked file: each worker answers Pyodide from its own `checked` bytes first. A delete that
+ * first re-reads the entry would still race (Cache has no compare-and-delete), so it stays plain.
  */
 export async function missingFiles(
   cache: RuntimeCache,
   base: string,
   files: readonly string[] = RUNTIME_FILES,
-  verify?: Readonly<Record<string, { sha256: string }>>,
+  verify?: Readonly<Record<string, { bytes: number; sha256: string }>>,
+  checked?: CheckedFiles,
 ): Promise<string[]> {
   const missing: string[] = [];
   for (const f of files) {
-    const held = await cache.match(base + f, ANY_VARY);
+    const url = base + f;
+    const held = await cache.match(url, ANY_VARY);
     if (!held) missing.push(f);
-    else if (verify && !(await heldCopyMatches(held, verify[f]?.sha256))) {
-      // Every copy under the URL, whatever its Vary (a copy an older service worker stored from an
-      // import carries the request's Origin).
-      await cache.delete(new Request(base + f), ANY_VARY).catch(() => false);
-      missing.push(f);
+    else if (verify) {
+      const verdict = await checkHeld(held, verify[f]);
+      if (verdict === "unreadable") continue;
+      if (verdict === "damaged") {
+        // Every copy under the URL, whatever its Vary (a copy an older service worker stored from
+        // an import carries the request's Origin).
+        await cache.delete(new Request(url), ANY_VARY).catch(() => false);
+        missing.push(f);
+      } else {
+        checked?.set(url, { bytes: verdict, type: held.headers.get("content-type") });
+      }
     }
   }
   return missing;
 }
 
-async function heldCopyMatches(held: Response, pin: string | undefined): Promise<boolean> {
-  if (!pin) return false;
-  try {
-    return (await sha256Hex(new Uint8Array(await held.arrayBuffer()))) === pin;
-  } catch {
-    return false; // unreadable: as good as damaged
+/** A held copy's bytes when they are the pinned ones; "damaged" when they aren't (or no pin); "unreadable" when they can't be read now. */
+async function checkHeld(held: Response, pin: { bytes: number; sha256: string } | undefined): Promise<Uint8Array<ArrayBuffer> | "damaged" | "unreadable"> {
+  if (!pin) {
+    await held.body?.cancel().catch(() => {});
+    return "damaged";
   }
+  let bytes: Uint8Array<ArrayBuffer> | "over";
+  try {
+    bytes = await readCapped(held.body, pin.bytes);
+  } catch {
+    return "unreadable";
+  }
+  if (bytes === "over") return "damaged";
+  return (await sha256Hex(bytes)) === pin.sha256 ? bytes : "damaged";
 }
 
 /**
@@ -156,12 +223,16 @@ function reporter(total: number, post: (p: DownloadProgress) => void, now: () =>
  * is never held past the file's pinned size: an answer that declares more (an uncoded
  * Content-Length) is refused unread, and one that sends more is cancelled at the piece that passes
  * it, so a wrong or hostile answer can't fill the worker's memory before the sha256 check.
- * Anything else throws a DownloadError and keeps nothing for that file. The cache refusing a file
- * (storage full) doesn't stop the start: Pyodide then fetches it itself.
+ * Anything else throws a DownloadError and keeps nothing for that file. Each file that passed is
+ * also put in `checked`, for this worker to answer Pyodide from; so the cache refusing a file
+ * (storage full), or no cache at all (`null`: no Cache Storage, every start downloads), doesn't
+ * stop the start or leave Pyodide an unchecked copy.
  */
 export async function downloadRuntime(opts: {
   fetch: typeof fetch;
-  cache: RuntimeCache;
+  cache: RuntimeCache | null;
+  /** Gets the bytes of each file that passed its check. */
+  checked?: CheckedFiles;
   base: string;
   files: readonly string[];
   /** Each file's size and sha256 (lowercase hex), from the build (__PYODIDE_FILES__). */
@@ -173,7 +244,7 @@ export async function downloadRuntime(opts: {
   const { cache, base } = opts;
   const progress = reporter(opts.total, opts.post, opts.now ?? (() => performance.now()));
   try {
-    for (const old of await cache.keys()) if (!old.url.startsWith(base)) await cache.delete(old);
+    if (cache) for (const old of await cache.keys()) if (!old.url.startsWith(base)) await cache.delete(old);
     // Every file is let finish before a failure is reported: the runner drops a worker that failed
     // to start, and WebKit logs each request still running then as cancelled.
     const settled = await Promise.allSettled(
@@ -201,35 +272,19 @@ export async function downloadRuntime(opts: {
           throw new DownloadError(`${file} is ${declared} bytes, more than the ${pin.bytes} bytes expected`, "damaged");
         }
         // The body is held until its sha256 is known: nothing reaches the cache before the check.
-        const chunks: Uint8Array[] = [];
-        let size = 0;
-        const reader = response.body?.getReader();
+        let bytes: Uint8Array<ArrayBuffer> | "over";
         try {
-          for (;;) {
-            if (!reader) break;
-            const { done, value } = await reader.read();
-            if (done) break;
-            size += value.byteLength;
-            if (size > pin.bytes) break;
-            chunks.push(value);
-            progress.add(value.byteLength);
-          }
+          bytes = await readCapped(response.body, pin.bytes, (n) => progress.add(n));
         } catch (e) {
           throw new DownloadError(`the download of ${file} stopped (${(e as Error).message || "connection lost"})`, "failed");
         }
-        if (size > pin.bytes) {
-          // Stop the transfer: nothing more of this answer is wanted (MDN ReadableStreamDefaultReader.cancel).
-          await reader?.cancel().catch(() => {});
-          throw new DownloadError(`${file} is larger than the ${pin.bytes} bytes expected`, "damaged");
-        }
-        const bytes = new Uint8Array(size);
-        let at = 0;
-        for (const chunk of chunks) {
-          bytes.set(chunk, at);
-          at += chunk.byteLength;
-        }
+        if (bytes === "over") throw new DownloadError(`${file} is larger than the ${pin.bytes} bytes expected`, "damaged");
         if ((await sha256Hex(bytes)) !== pin.sha256) throw new DownloadError(`${file} didn't match`, "damaged");
         const type = response.headers.get("content-type");
+        // This worker answers Pyodide from these bytes (serveFromCache), whatever happens to the
+        // cache's copy: refused (storage full), absent (no Cache Storage) or replaced meanwhile.
+        opts.checked?.set(url, { bytes, type });
+        if (!cache) return;
         const copy = new Response(bytes, { status: 200, headers: type ? { "content-type": type } : {} });
         await cache.put(url, copy).catch(() => {});
       }),
@@ -242,57 +297,32 @@ export async function downloadRuntime(opts: {
 }
 
 /**
- * Answers `scope.fetch` for the runtime's files from `cache` until `end()`, so Pyodide reads them
- * from this device; anything else, or a file the cache doesn't hold, goes to the real fetch.
+ * Answers `scope.fetch` for the runtime's files until `end()`, so Pyodide reads them from this
+ * device: first from `checked` (bytes this worker hashed itself), then from `cache` (null: no
+ * Cache Storage). A runtime file in neither (a later start's cache copy dropped since the start
+ * began) is refused, never fetched from the network unchecked: the start fails, and the runner's
+ * next attempt finds the file missing and downloads it checked. Anything else (packages, other
+ * folders) goes to the real fetch.
  */
-export function serveFromCache(scope: FetchScope, cache: RuntimeCache, base: string, files: readonly string[] = RUNTIME_FILES) {
+export function serveFromCache(scope: FetchScope, cache: RuntimeCache | null, base: string, files: readonly string[] = RUNTIME_FILES, checked?: CheckedFiles) {
   const original = scope.fetch;
   const ours = new Set(files.map((f) => base + f));
   scope.fetch = (async (...args: Parameters<typeof fetch>) => {
     const [input] = args;
     const url = new URL(input instanceof Request ? input.url : String(input), base).href;
-    const hit = ours.has(url) ? await cache.match(url, ANY_VARY).catch(() => undefined) : undefined;
-    return hit ?? original.apply(scope, args);
+    if (!ours.has(url)) return original.apply(scope, args);
+    const own = checked?.get(url);
+    // A new Response each time: a body is read once (the bytes are copied into it).
+    if (own) return new Response(own.bytes, { status: 200, headers: own.type ? { "content-type": own.type } : {} });
+    const hit = cache ? await cache.match(url, ANY_VARY).catch(() => undefined) : undefined;
+    if (hit) return hit;
+    throw new DownloadError(`${url.slice(base.length)} is no longer on this device`, "failed");
   }) as typeof fetch;
   return {
-    /** Puts the real fetch back. */
+    /** Puts the real fetch back, and lets the checked bytes go (Pyodide has read them). */
     end() {
       scope.fetch = original;
-    },
-  };
-}
-
-/**
- * Wraps `scope.fetch` until `end()`: every response body read through it is counted, and
- * `post` gets the running total (at most every PROGRESS_MS) and a final `done: true` on `end()`.
- * Used when there is no Cache Storage: Pyodide then fetches the runtime itself on every start.
- */
-export function trackDownload(scope: FetchScope, total: number, post: (p: DownloadProgress) => void, now: () => number = () => performance.now()) {
-  const original = scope.fetch;
-  const progress = reporter(total, post, now);
-  const count = async (body: ReadableStream<Uint8Array>) => {
-    const reader = body.getReader();
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) return;
-        progress.add(value.byteLength);
-      }
-    } catch {
-      // The download failed: Pyodide's own read of the response reports it.
-    }
-  };
-  scope.fetch = (async (...args: Parameters<typeof fetch>) => {
-    const response = await original.apply(scope, args);
-    const copy = response.clone();
-    if (copy.body) void count(copy.body);
-    return response;
-  }) as typeof fetch;
-  return {
-    /** Puts the real fetch back and sends the final count. */
-    end() {
-      scope.fetch = original;
-      progress.end();
+      checked?.clear();
     },
   };
 }

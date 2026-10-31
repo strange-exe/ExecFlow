@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sha256Hex } from "../flowchart/download";
-import { DownloadError, downloadRuntime, failureWords, missingFiles, RUNTIME_FILES, serveFromCache, trackDownload, type DownloadProgress, type RuntimeCache } from "./python-download";
+import { DownloadError, downloadRuntime, failureWords, missingFiles, RUNTIME_FILES, serveFromCache, type CheckedFiles, type DownloadProgress, type RuntimeCache } from "./python-download";
 
 /** A body that arrives in `sizes` pieces, one per read. */
 const body = (sizes: number[]) =>
@@ -15,63 +15,6 @@ const body = (sizes: number[]) =>
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
-describe("trackDownload", () => {
-  it("counts every response body read through fetch, hands the real response on, and restores fetch", async () => {
-    const original = async () => new Response(body([1000, 500]), { status: 200, headers: { "content-type": "application/wasm" } });
-    const scope = { fetch: original as unknown as typeof fetch };
-    const posts: DownloadProgress[] = [];
-    let clock = 0;
-    const track = trackDownload(scope, 4000, (p) => posts.push(p), () => (clock += 200));
-    expect(scope.fetch).not.toBe(original);
-    const r1 = await scope.fetch("/pyodide/x/pyodide.asm.wasm");
-    // The response itself is untouched (its URL, type and body stay for streaming compilation).
-    expect(r1.headers.get("content-type")).toBe("application/wasm");
-    expect((await r1.arrayBuffer()).byteLength).toBe(1500);
-    const r2 = await scope.fetch("/pyodide/x/python_stdlib.zip");
-    await r2.arrayBuffer();
-    await settle();
-    expect(posts.at(-1)).toEqual({ loaded: 3000, total: 4000, done: false });
-    track.end();
-    expect(scope.fetch).toBe(original);
-    expect(posts.at(-1)).toEqual({ loaded: 3000, total: 4000, done: true });
-  });
-
-  it("reports at most one progress per interval, and always the last one", async () => {
-    const scope = { fetch: (async () => new Response(body([10, 10, 10, 10]))) as unknown as typeof fetch };
-    const posts: DownloadProgress[] = [];
-    const track = trackDownload(scope, 40, (p) => posts.push(p), () => 0);
-    await (await scope.fetch("/a")).arrayBuffer();
-    await settle();
-    // The clock never moves: only the first piece is reported until the end.
-    expect(posts).toEqual([{ loaded: 10, total: 40, done: false }]);
-    track.end();
-    expect(posts.at(-1)).toEqual({ loaded: 40, total: 40, done: true });
-  });
-
-  it("keeps fetch's own this (a worker's fetch throws when called unbound)", async () => {
-    const scope = {
-      fetch(this: unknown) {
-        if (this !== scope) throw new TypeError("Illegal invocation");
-        return Promise.resolve(new Response("ok"));
-      },
-    };
-    trackDownload(scope as unknown as { fetch: typeof fetch }, 2, () => {});
-    expect(await (await scope.fetch()).text()).toBe("ok");
-  });
-
-  it("a body that fails to read is not counted and doesn't throw", async () => {
-    const broken = new ReadableStream<Uint8Array>({ pull(c) { c.error(new Error("connection lost")); } });
-    const scope = { fetch: (async () => new Response(broken)) as unknown as typeof fetch };
-    const posts: DownloadProgress[] = [];
-    const track = trackDownload(scope, 10, (p) => posts.push(p), () => 0);
-    const r = await scope.fetch("/a");
-    await expect(r.arrayBuffer()).rejects.toThrow();
-    await settle();
-    track.end();
-    expect(posts).toEqual([{ loaded: 0, total: 10, done: true }]);
-  });
-});
-
 // ---------------------------------------------------------------- the runtime on this device
 
 const BASE = "http://h/pyodide/314.0.7-heap512/";
@@ -81,9 +24,13 @@ class FakeCache implements RuntimeCache {
   entries = new Map<string, { body: ArrayBuffer; type: string | null }>();
   failPuts = false;
   matchOptions: (CacheQueryOptions | undefined)[] = [];
+  /** Answers match() for a held URL instead of its stored copy (a read that fails, a huge body). */
+  answer?: (url: string) => Response | undefined;
   async match(url: string, options?: CacheQueryOptions) {
     this.matchOptions.push(options);
     const e = this.entries.get(url);
+    const special = e ? this.answer?.(url) : undefined;
+    if (special) return special;
     return e ? new Response(e.body.slice(0), { headers: e.type ? { "content-type": e.type } : {} }) : undefined;
   }
   async put(url: string, response: Response) {
@@ -177,6 +124,65 @@ describe("missingFiles", () => {
     expect(await missingFiles(cache, BASE, RUNTIME_FILES, pins)).toEqual(["pyodide-lock.json"]);
     expect(cache.entries.has(BASE + "pyodide-lock.json")).toBe(false);
   });
+
+  it("with pins, keeps the bytes of each copy that matched in `checked`, as hashed", async () => {
+    const cache = new FakeCache();
+    for (const [file, n] of Object.entries(SIZES)) await cache.put(BASE + file, new Response(new Uint8Array(n), { headers: { "content-type": typeOf(file) } }));
+    const checked: CheckedFiles = new Map();
+    expect(await missingFiles(cache, BASE, RUNTIME_FILES, PINS, checked)).toEqual([]);
+    expect([...checked.keys()]).toEqual(RUNTIME_FILES.map((f) => BASE + f));
+    for (const [url, { bytes, type }] of checked) {
+      const file = url.slice(BASE.length);
+      expect(await sha256Hex(bytes)).toBe(SHAS[file]);
+      expect(type).toBe(typeOf(file));
+    }
+  });
+
+  it("with pins, a copy that can't be read now is kept and used unchecked, not dropped (a read error isn't damage)", async () => {
+    const cache = new FakeCache();
+    for (const [file, n] of Object.entries(SIZES)) await cache.put(BASE + file, new Response(new Uint8Array(n)));
+    // Memory pressure or an I/O error while reading the stored body.
+    cache.answer = (url) =>
+      url.endsWith(".wasm") ? new Response(new ReadableStream<Uint8Array>({ pull(c) { c.error(new Error("I/O error")); } })) : undefined;
+    const checked: CheckedFiles = new Map();
+    // Not missing: offline, Python still starts from it (as on any later start of the page).
+    expect(await missingFiles(cache, BASE, RUNTIME_FILES, PINS, checked)).toEqual([]);
+    expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(true);
+    expect(cache.deleteOptions).toEqual([]);
+    // Not counted as checked: it is answered from the cache, not from bytes this worker hashed.
+    expect(checked.has(BASE + "pyodide.asm.wasm")).toBe(false);
+    expect(checked.size).toBe(4);
+  });
+
+  it("with pins, a held copy bigger than the pinned size is damaged, and no more of it is read than that", async () => {
+    const cache = new FakeCache();
+    for (const [file, n] of Object.entries(SIZES)) await cache.put(BASE + file, new Response(new Uint8Array(n)));
+    // A huge body under the name (bounded at 10 pieces, so the test can't fill memory without the guard).
+    let reads = 0;
+    let cancelled = false;
+    cache.answer = (url) =>
+      url.endsWith(".wasm")
+        ? new Response(
+            new ReadableStream<Uint8Array>(
+              {
+                pull(c) {
+                  reads++;
+                  c.enqueue(new Uint8Array(400));
+                  if (reads === 10) c.close();
+                },
+                cancel() {
+                  cancelled = true;
+                },
+              },
+              { highWaterMark: 0 },
+            ),
+          )
+        : undefined;
+    expect(await missingFiles(cache, BASE, RUNTIME_FILES, PINS)).toEqual(["pyodide.asm.wasm"]);
+    expect(reads).toBe(3);
+    expect(cancelled).toBe(true);
+    expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
+  });
 });
 
 describe("downloadRuntime", () => {
@@ -197,6 +203,32 @@ describe("downloadRuntime", () => {
     expect(posts.every((p) => p.loaded <= TOTAL)).toBe(true);
     expect(posts.filter((p) => p.done)).toHaveLength(1);
     expect(await missingFiles(cache, BASE)).toEqual([]);
+  });
+
+  it("hands this worker the bytes of every file it checked (`checked`), and only those", async () => {
+    const cache = new FakeCache();
+    const bad = () => {
+      const bytes = new Uint8Array(300);
+      bytes[3] = 1;
+      return new Response(bytes, { status: 200, headers: { "content-type": "application/zip" } });
+    };
+    const { fetch } = site(SIZES, (url) => (url.endsWith(".zip") ? bad() : null));
+    const checked: CheckedFiles = new Map();
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: () => {}, checked });
+    await expect(failed).rejects.toMatchObject({ kind: "damaged" });
+    expect([...checked.keys()].sort()).toEqual(RUNTIME_FILES.filter((f) => f !== "python_stdlib.zip").map((f) => BASE + f).sort());
+    expect(await sha256Hex(checked.get(BASE + "pyodide-lock.json")!.bytes)).toBe(SHAS["pyodide-lock.json"]);
+    expect(checked.get(BASE + "pyodide.asm.wasm")!.type).toBe("application/wasm");
+  });
+
+  it("without Cache Storage (no cache), checks every file and keeps the bytes for this worker only", async () => {
+    const { fetch, asked } = site(SIZES);
+    const checked: CheckedFiles = new Map();
+    const posts: DownloadProgress[] = [];
+    await downloadRuntime({ fetch, cache: null, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p), checked });
+    expect(asked).toEqual(RUNTIME_FILES.map((f) => BASE + f));
+    expect(checked.size).toBe(RUNTIME_FILES.length);
+    expect(posts.at(-1)).toEqual({ loaded: TOTAL, total: TOTAL, done: true });
   });
 
   it("downloads only the files it is given (the rest are already here)", async () => {
@@ -243,14 +275,16 @@ describe("downloadRuntime", () => {
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
   });
 
-  it("a cache that refuses the files (storage full) doesn't stop the download", async () => {
+  it("a cache that refuses the files (storage full) doesn't stop the download, and the checked bytes still reach this worker", async () => {
     const cache = new FakeCache();
     cache.failPuts = true;
     const { fetch } = site(SIZES);
     const posts: DownloadProgress[] = [];
-    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p) });
+    const checked: CheckedFiles = new Map();
+    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p), checked });
     expect(posts.at(-1)).toEqual({ loaded: TOTAL, total: TOTAL, done: true });
     expect(cache.entries.size).toBe(0);
+    expect(checked.size).toBe(RUNTIME_FILES.length);
   });
 
   it("a file whose bytes don't match the build's sha256 is damaged: none of it is kept, the rest is", async () => {
@@ -395,14 +429,63 @@ describe("serveFromCache", () => {
     expect((await (await scope.fetch("/pyodide/314.0.7-heap512/pyodide.asm.wasm")).arrayBuffer()).byteLength).toBe(7);
     expect((await scope.fetch(new Request(BASE + "pyodide.asm.wasm"))).headers.get("content-type")).toBe("application/wasm");
     expect(network).toEqual([]);
-    // Not in the cache (a refused put), a package, another folder: the network, with fetch's own this.
-    expect(await (await scope.fetch(BASE + "python_stdlib.zip")).text()).toBe("net");
+    // A runtime file neither checked nor in the cache (dropped since the start began) is refused,
+    // never fetched unchecked: the start fails, and the runner's next attempt downloads it checked.
+    await expect(scope.fetch(BASE + "python_stdlib.zip")).rejects.toMatchObject({ kind: "failed", message: expect.stringContaining("python_stdlib.zip") });
+    // A package, another folder: the network, with fetch's own this.
     expect(await (await scope.fetch(BASE + "numpy-2.4.6.whl", { integrity: "sha256-x" })).text()).toBe("net");
     expect(await (await scope.fetch("http://h/pyodide/313.0.0-heap512/pyodide.asm.wasm")).text()).toBe("net");
-    expect(network).toEqual([BASE + "python_stdlib.zip", BASE + "numpy-2.4.6.whl", "http://h/pyodide/313.0.0-heap512/pyodide.asm.wasm"]);
+    expect(network).toEqual([BASE + "numpy-2.4.6.whl", "http://h/pyodide/313.0.0-heap512/pyodide.asm.wasm"]);
     serving.end();
     expect(scope.fetch).toBe(original);
     expect(cache.matchOptions.length).toBeGreaterThan(0);
     expect(cache.matchOptions.every((o) => o?.ignoreVary === true)).toBe(true);
+  });
+
+  /** A fetch scope whose network answers "net" and records what it was asked. */
+  const netScope = () => {
+    const network: string[] = [];
+    const scope = {
+      fetch(this: unknown, input: string | Request) {
+        network.push(input instanceof Request ? input.url : input);
+        return Promise.resolve(new Response("net"));
+      },
+    } as unknown as { fetch: typeof fetch };
+    return { scope, network };
+  };
+
+  it("answers a file this worker checked from its own bytes first, whatever the cache holds now", async () => {
+    // Another tab's start dropped or replaced the cache's copy after this worker checked its own
+    // (the concurrent-start race), or the cache refused it: Pyodide still gets the checked bytes.
+    const cache = new FakeCache();
+    await cache.put(BASE + "pyodide.asm.wasm", new Response(new Uint8Array([9, 9, 9]), { headers: { "content-type": "application/wasm" } }));
+    const checked: CheckedFiles = new Map([
+      [BASE + "pyodide.asm.wasm", { bytes: new Uint8Array([1, 2, 3, 4]), type: "application/wasm" }],
+      [BASE + "pyodide-lock.json", { bytes: new TextEncoder().encode('{"packages":{}}'), type: "application/json" }],
+    ]);
+    const { scope, network } = netScope();
+    const serving = serveFromCache(scope, cache, BASE, RUNTIME_FILES, checked);
+    const wasm = await scope.fetch(BASE + "pyodide.asm.wasm");
+    expect([...new Uint8Array(await wasm.arrayBuffer())]).toEqual([1, 2, 3, 4]);
+    expect(wasm.headers.get("content-type")).toBe("application/wasm");
+    expect(wasm.status).toBe(200);
+    expect(await (await scope.fetch("/pyodide/314.0.7-heap512/pyodide-lock.json")).text()).toBe('{"packages":{}}');
+    // Read twice, each a whole answer (a Response body can be read once).
+    expect((await (await scope.fetch(BASE + "pyodide.asm.wasm")).arrayBuffer()).byteLength).toBe(4);
+    expect(network).toEqual([]);
+    serving.end();
+  });
+
+  it("without Cache Storage, answers the checked files from memory and anything else from the network", async () => {
+    const checked: CheckedFiles = new Map([[BASE + "python_stdlib.zip", { bytes: new Uint8Array(5), type: null }]]);
+    const { scope, network } = netScope();
+    const serving = serveFromCache(scope, null, BASE, RUNTIME_FILES, checked);
+    expect((await (await scope.fetch(BASE + "python_stdlib.zip")).arrayBuffer()).byteLength).toBe(5);
+    await expect(scope.fetch(BASE + "pyodide-lock.json")).rejects.toMatchObject({ kind: "failed" });
+    expect(await (await scope.fetch(BASE + "six-1.17.0.whl")).text()).toBe("net");
+    expect(network).toEqual([BASE + "six-1.17.0.whl"]);
+    // end() lets the bytes go: Pyodide has read what it needed.
+    serving.end();
+    expect(checked.size).toBe(0);
   });
 });

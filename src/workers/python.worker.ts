@@ -14,7 +14,7 @@ import type { PyodideAPI } from "pyodide";
 import { waitForInput } from "../runner/input-channel";
 import type { BootSource, FromPython, Stream, ToPython } from "../runner/protocol";
 import { fromPythonJson } from "../runner/python-diagnostics";
-import { DownloadError, downloadRuntime, failureWords, missingFiles, PYTHON_CACHE, serveFromCache, trackDownload, type DownloadProgress } from "../runner/python-download";
+import { DownloadError, downloadRuntime, failureWords, missingFiles, PYTHON_CACHE, RUNTIME_FILES, serveFromCache, type CheckedFiles, type DownloadProgress } from "../runner/python-download";
 import { collectWritten, prepareRunFiles, writeWorkspace, type FsLike } from "../runner/python-files";
 import { RUNNER_PY } from "../runner/python-helper";
 import { canonicalName, importIndex, missingPackages, packageClosure, PYTHON_PACKAGES, type LockFile } from "../runner/python-packages";
@@ -191,25 +191,26 @@ async function runtimeCache(): Promise<Cache | null> {
 /**
  * Puts the runtime on this device the first time (python-download.ts): its bytes are counted for
  * the run header, and a runtime already here is said to be done at once. Returns what to undo once
- * Pyodide has loaded: the fetch that answers Pyodide from the cache, or (no Cache Storage) the one
- * that counts Pyodide's own download.
+ * Pyodide has loaded: the fetch that answers Pyodide from the checked bytes and the cache.
  */
 async function fetchRuntime(base: string, verify: boolean): Promise<{ end(): void }> {
   const progress = (p: DownloadProgress) => post({ type: "progress", ...p });
   const cache = await runtimeCache();
-  if (!cache) return trackDownload(self, __PYODIDE_BYTES__, progress);
+  // Bytes this worker hashed, which Pyodide is answered from first (python-download.ts header).
+  const checked: CheckedFiles = new Map();
   // The first start of a page re-hashes what this device holds (python-download.ts missingFiles
-  // says why only then); a copy that changed is dropped and downloaded again below.
-  const missing = await missingFiles(cache, base, undefined, verify ? __PYODIDE_FILES__ : undefined);
+  // says why only then); a copy that changed is dropped and downloaded again below. Without Cache
+  // Storage nothing is kept, so every start downloads (and checks) all of it into memory.
+  const missing = cache ? await missingFiles(cache, base, undefined, verify ? __PYODIDE_FILES__ : undefined, checked) : [...RUNTIME_FILES];
   if (missing.length) {
     // No request can succeed offline: say so at once rather than after each file fails.
     if (self.navigator.onLine === false) throw new DownloadError("this device is offline", "offline");
     const total = missing.reduce((sum, f) => sum + (__PYODIDE_FILES__[f]?.bytes ?? 0), 0);
-    await downloadRuntime({ fetch: self.fetch.bind(self), cache, base, files: missing, expected: __PYODIDE_FILES__, total, post: progress });
+    await downloadRuntime({ fetch: self.fetch.bind(self), cache, checked, base, files: missing, expected: __PYODIDE_FILES__, total, post: progress });
   } else {
     progress({ loaded: 0, total: 0, done: true });
   }
-  return serveFromCache(self, cache, base);
+  return serveFromCache(self, cache, base, RUNTIME_FILES, checked);
 }
 
 async function boot(interrupt: SharedArrayBuffer | null, packages: string[], verifyRuntime: boolean): Promise<Runtime> {
