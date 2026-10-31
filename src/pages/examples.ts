@@ -49,6 +49,23 @@ export const EXAMPLES: Readonly<Record<string, Example>> = {
   "cpp-push": { name: "marks.cpp" },
   "cpp-version": { name: "which_cpp.cpp" },
   "cpp-bits": { name: "all_headers.cpp" },
+  // /loop-flowcharts
+  "lp-for-c": { name: "times_table.c", chart: "main" },
+  "lp-for-py": { name: "times_table.py", chart: "Program" },
+  "lp-while-c": { name: "digit_sum.c", chart: "main" },
+  "lp-while-py": { name: "digit_sum.py", chart: "Program" },
+  "lp-do-c": { name: "pick_number.c", chart: "main" },
+  "lp-do-py": { name: "pick_number.py", chart: "Program" },
+  "lp-nested-c": { name: "stars.c", chart: "main" },
+  "lp-nested-py": { name: "stars.py", chart: "Program" },
+  "lp-jump-c": { name: "positive_sum.c", chart: "main" },
+  "lp-jump-py": { name: "positive_sum.py", chart: "Program" },
+  "lp-off-c": { name: "count_to_ten.c" },
+  "lp-off-py": { name: "count_to_ten.py" },
+  "lp-endless-c": { name: "forgot_update.c" },
+  "lp-endless-py": { name: "forgot_update.py" },
+  "lp-change-c": { name: "skip_ahead.c" },
+  "lp-change-py": { name: "skip_ahead.py" },
 };
 
 /** The extension of an example's source file (its editor name's). */

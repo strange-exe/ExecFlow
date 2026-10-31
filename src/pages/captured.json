@@ -2,7 +2,9 @@
   "note": "Written by .claude/verify/pages/build/capture.spec.ts from the built app; never edit by hand.",
   "facts": {
     "packOffer": "C and C++ need a one-time 29.3 MB download. After that they run offline, like Python.",
-    "packButton": "Download C/C++ (29.3 MB)"
+    "packButton": "Download C/C++ (29.3 MB)",
+    "lp-endless-py-button": "Stop | aria-label=null | title=Stop (Ctrl+.)",
+    "lp-endless-c-button": "Stop | aria-label=null | title=Stop (Ctrl+.)"
   },
   "examples": {
     "fc-loop": {
@@ -381,6 +383,259 @@
       "problems": [
         "Errorno matching member function for call to 'push_back'marks.cpp:7:11clang"
       ]
+    },
+    "lp-for-py": {
+      "status": "ok",
+      "output": "Table of: 7\n7 x 1 = 7\n7 x 2 = 14\n7 x 3 = 21\n7 x 4 = 28\n7 x 5 = 35\n7 x 6 = 42\n7 x 7 = 49\n7 x 8 = 56\n7 x 9 = 63\n7 x 10 = 70\n",
+      "outputChars": 122,
+      "runlog": "times_table.py\nFinished\nexit code 0\nran in 181 ms",
+      "help": null,
+      "problems": [],
+      "code": "n = int(input(\"Table of: \"))\nfor i in range(1, 11):\n    print(n, \"x\", i, \"=\", n * i)\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: n = int(input(\"Table of: \")). Next: step 3.",
+        "3. Decision: for i in range(1, 11) ? Yes: step 4. No: step 5.",
+        "4. Input or output: print(n, \"x\", i, \"=\", n * i). Next: step 3.",
+        "5. End."
+      ]
+    },
+    "lp-while-py": {
+      "status": "ok",
+      "output": "Enter a number: 4096\nSum of digits = 19\n",
+      "outputChars": 40,
+      "runlog": "digit_sum.py\nFinished\nexit code 0\nran in 42 ms",
+      "help": null,
+      "problems": [],
+      "code": "n = int(input(\"Enter a number: \"))\ntotal = 0\nwhile n > 0:\n    total = total + n % 10\n    n = n // 10\nprint(\"Sum of digits =\", total)\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: n = int(input(\"Enter a number: \")). Next: step 3.",
+        "3. total = 0. Next: step 4.",
+        "4. Decision: n > 0 ? Yes: step 5. No: step 6.",
+        "5. total = total + n % 10; n = n // 10. Next: step 4.",
+        "6. Input or output: print(\"Sum of digits =\", total). Next: step 7.",
+        "7. End."
+      ]
+    },
+    "lp-do-py": {
+      "status": "ok",
+      "output": "Enter a number from 1 to 10: 15\nEnter a number from 1 to 10: 0\nEnter a number from 1 to 10: 7\nYou chose 7\n",
+      "outputChars": 106,
+      "runlog": "pick_number.py\nFinished\nexit code 0\nran in 41 ms",
+      "help": null,
+      "problems": [],
+      "code": "while True:\n    n = int(input(\"Enter a number from 1 to 10: \"))\n    if 1 <= n <= 10:\n        break\nprint(\"You chose\", n)\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Decision: True ? Yes: step 3. No: step 5.",
+        "3. Input or output: n = int(input(\"Enter a number from 1 to 10: \")). Next: step 4.",
+        "4. Decision: 1 <= n <= 10 ? No: step 2. Yes: step 5.",
+        "5. Input or output: print(\"You chose\", n). Next: step 6.",
+        "6. End."
+      ]
+    },
+    "lp-nested-py": {
+      "status": "ok",
+      "output": "* \n* * \n* * * \n* * * * \n",
+      "outputChars": 24,
+      "runlog": "stars.py\nFinished\nexit code 0\nran in 46 ms",
+      "help": null,
+      "problems": [],
+      "code": "rows = 4\nfor i in range(1, rows + 1):\n    for j in range(1, i + 1):\n        print(\"*\", end=\" \")\n    print()\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. rows = 4. Next: step 3.",
+        "3. Decision: for i in range(1, rows + 1) ? Yes: step 4. No: step 7.",
+        "4. Decision: for j in range(1, i + 1) ? Yes: step 5. No: step 6.",
+        "5. Input or output: print(\"*\", end=\" \"). Next: step 4.",
+        "6. Input or output: print(). Next: step 3.",
+        "7. End."
+      ]
+    },
+    "lp-jump-py": {
+      "status": "ok",
+      "output": "Number (0 to stop): 5\nNumber (0 to stop): -3\nNumber (0 to stop): 8\nNumber (0 to stop): 0\nTotal of the positive numbers = 13\n",
+      "outputChars": 124,
+      "runlog": "positive_sum.py\nFinished\nexit code 0\nran in 36 ms",
+      "help": null,
+      "problems": [],
+      "code": "total = 0\nwhile True:\n    n = int(input(\"Number (0 to stop): \"))\n    if n == 0:\n        break\n    if n < 0:\n        continue\n    total = total + n\nprint(\"Total of the positive numbers =\", total)\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. total = 0. Next: step 3.",
+        "3. Decision: True ? Yes: step 4. No: step 8.",
+        "4. Input or output: n = int(input(\"Number (0 to stop): \")). Next: step 5.",
+        "5. Decision: n == 0 ? No: step 6. Yes: step 8.",
+        "6. Decision: n < 0 ? Yes: step 3. No: step 7.",
+        "7. total = total + n. Next: step 3.",
+        "8. Input or output: print(\"Total of the positive numbers =\", total). Next: step 9.",
+        "9. End."
+      ]
+    },
+    "lp-off-py": {
+      "status": "ok",
+      "output": "1 2 3 4 5 6 7 8 9 \n",
+      "outputChars": 19,
+      "runlog": "count_to_ten.py\nFinished\nexit code 0\nran in 33 ms",
+      "help": null,
+      "problems": [],
+      "code": "# Meant to print 1 to 10\nfor i in range(1, 10):\n    print(i, end=\" \")\nprint()\n"
+    },
+    "lp-endless-py": {
+      "status": "timeout",
+      "output": "",
+      "outputChars": 0,
+      "runlog": "forgot_update.py\nTime limit reached\nran in 15.0 s\n\nThe program was still running after the 15 second time limit, so it was stopped. Often a loop never ends because its condition never becomes false.\n\nCheck that each pass of the loop changes what its condition tests, like a counter that goes up to its end. Time spent waiting for input doesn't count, and Settings has the limit.",
+      "help": {
+        "id": "limit-time",
+        "means": "The program was still running after the 15 second time limit, so it was stopped. Often a loop never ends because its condition never becomes false.",
+        "tips": "Check that each pass of the loop changes what its condition tests, like a counter that goes up to its end. Time spent waiting for input doesn't count, and Settings has the limit."
+      },
+      "problems": [
+        "InfoThe program was stopped here.forgot_update.py:4:5python KeyboardInterrupt"
+      ],
+      "code": "i = 1\ntotal = 0\nwhile i <= 5:\n    total = total + i\nprint(\"Sum =\", total)\n"
+    },
+    "lp-change-py": {
+      "status": "ok",
+      "output": "1 2 3 4 5 6 \n",
+      "outputChars": 13,
+      "runlog": "skip_ahead.py\nFinished\nexit code 0\nran in 46 ms",
+      "help": null,
+      "problems": [],
+      "code": "for i in range(1, 7):\n    print(i, end=\" \")\n    i = i + 1\nprint()\n"
+    },
+    "lp-for-c": {
+      "status": "ok",
+      "output": "Table of: 7\n7 x 1 = 7\n7 x 2 = 14\n7 x 3 = 21\n7 x 4 = 28\n7 x 5 = 35\n7 x 6 = 42\n7 x 7 = 49\n7 x 8 = 56\n7 x 9 = 63\n7 x 10 = 70\n",
+      "outputChars": 122,
+      "runlog": "times_table.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 10 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    int n;\n    printf(\"Table of: \");\n    scanf(\"%d\", &n);\n    for (int i = 1; i <= 10; i++) {\n        printf(\"%d x %d = %d\\n\", n, i, n * i);\n    }\n    return 0;\n}\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n. Next: step 3.",
+        "3. Input or output: printf(\"Table of: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. int i = 1. Next: step 6.",
+        "6. Decision: i <= 10 ? Yes: step 7. No: step 9.",
+        "7. Input or output: printf(\"%d x %d = %d\\n\", n, i, n * i). Next: step 8.",
+        "8. i++. Next: step 6.",
+        "9. End: return 0."
+      ]
+    },
+    "lp-while-c": {
+      "status": "ok",
+      "output": "Enter a number: 4096\nSum of digits = 19\n",
+      "outputChars": 40,
+      "runlog": "digit_sum.c\nFinished\nexit code 0\nbuilt in 2.0 s\nran in 8 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    int n, sum = 0;\n    printf(\"Enter a number: \");\n    scanf(\"%d\", &n);\n    while (n > 0) {\n        sum = sum + n % 10;\n        n = n / 10;\n    }\n    printf(\"Sum of digits = %d\\n\", sum);\n    return 0;\n}\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n, sum = 0. Next: step 3.",
+        "3. Input or output: printf(\"Enter a number: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. Decision: n > 0 ? Yes: step 6. No: step 7.",
+        "6. sum = sum + n % 10; n = n / 10. Next: step 5.",
+        "7. Input or output: printf(\"Sum of digits = %d\\n\", sum). Next: step 8.",
+        "8. End: return 0."
+      ]
+    },
+    "lp-do-c": {
+      "status": "ok",
+      "output": "Enter a number from 1 to 10: 15\nEnter a number from 1 to 10: 0\nEnter a number from 1 to 10: 7\nYou chose 7\n",
+      "outputChars": 106,
+      "runlog": "pick_number.c\nFinished\nexit code 0\nbuilt in 2.1 s\nran in 8 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    int n;\n    do {\n        printf(\"Enter a number from 1 to 10: \");\n        scanf(\"%d\", &n);\n    } while (n < 1 || n > 10);\n    printf(\"You chose %d\\n\", n);\n    return 0;\n}\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n. Next: step 3.",
+        "3. Input or output: printf(\"Enter a number from 1 to 10: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. Decision: n < 1 || n > 10 ? Yes: step 3. No: step 6.",
+        "6. Input or output: printf(\"You chose %d\\n\", n). Next: step 7.",
+        "7. End: return 0."
+      ]
+    },
+    "lp-nested-c": {
+      "status": "ok",
+      "output": "* \n* * \n* * * \n* * * * \n",
+      "outputChars": 24,
+      "runlog": "stars.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 8 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    int rows = 4;\n    for (int i = 1; i <= rows; i++) {\n        for (int j = 1; j <= i; j++) {\n            printf(\"* \");\n        }\n        printf(\"\\n\");\n    }\n    return 0;\n}\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int rows = 4. Next: step 3.",
+        "3. int i = 1. Next: step 4.",
+        "4. Decision: i <= rows ? Yes: step 5. No: step 11.",
+        "5. int j = 1. Next: step 6.",
+        "6. Decision: j <= i ? Yes: step 7. No: step 9.",
+        "7. Input or output: printf(\"* \"). Next: step 8.",
+        "8. j++. Next: step 6.",
+        "9. Input or output: printf(\"\\n\"). Next: step 10.",
+        "10. i++. Next: step 4.",
+        "11. End: return 0."
+      ]
+    },
+    "lp-jump-c": {
+      "status": "ok",
+      "output": "Number (0 to stop): 5\nNumber (0 to stop): -3\nNumber (0 to stop): 8\nNumber (0 to stop): 0\nTotal of the positive numbers = 13\n",
+      "outputChars": 124,
+      "runlog": "positive_sum.c\nFinished\nexit code 0\nbuilt in 1.4 s\nran in 9 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    int n, total = 0;\n    while (1) {\n        printf(\"Number (0 to stop): \");\n        scanf(\"%d\", &n);\n        if (n == 0) {\n            break;\n        }\n        if (n < 0) {\n            continue;\n        }\n        total = total + n;\n    }\n    printf(\"Total of the positive numbers = %d\\n\", total);\n    return 0;\n}\n",
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n, total = 0. Next: step 3.",
+        "3. Decision: 1 ? Yes: step 4. No: step 9.",
+        "4. Input or output: printf(\"Number (0 to stop): \"). Next: step 5.",
+        "5. Input or output: scanf(\"%d\", &n). Next: step 6.",
+        "6. Decision: n == 0 ? No: step 7. Yes: step 9.",
+        "7. Decision: n < 0 ? Yes: step 3. No: step 8.",
+        "8. total = total + n. Next: step 3.",
+        "9. Input or output: printf(\"Total of the positive numbers = %d\\n\", total). Next: step 10.",
+        "10. End: return 0."
+      ]
+    },
+    "lp-off-c": {
+      "status": "ok",
+      "output": "1 2 3 4 5 6 7 8 9 \n",
+      "outputChars": 19,
+      "runlog": "count_to_ten.c\nFinished\nexit code 0\nbuilt in 1.5 s\nran in 6 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    /* Meant to print 1 to 10 */\n    for (int i = 1; i < 10; i++) {\n        printf(\"%d \", i);\n    }\n    printf(\"\\n\");\n    return 0;\n}\n"
+    },
+    "lp-endless-c": {
+      "status": "output-limit",
+      "output": "i is still 1\ni is still 1\ni is still 1\ni is still 1\ni is still 1\ni is still 1\ni is still 1\ni is still 1\n",
+      "outputChars": 16537,
+      "runlog": "forgot_update.c\nOutput limit reached\nbuilt in 1.2 s\nran in 505 ms\n\nThe program printed more than the output limit (524,288 characters), so it was stopped. A loop that never ends prints the same lines again and again.\n\nCheck that each pass of the loop changes what its condition tests, so the loop can end. To print less, print once after the loop instead of on every pass.",
+      "help": {
+        "id": "limit-output",
+        "means": "The program printed more than the output limit (524,288 characters), so it was stopped. A loop that never ends prints the same lines again and again.",
+        "tips": "Check that each pass of the loop changes what its condition tests, so the loop can end. To print less, print once after the loop instead of on every pass."
+      },
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    int i = 1;\n    while (i <= 5) {\n        printf(\"i is still %d\\n\", i);\n    }\n    return 0;\n}\n"
+    },
+    "lp-change-c": {
+      "status": "ok",
+      "output": "1 3 5 \n",
+      "outputChars": 7,
+      "runlog": "skip_ahead.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 13 ms",
+      "help": null,
+      "problems": [],
+      "code": "#include <stdio.h>\n\nint main(void) {\n    for (int i = 1; i <= 6; i++) {\n        printf(\"%d \", i);\n        i = i + 1;\n    }\n    printf(\"\\n\");\n    return 0;\n}\n"
     }
   }
 }

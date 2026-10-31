@@ -18,6 +18,8 @@ export const GUIDE_ROUTES: readonly GuideRoute[] = [
   { path: "/python", file: "python.html", title: "Run Python online in your browser | ExecFlow" },
   { path: "/c", file: "c.html", title: "Run C online in your browser | ExecFlow" },
   { path: "/cpp", file: "cpp.html", title: "Run C++ online in your browser | ExecFlow" },
+  // plan-phase2.md batch 1
+  { path: "/loop-flowcharts", file: "loop-flowcharts.html", title: "Loop flowcharts: for, while and do-while | ExecFlow" },
 ];
 
 /** A guide page's path, with or without ".html" or a trailing slash, and with any query string. */
