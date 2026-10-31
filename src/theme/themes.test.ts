@@ -228,7 +228,7 @@ describe("applyTheme", () => {
     expect(r.metas.map((m) => m.content)).toEqual([SLATE.dark.surface, SLATE.dark.surface]);
   });
 
-  it("a palette theme: data-palette=palette and all 42 colours inline", () => {
+  it("a palette theme: data-palette=palette and all 40 colours inline", () => {
     const dracula = byId("dracula");
     const r = paint(dracula);
     expect(r.dataset).toMatchObject({ theme: "dark", palette: "palette" });
@@ -315,7 +315,7 @@ describe("public/theme-boot.js (runs before any module)", () => {
     expect(empty.props.size).toBe(0);
   });
 
-  it("applies the 42 colour names only: a layout or size token given a colour (a tampered payload) is refused", () => {
+  it("applies the 40 colour names only: a layout or size token given a colour (a tampered payload) is refused", () => {
     const stored = JSON.parse(paintOf(byId("dracula"), "dark"));
     stored.colors["h-topbar"] = "#000000";
     stored.colors["code-size"] = "#000000";

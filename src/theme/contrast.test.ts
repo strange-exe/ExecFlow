@@ -73,23 +73,23 @@ describe("contrast math", () => {
 });
 
 describe("the pairs the UI draws (contract v2)", () => {
-  it("has the 212 rows of the contract, 203 of them unique, every ground a known token or mix", () => {
+  it("has the 211 rows of the contract, 202 of them unique, every ground a known token or mix", () => {
     // 0.7.0 added one: location on surface-raised (the chosen tree row's edge). Then the flowchart's
     // eleven (text on each kind's tint, each kind's outline and the connectors on the chart's ground),
-    // six of them new pairs.
-    expect(PAIRS.length).toBe(212);
-    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(203);
+    // six of them new pairs. The logo's glyph-on-tile row left with --brand and --on-brand.
+    expect(PAIRS.length).toBe(211);
+    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(202);
     const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES), ...Object.keys(CHART_MIXES)];
     for (const p of PAIRS) for (const part of p.bg.split("@")) expect(known, `${p.bg}`).toContain(part);
     // Pinned rows: the first, the re-grounded panel-tab row, the last of v2 and the last.
     expect(PAIRS[0]).toMatchObject({ fg: "text", bg: "bg", min: 4.5 });
     expect(PAIRS[44]).toMatchObject({ fg: "location", bg: "surface", min: 3 });
-    expect(PAIRS[185]).toMatchObject({ fg: "text-secondary", bg: "hover@error-band@runlog-bg", min: 4.5 });
-    expect(PAIRS[198]).toMatchObject({ fg: "danger", bg: "mark@bg", min: 4.5 });
+    expect(PAIRS[184]).toMatchObject({ fg: "text-secondary", bg: "hover@error-band@runlog-bg", min: 4.5 });
+    expect(PAIRS[197]).toMatchObject({ fg: "danger", bg: "mark@bg", min: 4.5 });
     // The window bar's other ground (snippet-render.ts windowBarGround): its name and placeholders at the text minimum.
-    expect(PAIRS.slice(199, 201)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
+    expect(PAIRS.slice(198, 200)).toMatchObject([{ fg: "text-secondary", bg: "hover@surface", min: 4.5 }, { fg: "danger", bg: "hover@surface", min: 4.5 }]);
     // The flowchart's rows close the table: text on every kind's tint, at the text minimum.
-    expect(PAIRS.slice(201).filter((p) => p.fg === "text").map((p) => p.bg)).toEqual(Object.keys(CHART_MIXES).map((m) => `${m}@surface-raised`));
+    expect(PAIRS.slice(200).filter((p) => p.fg === "text").map((p) => p.bg)).toEqual(Object.keys(CHART_MIXES).map((m) => `${m}@surface-raised`));
     expect(PAIRS.at(-1)).toMatchObject({ fg: "danger", bg: "bg", min: 3 });
     // The snippet image's highlighted lines: every colour drawn on the band, at the text minimum.
     expect(PAIRS.filter((p) => p.bg === "mark@bg").map((p) => p.fg).sort()).toEqual(
@@ -117,7 +117,8 @@ describe("ExecFlow Deep Field (the default)", () => {
 
   it.each(SCHEMES)("%s keeps every role distinct and every region step and band visible", (scheme) => {
     const { distinct, steps } = checkRules(DEEP_FIELD[scheme], { scheme, separation: "surface" });
-    expect(distinct).toHaveLength(13);
+    // 11 since the two brand rules left with --brand.
+    expect(distinct).toHaveLength(11);
     // 13 light, 15 dark, each with the snippet image's highlight band and background (batch 3).
     expect(steps).toHaveLength(scheme === "light" ? 15 : 17);
     expect(steps.filter((s) => s.a === "mark@bg" || s.a === "mat@bg").map((s) => `${s.a} ${s.pass}`)).toEqual(["mark@bg true", "mat@bg true"]);
@@ -143,7 +144,7 @@ describe("ExecFlow Signal (the default)", () => {
 
   it.each(SCHEMES)("%s keeps every role distinct and every region step and band visible (separation: surface)", (scheme) => {
     const { distinct, steps } = checkRules(SIGNAL[scheme], { scheme, separation: "surface" });
-    expect(distinct).toHaveLength(13);
+    expect(distinct).toHaveLength(11);
     expect(steps).toHaveLength(scheme === "light" ? 15 : 17);
     expect([...distinct, ...steps].filter((r) => !r.pass).map((r) => `${r.a} vs ${r.b}`)).toEqual([]);
   });
@@ -262,7 +263,7 @@ describe("tokens.css and the first paint", () => {
     for (const [palette, selector] of blocks) {
       const text = block(selector);
       for (const v of COLOR_VARS) expect(text, `${selector} --${v}`).toContain(`\n  --${v}: ${palette[v]};\n`);
-      // Exactly the 42 colour tokens (and no v1 name such as --accent).
+      // Exactly the 40 colour tokens (and no v1 name such as --accent).
       const declared = [...text.matchAll(/\n {2}--([a-z0-9-]+):/g)].map((m) => m[1]).filter((n) => !["scrim", "shadow-pop", "status-edge"].includes(n));
       expect(declared.sort(), selector).toEqual([...COLOR_VARS].sort());
     }
@@ -364,12 +365,10 @@ describe("palette themes", () => {
     }
   });
 
-  it("the guard picks a readable brand glyph when the tile and glyph are too close", () => {
-    const p = { ...DEEP_FIELD.light, brand: "#808080", "on-brand": "#888888" };
-    const { palette, adjusted } = readablePalette(p);
-    expect(adjusted).toContain("on-brand");
-    expect(palette.brand).toBe("#808080"); // the tile never moves
-    expect(contrast(palette["on-brand"], palette.brand)).toBeGreaterThanOrEqual(3);
+  it("the logo's old --brand and --on-brand are not theme colours any more (the mark has its own fixed gradient)", () => {
+    expect(COLOR_VARS).not.toContain("brand");
+    expect(COLOR_VARS).not.toContain("on-brand");
+    expect(readFileSync("src/styles/tokens.css", "utf8")).not.toMatch(/--(on-)?brand\b/);
   });
 });
 

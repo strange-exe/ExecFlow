@@ -52,7 +52,7 @@ export const COLOR_VARS = [
   "focus", "selection", "list-selected", "active-line", "location",
   "danger", "warning", "success", "info",
   "error-band", "call-site", "input-echo",
-  "link", "brand", "on-brand",
+  "link",
   "syn-keyword", "syn-string", "syn-number", "syn-comment", "syn-function", "syn-type", "syn-variable",
   "syn-operator", "syn-macro", "syn-punctuation",
 ];

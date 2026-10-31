@@ -75,7 +75,7 @@ export const SIGNAL: Record<Scheme, Palette> = {
     focus: "#0b6e80", selection: "#2f5bea18", "list-selected": "#2f5bea17", "active-line": "#16191d08", location: "#2f5bea",
     danger: "#9d2025", warning: "#935100", success: "#2d7737", info: "#0e7490",
     "error-band": "#e5484d30", "call-site": "#c4282e", "input-echo": "#0b6e80",
-    link: "#2448c8", brand: "#16191d", "on-brand": "#ffffff",
+    link: "#2448c8",
     "syn-keyword": "#7a2fc2", "syn-string": "#0c6c34", "syn-number": "#964500", "syn-comment": "#565c67", "syn-function": "#03648a",
     "syn-type": "#9a3a12", "syn-variable": "#16191d", "syn-operator": "#1f242b", "syn-macro": "#7a2fc2", "syn-punctuation": "#1f242b",
   },
@@ -86,7 +86,7 @@ export const SIGNAL: Record<Scheme, Palette> = {
     focus: "#4fd1df", selection: "#2f5bea20", "list-selected": "#7ea2ff1c", "active-line": "#e8ebef0a", location: "#7ea2ff",
     danger: "#ff7b7b", warning: "#f5a35c", success: "#6fd08c", info: "#5bc6d6",
     "error-band": "#d42f3a30", "call-site": "#ff7b7b", "input-echo": "#4fd1df",
-    link: "#9ab6ff", brand: "#2a313b", "on-brand": "#e8ebef",
+    link: "#9ab6ff",
     "syn-keyword": "#c99dff", "syn-string": "#86d6a0", "syn-number": "#f5b56e", "syn-comment": "#8d95a1", "syn-function": "#6cc4f0",
     "syn-type": "#f59b7a", "syn-variable": "#e3e6eb", "syn-operator": "#dadfe5", "syn-macro": "#c99dff", "syn-punctuation": "#dadfe5",
   },
@@ -116,7 +116,7 @@ export const DEEP_FIELD: Record<Scheme, Palette> = {
     focus: "#776100", selection: "#cdae5429", "list-selected": "#004f3a1c", "active-line": "#1f242108", location: "#004f3a",
     danger: "#ac262c", warning: "#a05300", success: "#377531", info: "#2a6d9c",
     "error-band": "#ff6e823b", "call-site": "#ac262c", "input-echo": "#776100",
-    link: "#044a37", brand: "#adc0b4", "on-brand": "#1f2421",
+    link: "#044a37",
     "syn-keyword": "#713882", "syn-string": "#2b652f", "syn-number": "#8d400c", "syn-comment": "#535b54", "syn-function": "#265496",
     "syn-type": "#066166", "syn-variable": "#272d29", "syn-operator": "#485966", "syn-macro": "#8f305a", "syn-punctuation": "#545b56",
   },
@@ -127,7 +127,7 @@ export const DEEP_FIELD: Record<Scheme, Palette> = {
     focus: "#e0c262", selection: "#b89c402b", "list-selected": "#b4dccb1c", "active-line": "#e9eae40a", location: "#b4dccb",
     danger: "#fc867f", warning: "#faa969", success: "#85cc7e", info: "#7eb8e6",
     "error-band": "#ba293b5c", "call-site": "#fc867f", "input-echo": "#e0c262",
-    link: "#a8d7c4", brand: "#3b5047", "on-brand": "#e9eae4",
+    link: "#a8d7c4",
     "syn-keyword": "#d9a9e8", "syn-string": "#99d69a", "syn-number": "#f6ae86", "syn-comment": "#afb3a8", "syn-function": "#9cc4f8",
     "syn-type": "#8bd7da", "syn-variable": "#dfe0d9", "syn-operator": "#adc1cf", "syn-macro": "#f2a3c0", "syn-punctuation": "#b0b2aa",
   },
@@ -154,7 +154,7 @@ export const SLATE: Record<Scheme, Palette> = {
     focus: "#0062d4", selection: "#3a94ff33", "list-selected": "#1a20291a", "active-line": "#1a202908", location: "#0062d4",
     danger: "#a21e1e", warning: "#915b00", success: "#0a7e3a", info: "#545b67",
     "error-band": "#be232324", "call-site": "#be2323", "input-echo": "#1a2029",
-    link: "#0062d4", brand: "#1a2029", "on-brand": "#fdfdff",
+    link: "#0062d4",
     "syn-keyword": "#7334a9", "syn-string": "#1d6525", "syn-number": "#884400", "syn-comment": "#4e555e", "syn-function": "#005899",
     "syn-type": "#755200", "syn-variable": "#232933", "syn-operator": "#205e6a", "syn-macro": "#9d2962", "syn-punctuation": "#50555c",
   },
@@ -165,7 +165,7 @@ export const SLATE: Record<Scheme, Palette> = {
     focus: "#60a7ff", selection: "#2d84ed59", "list-selected": "#e9ebef1a", "active-line": "#e9ebef08", location: "#60a7ff",
     danger: "#f97770", warning: "#f3b94c", success: "#64cf80", info: "#abb1bc",
     "error-band": "#ba293b5c", "call-site": "#f97770", "input-echo": "#e9ebef",
-    link: "#60a7ff", brand: "#e9ebef", "on-brand": "#0e1217",
+    link: "#60a7ff",
     "syn-keyword": "#c49bf3", "syn-string": "#90d281", "syn-number": "#f6ab6b", "syn-comment": "#a1acbb", "syn-function": "#71bfff",
     "syn-type": "#e9c769", "syn-variable": "#dadee5", "syn-operator": "#91c8d6", "syn-macro": "#ea91bc", "syn-punctuation": "#a5abb5",
   },
@@ -264,7 +264,7 @@ const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(
  *   text-secondary  ink 50% over muted, lifted to 4.5:1 on the three panels; info = muted
  *   selection       accent at 18% alpha (a tint, never a solid band); active-line ink at 4% alpha;
  *   list-selected   ink at 10% alpha; error-band err at 14% alpha; call-site = err
- *   input-echo, brand = ink; on-brand = sheet; divider = rule
+ *   input-echo      = ink; divider = rule
  *   border-strong   80% muted over the editor, lifted to 3:1
  *   syn-function    = syn-def (Pocket Run colours calls and definitions with it)
  *   syn-type/macro  = syn-keyword (most of these themes colour int/char and #include like keywords)
@@ -307,8 +307,6 @@ export function expandBase(base: BaseColors): Palette {
     "call-site": base.err,
     "input-echo": base.ink,
     link: lift(base.accent, panels, 4.5),
-    brand: base.ink,
-    "on-brand": base.sheet,
     "syn-keyword": base["syn-keyword"],
     "syn-string": base["syn-string"],
     "syn-number": base["syn-number"],

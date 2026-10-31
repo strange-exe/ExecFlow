@@ -10,10 +10,11 @@
 // (the matrices below are from that page).
 
 /**
- * The colour half of the CSS variable contract, v2 (every theme sets all 42; v1 had 30). Fonts,
+ * The colour half of the CSS variable contract, v2 (every theme sets all 40; v1 had 30). Fonts,
  * sizes and --code-size are set in tokens.css. v1's accent family was split by role: --accent is
  * now --action (the primary fill), --accent-ink is --link, and their other jobs moved to
- * --location, --info, --focus, --control-on, --brand and --input-echo.
+ * --location, --info, --focus, --control-on and --input-echo. --brand and --on-brand (the logo's
+ * tile and glyph) left the contract once the logo took its own fixed gradient (brand-mark.ts).
  */
 export const COLOR_VARS = [
   // grounds and regions
@@ -28,8 +29,8 @@ export const COLOR_VARS = [
   "danger", "warning", "success", "info",
   // run outcome
   "error-band", "call-site", "input-echo",
-  // links and brand
-  "link", "brand", "on-brand",
+  // links
+  "link",
   // syntax
   "syn-keyword", "syn-string", "syn-number", "syn-comment", "syn-function", "syn-type", "syn-variable",
   "syn-operator", "syn-macro", "syn-punctuation",
@@ -386,9 +387,6 @@ function added(): Pair[] {
   // The exception text is drawn in --text with a --danger x-circle, so this row is the icon (3:1).
   add("danger", "hover@error-band@runlog-bg", UI, "x-circle on a hovered exception button");
 
-  // The brand mark (logos are exempt from 1.4.11; kept legible on purpose).
-  add("on-brand", "brand", UI, "glyph on the brand tile");
-
   // Tree badges on a hovered row.
   add("warning", "hover@surface", UI, "conflict-copy icon on a hovered tree row");
 
@@ -486,7 +484,6 @@ export const DISTINCT: readonly DistinctRule[] = [
   { a: "focus", b: "location", why: "a focus ring never looks like the current-file and tab bars beside it" },
   { a: "info", b: "action", why: "info severity is distinct from the action hue" },
   { a: "syn-function", b: "action", why: "function names sit away from the Run colour" },
-  { a: "brand", b: "action", why: "the brand mark is not a second action-coloured object" },
   { a: "call-site", b: "action", why: "the call-site marker is neutral or danger, never the action colour" },
   { a: "call-site", b: "focus", why: "the call-site outline does not read as a focus or caret mark" },
   { a: "input-echo", b: "link", when: "chromatic", why: "typed input is not coloured like a link" },
@@ -494,7 +491,6 @@ export const DISTINCT: readonly DistinctRule[] = [
   { a: "location", b: "danger", why: "the current-file bar sits beside error flags in the tree and tabs" },
   { a: "danger", b: "warning", why: "severities differ in hue as well as icon shape" },
   { a: "syn-function", b: "warning", why: "a warning squiggle under a function name is never gold on gold" },
-  { a: "brand", b: "focus", why: "the brand tile never looks like the focus colour" },
 ];
 
 export type Scheme = "light" | "dark";
@@ -615,12 +611,12 @@ export function checkRules(p: Palette, opts: { scheme: Scheme; separation: Separ
 // ---------------------------------------------------------------- the readability guard (palette themes)
 
 /**
- * Colours the guard may move. Grounds, rules and bands never move; the Run label (on-action) and
- * the brand glyph (on-brand) are picked, not lifted; the hovered fill follows the Run fill.
+ * Colours the guard may move. Grounds, rules and bands never move; the Run label (on-action) is
+ * picked, not lifted; the hovered fill follows the Run fill.
  */
 const FIXED: readonly ColorVar[] = [
   "bg", "surface", "surface-raised", "terminal-bg", "runlog-bg", "divider", "border", "selection", "list-selected",
-  "active-line", "error-band", "brand", "on-action", "action-hover", "on-brand",
+  "active-line", "error-band", "on-action", "action-hover",
 ];
 export const LIFTABLE: ReadonlySet<ColorVar> = new Set(COLOR_VARS.filter((v) => !FIXED.includes(v)));
 
@@ -669,16 +665,6 @@ export function readablePalette(input: Palette): { palette: Palette; adjusted: C
           adjusted.add(fill);
           moved = true;
         }
-      }
-    }
-    // The brand glyph: kept legible on its tile (3:1). The tile never moves, so the glyph is picked
-    // from the palette's own colours (or near-black and white), whichever reads best.
-    if (contrast(p["on-brand"], p.brand) < UI) {
-      const glyph = [p["on-brand"], p.bg, p.text, p.surface, "#0b0e13", "#ffffff"].sort((a, b) => contrast(b, p.brand) - contrast(a, p.brand))[0];
-      if (glyph !== p["on-brand"]) {
-        p["on-brand"] = glyph;
-        adjusted.add("on-brand");
-        moved = true;
       }
     }
     if (!moved) break;
