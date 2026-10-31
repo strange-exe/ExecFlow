@@ -94,7 +94,9 @@ class FakeCache implements RuntimeCache {
   async keys() {
     return [...this.entries.keys()].map((u) => new Request(u));
   }
-  async delete(request: Request) {
+  deleteOptions: (CacheQueryOptions | undefined)[] = [];
+  async delete(request: Request, options?: CacheQueryOptions) {
+    this.deleteOptions.push(options);
     return this.entries.delete(request.url);
   }
 }
@@ -119,8 +121,13 @@ const SIZES = { "pyodide.mjs": 10, "pyodide.asm.mjs": 100, "pyodide.asm.wasm": 1
 const TOTAL = Object.values(SIZES).reduce((a, b) => a + b, 0);
 /** Each file's sha256, as the build pins it (__PYODIDE_FILES__): the site above serves zero bytes. */
 const SHAS: Record<string, string> = {};
+/** Each file's size and sha256, as the build pins them (__PYODIDE_FILES__). */
+const PINS: Record<string, { bytes: number; sha256: string }> = {};
 beforeAll(async () => {
-  for (const [file, n] of Object.entries(SIZES)) SHAS[file] = await sha256Hex(new Uint8Array(n));
+  for (const [file, n] of Object.entries(SIZES)) {
+    SHAS[file] = await sha256Hex(new Uint8Array(n));
+    PINS[file] = { bytes: n, sha256: SHAS[file] };
+  }
 });
 
 describe("RUNTIME_FILES", () => {
@@ -142,6 +149,34 @@ describe("missingFiles", () => {
     // A server's Vary never splits one file in two (vite.config.ts's route matches the same way).
     expect(cache.matchOptions.every((o) => o?.ignoreVary === true)).toBe(true);
   });
+
+  it("with the build's pins, a held copy whose bytes don't match counts as missing and is dropped", async () => {
+    const cache = new FakeCache();
+    for (const [file, n] of Object.entries(SIZES)) await cache.put(BASE + file, new Response(new Uint8Array(n)));
+    // Changed on this device after it was checked (a flipped bit, a copy kept by an older build).
+    const changed = new Uint8Array(1000);
+    changed[1] = 7;
+    await cache.put(BASE + "pyodide.asm.wasm", new Response(changed));
+    await cache.put(BASE + "pyodide.mjs", new Response("export const loadPyodide = 1"));
+    // Without pins nothing is read: a held file is trusted.
+    expect(await missingFiles(cache, BASE)).toEqual([]);
+    expect(await missingFiles(cache, BASE, RUNTIME_FILES, PINS)).toEqual(["pyodide.mjs", "pyodide.asm.wasm"]);
+    expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
+    expect(cache.entries.has(BASE + "pyodide.mjs")).toBe(false);
+    // Every copy under the URL goes, whatever its Vary.
+    expect(cache.deleteOptions).toEqual([{ ignoreVary: true }, { ignoreVary: true }]);
+    // The matching ones stay, and the next download fetches only the two.
+    expect(cache.entries.has(BASE + "python_stdlib.zip")).toBe(true);
+    expect(await missingFiles(cache, BASE, RUNTIME_FILES, PINS)).toEqual(["pyodide.mjs", "pyodide.asm.wasm"]);
+  });
+
+  it("with pins, a held file the build has no pin for is dropped too (fails closed)", async () => {
+    const cache = new FakeCache();
+    for (const [file, n] of Object.entries(SIZES)) await cache.put(BASE + file, new Response(new Uint8Array(n)));
+    const { "pyodide-lock.json": _left, ...pins } = PINS;
+    expect(await missingFiles(cache, BASE, RUNTIME_FILES, pins)).toEqual(["pyodide-lock.json"]);
+    expect(cache.entries.has(BASE + "pyodide-lock.json")).toBe(false);
+  });
 });
 
 describe("downloadRuntime", () => {
@@ -151,7 +186,7 @@ describe("downloadRuntime", () => {
     const { fetch, asked } = site(SIZES);
     const posts: DownloadProgress[] = [];
     let clock = 0;
-    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p), now: () => (clock += 200) });
+    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p), now: () => (clock += 200) });
     expect(asked).toEqual(RUNTIME_FILES.map((f) => BASE + f));
     expect([...cache.entries.keys()].sort()).toEqual(RUNTIME_FILES.map((f) => BASE + f).sort());
     expect(cache.entries.get(BASE + "pyodide.asm.wasm")!.body.byteLength).toBe(1000);
@@ -167,7 +202,7 @@ describe("downloadRuntime", () => {
   it("downloads only the files it is given (the rest are already here)", async () => {
     const cache = new FakeCache();
     const { fetch, asked } = site(SIZES);
-    await downloadRuntime({ fetch, cache, base: BASE, files: ["python_stdlib.zip"], expected: SHAS, total: 300, post: () => {} });
+    await downloadRuntime({ fetch, cache, base: BASE, files: ["python_stdlib.zip"], expected: PINS, total: 300, post: () => {} });
     expect(asked).toEqual([BASE + "python_stdlib.zip"]);
   });
 
@@ -175,7 +210,7 @@ describe("downloadRuntime", () => {
     const cache = new FakeCache();
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? Promise.reject(new TypeError("Failed to fetch")) : null));
     const posts: DownloadProgress[] = [];
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p) });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p) });
     await expect(failed).rejects.toBeInstanceOf(DownloadError);
     await expect(failed).rejects.toMatchObject({ offline: true, message: expect.stringContaining("pyodide.asm.wasm") });
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
@@ -190,7 +225,7 @@ describe("downloadRuntime", () => {
   ])("%s is a failed download (not offline), and is never kept", async (_name, response, message) => {
     const cache = new FakeCache();
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? response() : null));
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: () => {} });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: () => {} });
     await expect(failed).rejects.toMatchObject({ offline: false, message: expect.stringMatching(message) });
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
     // The other files finished first (none is cut off when the runner drops the worker), and stay
@@ -202,7 +237,7 @@ describe("downloadRuntime", () => {
     const cache = new FakeCache();
     const broken = () => new Response(new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(10)); }, pull(c) { c.error(new Error("network error")); } }), { status: 200, headers: { "content-type": "application/wasm" } });
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? broken() : null));
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: () => {} });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: () => {} });
     await expect(failed).rejects.toMatchObject({ offline: false, message: expect.stringContaining("stopped") });
     await settle();
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
@@ -213,7 +248,7 @@ describe("downloadRuntime", () => {
     cache.failPuts = true;
     const { fetch } = site(SIZES);
     const posts: DownloadProgress[] = [];
-    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p) });
+    await downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p) });
     expect(posts.at(-1)).toEqual({ loaded: TOTAL, total: TOTAL, done: true });
     expect(cache.entries.size).toBe(0);
   });
@@ -228,7 +263,7 @@ describe("downloadRuntime", () => {
     };
     const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? bad() : null));
     const posts: DownloadProgress[] = [];
-    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: SHAS, total: TOTAL, post: (p) => posts.push(p) });
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p) });
     await expect(failed).rejects.toBeInstanceOf(DownloadError);
     await expect(failed).rejects.toMatchObject({ kind: "damaged", offline: false, message: "pyodide.asm.wasm didn't match" });
     expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
@@ -238,17 +273,96 @@ describe("downloadRuntime", () => {
 
   it("a file the build has no sha256 for is never kept (it fails closed)", async () => {
     const cache = new FakeCache();
-    const { fetch } = site(SIZES);
-    const { "pyodide.asm.wasm": _left, ...pins } = SHAS;
+    const { fetch, asked } = site(SIZES);
+    const { "pyodide.asm.wasm": _left, ...pins } = PINS;
     const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: pins, total: TOTAL, post: () => {} });
     await expect(failed).rejects.toMatchObject({ kind: "damaged", message: "pyodide.asm.wasm didn't match" });
     expect(await missingFiles(cache, BASE)).toEqual(["pyodide.asm.wasm"]);
+    // Nothing is downloaded that could never be kept.
+    expect(asked).not.toContain(BASE + "pyodide.asm.wasm");
+  });
+
+  it("a body larger than the build's size is damaged, and reading stops as soon as it passes the size", async () => {
+    const cache = new FakeCache();
+    // A much bigger file under the name (10 pieces of 400 bytes; bounded, so the test itself can't
+    // fill memory when the guard is missing: reads are microtasks, and an endless one never yields).
+    let reads = 0;
+    let cancelled = false;
+    const oversized = () =>
+      new Response(
+        new ReadableStream<Uint8Array>(
+          {
+            pull(c) {
+              reads++;
+              c.enqueue(new Uint8Array(400));
+              if (reads === 10) c.close();
+            },
+            cancel() {
+              cancelled = true;
+            },
+          },
+          { highWaterMark: 0 },
+        ),
+        { status: 200, headers: { "content-type": "application/wasm" } },
+      );
+    const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? oversized() : null));
+    const posts: DownloadProgress[] = [];
+    let clock = 0;
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: (p) => posts.push(p), now: () => (clock += 200) });
+    await expect(failed).rejects.toMatchObject({ kind: "damaged", offline: false, message: "pyodide.asm.wasm is larger than the 1000 bytes expected" });
+    // 400 + 400 + 400 passes 1000 at the third piece: no fourth is asked for, and the body is let go.
+    expect(reads).toBe(3);
+    expect(cancelled).toBe(true);
+    expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
+    expect(await missingFiles(cache, BASE)).toEqual(["pyodide.asm.wasm"]);
+    // The piece past the size isn't counted: progress never says more than the total.
+    expect(posts.every((p) => p.loaded <= TOTAL)).toBe(true);
+    expect(posts.at(-1)?.done).toBe(true);
+  });
+
+  it("a declared length larger than the build's size is damaged before any of the body is read", async () => {
+    const cache = new FakeCache();
+    let reads = 0;
+    let cancelled = false;
+    const big = () =>
+      new Response(
+        new ReadableStream<Uint8Array>(
+          {
+            pull(c) {
+              reads++;
+              c.enqueue(new Uint8Array(1000));
+              c.close();
+            },
+            cancel() {
+              cancelled = true;
+            },
+          },
+          { highWaterMark: 0 },
+        ),
+        { status: 200, headers: { "content-type": "application/wasm", "content-length": "5000000" } },
+      );
+    const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? big() : null));
+    const failed = downloadRuntime({ fetch, cache, base: BASE, files: RUNTIME_FILES, expected: PINS, total: TOTAL, post: () => {} });
+    await expect(failed).rejects.toMatchObject({ kind: "damaged", message: "pyodide.asm.wasm is 5000000 bytes, more than the 1000 bytes expected" });
+    expect(reads).toBe(0);
+    expect(cancelled).toBe(true);
+    expect(cache.entries.has(BASE + "pyodide.asm.wasm")).toBe(false);
+  });
+
+  it("a compressed answer's declared length is the compressed size, so only the bytes read are held to the file's size", async () => {
+    // RFC 9110 8.6: Content-Length counts the representation as coded (Content-Encoding is part of it).
+    // A gzipped zip can be a little longer than the zip itself; fetch hands over the decoded bytes.
+    const cache = new FakeCache();
+    const gz = () => new Response(new Uint8Array(1000), { status: 200, headers: { "content-type": "application/wasm", "content-encoding": "gzip", "content-length": "1040" } });
+    const { fetch } = site(SIZES, (url) => (url.endsWith(".wasm") ? gz() : null));
+    await downloadRuntime({ fetch, cache, base: BASE, files: ["pyodide.asm.wasm"], expected: PINS, total: 1000, post: () => {} });
+    expect(cache.entries.get(BASE + "pyodide.asm.wasm")!.body.byteLength).toBe(1000);
   });
 
   it("keeps a file only as the bytes it checked, with its type", async () => {
     const cache = new FakeCache();
     const { fetch } = site(SIZES);
-    await downloadRuntime({ fetch, cache, base: BASE, files: ["pyodide.asm.wasm"], expected: SHAS, total: 1000, post: () => {} });
+    await downloadRuntime({ fetch, cache, base: BASE, files: ["pyodide.asm.wasm"], expected: PINS, total: 1000, post: () => {} });
     const kept = await cache.match(BASE + "pyodide.asm.wasm");
     expect(await sha256Hex(new Uint8Array(await kept!.arrayBuffer()))).toBe(SHAS["pyodide.asm.wasm"]);
     expect(kept!.headers.get("content-type")).toBe("application/wasm");

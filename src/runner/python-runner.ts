@@ -70,6 +70,8 @@ export class PythonRunner {
   private packages: string[] = [];
   /** What this build can load, as reported by a worker before any user code ran. */
   private available: string[] = [];
+  /** A start of this page succeeded, so the runtime on this device was re-checked (ToPython init). */
+  private runtimeVerified = false;
   /** Packages that failed to load, and why. */
   private unavailable = new Map<string, string>();
   private active: { stop: (why: StopReason) => void; provideInput?: (text: string | null) => void } | null = null;
@@ -234,6 +236,8 @@ export class PythonRunner {
         if (data.type !== "ready" && data.type !== "boot-failed") return;
         if (data.type === "boot-failed") return fail(String(data.error), data.retry !== false, data.offline === true);
         detach();
+        // Ready even if superseded: that worker's check of the runtime passed all the same.
+        this.runtimeVerified = true;
         if (gen !== this.generation) {
           worker.terminate();
           return reject(new Error("superseded"));
@@ -246,7 +250,7 @@ export class PythonRunner {
       worker.addEventListener("message", onMessage);
       worker.addEventListener("error", onError);
     });
-    worker.postMessage({ type: "init", interrupt, input, packages } satisfies ToPython);
+    worker.postMessage({ type: "init", interrupt, input, packages, verifyRuntime: !this.runtimeVerified } satisfies ToPython);
     return started;
   }
 

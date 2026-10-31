@@ -2,6 +2,8 @@
 // first download in words (B9), the C/C++ first run in two presses (B10), Run's step-back and the
 // run header limited to the file they belong to (B11, owner decision), and help for runs stopped at
 // a limit, crash words, a file without main() and the -O0 label (B13).
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test, tolerating } from "./helpers";
 
@@ -154,6 +156,101 @@ test.describe("B9: Python's first start", () => {
     const again = await run(page, { timeout: 60_000 });
     expect(again.status, again.output).toBe("ok");
     expect(again.output).toContain("hello");
+  });
+
+  // The download never holds more of a file than the build's size for it (python-download.ts). The
+  // refused answer is cancelled, which Chromium reports as an aborted request.
+  test.describe("a runtime file bigger than the build's", () => {
+    test.use(tolerating(/^request failed: http:\/\/127\.0\.0\.1:\d+\/pyodide\/[^ ]+\/pyodide\.asm\.wasm net::ERR_ABORTED$/));
+    test("is refused, never kept, and the next Run downloads it", async ({ page }) => {
+      const wasm = "**/pyodide/*/pyodide.asm.wasm";
+      await page.route(wasm, async (route) => {
+        const real = await route.fetch();
+        // The site's own file with 1 MB more after it (another file under the name, a padded answer).
+        const body = Buffer.concat([Buffer.from(await real.body()), Buffer.alloc(1024 * 1024)]);
+        await route.fulfill({ status: 200, contentType: "application/wasm", body });
+      });
+      await openApp(page);
+      await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+      await openFromTree(page, "main.py");
+      await expect(runtime(page)).toHaveAttribute("data-state", "failed", { timeout: 60_000 });
+      const r = await run(page, { timeout: 60_000 });
+      expect(r.status).toBe("unavailable");
+      // Refused by its declared length or, without one, at the piece that passes the size.
+      expect(r.output).toMatch(/Python couldn't start: its one-time download was damaged \(pyodide\.asm\.wasm (is \d+ bytes, more than|is larger than) the \d+ bytes expected\)\. Press Run to try again\./);
+      const kept = await page.evaluate(async () => (await (await caches.open("codeeditor-python-runtime")).keys()).map((k) => new URL(k.url).pathname.split("/").pop()));
+      expect(kept).not.toContain("pyodide.asm.wasm");
+      await page.unroute(wasm);
+      const again = await run(page, { timeout: 60_000 });
+      expect(again.status, again.output).toBe("ok");
+      expect(again.output).toContain("hello");
+    });
+  });
+
+  // A kept copy is checked again by the first start of each page load (python-download.ts missingFiles).
+  // With the service worker allowed, as for a student: Playwright's WebKit with service workers
+  // blocked kept no Cache Storage across a reload (measured 2026-10-31), which would make this vacuous.
+  test.describe("a kept copy, on the next page load", () => {
+    test.use({ serviceWorkers: "allow" });
+    test("a kept runtime file that changed on this device is caught by the page's next start and downloaded again", async ({ page }) => {
+      await openApp(page);
+      await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+      await openFromTree(page, "main.py");
+      await expect(runtime(page)).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+      /** The kept .wasm's sha256, or null when none is kept. */
+      const keptWasm = () =>
+        page.evaluate(async () => {
+          const cache = await caches.open("codeeditor-python-runtime");
+          const key = (await cache.keys()).find((k) => k.url.endsWith("/pyodide.asm.wasm"));
+          if (!key) return null;
+          const digest = await crypto.subtle.digest("SHA-256", await (await cache.match(key))!.arrayBuffer());
+          return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+        });
+      const whole = await keptWasm();
+      // The build's own file: the first start kept exactly it.
+      const dir = readdirSync("public/pyodide")[0];
+      expect(whole).toBe(createHash("sha256").update(readFileSync(`public/pyodide/${dir}/pyodide.asm.wasm`)).digest("hex"));
+      // One byte of the kept copy changes, the type and size stay (a flipped bit on disk).
+      await page.evaluate(async () => {
+        const cache = await caches.open("codeeditor-python-runtime");
+        const key = (await cache.keys()).find((k) => k.url.endsWith("/pyodide.asm.wasm"))!;
+        const bytes = new Uint8Array(await (await cache.match(key))!.arrayBuffer());
+        bytes[bytes.length >> 1] ^= 0xff;
+        await cache.put(key, new Response(bytes, { headers: { "content-type": "application/wasm" } }));
+      });
+      expect(await keptWasm(), "the copy really changed").not.toBe(whole);
+      await reloadApp(page);
+      // The kept files outlived the reload (the check below would prove nothing otherwise).
+      const keptNames = await page.evaluate(async () => (await (await caches.open("codeeditor-python-runtime")).keys()).map((k) => k.url.split("/").pop()));
+      expect(keptNames, "Cache Storage kept across the reload").toContain("python_stdlib.zip");
+      await openFromTree(page, "main.py");
+      const r = await run(page, { timeout: 60_000 });
+      expect(r.status, r.output).toBe("ok");
+      expect(r.output).toContain("hello");
+      expect(await keptWasm(), "the changed copy was replaced by the site's").toBe(whole);
+    });
+  });
+
+  // What the sha256 pin does not cover (python-download.ts, header): on a page no service worker
+  // controls, the loader and its glue are run by import(), which goes to the network, not to the
+  // checked copies. Only the copies kept for the service worker (later visits) are pinned.
+  test("on a page no service worker controls, the runtime's two scripts are imported from the network", async ({ page }) => {
+    const asked: Record<string, number> = {};
+    await page.route("**/pyodide/*/*.{mjs,wasm}", async (route) => {
+      const name = new URL(route.request().url()).pathname.split("/").pop()!;
+      asked[name] = (asked[name] ?? 0) + 1;
+      await route.continue();
+    });
+    await openApp(page);
+    await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
+    await openFromTree(page, "main.py");
+    await expect(runtime(page)).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+    expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(false);
+    // The .wasm is asked for once (the checked download; Pyodide's own fetch is answered from it).
+    expect(asked["pyodide.asm.wasm"]).toBe(1);
+    // Each script twice: the checked download, then the import that runs it.
+    expect(asked["pyodide.mjs"]).toBe(2);
+    expect(asked["pyodide.asm.mjs"]).toBe(2);
   });
 });
 

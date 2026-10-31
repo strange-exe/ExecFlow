@@ -9,6 +9,16 @@
 // service worker answers the two scripts (imported, so not fetched) from the same cache once it
 // controls the page: offline after one online start, Python still starts.
 //
+// What the sha256 pin covers: every copy this cache keeps, and so everything Pyodide fetches and,
+// on a page the service worker controls, the two scripts it imports. On a page no service worker
+// controls (a first visit, or with service workers blocked) the import of pyodide.mjs, and its own
+// import of pyodide.asm.mjs, go to the network like the app's own scripts, unchecked
+// (e2e/run-ux.spec.ts shows it). Routing them through the checked bytes would mean importing a
+// blob: or data: URL, which the CSP's script-src 'self' forbids, and allowing either would widen
+// what an injected script could load (Pyodide's createPyodideModule option still needs the glue
+// imported from somewhere). So on such a page the scripts are trusted as the app's own are: same
+// origin, over HTTPS.
+//
 // Without Cache Storage (blocked) nothing is kept: Pyodide fetches the runtime itself each start,
 // and trackDownload counts those bytes instead. Either way, fetch is back to the real one before
 // any package loads, and so long before the worker's lockdown and any user code.
@@ -44,13 +54,52 @@ export interface RuntimeCache {
   match(url: string, options?: CacheQueryOptions): Promise<Response | undefined>;
   put(url: string, response: Response): Promise<void>;
   keys(): Promise<readonly Request[]>;
-  delete(request: Request): Promise<boolean>;
+  delete(request: Request, options?: CacheQueryOptions): Promise<boolean>;
 }
 
-/** The runtime's files that `cache` doesn't hold yet, for the folder `base` (an absolute URL ending in "/"). */
-export async function missingFiles(cache: RuntimeCache, base: string, files: readonly string[] = RUNTIME_FILES): Promise<string[]> {
-  const held = await Promise.all(files.map(async (f) => Boolean(await cache.match(base + f, ANY_VARY))));
-  return files.filter((_, i) => !held[i]);
+/**
+ * The runtime's files that `cache` doesn't hold yet, for the folder `base` (an absolute URL ending
+ * in "/"). With `verify` (the build's pins), each held copy is also read and hashed: one whose
+ * bytes aren't the pinned ones (or that has no pin) is dropped and counts as missing, so it is
+ * downloaded, and checked, again.
+ *
+ * Why re-check at all: a copy was checked when it was downloaded, but Cache Storage keeps whatever
+ * is put there, and the service worker answers the runtime's imports from it unchecked (CacheFirst).
+ * Why not on every start: the worker asks only until one start of the page succeeded (the runner's
+ * verifyRuntime). Reading and hashing all 13.5 MB took a median 43 ms in Chromium 156 on a desktop
+ * (158 ms at a 4x CPU slowdown; 2026-10-31), against a snapshot start of a few hundred ms, and a
+ * page starts a new worker after every folder change, hard stop or new package set. User code
+ * can't reach Cache Storage (lockdown.ts), so nothing a program does can change a copy between
+ * starts; only code of the page itself could, and that code could do worse.
+ * One file at a time, so at most the largest file (the .wasm) is held in memory at once.
+ */
+export async function missingFiles(
+  cache: RuntimeCache,
+  base: string,
+  files: readonly string[] = RUNTIME_FILES,
+  verify?: Readonly<Record<string, { sha256: string }>>,
+): Promise<string[]> {
+  const missing: string[] = [];
+  for (const f of files) {
+    const held = await cache.match(base + f, ANY_VARY);
+    if (!held) missing.push(f);
+    else if (verify && !(await heldCopyMatches(held, verify[f]?.sha256))) {
+      // Every copy under the URL, whatever its Vary (a copy an older service worker stored from an
+      // import carries the request's Origin).
+      await cache.delete(new Request(base + f), ANY_VARY).catch(() => false);
+      missing.push(f);
+    }
+  }
+  return missing;
+}
+
+async function heldCopyMatches(held: Response, pin: string | undefined): Promise<boolean> {
+  if (!pin) return false;
+  try {
+    return (await sha256Hex(new Uint8Array(await held.arrayBuffer()))) === pin;
+  } catch {
+    return false; // unreadable: as good as damaged
+  }
 }
 
 /**
@@ -103,7 +152,10 @@ function reporter(total: number, post: (p: DownloadProgress) => void, now: () =>
  * versions go first: the folder name carries the version, so they are never used again. A file
  * is kept only as the site's own copy (status 200, never the fallback page under its URL,
  * sw-cache-guard.ts) and only when its bytes have the sha256 the build pinned (`expected`, as the
- * C/C++ pack and the flowchart files are checked); a file with no pinned sha256 is never kept.
+ * C/C++ pack and the flowchart files are checked); a file with no pin is never fetched. A body
+ * is never held past the file's pinned size: an answer that declares more (an uncoded
+ * Content-Length) is refused unread, and one that sends more is cancelled at the piece that passes
+ * it, so a wrong or hostile answer can't fill the worker's memory before the sha256 check.
  * Anything else throws a DownloadError and keeps nothing for that file. The cache refusing a file
  * (storage full) doesn't stop the start: Pyodide then fetches it itself.
  */
@@ -112,8 +164,8 @@ export async function downloadRuntime(opts: {
   cache: RuntimeCache;
   base: string;
   files: readonly string[];
-  /** Each file's sha256 (lowercase hex), from the build (__PYODIDE_FILES__). */
-  expected: Readonly<Record<string, string>>;
+  /** Each file's size and sha256 (lowercase hex), from the build (__PYODIDE_FILES__). */
+  expected: Readonly<Record<string, { bytes: number; sha256: string }>>;
   total: number;
   post: (p: DownloadProgress) => void;
   now?: () => number;
@@ -127,6 +179,8 @@ export async function downloadRuntime(opts: {
     const settled = await Promise.allSettled(
       opts.files.map(async (file) => {
         const url = base + file;
+        const pin = opts.expected[file];
+        if (!pin) throw new DownloadError(`${file} didn't match`, "damaged");
         let response: Response;
         try {
           response = await opts.fetch(url);
@@ -137,6 +191,15 @@ export async function downloadRuntime(opts: {
         if (!(await cacheOnlyTheFile.cacheWillUpdate({ request: new Request(url), response }))) {
           throw new DownloadError(`the site sent a page instead of ${file}`, "failed");
         }
+        // Content-Length counts the body as sent: with a Content-Encoding (gzip, br) that is the
+        // coded size, which can exceed the file's own for an already-compressed file (RFC 9110
+        // 8.6, 8.4). Only an uncoded length is compared; the bytes read are capped either way.
+        const coding = (response.headers.get("content-encoding") ?? "identity").trim().toLowerCase();
+        const declared = Number(response.headers.get("content-length") ?? 0);
+        if (coding === "identity" && declared > pin.bytes) {
+          await response.body?.cancel().catch(() => {});
+          throw new DownloadError(`${file} is ${declared} bytes, more than the ${pin.bytes} bytes expected`, "damaged");
+        }
         // The body is held until its sha256 is known: nothing reaches the cache before the check.
         const chunks: Uint8Array[] = [];
         let size = 0;
@@ -146,12 +209,18 @@ export async function downloadRuntime(opts: {
             if (!reader) break;
             const { done, value } = await reader.read();
             if (done) break;
-            chunks.push(value);
             size += value.byteLength;
+            if (size > pin.bytes) break;
+            chunks.push(value);
             progress.add(value.byteLength);
           }
         } catch (e) {
           throw new DownloadError(`the download of ${file} stopped (${(e as Error).message || "connection lost"})`, "failed");
+        }
+        if (size > pin.bytes) {
+          // Stop the transfer: nothing more of this answer is wanted (MDN ReadableStreamDefaultReader.cancel).
+          await reader?.cancel().catch(() => {});
+          throw new DownloadError(`${file} is larger than the ${pin.bytes} bytes expected`, "damaged");
         }
         const bytes = new Uint8Array(size);
         let at = 0;
@@ -159,8 +228,7 @@ export async function downloadRuntime(opts: {
           bytes.set(chunk, at);
           at += chunk.byteLength;
         }
-        const pinned = opts.expected[file];
-        if (!pinned || (await sha256Hex(bytes)) !== pinned) throw new DownloadError(`${file} didn't match`, "damaged");
+        if ((await sha256Hex(bytes)) !== pin.sha256) throw new DownloadError(`${file} didn't match`, "damaged");
         const type = response.headers.get("content-type");
         const copy = new Response(bytes, { status: 200, headers: type ? { "content-type": type } : {} });
         await cache.put(url, copy).catch(() => {});

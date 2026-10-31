@@ -45,6 +45,11 @@ export type ToPython =
       input: SharedArrayBuffer | null;
       /** Packages to load before the lockdown (names from PYTHON_PACKAGES' closure); [] for the standard library only. */
       packages: string[];
+      /**
+       * Re-hash the runtime's files kept on this device before using them (python-download.ts
+       * missingFiles): true until a start of this page has succeeded, so once per page load.
+       */
+      verifyRuntime: boolean;
     }
   | {
       type: "run";

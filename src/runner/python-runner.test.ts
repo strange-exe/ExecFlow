@@ -163,6 +163,20 @@ describe("PythonRunner", () => {
     expect(workers).toHaveLength(3);
   });
 
+  it("asks each start to re-check the runtime kept on this device until one start of this page succeeded", async () => {
+    let starts = 0;
+    const { runner, workers } = setUp(
+      (w, msg) => (msg.packageCheck && !w.init.packages.includes("numpy") ? w.emit({ type: "need-packages", packages: ["numpy"] }) : w.emit(done())),
+      (w, msg) => (++starts === 1 ? w.emit({ type: "boot-failed", error: "blocked" }) : ready(w, msg as never)),
+    );
+    const p = runner.run(request(), hooks());
+    await vi.advanceTimersByTimeAsync(2000);
+    expect((await p).status).toBe("ok");
+    // A failed start proves nothing, so the next one checks too; once one is ready, later workers
+    // (here the one that loads numpy) trust what that check passed.
+    expect(workers.map((w) => w.init.verifyRuntime)).toEqual([true, true, false]);
+  });
+
   it("offline before Python was ever downloaded: says so in plain words at once, and starts once online", async () => {
     let online = false;
     const { runner, workers } = setUp(

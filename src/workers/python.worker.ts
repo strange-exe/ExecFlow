@@ -194,30 +194,31 @@ async function runtimeCache(): Promise<Cache | null> {
  * Pyodide has loaded: the fetch that answers Pyodide from the cache, or (no Cache Storage) the one
  * that counts Pyodide's own download.
  */
-async function fetchRuntime(base: string): Promise<{ end(): void }> {
+async function fetchRuntime(base: string, verify: boolean): Promise<{ end(): void }> {
   const progress = (p: DownloadProgress) => post({ type: "progress", ...p });
   const cache = await runtimeCache();
   if (!cache) return trackDownload(self, __PYODIDE_BYTES__, progress);
-  const missing = await missingFiles(cache, base);
+  // The first start of a page re-hashes what this device holds (python-download.ts missingFiles
+  // says why only then); a copy that changed is dropped and downloaded again below.
+  const missing = await missingFiles(cache, base, undefined, verify ? __PYODIDE_FILES__ : undefined);
   if (missing.length) {
     // No request can succeed offline: say so at once rather than after each file fails.
     if (self.navigator.onLine === false) throw new DownloadError("this device is offline", "offline");
     const total = missing.reduce((sum, f) => sum + (__PYODIDE_FILES__[f]?.bytes ?? 0), 0);
-    const expected = Object.fromEntries(Object.entries(__PYODIDE_FILES__).map(([f, { sha256 }]) => [f, sha256]));
-    await downloadRuntime({ fetch: self.fetch.bind(self), cache, base, files: missing, expected, total, post: progress });
+    await downloadRuntime({ fetch: self.fetch.bind(self), cache, base, files: missing, expected: __PYODIDE_FILES__, total, post: progress });
   } else {
     progress({ loaded: 0, total: 0, done: true });
   }
   return serveFromCache(self, cache, base);
 }
 
-async function boot(interrupt: SharedArrayBuffer | null, packages: string[]): Promise<Runtime> {
+async function boot(interrupt: SharedArrayBuffer | null, packages: string[], verifyRuntime: boolean): Promise<Runtime> {
   // The runtime comes from our own origin, so the loader always matches the files it loads.
   const indexURL = `/pyodide/${__PYODIDE_DIR__}/`;
   const base = new URL(indexURL, self.location.origin).href;
   // Before the loader is imported: the first start downloads it with the rest (the service worker
   // answers the import from the same cache once it controls the page).
-  const fetching = await fetchRuntime(base);
+  const fetching = await fetchRuntime(base, verifyRuntime);
   let py: PyodideAPI | null = null;
   let source: BootSource = "fresh";
   try {
@@ -413,7 +414,8 @@ self.addEventListener("message", async ({ data }: MessageEvent<ToPython>) => {
   if (data.type === "init") {
     const t0 = performance.now();
     inputChannel = data.input;
-    booting = boot(data.interrupt, data.packages);
+    // Fails safe: anything but an explicit false re-checks the runtime.
+    booting = boot(data.interrupt, data.packages, data.verifyRuntime !== false);
     try {
       const rt = await booting;
       post({ type: "ready", ms: performance.now() - t0, source: rt.source, loaded: Object.keys(rt.py.loadedPackages).sort(), available: rt.available, packageMs: rt.packageMs });
