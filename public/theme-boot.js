@@ -10,7 +10,7 @@
   // :root, Signal and Slate under data-palette, so nothing else is needed for them.
   var OWN_SURFACE = { signal: { light: "#eceef2", dark: "#0b0d10" }, "deep-field": { light: "#dbeee2", dark: "#152a22" }, slate: { light: "#f6f8fa", dark: "#14171d" } };
   // src/theme/contrast.ts COLOR_VARS, in order (contrast.test.ts keeps them equal).
-  var COLORS = "bg surface surface-raised terminal-bg terminal-fg runlog-bg divider border border-strong text text-secondary text-muted gutter-text action action-hover on-action control-on focus selection list-selected active-line location danger warning success info error-band call-site input-echo link brand on-brand syn-keyword syn-string syn-number syn-comment syn-function syn-type syn-variable syn-operator syn-macro syn-punctuation".split(" ");
+  var COLORS = "bg surface surface-raised terminal-bg terminal-fg runlog-bg divider border border-strong text text-secondary text-muted gutter-text action action-hover on-action control-on focus selection list-selected active-line location danger warning success info error-band call-site input-echo link syn-keyword syn-string syn-number syn-comment syn-function syn-type syn-variable syn-operator syn-macro syn-punctuation".split(" ");
   var BANDS = { "active-line": true, "error-band": true, selection: true, "list-selected": true };
   var root = document.documentElement, saved = null, seen = null;
   try { saved = JSON.parse(localStorage.getItem("codeeditor:theme-paint")); } catch (e) {}

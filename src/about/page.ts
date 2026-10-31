@@ -236,12 +236,15 @@ function whenMotionIsReduced(stop: () => void): void {
 
 /** The flowchart screenshot in the theme the page shows: theme-boot.js's data-theme follows a saved theme, not only the device. */
 function shot(): void {
-  const dark = document.querySelector<HTMLSourceElement>(".about-shot source");
-  if (!dark) return;
+  // The dark screenshot's sources (AVIF, then WebP) carry the media query; the light ones have none.
+  const dark = [...document.querySelectorAll<HTMLSourceElement>(".about-shot source[media]")];
+  if (!dark.length) return;
   // Only when the page's theme and the device differ: changing a <source> restarts its picture's
   // selection, and Firefox aborts a fetch already under way (NS_BINDING_ABORTED in about.spec).
+  // Both changes land in this one task, so the picture selects once.
   const wantDark = document.documentElement.dataset.theme === "dark";
-  if (matchMedia(dark.media).matches !== wantDark) dark.media = wantDark ? "all" : "not all";
+  if (matchMedia(dark[0].media).matches === wantDark) return;
+  for (const s of dark) s.media = wantDark ? "all" : "not all";
 }
 
 /** Secondary sections settle in as they arrive: they start readable (never from opacity 0) and nothing moves with reduced motion. */

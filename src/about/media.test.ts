@@ -14,7 +14,7 @@ const html = readFileSync("about.html", "utf8");
 describe("the About page's media files", () => {
   it.each(files)("%s is named after its content", (name) => {
     const hash = createHash("sha256").update(readFileSync(`${DIR}/${name}`)).digest("hex");
-    const match = /^[a-z0-9.-]+\.([0-9a-f]{8})\.(webp|mp4|png)$/.exec(name);
+    const match = /^[a-z0-9.-]+\.([0-9a-f]{8})\.(avif|webp|mp4|png)$/.exec(name);
     expect(match, `${name}: rename it to <name>.${hash.slice(0, 8)}.<ext>`).not.toBeNull();
     expect(match![1], `${name}: its bytes changed; rename it to <name>.${hash.slice(0, 8)}.<ext>`).toBe(hash.slice(0, 8));
   });

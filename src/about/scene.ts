@@ -1,7 +1,7 @@
 // The About page's hero scene (three.js, WebGLRenderer): a flowchart in matte 3D tiles, the shapes
 // the Flowchart tab draws (Start and End, a step, a decision with a loop back, an output), with a
 // light travelling along its edges and a slight tilt toward the pointer. Loaded after the first paint
-// by page.ts; the poster (/media/about-scene.<hash>.webp, rendered from this same code by renderStill)
+// by page.ts; the poster (/media/about-scene.<hash>.avif, with a .webp fallback, rendered from this same code by renderStill)
 // stays where WebGL is missing or motion isn't welcome, and page.ts's button pauses it (WCAG 2.2.2).
 // One light direction, one material family,
 // one camera (DESIGN-REFERENCE 2). The canvas is decorative (aria-hidden): the text beside it says

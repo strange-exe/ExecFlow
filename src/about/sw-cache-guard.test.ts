@@ -14,6 +14,7 @@ const answer = (path: string, type: string | null) => {
 describe("cacheOnlyTheFile (vite.config.ts runtimeCaching)", () => {
   it.each([
     ["/media/about-scene.5d85575b.webp", "image/webp"],
+    ["/media/about-scene.79bc158d.avif", "image/avif"],
     ["/assets/a/scene-1a2b3c4d.js", "text/javascript; charset=utf-8"],
     ["/assets/a/scene-1a2b3c4d.js", "application/javascript"],
     ["/flowchart/1/tree-sitter-c.wasm", "application/wasm"],
@@ -26,6 +27,8 @@ describe("cacheOnlyTheFile (vite.config.ts runtimeCaching)", () => {
   it.each([
     ["/media/about-scene.00000000.webp", "text/html; charset=utf-8"],
     ["/media/about-scene.00000000.webp", null],
+    ["/media/about-scene.00000000.avif", "text/html; charset=utf-8"],
+    ["/media/about-scene.00000000.avif", "image/webp"],
     ["/assets/a/00000000.js", "text/html; charset=utf-8"],
     ["/assets/a/00000000.js", "text/plain"],
     ["/flowchart/1/missing.wasm", "text/html; charset=utf-8"],
