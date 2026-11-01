@@ -381,6 +381,294 @@
       "problems": [
         "Errorno matching member function for call to 'push_back'marks.cpp:7:11clang"
       ]
+    },
+    "fe-largest-py": {
+      "status": "ok",
+      "output": "First number: 8\nSecond number: 8\nThird number: 3\nLargest: 8\n",
+      "outputChars": 60,
+      "runlog": "largest.py\nFinished\nexit code 0\nran in 110 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-largest-bug": {
+      "status": "ok",
+      "output": "First number: 8\nSecond number: 8\nThird number: 3\nLargest: 3\n",
+      "outputChars": 60,
+      "runlog": "largest_mistake.py\nFinished\nexit code 0\nran in 21 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-evenodd-py": {
+      "status": "ok",
+      "output": "Enter a whole number: 14\n14 is even\n",
+      "outputChars": 36,
+      "runlog": "even_odd.py\nFinished\nexit code 0\nran in 20 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: n = int(input(\"Enter a whole number: \")). Next: step 3.",
+        "3. Decision: n % 2 == 0 ? Yes: step 4. No: step 5.",
+        "4. Input or output: print(n, \"is even\"). Next: step 6.",
+        "5. Input or output: print(n, \"is odd\"). Next: step 6.",
+        "6. End."
+      ]
+    },
+    "fe-fact-py": {
+      "status": "ok",
+      "output": "Enter a number: 0\nFactorial of 0 is 1\n",
+      "outputChars": 38,
+      "runlog": "factorial.py\nFinished\nexit code 0\nran in 45 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-prime-py": {
+      "status": "ok",
+      "output": "Enter a number: 91\n91 is not prime\n",
+      "outputChars": 35,
+      "runlog": "prime.py\nFinished\nexit code 0\nran in 36 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: n = int(input(\"Enter a number: \")). Next: step 3.",
+        "3. is_prime = True. Next: step 4.",
+        "4. Decision: n < 2 ? Yes: step 5. No: step 6.",
+        "5. is_prime = False. Next: step 6.",
+        "6. i = 2. Next: step 7.",
+        "7. Decision: i * i <= n ? Yes: step 8. No: step 11.",
+        "8. Decision: n % i == 0 ? Yes: step 9. No: step 10.",
+        "9. is_prime = False. Next: step 11.",
+        "10. i = i + 1. Next: step 7.",
+        "11. Decision: is_prime ? Yes: step 12. No: step 13.",
+        "12. Input or output: print(n, \"is prime\"). Next: step 14.",
+        "13. Input or output: print(n, \"is not prime\"). Next: step 14.",
+        "14. End."
+      ]
+    },
+    "fe-prime-bug": {
+      "status": "ok",
+      "output": "Enter a number: 7\n7 is not prime\n",
+      "outputChars": 33,
+      "runlog": "prime_mistake.py\nFinished\nexit code 0\nran in 31 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-fib-py": {
+      "status": "ok",
+      "output": "How many terms? 7\n0 1 1 2 3 5 8 \n",
+      "outputChars": 33,
+      "runlog": "fibonacci.py\nFinished\nexit code 0\nran in 30 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-digits-py": {
+      "status": "ok",
+      "output": "Enter a number: -305\nSum of digits: 8\n",
+      "outputChars": 38,
+      "runlog": "sum_digits.py\nFinished\nexit code 0\nran in 41 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: n = int(input(\"Enter a number: \")). Next: step 3.",
+        "3. Decision: n < 0 ? Yes: step 4. No: step 5.",
+        "4. n = -n. Next: step 5.",
+        "5. total = 0. Next: step 6.",
+        "6. Decision: n > 0 ? Yes: step 7. No: step 8.",
+        "7. total = total + n % 10; n = n // 10. Next: step 6.",
+        "8. Input or output: print(\"Sum of digits:\", total). Next: step 9.",
+        "9. End."
+      ]
+    },
+    "fe-digits-bug": {
+      "status": "ok",
+      "output": "Enter a number: 4721\nSum of digits: 15.55555555555558\n",
+      "outputChars": 54,
+      "runlog": "sum_digits_mistake.py\nFinished\nexit code 0\nran in 61 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-reverse-py": {
+      "status": "ok",
+      "output": "Enter a number: 1200\nReverse of 1200 is 21\n",
+      "outputChars": 43,
+      "runlog": "reverse.py\nFinished\nexit code 0\nran in 24 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-interest-py": {
+      "status": "ok",
+      "output": "Principal: 5000\nRate per year (%): 7.5\nTime in years: 3\nSimple interest: 1125.0\n",
+      "outputChars": 80,
+      "runlog": "interest.py\nFinished\nexit code 0\nran in 34 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. Input or output: p = float(input(\"Principal: \")). Next: step 3.",
+        "3. Input or output: r = float(input(\"Rate per year (%): \")). Next: step 4.",
+        "4. Input or output: t = float(input(\"Time in years: \")). Next: step 5.",
+        "5. si = p * r * t / 100. Next: step 6.",
+        "6. Input or output: print(\"Simple interest:\", si). Next: step 7.",
+        "7. End."
+      ]
+    },
+    "fe-interest-bug": {
+      "status": "error",
+      "output": "Principal: 5000\nRate per year (%): 7.5\nTime in years: 3\nTraceback (most recent call last):\n  File \"interest_mistake.py\", line 4, in <module>\n    si = p * r * t / 100\n         ~~^~~\nTypeError: can't multiply sequence by non-int of type 'str'\n",
+      "outputChars": 241,
+      "runlog": "interest_mistake.py\nExited with code 1\nran in 39 ms\nTypeError: can't multiply sequence by non-int of type 'str'\ninterest_mistake.py, line 4",
+      "help": null,
+      "problems": [
+        "ErrorTypeError: can't multiply sequence by non-int of type 'str'interest_mistake.py:4:6python TypeError"
+      ]
+    },
+    "fe-largest-c": {
+      "status": "ok",
+      "output": "Enter three numbers: 12 45 7\nLargest: 45\n",
+      "outputChars": 41,
+      "runlog": "largest.c\nFinished\nexit code 0\nbuilt in 1.1 s\nran in 7 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int a, b, c. Next: step 3.",
+        "3. Input or output: printf(\"Enter three numbers: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d %d %d\", &a, &b, &c). Next: step 5.",
+        "5. Decision: a >= b && a >= c ? Yes: step 6. No: step 7.",
+        "6. Input or output: printf(\"Largest: %d\\n\", a). Next: step 10.",
+        "7. Decision: b >= c ? Yes: step 8. No: step 9.",
+        "8. Input or output: printf(\"Largest: %d\\n\", b). Next: step 10.",
+        "9. Input or output: printf(\"Largest: %d\\n\", c). Next: step 10.",
+        "10. End: return 0."
+      ]
+    },
+    "fe-evenodd-c": {
+      "status": "ok",
+      "output": "Enter a whole number: -7\n-7 is odd\n",
+      "outputChars": 35,
+      "runlog": "even_odd.c\nFinished\nexit code 0\nbuilt in 1.5 s\nran in 8 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-evenodd-bug": {
+      "status": "ok",
+      "output": "Enter a whole number: -7\n-7 is even\n",
+      "outputChars": 36,
+      "runlog": "even_odd_mistake.c\nFinished\nexit code 0\nbuilt in 1.4 s\nran in 8 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-fact-c": {
+      "status": "ok",
+      "output": "Enter a number: 5\nFactorial of 5 is 120\n",
+      "outputChars": 40,
+      "runlog": "factorial.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 6 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n, i; long long fact = 1. Next: step 3.",
+        "3. Input or output: printf(\"Enter a number: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. Decision: n < 0 ? Yes: step 6. No: step 7.",
+        "6. Input or output: printf(\"There is no factorial of a negative number\\n\"). Next: step 12.",
+        "7. i = 1. Next: step 8.",
+        "8. Decision: i <= n ? Yes: step 9. No: step 11.",
+        "9. fact = fact * i. Next: step 10.",
+        "10. i++. Next: step 8.",
+        "11. Input or output: printf(\"Factorial of %d is %lld\\n\", n, fact). Next: step 12.",
+        "12. End: return 0."
+      ]
+    },
+    "fe-fact-bug": {
+      "status": "ok",
+      "output": "Enter a number: 13\nFactorial of 13 is 1932053504\n",
+      "outputChars": 49,
+      "runlog": "factorial_mistake.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 10 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-prime-c": {
+      "status": "ok",
+      "output": "Enter a number: 97\n97 is prime\n",
+      "outputChars": 31,
+      "runlog": "prime.c\nFinished\nexit code 0\nbuilt in 1.5 s\nran in 7 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-fib-c": {
+      "status": "ok",
+      "output": "How many terms? 10\n0 1 1 2 3 5 8 13 21 34 \n",
+      "outputChars": 43,
+      "runlog": "fibonacci.c\nFinished\nexit code 0\nbuilt in 972 ms\nran in 7 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n, i; long long a = 0, b = 1, next. Next: step 3.",
+        "3. Input or output: printf(\"How many terms? \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. i = 1. Next: step 6.",
+        "6. Decision: i <= n ? Yes: step 7. No: step 10.",
+        "7. Input or output: printf(\"%lld \", a). Next: step 8.",
+        "8. next = a + b; a = b; b = next. Next: step 9.",
+        "9. i++. Next: step 6.",
+        "10. Input or output: printf(\"\\n\"). Next: step 11.",
+        "11. End: return 0."
+      ]
+    },
+    "fe-fib-bug": {
+      "status": "ok",
+      "output": "How many terms? 5\n0 1 1 2 3 5 \n",
+      "outputChars": 31,
+      "runlog": "fibonacci_mistake.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 6 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-digits-c": {
+      "status": "ok",
+      "output": "Enter a number: 4721\nSum of digits: 14\n",
+      "outputChars": 39,
+      "runlog": "sum_digits.c\nFinished\nexit code 0\nbuilt in 1.7 s\nran in 6 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-reverse-c": {
+      "status": "ok",
+      "output": "Enter a number: 1234\nReverse of 1234 is 4321\n",
+      "outputChars": 45,
+      "runlog": "reverse.c\nFinished\nexit code 0\nbuilt in 1.4 s\nran in 5 ms",
+      "help": null,
+      "problems": [],
+      "steps": [
+        "1. Start. Next: step 2.",
+        "2. int n, original, digit, reverse = 0. Next: step 3.",
+        "3. Input or output: printf(\"Enter a number: \"). Next: step 4.",
+        "4. Input or output: scanf(\"%d\", &n). Next: step 5.",
+        "5. original = n. Next: step 6.",
+        "6. Decision: n > 0 ? Yes: step 7. No: step 8.",
+        "7. digit = n % 10; reverse = reverse * 10 + digit; n = n / 10. Next: step 6.",
+        "8. Input or output: printf(\"Reverse of %d is %d\\n\", original, reverse). Next: step 9.",
+        "9. End: return 0."
+      ]
+    },
+    "fe-reverse-bug": {
+      "status": "ok",
+      "output": "Enter a number: 1234\nReverse of 0 is 4321\n",
+      "outputChars": 42,
+      "runlog": "reverse_mistake.c\nFinished\nexit code 0\nbuilt in 1.6 s\nran in 7 ms",
+      "help": null,
+      "problems": []
+    },
+    "fe-interest-c": {
+      "status": "ok",
+      "output": "Principal: 5000\nRate per year (%): 7.5\nTime in years: 3\nSimple interest: 1125.00\n",
+      "outputChars": 81,
+      "runlog": "interest.c\nFinished\nexit code 0\nbuilt in 981 ms\nran in 6 ms",
+      "help": null,
+      "problems": []
     }
   }
 }

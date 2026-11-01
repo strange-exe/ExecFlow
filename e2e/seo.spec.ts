@@ -70,7 +70,7 @@ test.describe("search and sharing", () => {
     await expect(page.getByRole("heading", { level: 1, name: "ExecFlow" })).toHaveCount(1);
   });
 
-  test("without JavaScript, the home page says what ExecFlow is and links to the four guides, About, Privacy and Terms; with it, that text is gone", async ({ browser, page }) => {
+  test("without JavaScript, the home page says what ExecFlow is and links to every guide, About, Privacy and Terms; with it, that text is gone", async ({ browser, page }) => {
     const off = await browser.newContext({ javaScriptEnabled: false });
     const plain = await off.newPage();
     await plain.goto("/");
@@ -122,13 +122,14 @@ test.describe("search and sharing", () => {
     { name: "Run C", path: "/c" },
     { name: "Run C++", path: "/cpp" },
     { name: "Flowchart from code", path: "/flowchart-from-code" },
+    { name: "Flowchart examples", path: "/flowchart-examples" },
   ];
   for (const vp of [
     { name: "desktop", width: 1440, height: 900 },
     { name: "phone", width: 390, height: 844 },
   ]) {
     for (const scheme of ["light", "dark"] as const) {
-      test(`${vp.name} ${scheme}: the first-visit screen links to the four guides, in order after the ways to start, 24 px targets, no sideways scroll, axe clean`, async ({ page }) => {
+      test(`${vp.name} ${scheme}: the first-visit screen links to every guide, in order after the ways to start, 24 px targets, no sideways scroll, axe clean`, async ({ page }) => {
         await page.setViewportSize(vp);
         await openIn(page, "/", scheme);
         await expect(page.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
@@ -181,7 +182,7 @@ test.describe("search and sharing", () => {
     }
   }
 
-  test("robots.txt names the sitemap, and sitemap.xml lists the four pages and the four guides", async ({ request }) => {
+  test("robots.txt names the sitemap, and sitemap.xml lists the four pages and every guide", async ({ request }) => {
     const robots = await (await request.get("/robots.txt")).text();
     expect(robots).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
     const res = await request.get("/sitemap.xml");

@@ -1,4 +1,4 @@
-// The guide pages (src/pages/routes.ts: /flowchart-from-code, /python, /c, /cpp), as built: the
+// The guide pages (src/pages/routes.ts: /flowchart-from-code, /python, /c, /cpp, /flowchart-examples), as built: the
 // head and h1, no console errors or CSP violations (the fixture fails on errors; the page records
 // securitypolicyviolation events), axe clean in light and dark, no sideways scroll at 320 px, the
 // charts drawn in the page's own colours, the product named ExecFlow everywhere, and every "Open in
@@ -164,6 +164,8 @@ for (const route of GUIDE_ROUTES) {
         els.map((a) => ({ href: a.getAttribute("href")!, id: a.closest(".ex")!.id.replace(/^ex-/, "") })),
       );
       expect(links.length).toBeGreaterThanOrEqual(4);
+      // /flowchart-examples has 24 programs: give each link its own share of time.
+      test.setTimeout(Math.max(240_000, links.length * 15_000));
       for (const { href, id } of links) {
         await page.goto(route.path);
         await page.locator(`#ex-${id} a.ex-open`).click();
@@ -181,6 +183,48 @@ for (const route of GUIDE_ROUTES) {
     });
   });
 }
+
+// /flowchart-examples (phase 2): eight exercises, each with its C and Python programs, one chart and
+// a mistake; the contents list reaches each one, and every chart has its steps as text.
+test.describe("/flowchart-examples", () => {
+  const EXERCISES = ["largest", "even-odd", "factorial", "prime", "fibonacci", "sum-of-digits", "reverse", "simple-interest"];
+
+  test("eight exercises, each with two programs, a mistake, one chart with its steps, reached from the contents list", async ({ page }) => {
+    await page.goto("/flowchart-examples");
+    await expect(page.locator(".guide-example")).toHaveCount(EXERCISES.length);
+    for (const [i, heading] of EXERCISES.entries()) {
+      const ex = page.locator(".guide-example").nth(i);
+      await expect(ex.locator("h3")).toHaveAttribute("id", heading);
+      // Code: C, Python and the mistake; each ran (an output pane with a status).
+      await expect(ex.locator(".ex")).toHaveCount(3);
+      await expect(ex.locator(".ex .ex-status")).toHaveCount(3);
+      // One chart, drawn, with a text equivalent that opens.
+      const chart = ex.locator("svg.fc-chart");
+      await expect(chart).toHaveCount(1);
+      expect((await chart.boundingBox())!.height).toBeGreaterThan(100);
+      const steps = ex.locator("details.fc-steps");
+      await steps.locator("summary").click();
+      await expect(steps.locator("li").first()).toHaveText(/^1\. Start\./);
+      await expect(steps.locator("li").last()).toHaveText(/^\d+\. End/);
+      // The contents list goes to it.
+      await page.locator(`main a[href="#${heading}"]`).click();
+      await expect(page).toHaveURL(new RegExp(`#${heading}$`));
+      await expect(ex.locator("h3")).toBeInViewport();
+    }
+  });
+
+  test("links to the other guides and the editor, and every other guide links back", async ({ page }) => {
+    await page.goto("/flowchart-examples");
+    for (const path of ["/flowchart-from-code", "/python", "/c", "/cpp"]) await expect(page.locator(`main a[href="${path}"]`).first()).toBeVisible();
+    await expect(page.locator('header a[href="/"]').first()).toBeVisible();
+    await expect(page.locator('nav[aria-label="Guides"] a[aria-current="page"]')).toHaveAttribute("href", "/flowchart-examples");
+    for (const route of GUIDE_ROUTES.filter((r) => r.path !== "/flowchart-examples")) {
+      await page.goto(route.path);
+      await page.locator('nav[aria-label="Guides"] a[href="/flowchart-examples"]').click();
+      await expect(page.locator("h1")).toHaveText("Flowchart examples with C and Python programs");
+    }
+  });
+});
 
 test.describe("with the service worker", () => {
   test.use({ serviceWorkers: "allow" });

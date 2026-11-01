@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Flowchart examples with C and Python programs | ExecFlow</title>
+    <meta name="description" content="Eight classic exercises, from largest of three to prime check and Fibonacci: the algorithm, C and Python code, the flowchart, a real run and a common mistake." />
+    <link rel="canonical" href="https://execflow.abhinesh.codes/flowchart-examples" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="ExecFlow" />
+    <meta property="og:title" content="Flowchart examples with C and Python programs" />
+    <meta property="og:description" content="Largest of three, even or odd, factorial, prime check, Fibonacci and more: each with its algorithm, C and Python code, flowchart and a real run." />
+    <meta property="og:url" content="https://execflow.abhinesh.codes/flowchart-examples" />
+    <meta property="og:image" content="https://execflow.abhinesh.codes/icons/mark-v2-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Flowchart examples with C and Python programs" />
+    <meta name="twitter:description" content="Largest of three, even or odd, factorial, prime check, Fibonacci and more: each with its algorithm, C and Python code, flowchart and a real run." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/guide.css" />
+  </head>
+  <body class="about guide guide-exercises">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+    <nav class="guide-nav" aria-label="Guides">
+      <ul>
+        <li><a href="/flowchart-from-code">Flowchart from code</a></li>
+        <li><a href="/flowchart-examples" aria-current="page">Flowchart examples</a></li>
+        <li><a href="/python">Run Python</a></li>
+        <li><a href="/c">Run C</a></li>
+        <li><a href="/cpp">Run C++</a></li>
+      </ul>
+    </nav>
+
+    <main id="content">
+      <section class="guide-hero" aria-labelledby="title">
+        <h1 id="title">Flowchart examples with C and Python programs</h1>
+        <p class="about-lede">
+          Eight exercises that first programming courses set again and again. Each one has the algorithm in numbered
+          steps, the program in C and in Python, the flowchart ExecFlow drew from the code, a real run, and a mistake
+          students often make, with what that mistake really prints.
+        </p>
+        <div class="about-ctas">
+          <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          <a class="about-btn about-btn-ghost" href="#examples">Go to the exercises</a>
+        </div>
+        <dl class="guide-facts">
+          <div><dt>Exercises</dt><dd>8, from largest of three to simple interest</dd></div>
+          <div><dt>Languages</dt><dd>C and Python, side by side</dd></div>
+          <div><dt>Flowcharts</dt><dd>Drawn by ExecFlow from the code</dd></div>
+          <div><dt>Output</dt><dd>Copied from real runs</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="shapes">
+        <h2 id="shapes">How to read these flowcharts</h2>
+        <p>
+          A flowchart shows the order in which a program's steps run, and the points where it chooses between two
+          paths. Drawn before you write the code, it lets you check the logic; drawn after, it explains the code to
+          someone else. The charts on this page use four shapes:
+        </p>
+        <ul class="guide-list">
+          <li><strong>Rounded ends:</strong> Start, and End. In C the End shows the <code>return</code> that ends the program, as <em>End: return 0</em>.</li>
+          <li><strong>Slanted boxes:</strong> input or output. That is <code>scanf</code> and <code>printf</code> in C, and <code>input</code> and <code>print</code> in Python. A line such as <code>n = int(input(...))</code> counts as input.</li>
+          <li><strong>Rectangles:</strong> a step that works something out or stores it, such as <code>fact = fact * i</code>. Up to three simple statements in a row share one box.</li>
+          <li><strong>Diamonds:</strong> a decision, with one arrow labelled <strong>Yes</strong> and one labelled <strong>No</strong>. A loop is a decision too: its Yes arrow runs through the loop's body and back up to the diamond, and its No arrow leaves the loop.</li>
+        </ul>
+        <p>
+          Start at Start, follow the arrows, and at each diamond take the arrow that matches the answer. Under every
+          chart, <strong>Steps as text</strong> gives the same chart as a numbered list. To draw the chart of your own
+          program, see <a href="/flowchart-from-code">Flowchart from code</a>.
+        </p>
+      </section>
+
+      <section aria-labelledby="examples">
+        <h2 id="examples">The eight exercises</h2>
+        <p>
+          Every program below was run in ExecFlow, and the output under it is what it printed, typed input included.
+          Each chart is the one ExecFlow drew for the program beside it, shown in this page's colours.
+          <strong>Open in ExecFlow</strong> shows a program in ExecFlow as a preview first.
+          <strong>Add to my files</strong> puts it in the editor, where you can change it and watch the chart follow;
+          nothing runs until you press Run.
+        </p>
+        <ol class="guide-list">
+          <li><a href="#largest">Largest of three numbers</a></li>
+          <li><a href="#even-odd">Even or odd</a></li>
+          <li><a href="#factorial">Factorial</a></li>
+          <li><a href="#prime">Prime number check</a></li>
+          <li><a href="#fibonacci">Fibonacci series</a></li>
+          <li><a href="#sum-of-digits">Sum of digits</a></li>
+          <li><a href="#reverse">Reverse a number</a></li>
+          <li><a href="#simple-interest">Simple interest</a></li>
+        </ol>
+
+        <div class="guide-example">
+          <h3 id="largest">1. Largest of three numbers</h3>
+          <p>
+            Read three whole numbers and print the largest. Some of them may be equal; the largest value is still
+            printed once.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>a</code>, <code>b</code> and <code>c</code>.</li>
+            <li>If <code>a</code> is greater than or equal to both <code>b</code> and <code>c</code>, the largest is <code>a</code>.</li>
+            <li>Otherwise the largest is <code>b</code> or <code>c</code>: if <code>b</code> is greater than or equal to <code>c</code>, it is <code>b</code>.</li>
+            <li>Otherwise it is <code>c</code>. Print the largest.</li>
+          </ol>
+          <p>
+            The flowchart is drawn from the C program. The <code>else if</code> is a second diamond on the first
+            one's No arrow, and all three <code>printf</code> boxes lead to the same End.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-largest-c"></div>
+            <div data-flowchart="fe-largest-c"></div>
+          </div>
+          <p>The same steps in Python, run with two equal numbers:</p>
+          <div data-example="fe-largest-py"></div>
+          <p>
+            <strong>A common mistake:</strong> comparing with <code>&gt;</code> where the test needs
+            <code>&gt;=</code>. With 8, 8 and 3, neither <code>a &gt; b</code> nor <code>b &gt; a</code> is true, so
+            the program falls through to <code>c</code> and prints the smallest number:
+          </p>
+          <div data-example="fe-largest-bug"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="even-odd">2. Even or odd</h3>
+          <p>
+            Read a whole number and say whether it is even or odd. A number is even when it divides by 2 with nothing
+            left over, so 0 is even, and so is -4.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>n</code>.</li>
+            <li>Work out the remainder of <code>n</code> divided by 2 (<code>n % 2</code>).</li>
+            <li>If the remainder is 0, <code>n</code> is even; otherwise it is odd. Print which.</li>
+          </ol>
+          <p>
+            The flowchart is drawn from the Python program. Python's top level has no <code>main</code>, so ExecFlow
+            names its chart <em>Program</em>.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-evenodd-py"></div>
+            <div data-flowchart="fe-evenodd-py"></div>
+          </div>
+          <p>The same steps in C, run with a negative number:</p>
+          <div data-example="fe-evenodd-c"></div>
+          <p>
+            <strong>A common mistake:</strong> testing <code>n % 2 == 1</code> for odd. In C the remainder takes the
+            sign of the number being divided, so <code>-7 % 2</code> is -1, not 1, and a negative odd number comes out
+            even:
+          </p>
+          <div data-example="fe-evenodd-bug"></div>
+          <p>
+            Testing <code>n % 2 == 0</code>, as above, is right for every <code>int</code>. In Python
+            <code>-7 % 2</code> is 1, so this mistake shows only in C.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="factorial">3. Factorial</h3>
+          <p>
+            The factorial of <code>n</code>, written n!, is 1 &times; 2 &times; ... &times; n, so 5! is 120. By
+            definition 0! is 1, and a negative number has no factorial.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>n</code>. If it is negative, say there is no factorial and stop.</li>
+            <li>Set <code>fact</code> to 1.</li>
+            <li>For each <code>i</code> from 1 to <code>n</code>, multiply <code>fact</code> by <code>i</code>.</li>
+            <li>Print <code>fact</code>.</li>
+          </ol>
+          <p>
+            The flowchart is drawn from the C program. A C <code>for</code> loop is drawn in its three parts: the start
+            (<code>i = 1</code>), the test (the diamond) and the update (<code>i++</code>) after the body.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-fact-c"></div>
+            <div data-flowchart="fe-fact-c"></div>
+          </div>
+          <p>
+            The same steps in Python, run with 0: the loop runs zero times, so <code>fact</code> stays 1, which is the
+            right answer. Python's whole numbers have no size limit, so it works for large <code>n</code> too.
+          </p>
+          <div data-example="fe-fact-py"></div>
+          <p>
+            <strong>A common mistake:</strong> keeping the result in an <code>int</code>. An <code>int</code> holds
+            values up to 2,147,483,647, so 12! (479,001,600) is the last factorial that fits. 13! is 6,227,020,800,
+            and the program prints a wrong number without any error:
+          </p>
+          <div data-example="fe-fact-bug"></div>
+          <p>
+            Overflowing a signed <code>int</code> is undefined behaviour in C, so another compiler may print something
+            else. The program above uses <code>long long</code>, which holds every factorial up to 20!
+            (2,432,902,008,176,640,000); 21! does not fit in it either.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="prime">4. Prime number check</h3>
+          <p>
+            A prime is a whole number greater than 1 whose only divisors are 1 and itself. So 0, 1 and every negative
+            number are not prime, and 2 is the only even prime.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>n</code>. If it is less than 2, it is not prime.</li>
+            <li>Try each divisor <code>i</code>, starting at 2, for as long as <code>i * i</code> is at most <code>n</code>.</li>
+            <li>If <code>n</code> divides by <code>i</code> with nothing left over, <code>n</code> is not prime: stop trying.</li>
+            <li>If no divisor was found, <code>n</code> is prime. Print the answer.</li>
+          </ol>
+          <p>
+            Stopping at <code>i * i &lt;= n</code> is enough: if <code>n</code> has a divisor larger than its
+            square root, the number it pairs with is smaller than the square root, and the loop tries that one. For 97 that
+            means trying 2 to 9 instead of 2 to 96.
+          </p>
+          <p>
+            The flowchart is drawn from the Python program. The <code>break</code> is the arrow from
+            <em>is_prime = False</em> straight to the decision after the loop.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-prime-py"></div>
+            <div data-flowchart="fe-prime-py"></div>
+          </div>
+          <p>
+            The same steps in C, where the test and the update fit in one <code>for</code> line. In C,
+            <code>i * i</code> is an <code>int</code> too, so for a prime above 2,147,395,599, close to the
+            <code>int</code> limit, it would overflow; make <code>i</code> a <code>long long</code> if you need numbers
+            that large.
+          </p>
+          <div data-example="fe-prime-c"></div>
+          <p>
+            <strong>A common mistake:</strong> getting the loop's end wrong. <code>range(2, n + 1)</code> includes
+            <code>n</code> itself, and every number divides by itself, so every number comes out not prime:
+          </p>
+          <div data-example="fe-prime-bug"></div>
+          <p>
+            <code>range(2, n)</code> stops before <code>n</code>, which fixes it; the square-root test above stops much
+            sooner.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="fibonacci">5. Fibonacci series</h3>
+          <p>
+            Each term is the sum of the two before it: 0, 1, 1, 2, 3, 5, 8 and so on. These programs start at 0 and 1
+            and print the first <code>n</code> terms.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>n</code>, the number of terms.</li>
+            <li>Set <code>a</code> to 0 and <code>b</code> to 1.</li>
+            <li>Repeat <code>n</code> times: print <code>a</code>, then set <code>next</code> to <code>a + b</code>, <code>a</code> to <code>b</code>, and <code>b</code> to <code>next</code>.</li>
+          </ol>
+          <p>
+            For <code>n</code> of 0 or less the loop doesn't run, and the program prints only an empty line.
+          </p>
+          <p>
+            The flowchart is drawn from the C program. The three statements that move the series on share one box.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-fib-c"></div>
+            <div data-flowchart="fe-fib-c"></div>
+          </div>
+          <p>
+            A <code>long long</code> is big enough for 91 terms in this C program, which works out one term ahead of the
+            one it prints. Python's numbers have no such limit:
+          </p>
+          <div data-example="fe-fib-py"></div>
+          <p>
+            <strong>A common mistake:</strong> an off-by-one loop. Starting at <code>i = 0</code> and keeping
+            <code>i &lt;= n</code> runs the loop <code>n + 1</code> times, so asking for 5 terms prints 6:
+          </p>
+          <div data-example="fe-fib-bug"></div>
+          <p>
+            Count the runs before you trust a loop: from 1 with <code>i &lt;= n</code>, or from 0 with
+            <code>i &lt; n</code>, both run <code>n</code> times.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="sum-of-digits">6. Sum of digits</h3>
+          <p>
+            Add up the digits of a whole number: for 4721 that is 4 + 7 + 2 + 1 = 14. The sign is ignored, so -305
+            gives 8, and 0 gives 0.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>n</code>. If it is negative, make it positive.</li>
+            <li>Set <code>total</code> to 0.</li>
+            <li>While <code>n</code> is greater than 0: add its last digit (<code>n % 10</code>) to <code>total</code>, then drop that digit by dividing <code>n</code> by 10 and keeping the whole part.</li>
+            <li>Print <code>total</code>.</li>
+          </ol>
+          <p>
+            The flowchart is drawn from the Python program. The loop's two statements share one box.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-digits-py"></div>
+            <div data-flowchart="fe-digits-py"></div>
+          </div>
+          <p>
+            The same steps in C, where <code>n / 10</code> between two <code>int</code>s already keeps only the whole
+            part. One edge: <code>n = -n</code> doesn't work for the most negative <code>int</code>, -2,147,483,648,
+            because 2,147,483,648 doesn't fit in an <code>int</code>.
+          </p>
+          <div data-example="fe-digits-c"></div>
+          <p>
+            <strong>A common mistake:</strong> writing <code>/</code> instead of <code>//</code> in Python. There,
+            <code>/</code> always gives a decimal number, so 4721 becomes 472.1, then 47.21, and so on. The loop keeps
+            adding the remainders of those fractions until <code>n</code> is so small it counts as 0:
+          </p>
+          <div data-example="fe-digits-bug"></div>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="reverse">7. Reverse a number</h3>
+          <p>
+            Write the digits of a number in the opposite order: 1234 becomes 4321. Zeros at the end are lost, because a
+            number can't start with zeros, so 1200 gives 21. These programs expect 0 or a positive number.
+          </p>
+          <ol class="guide-list">
+            <li>Read <code>n</code>, and keep a copy of it as <code>original</code>.</li>
+            <li>Set <code>reverse</code> to 0.</li>
+            <li>While <code>n</code> is greater than 0: take its last digit (<code>n % 10</code>), add it to the end of <code>reverse</code> (<code>reverse * 10 + digit</code>), and drop it from <code>n</code> (<code>n / 10</code>).</li>
+            <li>Print <code>original</code> and <code>reverse</code>.</li>
+          </ol>
+          <p>
+            The flowchart is drawn from the C program.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-reverse-c"></div>
+            <div data-flowchart="fe-reverse-c"></div>
+          </div>
+          <p>
+            In C the reverse has to fit in an <code>int</code> too: 1,999,999,999 is a valid <code>int</code>, but its
+            reverse, 9,999,999,991, is not. The same steps in Python, run with 1200:
+          </p>
+          <div data-example="fe-reverse-py"></div>
+          <p>
+            <strong>A common mistake:</strong> printing <code>n</code> after the loop. The loop divides <code>n</code>
+            down to 0, so the message shows 0 where the number was:
+          </p>
+          <div data-example="fe-reverse-bug"></div>
+          <p>Keep a copy before the loop changes it, as <code>original</code> does above.</p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="simple-interest">8. Simple interest</h3>
+          <p>
+            Simple interest is P &times; R &times; T / 100, for a principal P, a rate R in percent per year and a time T
+            in years. Rate and time can have fractions, so the programs read decimal numbers. For 5,000 at 7.5% for 3
+            years: 5000 &times; 7.5 &times; 3 / 100 = 1,125.
+          </p>
+          <ol class="guide-list">
+            <li>Read P, R and T.</li>
+            <li>Work out SI = P &times; R &times; T / 100.</li>
+            <li>Print SI.</li>
+          </ol>
+          <p>
+            The flowchart is drawn from the Python program. There is no decision and no loop, so the chart is a
+            straight line: three inputs, one step, one output.
+          </p>
+          <div class="fc-pair">
+            <div data-example="fe-interest-py"></div>
+            <div data-flowchart="fe-interest-py"></div>
+          </div>
+          <p>
+            The same steps in C. In its prompt, <code>%%</code> prints one % sign, because <code>printf</code> reads a
+            single % as the start of a format such as <code>%f</code>.
+          </p>
+          <div data-example="fe-interest-c"></div>
+          <p>
+            <strong>A common mistake:</strong> leaving out <code>float()</code>. <code>input()</code> always returns
+            text, so <code>p * r</code> tries to multiply two pieces of text, and Python stops with a
+            <code>TypeError</code>:
+          </p>
+          <div data-example="fe-interest-bug"></div>
+          <p>
+            Convert each input with <code>float()</code>, or <code>int()</code> for whole numbers, before doing
+            arithmetic with it.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="more">
+        <h2 id="more">More guides</h2>
+        <ul class="guide-more">
+          <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: every shape ExecFlow draws, and exporting a chart as PNG or SVG.</li>
+          <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas, and what doesn't run.</li>
+          <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 22, and what a crash looks like.</li>
+          <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
+          <li><a href="/about">About ExecFlow</a>: everything the editor does, and what changed lately.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/ExecFlow">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>
