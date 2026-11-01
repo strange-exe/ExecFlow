@@ -5,7 +5,7 @@
 // and the failure paths with a Retry that recovers. The service worker is blocked so every request
 // reaches the routes below.
 import type { Page, Route } from "@playwright/test";
-import { afterFetch, expect, importFiles, isNarrow, openApp, openFromTree, setCode, test, tolerating } from "./helpers";
+import { afterFetch, chartOnBoard, expect, importFiles, isNarrow, openApp, openFromTree, setCode, showChart, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -51,9 +51,7 @@ async function clickBox(page: Page, name: string) {
   await page.mouse.click(r!.x + r!.width / 2, r!.y + r!.height / 2);
 }
 
-async function openChart(page: Page) {
-  await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
-}
+const openChart = showChart;
 
 async function ready(page: Page) {
   await expect(view(page)).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
@@ -77,13 +75,23 @@ const flowchartRequests = (page: Page) => {
 };
 
 test.describe("the Flowchart tab", () => {
-  test("nothing of the flowchart loads before the tab is opened; then the runtime and the C grammar do", async ({ page }) => {
+  test("nothing of the flowchart loads before it is shown (its tab, its view, or from 1100 px its board with a file open); then the runtime and the C grammar do", async ({ page }) => {
     const seen = flowchartRequests(page);
     await openApp(page);
-    await importFiles(page, [{ name: "main.c", text: C_PROGRAM }]);
-    await openFromTree(page, "main.c");
-    await page.waitForTimeout(500);
-    expect(seen).toEqual([]);
+    if (chartOnBoard(page)) {
+      // The chart board shows only while a file is open: with none open, nothing of it loads.
+      await expect(page.locator("#app")).toHaveAttribute("data-open", "false");
+      await page.waitForTimeout(500);
+      expect(seen).toEqual([]);
+      await expect(page.locator("#chart-board")).toBeHidden();
+      await importFiles(page, [{ name: "main.c", text: C_PROGRAM }]);
+      await openFromTree(page, "main.c");
+    } else {
+      await importFiles(page, [{ name: "main.c", text: C_PROGRAM }]);
+      await openFromTree(page, "main.c");
+      await page.waitForTimeout(500);
+      expect(seen).toEqual([]);
+    }
     await openChart(page);
     await ready(page);
     expect(seen.sort()).toEqual(["tree-sitter-c.wasm", "web-tree-sitter.wasm"]);
@@ -104,12 +112,36 @@ test.describe("the Flowchart tab", () => {
     });
   }
 
-  test("tab keys: Output, Problems and Flowchart in one tablist (arrows, Home, End); phones get a fourth view", async ({ page }) => {
+  for (const width of [0, 1000]) test(`tab keys${width ? ` at ${width} px` : ""}: Output, Problems and Flowchart in one tablist (arrows, Home, End); phones get a fourth view; from 1100 px the chart has its own board`, async ({ page }) => {
+    if (width) await page.setViewportSize({ width, height: 800 });
     await chartFor(page, "main.c", C_PROGRAM);
     await ready(page);
     if (isNarrow(page)) {
       await expect(page.locator(".view-switch [role=tab]")).toHaveText(["Code", "Output", "Problems", "Flowchart"]);
       await expect(page.locator("#view-flowchart")).toHaveAttribute("aria-selected", "true");
+      return;
+    }
+    if (chartOnBoard(page)) {
+      // The chart is a region of its own beside the code; the console keeps Output and Problems,
+      // and its arrows go round those two.
+      await expect(page.getByRole("region", { name: "Flowchart" })).toBeVisible();
+      await expect(page.locator("#chart-board #panel-flowchart .fc-view")).toBeVisible();
+      await expect(page.locator(".panel-tabs [role=tab]:visible")).toHaveText(["Output", "Problems"]);
+      await expect(page.locator("#ptab-flowchart")).toBeHidden();
+      const output = page.locator("#ptab-output");
+      await output.click();
+      await output.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect(page.locator("#ptab-problems")).toBeFocused();
+      await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
+      await page.keyboard.press("ArrowRight");
+      await expect(output).toBeFocused();
+      await page.keyboard.press("End");
+      await expect(page.locator("#ptab-problems")).toBeFocused();
+      await page.keyboard.press("Home");
+      await expect(output).toHaveAttribute("aria-selected", "true");
+      // The chart stays on its board whichever tab the console shows.
+      await expect(page.locator("#panel-flowchart")).toBeVisible();
       return;
     }
     await expect(page.locator(".panel-tabs [role=tab]")).toHaveText(["Output", "Problems", "Flowchart"]);

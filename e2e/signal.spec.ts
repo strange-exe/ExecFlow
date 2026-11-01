@@ -206,60 +206,74 @@ test("fonts: Geist and JetBrains Mono load at every weight used and the weights 
 });
 
 for (const scheme of SCHEMES) {
-  test(`desktop ${scheme}: the code card on --bg and the console card, each with 12 px corners and a 1 px edge, an 8 px gutter apart, set 10 px into the --surface frame`, async ({ page }) => {
+  test(`desktop ${scheme}: Flow Board from 1100 px, the code board (code over its console) and the chart board on --bg, 16 px corners and a 1 px edge, 16 px apart on the --surface canvas`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openApp(page);
     await signalIn(page, scheme);
     const p = SIGNAL[scheme];
     const edge = `1px solid ${rgbOf(p.border)}`;
     const c = CONSOLE[scheme];
-    const panelEdge = `1px solid ${rgbOf(c.border)}`;
+    const corners = ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius"];
+    const sides = ["border-top", "border-left", "border-right", "border-bottom"];
+    /** The code board: drawn once behind the code and its console (.center::before). */
+    const codeBoard = (props: string[]) => page.locator(".center").evaluate((el, names) => Object.fromEntries(names.map((n) => [n, getComputedStyle(el, "::before").getPropertyValue(n)])), props);
+    const board = { ...Object.fromEntries(corners.map((k) => [k, "16px"])), ...Object.fromEntries(sides.map((k) => [k, edge])), "background-color": rgbOf(p.bg) };
+    /** One soft shadow in light, none in dark (--shadow-board). */
+    const expectShadow = (shadow: string) => (scheme === "dark" ? expect(shadow).toBe("none") : expect(shadow).toMatch(/ 0px 4px 16px 0px$|^.* 0px 4px 16px/));
 
-    // The empty workspace: the sheet is rounded all round.
-    const empty = await styleOf(page, ".editor-area", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-bottom", "border-left", "border-right", "background-color"]);
-    expect(empty).toEqual({
-      "border-top-left-radius": "12px", "border-top-right-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
-      "border-top": edge, "border-bottom": edge, "border-left": edge, "border-right": edge, "background-color": rgbOf(p.bg),
-    });
+    // The empty workspace: the code board alone, the editor rounded all round inside its edge, no chart board.
+    expect(await codeBoard([...corners, ...sides, "background-color"])).toEqual(board);
+    expect(await styleOf(page, ".editor-area", [...corners, "border-top-width", "background-color"])).toEqual({ ...Object.fromEntries(corners.map((k) => [k, "15px"])), "border-top-width": "0px", "background-color": rgbOf(p.bg) });
+    await expect(page.locator("#chart-board")).toBeHidden();
 
     await importFiles(page, [{ name: "main.py", text: MAIN }, { name: "calc.py", text: CALC }]);
     await openFromTree(page, "main.py");
     expect((await run(page)).status).toBe("error");
     await openFromTree(page, "calc.py");
 
-    // The frame: the main area and the work column on --surface; no line under the top bar. There
-    // is no status bar on desktop (its facts are in the code card's foot, the rail and the
-    // sidebar's foot), so nothing is drawn over the cards' feet either.
+    // The canvas: the main area and the work column on --surface; the top bar floats on it (no
+    // ground, no line under it). There is no status bar on desktop.
     expect((await styleOf(page, ".main", ["background-color"]))["background-color"]).toBe(rgbOf(p.surface));
-    expect(await styleOf(page, ".center", ["background-color", "padding-right", "padding-bottom", "padding-left", "padding-top"])).toEqual({
-      "background-color": rgbOf(p.surface), "padding-right": "10px", "padding-bottom": "10px", "padding-left": "0px", "padding-top": "0px",
+    expect(await styleOf(page, ".center", ["background-color", "padding-right", "padding-bottom", "padding-left", "padding-top", "column-gap"])).toEqual({
+      "background-color": rgbOf(p.surface), "padding-right": "16px", "padding-bottom": "16px", "padding-left": "0px", "padding-top": "0px", "column-gap": "16px",
     });
-    expect((await styleOf(page, ".topbar", ["border-bottom-width"]))["border-bottom-width"]).toBe("0px");
+    expect(await styleOf(page, ".topbar", ["border-bottom-width", "background-color"])).toEqual({ "border-bottom-width": "0px", "background-color": "rgba(0, 0, 0, 0)" });
     await expect(page.locator(".statusbar")).toBeHidden();
 
-    // Two cards, each rounded all round with a 1 px edge of its own.
-    expect(await styleOf(page, ".editor-area", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-left", "border-right", "border-bottom", "background-color"])).toEqual({
-      "border-top-left-radius": "12px", "border-top-right-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
-      "border-top": edge, "border-left": edge, "border-right": edge, "border-bottom": edge, "background-color": rgbOf(p.bg),
+    // Two boards, each rounded all round with a 1 px edge of its own and the same shadow.
+    expect(await codeBoard([...corners, ...sides, "background-color"])).toEqual(board);
+    expect(await styleOf(page, "#chart-board", [...corners, ...sides, "background-color"])).toEqual(board);
+    expectShadow((await codeBoard(["box-shadow"]))["box-shadow"]);
+    expectShadow((await styleOf(page, "#chart-board", ["box-shadow"]))["box-shadow"]);
+    // Inside the code board's edge: the code rounds the top corners, the console the bottom ones.
+    expect(await styleOf(page, ".editor-area", [...corners, "border-top-width", "background-color"])).toEqual({
+      "border-top-left-radius": "15px", "border-top-right-radius": "15px", "border-bottom-left-radius": "0px", "border-bottom-right-radius": "0px", "border-top-width": "0px", "background-color": rgbOf(p.bg),
     });
-    expect(await styleOf(page, ".center > .panel", ["border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius", "border-bottom-right-radius", "border-top", "border-left", "border-right", "border-bottom"])).toEqual({
-      "border-top-left-radius": "12px", "border-top-right-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom-right-radius": "12px",
-      "border-top": panelEdge, "border-left": panelEdge, "border-right": panelEdge, "border-bottom": panelEdge,
+    expect(await styleOf(page, ".center > .panel", [...corners, "border-top-width"])).toEqual({
+      "border-top-left-radius": "0px", "border-top-right-radius": "0px", "border-bottom-left-radius": "15px", "border-bottom-right-radius": "15px", "border-top-width": "0px",
     });
     // The panel is the dark console in both schemes (Workbench Pro): its ground, the program's text
     // and the browser's own controls and scrollbars in it, in the console's colours.
     expect(await styleOf(page, ".center > .panel", ["background-color", "color-scheme"])).toEqual({ "background-color": rgbOf(c["terminal-bg"]), "color-scheme": "dark" });
     expect((await styleOf(page, "#panel-output .console", ["color"])).color).toBe(rgbOf(c["terminal-fg"]));
-    // 10 px of --surface right of and below the cards; side by side at 1440 px, 8 px apart (the
-    // x-axis splitter is the gutter), sharing their top and bottom edges.
-    const [center, area, panel] = [await boxOf(page, ".center"), await boxOf(page, ".editor-area"), await boxOf(page, ".center > .panel")];
-    expect(Math.round(center.right - panel.right)).toBe(10);
-    expect(Math.round(center.bottom - panel.bottom)).toBe(10);
-    expect(Math.round(center.bottom - area.bottom)).toBe(10);
-    expect(Math.round(panel.left - area.right)).toBe(8);
-    expect(Math.round(area.left - center.left)).toBe(0);
-    expect(Math.round(area.top - center.top)).toBe(0);
-    expect(Math.round(panel.top - center.top)).toBe(0);
+    // The chart's ground: its own tone with the static dot grid, on the stage only.
+    const stage = await styleOf(page, "#chart-board .fc-stage", ["background-color", "background-image", "animation-name"]);
+    expect(stage["background-color"]).not.toMatch(/^(transparent|rgba\(0, 0, 0, 0\))$/);
+    expect(stage["background-image"]).toMatch(/^radial-gradient\(/);
+    expect(stage["animation-name"]).toBe("none");
+    expect((await styleOf(page, ".editor-area", ["background-image"]))["background-image"]).toBe("none");
+    // 16 px of --surface right of and below the boards, 16 px between them, equal widths, sharing
+    // their top and bottom edges; the code and its console sit 1 px inside the code board's edge.
+    const [center, area, panel, chart] = [await boxOf(page, ".center"), await boxOf(page, ".editor-area"), await boxOf(page, ".center > .panel"), await boxOf(page, "#chart-board")];
+    expect(Math.round(center.right - chart.right)).toBe(16);
+    expect(Math.round(center.bottom - chart.bottom)).toBe(16);
+    expect(Math.round(center.bottom - panel.bottom)).toBe(17);
+    expect(Math.round(chart.left - (area.right + 1))).toBe(16);
+    expect(Math.round(area.left - center.left)).toBe(1);
+    expect(Math.round(area.top - center.top)).toBe(1);
+    expect(Math.round(chart.top - center.top)).toBe(0);
+    expect(Math.round(panel.top - area.bottom), "the 8 px splitter between the code and its console").toBe(8);
+    expect(Math.abs(chart.width - (area.width + 2)), "two equal boards").toBeLessThan(1);
 
     // The editor head sits on the code's ground with a --border line under it.
     expect(await styleOf(page, ".editor-head", ["background-color", "border-bottom"])).toEqual({ "background-color": rgbOf(p.bg), "border-bottom": edge });
@@ -280,14 +294,15 @@ for (const scheme of SCHEMES) {
     await page.keyboard.press("ArrowLeft");
     await expect(splitter).toHaveAttribute("aria-valuenow", String(width));
 
-    // The console hidden to its head docks under a full-width code card, a card of its own.
+    // The console hidden to its head still docks at the code board's foot, the chart board beside it.
     await page.locator(".panel-toggle").click();
     await expect(page.locator(".center")).toHaveAttribute("data-panel", "collapsed");
-    expect(await styleOf(page, ".center > .panel", ["border-top-left-radius", "border-bottom-left-radius", "border-bottom"])).toEqual({ "border-top-left-radius": "12px", "border-bottom-left-radius": "12px", "border-bottom": panelEdge });
-    const [collapsed, wide] = [await boxOf(page, ".center > .panel"), await boxOf(page, ".editor-area")];
-    expect(Math.round(center.bottom - collapsed.bottom)).toBe(10);
-    expect(Math.round(collapsed.top - wide.bottom), "the gutter above it").toBe(8);
-    expect(Math.round(center.right - wide.right), "the code card takes the width").toBe(10);
+    expect(await styleOf(page, ".center > .panel", ["border-bottom-left-radius", "border-bottom-right-radius"])).toEqual({ "border-bottom-left-radius": "15px", "border-bottom-right-radius": "15px" });
+    const [collapsed, code, still] = [await boxOf(page, ".center > .panel"), await boxOf(page, ".editor-area"), await boxOf(page, "#chart-board")];
+    expect(Math.round(center.bottom - collapsed.bottom)).toBe(17);
+    expect(Math.round(collapsed.top - code.bottom), "the splitter's row above it").toBe(8);
+    expect(Math.round(code.right), "the code keeps its board's width").toBe(Math.round(area.right));
+    expect(Math.round(still.left)).toBe(Math.round(chart.left));
   });
 }
 

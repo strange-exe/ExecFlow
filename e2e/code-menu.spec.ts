@@ -656,7 +656,9 @@ test.describe("C20 with a touch screen (Chromium)", () => {
 });
 
 test("C21: near the bottom-right corner the menu flips; it fits small windows and scrolls there", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // 1000 px: the code runs to the window's right edge (from 1100 px the chart's board is right of it).
+  const win = { width: 1000, height: 900 };
+  await page.setViewportSize(win);
   await page.goto("/");
   await page.evaluate(() => localStorage.setItem("codeeditor:settings", JSON.stringify({ lineWrapping: true })));
   const text = Array.from({ length: 80 }, (_, i) => `line_${i} = "${"x".repeat(300)}"`).join("\n") + "\n";
@@ -674,8 +676,8 @@ test("C21: near the bottom-right corner the menu flips; it fits small windows an
   const m = await box(menu);
   expect(m.x).toBeGreaterThanOrEqual(4);
   expect(m.y).toBeGreaterThanOrEqual(4);
-  expect(m.x + m.width).toBeLessThanOrEqual(1440 - 4);
-  expect(m.y + m.height).toBeLessThanOrEqual(900 - 4);
+  expect(m.x + m.width).toBeLessThanOrEqual(win.width - 4);
+  expect(m.y + m.height).toBeLessThanOrEqual(win.height - 4);
   expect(m.y + m.height, "flipped above the pointer").toBeLessThanOrEqual(p.y + 0.5);
   expect(m.x + m.width, "flipped left of the pointer").toBeLessThanOrEqual(p.x + 0.5);
   await page.keyboard.press("Escape");

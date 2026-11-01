@@ -98,9 +98,12 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   const exportButton = h("button", { type: "button", class: "fc-tool", id: "fc-export", title: "Export the flowchart" }, icon("download-simple"), h("span", { class: "fc-tool-words" }, "Export"));
   // One bar (Workbench Pro, item 6): the function, then zoom (out, in, Fit), then the chart's
   // other views and outputs at the end. The Output tab's tool row is hidden on this tab (app.css).
+  // On the chart board (Flow Board, 1100 px and wider) the bar starts with the board's name, where
+  // the console's tab named it before; elsewhere a tab or the dialog names the view (flowchart.css).
   const toolbar = h(
     "div",
     { class: "fc-toolbar" },
+    h("h2", { class: "fc-title" }, "Flowchart"),
     h("div", { class: "fc-group fc-pick" }, pickerLabel, picker),
     h("div", { class: "fc-group", role: "group", "aria-label": "Zoom" }, zoomOut, zoomIn, fitButton),
     // At the bar's end; on a very narrow bar (a 320 px phone) these three wrap together to a second row.

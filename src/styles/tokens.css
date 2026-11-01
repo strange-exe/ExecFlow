@@ -389,6 +389,16 @@
 :root[data-palette], :root[data-theme="dark"] { --status-edge: inset 0 1px 0 var(--divider); }
 :root[data-palette="signal"]:not([data-theme="dark"]) { --status-edge: inset 0 2px 0 var(--location); }
 
+/* Flow Board: the boards' one soft shadow (the theme's own ink at 6 percent: Signal's is
+   rgb(22 25 29 / 0.06)), in light themes only; dark ones draw none, as with --shadow-pop. Static:
+   nothing over it moves, so typing never repaints it. */
+:root {
+  --shadow-board: 0 4px 16px color-mix(in srgb, var(--text) 6%, transparent);
+}
+:root[data-theme="dark"] {
+  --shadow-board: none;
+}
+
 /* The editor's gutter-edge focus bar (editor/highlight.ts). A full-height bar in the focus colour
    outranked the code (plan-v2 P2, decision P-5): in Deep Field dark the brass, and in the palette
    themes, whose focus colour is the text colour, it was the strongest line on screen (GitHub-style
@@ -417,6 +427,17 @@
 :root {
   /* ---- derived (src/theme/contrast.ts UI_MIXES; script-checked as drawn over each surface) ---- */
   --hover: color-mix(in srgb, var(--text) 7%, transparent);
+  /* Flow Board (redesign 7): the chart board's ground over the board, its dot grid over the ground
+     (decoration), and the code line linked to the chosen chart node over the code. */
+  --ground: color-mix(in srgb, var(--surface) 40%, transparent);
+  --dot: color-mix(in srgb, var(--border-strong) 30%, transparent);
+  --line-here: color-mix(in srgb, var(--action) 8%, transparent);
+  /* ---- Flow Board surfaces (redesign7/a/tokens.md): roles given to the contract's grounds, so
+     every theme has them. The canvas is the desk the boards sit on (the top row floats on it), a
+     board holds the code or the chart, raised is a cluster floating over a board. ---- */
+  --canvas: var(--surface);
+  --board: var(--bg);
+  --raised: var(--surface-raised);
 
   /* ---- type: Geist for the interface, JetBrains Mono for code, the log and file names ---- */
   --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -470,6 +491,8 @@
      it and below it (off the 4 px scale on purpose: the approved preview's 10 px). */
   --r-sheet: 12px;
   --sheet-gap: 10px;
+  /* Flow Board (1100 px and wider): the code board and the chart board, 16 px corners. */
+  --r-board: 16px;
   --ring: 2px solid var(--focus);
   --h-topbar: 40px;
   --h-head: 40px;

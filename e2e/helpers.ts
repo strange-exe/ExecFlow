@@ -468,6 +468,19 @@ export async function openThemePicker(page: Page) {
 /** Below 900 px the layout is the phone one (drawer, view switch, no tab strip). */
 export const isNarrow = (page: Page) => (page.viewportSize()?.width ?? 1280) < 900;
 
+/** From 1100 px the chart has a board of its own beside the code (Flow Board), not a console tab. */
+export const chartOnBoard = (page: Page) => (page.viewportSize()?.width ?? 1280) >= 1100;
+
+/**
+ * Shows the flowchart: from 1100 px it is on its own board whenever a file is open (nothing to
+ * press: the board is checked to be there); from 900 px the console's Flowchart tab; on phones the
+ * Flowchart view.
+ */
+export async function showChart(page: Page) {
+  if (chartOnBoard(page)) await expect(page.locator("#chart-board")).toBeVisible();
+  else await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
+}
+
 /**
  * The file is the active one: the editor is labelled with its path and shown, and its tab is the
  * selected one. Below 900 px there is no tab strip (files switch in the drawer), so there the tab

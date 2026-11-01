@@ -610,43 +610,38 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(side).toHaveAttribute("aria-valuenow", "264");
   await page.keyboard.press("Home");
   await expect(side).toHaveAttribute("aria-valuenow", "200");
-  // Two splitters size the console: the y-axis one while it is docked under the code (its head
-  // only, or below 1100 px), the x-axis one beside the code; only the one in use is shown.
+  // One splitter sizes the console, the y-axis one: it sits under the code at every width (Flow
+  // Board: from 1100 px the chart's board, not the console, is beside the code).
   const rows = page.locator('[role=separator][aria-orientation="horizontal"]');
   const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
+  await expect(cols).toHaveCount(0);
   await expect(rows).toHaveAccessibleName("Resize the output panel");
-  await expect(cols).toBeHidden();
-  await expect(cols).toHaveAttribute("aria-label", "Resize the output panel");
   await rows.focus();
   // Nothing has run, so the console is its head: the first key only opens it, to the size the
-  // splitter names (review B, 2026-10-18: one key did both). At 1440 px it opens beside the code.
+  // splitter names (review B, 2026-10-18: one key did both).
   await expect(rows).toHaveAttribute("aria-valuetext", /^Collapsed/);
-  await expect(cols).toHaveAttribute("aria-valuetext", /^Collapsed/);
   await page.keyboard.press("ArrowUp");
   await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
-  await expect(rows).toBeHidden();
-  await expect(cols).toHaveAttribute("aria-valuenow", "46");
-  await cols.focus();
-  await page.keyboard.press("ArrowLeft");
-  await expect(cols).toHaveAttribute("aria-valuenow", "48");
+  await expect(rows).toHaveAttribute("aria-valuenow", "35");
+  await page.keyboard.press("ArrowUp");
+  await expect(rows).toHaveAttribute("aria-valuenow", "40");
   await page.reload();
   await waitReady(page);
   await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "200");
-  await expect(cols).toHaveAttribute("aria-valuenow", "48");
+  await expect(rows).toHaveAttribute("aria-valuenow", "40");
   const width = await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width);
   expect(Math.round(width)).toBe(200);
-  // Under 1100 px the y-axis splitter sizes the docked console, and keeps its own size.
+  // Under 1100 px the same splitter and the same remembered size.
   await page.setViewportSize({ width: 1000, height: 800 });
-  await expect(rows).toHaveAttribute("aria-valuenow", "35");
+  await expect(rows).toHaveAttribute("aria-valuenow", "40");
   await rows.focus();
   await page.keyboard.press("ArrowUp");
   await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
   await page.keyboard.press("ArrowUp");
-  await expect(rows).toHaveAttribute("aria-valuenow", "40");
+  await expect(rows).toHaveAttribute("aria-valuenow", "45");
   await page.reload();
   await waitReady(page);
-  await expect(rows).toHaveAttribute("aria-valuenow", "40");
-  await expect(cols).toHaveAttribute("aria-valuenow", "48");
+  await expect(rows).toHaveAttribute("aria-valuenow", "45");
 });
 
 // A phone-wide window allows the file list 200 px at most; its refresh used to overwrite the
@@ -688,21 +683,20 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await page.setViewportSize({ width: 1440, height: 900 });
   await openApp(page);
   await withAFile(page);
-  // At 1440 px the console sits beside the code: Maximise widens it, with the x-axis splitter.
-  const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
+  // The console sits under the code at every width (Flow Board): Maximise makes it taller, with the
+  // y-axis splitter, at 1440 px and under 1100 px alike.
   const rows = page.locator('[role=separator][aria-orientation="horizontal"]');
   const maximise = page.getByRole("button", { name: "Maximise the panel" });
   await expect(maximise).toHaveAttribute("aria-pressed", "false");
-  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  await expect(rows).toHaveAttribute("aria-valuenow", "35");
   await maximise.click();
-  await expect(cols).toHaveAttribute("aria-valuenow", "80");
+  await expect(rows).toHaveAttribute("aria-valuenow", "80");
   await expect(maximise).toHaveAttribute("aria-pressed", "true");
   // Maximising a collapsed panel opens it.
   await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "true");
   await maximise.click();
-  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  await expect(rows).toHaveAttribute("aria-valuenow", "35");
   await expect(maximise).toHaveAttribute("aria-pressed", "false");
-  // Under 1100 px it makes the docked console taller, with the y-axis one.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(rows).toHaveAttribute("aria-valuenow", "35");
   await maximise.click();
@@ -710,7 +704,6 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await expect(maximise).toHaveAttribute("aria-pressed", "true");
   await maximise.click();
   await expect(rows).toHaveAttribute("aria-valuenow", "35");
-  await expect(cols).toHaveAttribute("aria-valuenow", "46");
   await page.setViewportSize({ width: 1440, height: 900 });
   const side = page.getByRole("separator", { name: "Resize the file list" });
   await expect(side).toHaveAttribute("aria-valuenow", "248");

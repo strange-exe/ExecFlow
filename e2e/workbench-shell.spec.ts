@@ -1,5 +1,6 @@
 // Workbench Pro, stage S2 "Shell" (.claude/design/redesign5/a/design.md, "Layout changes against
-// today" items 1-8): the console card beside the code from 1100 px with an x-axis splitter, the
+// today" items 1-8), with Flow Board's change from 1100 px (redesign 7, S1: the code board, the code
+// over its console, beside the chart board, in place of the console beside the code), the
 // activity rail, the breadcrumb top bar that hides Capture and the runtime state with no file and
 // shows Run disabled, the empty workspace's one primary action over a ruled list, and the phone's
 // bottom view bar. Every keyboard path is driven with the keyboard.
@@ -11,8 +12,10 @@ test.setTimeout(90_000);
 
 const box = async (page: Page, sel: string) => (await page.locator(sel).boundingBox())!;
 const FAILS = [{ name: "main.py", text: "print(1)\nprint(1 / 0)\n" }];
-/** The console's x-axis splitter (the y-axis one is the other `separator` controlling the panel). */
+/** An x-axis splitter in the work area: Workbench Pro's, beside the code; Flow Board has none. */
 const xSplit = (page: Page) => page.locator('.center > [role=separator][aria-orientation="vertical"]');
+/** The console's y-axis splitter (under the code at every desktop width since Flow Board). */
+const ySplit = (page: Page) => page.locator('.center > [role=separator][aria-orientation="horizontal"]');
 
 async function withRun(page: Page) {
   await openApp(page);
@@ -36,57 +39,62 @@ const actionColour = (page: Page) =>
 test.describe("desktop", () => {
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1440, height: 900 }));
 
-  test("from 1100 px the console card sits beside the code, and its x-axis splitter resizes it from the keyboard and remembers the share", async ({ page }) => {
+  test("from 1100 px the code board (the code over its console) and the chart board stand side by side, equal; the console's y-axis splitter resizes it from the keyboard and remembers the size", async ({ page }) => {
     await withRun(page);
-    const split = xSplit(page);
+    // Flow Board (redesign 7, S1): no x-axis splitter; the console docks under the code, as under 1100 px.
+    await expect(xSplit(page)).toHaveCount(0);
+    const split = ySplit(page);
     await expect(split).toBeVisible();
     await expect(split).toHaveAttribute("aria-controls", "panel");
     await expect(split).toHaveAccessibleName("Resize the output panel");
-    // The y-axis splitter of the stacked layout is out of reach here (not shown, so not a Tab stop).
-    await expect(page.locator('.center > [role=separator][aria-orientation="horizontal"]')).toBeHidden();
     const code = await box(page, "#editor-area");
     const con = await box(page, "#panel");
-    expect(con.x, "the console is right of the code").toBeGreaterThan(code.x + code.width);
-    expect(Math.abs(con.y - code.y), "the two cards share a top edge").toBeLessThan(2);
-    expect(con.height, "the console runs the work area's full height").toBeGreaterThan(code.height - 2);
-    // The value is the console's share of the width, in percent, between its min and max.
+    const chart = await box(page, "#chart-board");
+    expect(con.y, "the console is under the code").toBeGreaterThanOrEqual(code.y + code.height);
+    expect(Math.abs(con.x - code.x), "one column").toBeLessThan(2);
+    expect(chart.x, "the chart board is right of the code board").toBeGreaterThan(code.x + code.width + 8);
+    // The code board's edge lies 1 px outside its parts (they sit inside its hairline).
+    expect(Math.abs(chart.y - (code.y - 1)), "the boards share a top edge").toBeLessThan(2);
+    expect(Math.abs(chart.y + chart.height - (con.y + con.height + 1)), "and a bottom edge").toBeLessThan(2);
+    expect(Math.abs(chart.width - (code.width + 2)), "two equal boards").toBeLessThan(2);
+    // The value is the console's share of the height, in percent, between its min and max.
     const value = async () => Number(await split.getAttribute("aria-valuenow"));
-    expect(await split.getAttribute("aria-valuemin")).toBe("20");
+    expect(await split.getAttribute("aria-valuemin")).toBe("15");
     expect(await split.getAttribute("aria-valuemax")).toBe("80");
     const start = await value();
-    expect(start).toBe(46);
-    // ArrowLeft moves the bar left: the console grows; ArrowRight gives the width back.
+    expect(start).toBe(35);
+    // ArrowUp moves the bar up: the console grows; ArrowDown gives the height back.
     await split.focus();
-    await page.keyboard.press("ArrowLeft");
-    expect(await value()).toBe(start + 2);
-    expect((await box(page, "#panel")).width, "the console is wider").toBeGreaterThan(con.width + 10);
-    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowUp");
+    expect(await value()).toBe(start + 5);
+    expect((await box(page, "#panel")).height, "the console is taller").toBeGreaterThan(con.height + 10);
+    await page.keyboard.press("ArrowDown");
     expect(await value()).toBe(start);
-    await page.keyboard.press("Shift+ArrowLeft");
-    expect(await value(), "Shift takes four steps").toBe(start + 8);
     await page.keyboard.press("Home");
-    expect(await value()).toBe(20);
+    expect(await value()).toBe(15);
     await page.keyboard.press("End");
     expect(await value()).toBe(80);
     await page.keyboard.press("Enter");
-    expect(await value(), "Enter restores the default").toBe(46);
-    await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("ArrowLeft");
-    // The share is kept on this device.
+    expect(await value(), "Enter restores the default").toBe(35);
+    await page.keyboard.press("ArrowUp");
+    // The size is kept on this device.
     await reloadApp(page);
     await openFromTree(page, "main.py");
     await page.locator("#ptab-output").click();
-    await expect(xSplit(page)).toHaveAttribute("aria-valuenow", "50");
+    await expect(ySplit(page)).toHaveAttribute("aria-valuenow", "40");
   });
 
-  test("under 1100 px the console docks under the code again, with the y-axis splitter", async ({ page }) => {
+  test("under 1100 px the console docks under the code with the y-axis splitter, the chart board goes and the chart is the console's tab again", async ({ page }) => {
     await withRun(page);
     await page.setViewportSize({ width: 1000, height: 800 });
-    await expect(xSplit(page)).toBeHidden();
-    await expect(page.locator('.center > [role=separator][aria-orientation="horizontal"]')).toBeVisible();
+    await expect(xSplit(page)).toHaveCount(0);
+    await expect(ySplit(page)).toBeVisible();
     const code = await box(page, "#editor-area");
     const con = await box(page, "#panel");
     expect(con.y, "the console is under the code").toBeGreaterThanOrEqual(code.y + code.height);
+    await expect(page.locator("#chart-board")).toBeHidden();
+    await expect(page.locator("#ptab-flowchart")).toBeVisible();
+    await expect(page.locator("#panel > #panel-flowchart")).toHaveAttribute("role", "tabpanel");
   });
 
   test("the activity rail holds Files, Search, Flowchart and New file, with Shortcuts and Settings at its foot; Files hides and shows the file list", async ({ page }) => {

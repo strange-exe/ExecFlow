@@ -38,6 +38,20 @@ const cachedUrls = (page: Page) =>
 /** The runtime's files, as python-download.ts RUNTIME_FILES lists them. */
 const RUNTIME = ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json"];
 
+/**
+ * Flow Board shows the chart beside the code from 1100 px whenever a file is open, so a page opened
+ * offline asks for the flowchart's tools, which no visit here has kept (the first visit wasn't
+ * controlled by the service worker). The board then shows its own "Couldn't load" state with Retry
+ * (the last test); these are those requests' failures, each engine's words, for /flowchart/ only.
+ */
+const FLOWCHART_OFFLINE = [
+  /^request failed: http:\/\/127\.0\.0\.1:\d+\/flowchart\/[^ ]+\.wasm /,
+  /^no-response: no-response :: \[\{"url":"http:\/\/127\.0\.0\.1:\d+\/flowchart\/[^"]+\.wasm","error":\{\}\}\]$/,
+  /^Failed to load resource: FetchEvent\.respondWith received an error: no-response: no-response :: \[\{"url":"http:\/\/127\.0\.0\.1:\d+\/flowchart\//,
+  /^Fetch API cannot load http:\/\/127\.0\.0\.1:\d+\/flowchart\/[^ ]+\.wasm\.$/,
+];
+test.use(tolerating(...FLOWCHART_OFFLINE));
+
 // Python downloads on its first use, not on a first visit (the owner's "On first use", 2026-10-30).
 test("a first visit keeps the app for offline use, and no part of Python", async ({ page }) => {
   await openApp(page);
@@ -82,6 +96,7 @@ test.describe("offline before Python's first use", () => {
       // The offline check's own request (Chromium's console line; WebKit's page error, split at "http:/").
       /^Failed to load resource: net::ERR_FAILED$/,
       /offline-probe-0-py3-none-any\.whl\.?$/,
+      ...FLOWCHART_OFFLINE,
     ),
   );
 
@@ -213,6 +228,7 @@ test.describe("a package never downloaded, first imported offline", () => {
       // The offline check's own request (Chromium's console line; WebKit's page error, split at "http:/").
       /^Failed to load resource: net::ERR_FAILED$/,
       /offline-probe-0-py3-none-any\.whl\.?$/,
+      ...FLOWCHART_OFFLINE,
     ),
   );
 
@@ -254,5 +270,20 @@ test("an installed C/C++ pack keeps working offline", async ({ page, context }) 
   const r = await run(page, { timeout: 150_000 });
   expect(r.status, r.output).toBe("ok");
   expect(r.output).toContain("offline hi");
+  // Flow Board (1100 px and wider): the chart board, shown with the file, can't fetch its tools
+  // offline and says so with Retry; online again, Retry draws the chart. (Firefox's own HTTP cache
+  // still answers the tools offline here, so there the chart is simply drawn.)
+  if ((page.viewportSize()?.width ?? 1280) >= 1100) {
+    const chart = page.locator("#chart-board .fc-view");
+    await expect(chart).toHaveAttribute("data-state", /^(failed|ready)$/, { timeout: 30_000 });
+    const state = await chart.getAttribute("data-state");
+    test.info().annotations.push({ type: "offline chart", description: state === "ready" ? "drawn from the browser's cache" : "failed, with Retry" });
+    if (state === "failed") {
+      await expect(page.locator("#chart-board")).toContainText("Check the connection");
+      await context.setOffline(false);
+      await page.locator("#fc-retry").click();
+      await expect(chart).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+    }
+  }
   await context.setOffline(false);
 });

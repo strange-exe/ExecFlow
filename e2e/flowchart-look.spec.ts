@@ -8,7 +8,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { expect, hierarchyShots, importFiles, isNarrow, openFromTree, openIn, test, tolerating, waitReady } from "./helpers";
+import { expect, hierarchyShots, importFiles, isNarrow, openFromTree, openIn, showChart, test, tolerating, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -58,7 +58,7 @@ async function start(page: Page, scheme: "light" | "dark", files: { name: string
   await waitReady(page);
   await importFiles(page, files);
   await openFromTree(page, open);
-  await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
+  await showChart(page);
 }
 
 const view = (page: Page) => page.locator(".fc-view");

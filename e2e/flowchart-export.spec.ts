@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { BRAND_MARK, tileColorAt } from "../src/editor/brand-mark";
 import { FOOTER, FOOTER_TEXT, mixHex, printColors } from "../src/flowchart/export";
 import { CHART_TINT } from "../src/flowchart/render";
-import { expect, importFiles, isNarrow, openFromTree, openIn, test, waitReady } from "./helpers";
+import { expect, importFiles, openFromTree, openIn, showChart, test, waitReady } from "./helpers";
 import { decodeRgba, inkOf, off, pngInfo, type RgbaPixels } from "./snippet-helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -57,7 +57,7 @@ async function start(page: Page, scheme: "light" | "dark", files: { name: string
   await waitReady(page);
   await importFiles(page, files);
   await openFromTree(page, open);
-  await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
+  await showChart(page);
   await expect(view(page)).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
 }
 
@@ -215,8 +215,9 @@ test.describe("Flowchart export", () => {
         const s = getComputedStyle(v);
         return { bg: s.getPropertyValue("--bg").trim().toLowerCase(), text: s.getPropertyValue("--text").trim().toLowerCase() };
       });
-      // The scheme is really active: the page's ground is dark in dark, light in light. (The chart sits
-      // on the console, which Signal keeps dark in both schemes, so "Match the editor" matches that.)
+      // The scheme is really active: the page's ground is dark in dark, light in light. (From 1100 px
+      // the chart sits on its own board, in the theme's own tokens; under 1100 px on the console, which
+      // Signal keeps dark in both schemes. "Match the editor" matches the view's tokens either way.)
       const pageBg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim().toLowerCase());
       const lum = parseInt(pageBg.slice(1, 3), 16);
       expect(scheme === "dark" ? lum < 64 : lum > 192, `the ${scheme} page ground ${pageBg}`).toBe(true);
@@ -238,7 +239,9 @@ test.describe("Flowchart export", () => {
       await match.download.saveAs(join(dir, `match-${scheme}-${match.file}`));
       const svg = await download(page, "Download SVG");
       const xml = svg.bytes.toString("utf8");
-      expect(xml).toContain(`fill="${theme.bg}"`);
+      // The export writes six-digit hex; a token may be written short (Signal light's --bg is #fff).
+      const long = theme.bg.replace(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/, "#$1$1$2$2$3$3");
+      expect(xml).toContain(`fill="${long}"`);
       expect((await svgProblems(page, xml)).problems).toEqual([]);
       await svg.download.saveAs(join(dir, `match-${scheme}-${svg.file}`));
 

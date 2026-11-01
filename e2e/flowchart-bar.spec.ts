@@ -4,7 +4,7 @@
 // Export and Full screen in one row, the shapes keeping their colours, a legend naming the shapes
 // the chart uses, and the Output tab's tool row (Input, Restart Python, Clear) hidden on this tab.
 import type { Locator, Page } from "@playwright/test";
-import { expect, importFiles, isNarrow, openFromTree, openIn, test, waitReady } from "./helpers";
+import { chartOnBoard, expect, importFiles, isNarrow, openFromTree, openIn, showChart, test, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -44,7 +44,7 @@ async function chartFor(page: Page, files: { name: string; text: string }[], ope
   await waitReady(page);
   await importFiles(page, files);
   await openFromTree(page, open);
-  await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
+  await showChart(page);
   await expect(view(page)).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
 }
 
@@ -99,8 +99,10 @@ for (const vp of [
       const least = isNarrow(page) ? 44 : 24;
       for (const r of controls) expect(Math.min(r.width, r.height)).toBeGreaterThanOrEqual(least - 0.5);
       // The bar is the only tool row on this tab: Input, Restart Python and Clear are the Output tab's.
+      // From 1100 px the chart has a board of its own and the console keeps its Output tab's row.
       await expect(bar(page)).toBeVisible();
-      await expect(page.locator("#panel .panel-actions")).toBeHidden();
+      if (chartOnBoard(page)) await expect(page.locator("#panel .panel-actions")).toBeVisible();
+      else await expect(page.locator("#panel .panel-actions")).toBeHidden();
       // Nothing of the bar is cut off, and the page never scrolls sideways.
       const b = (await bar(page).boundingBox())!;
       for (const r of controls) expect(r.right, "inside the bar").toBeLessThanOrEqual(b.x + b.width + 0.5);
@@ -213,8 +215,10 @@ test.describe("legend and colours", () => {
 });
 
 test.describe("the Output tab's tool row", () => {
+  // Under 1100 px the chart is the console's third tab (1000) or a view of its own (390); from 1100 px
+  // it has a board of its own (the next test).
   for (const vp of [
-    { width: 1440, height: 900 },
+    { width: 1000, height: 800 },
     { width: 390, height: 844 },
   ]) {
     test(`${vp.width} px: Input, Restart Python and Clear hide on the Flowchart tab and come back on Output`, async ({ page }) => {
@@ -226,6 +230,13 @@ test.describe("the Output tab's tool row", () => {
       await expect(bar(page)).toBeHidden();
     });
   }
+
+  test("1440 px (Flow Board): the chart's bar on its board and the console's Input, Restart Python and Clear both show", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await chartFor(page, [{ name: "main.py", text: "n = int(input())\nprint(n * 2)\n" }], "main.py");
+    await expect(page.locator("#chart-board .fc-toolbar")).toBeVisible();
+    for (const id of ["#input-toggle", "#restart-python", "#clear-output"]) await expect(page.locator(`#panel ${id}`), id).toBeVisible();
+  });
 });
 
 test.describe("phones", () => {

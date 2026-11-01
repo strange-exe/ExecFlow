@@ -154,6 +154,15 @@ export function deltaE(x: string, y: string): number {
  */
 export const UI_MIXES = {
   hover: { top: "text", pct: 7 },
+  // Flow Board (redesign 7, S1): the chart board's pannable ground, the chrome's tone at 40 percent
+  // over the board (Signal: #f7f8fa light, #111418 dark; tokens.md's #f7f8fa and #111419).
+  ground: { top: "surface", pct: 40 },
+  // Its dot grid: decoration only (no pair below), the control edge at 30 percent over the ground
+  // (Signal: #d2d5da light, #2d3239 dark; tokens.md's #cfd4db and #252a31).
+  dot: { top: "border-strong", pct: 30 },
+  // The code line linked to the chosen chart node: a tint of the action hue over the code (Signal:
+  // #eef2fd light, #1d232f dark; tokens.md's #eef2fd and #1c2433). Declared in S1, drawn from S4.
+  "line-here": { top: "action", pct: 8 },
 } as const satisfies Record<string, { top: ColorVar; pct: number }>;
 export type UiMix = keyof typeof UI_MIXES;
 
@@ -424,8 +433,10 @@ function image(): Pair[] {
  * (fg, bg, min) with another `use` (danger on bg at 3:1 and text on surface-raised, both from v1;
  * text-muted on surface-raised from the suggestion list; text-secondary on hover@surface for the
  * window bar), so 196 checks are unique; the `use` text records another place the pair is drawn.
+ * The flowchart's rows and Flow Board's (S1: the chart board's ground, the linked code line) follow:
+ * 235 rows in all, 226 unique.
  */
-export const PAIRS: readonly Pair[] = [...ported(), ...added(), ...image(), ...chart()];
+export const PAIRS: readonly Pair[] = [...ported(), ...added(), ...image(), ...chart(), ...board()];
 
 /**
  * The flowchart (0.7.0 colours, src/flowchart/render.ts; its ground is --bg): box text on each
@@ -442,6 +453,32 @@ function chart(): Pair[] {
   add("text-secondary", "bg", UI, "flowchart connector");
   add("success", "bg", UI, "flowchart Yes connector");
   add("danger", "bg", UI, "flowchart No connector");
+  return list;
+}
+
+/**
+ * Flow Board (redesign 7, S1; .claude/design/redesign7/a/tokens.md): the canvas, the boards and the
+ * floating clusters are aliases of surface, bg and surface-raised, so their pairs are the rows above.
+ * New grounds: the chart board's ground (from 1100 px the chart's shapes, connectors, Yes and No and
+ * the rings are drawn on it) and the code line linked to the chosen chart node (line-here). The dot
+ * grid is decoration and has no row.
+ */
+function board(): Pair[] {
+  const list: Pair[] = [];
+  const add = (fg: ColorVar, bg: Ref, min: number, use: string) => list.push({ fg, bg, min, use });
+  add("text", "ground@bg", TEXT, "text on the chart board's ground");
+  add("text-secondary", "ground@bg", UI, "flowchart connector on the chart board's ground");
+  add("success", "ground@bg", TEXT, "Yes label and connector, start and end outline on the chart board's ground");
+  add("danger", "ground@bg", TEXT, "No label and connector on the chart board's ground");
+  for (const hue of ["warning", "info", "action"] as const) add(hue, "ground@bg", UI, `flowchart ${hue} shape outline on the chart board's ground`);
+  add("border-strong", "ground@bg", UI, "step box outline on the chart board's ground");
+  add("focus", "ground@bg", UI, "focus ring around a chart node");
+  add("location", "ground@bg", UI, "the caret's node ring on the chart board's ground");
+  for (const t of SYNTAX_VARS) add(t, "line-here@bg", TEXT, `${t} on the code line linked to the chosen chart node`);
+  add("text", "line-here@bg", TEXT, "untokenised text on the linked code line");
+  add("gutter-text", "line-here@bg", TEXT, "line number on the linked code line");
+  add("location", "line-here@bg", UI, "the linked line's bar in the gutter");
+  add("focus", "line-here@bg", UI, "caret on the linked code line");
   return list;
 }
 

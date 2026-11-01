@@ -519,6 +519,32 @@ for (const scheme of ["light", "dark"] as const) {
   });
 }
 
+// Flow Board puts the chart's boxes in the desktop Tab path; their indicator is an SVG ring.
+for (const scheme of ["light", "dark"] as const) {
+  test(`a flowchart box's focus ring on the chart board (${scheme}): seen by the audit, 3:1, and its absence reported`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openThemed(page, scheme);
+    await importFiles(page, FILES);
+    await openFromTree(page, "main.py");
+    await expect(page.locator("#chart-board .fc-view")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+    // Reached from the bar's last control with Tab, so every engine draws :focus-visible.
+    await page.locator("#chart-board #fc-full").focus();
+    await page.keyboard.press("Tab");
+    const stop = await focusStop(page);
+    expect(stop.cls).toContain("fc-node");
+    expect(stop.bar, "the ring is painted").toMatch(/^ring /);
+    expect(stop.indicator).toBe(true);
+    expect(stop.ringContrast, "the ring against the stage's ground").toBeGreaterThanOrEqual(3);
+    // The audit is not vacuous: with the ring unpainted, the box's stop has no indicator.
+    const hide = await page.addStyleTag({ content: ".fc-node:focus-visible .fc-ring { stroke: none !important; }" });
+    const without = await focusStop(page);
+    expect(without.cls).toContain("fc-node");
+    expect(without.indicator, "a box without its ring is reported").toBe(false);
+    await hide.evaluate((el) => (el as Element).remove());
+    expect((await focusStop(page)).indicator).toBe(true);
+  });
+}
+
 /**
  * Forced colours (Windows High Contrast) replace every author background colour with a system
  * colour (Canvas behind the gutter), so a bar painted only as a background vanishes there, while a

@@ -486,10 +486,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 
 /* ------------------------------------------------------------------ center: the code card and the console card */
-/* Stacked (below 1100 px): the code over the console, the y-axis splitter between them. Beside
-   (1100 px and wider, the console open): code | x-axis splitter | console, in the splitter's share.
-   The console hidden to its head docks under the code at every width. Explicit rows and columns:
-   the splitter not in use is display:none, which would shift the rest. */
+/* The code over the console, the y-axis splitter between them; the console hidden to its head docks
+   under the code. From 1100 px (Flow Board) the two are the code board, and the chart board stands
+   beside them (below). Explicit rows: the splitter hidden is display:none, which would shift the rest. */
 .center {
   display: grid;
   grid-template-rows: minmax(0, var(--editor-rows, 65fr)) auto minmax(0, var(--panel-rows, 35fr));
@@ -511,21 +510,13 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 /* minmax(0, 1fr): a long tab name scrolls inside the tab strip instead of widening the page. */
 .editor-area { grid-row: 1; grid-column: 1; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
 .center > .splitter.horizontal { grid-row: 2; grid-column: 1; }
-.center > .splitter.vertical { display: none; }
 .center > .panel { grid-row: 3; grid-column: 1; }
 .editor-area > .banner { grid-row: 1; }
 .editor-area > .editor-head { grid-row: 2; }
 .editor-area > .editor-panel { grid-row: 3; }
 .editor-area > .editor-foot { grid-row: 4; }
-@media (min-width: 1100px) {
-  .center[data-panel="open"] {
-    grid-template-rows: minmax(0, 1fr);
-    grid-template-columns: minmax(0, var(--code-cols, 54fr)) auto minmax(0, var(--console-cols, 46fr));
-  }
-  .center[data-panel="open"] > .splitter.horizontal { display: none; }
-  .center[data-panel="open"] > .splitter.vertical { display: block; grid-row: 1; grid-column: 2; }
-  .center[data-panel="open"] > .panel { grid-row: 1; grid-column: 3; }
-}
+/* The chart board: from 1100 px only, while a file is open (the Flow Board block below). */
+.chart-board { display: none; }
 /* The code card's foot (900 px and wider): the language and Ln/Col, in the hint tier. */
 .editor-foot { display: none; }
 
@@ -874,6 +865,11 @@ a.text-btn { display: inline-flex; align-items: center; }
 @supports selector(:has(*)) {
   .console:focus-visible { outline: none; }
   .console-scroll:has(> .console:focus-visible) { outline: var(--ring); outline-offset: -2px; }
+  /* Before any output there is nothing to scroll to but the hint: a console squeezed short (Flow
+     Board's console under the code, with the Input box open) clips the hint rather than scrolling it,
+     so it is never a scroll region the keyboard can't reach (axe scrollable-region-focusable). The
+     log takes a tab stop with its first output, and the input line is a field of its own. */
+  .console-scroll:not(:has(> .console[tabindex], > .live-input:not([hidden]))) { overflow: hidden; }
 }
 .console-hint { margin: 0; padding: var(--s2) var(--s3); color: var(--text-muted); }
 .console { margin: 0; padding: var(--s2) var(--s3); color: var(--terminal-fg); font: var(--code-size)/1.5 var(--font-code); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1492,6 +1488,66 @@ input.switch {
   .editor-foot { display: flex; align-items: center; gap: var(--s4); min-height: 28px; padding: 0 var(--s3); border-top: 1px solid var(--divider); color: var(--text-secondary); font-size: var(--fs-hint); line-height: var(--lh-hint); }
   .workbench[data-open="false"] .editor-foot { display: none; }
   .editor-foot > #status-pos { margin-left: auto; }
+}
+
+/* ------------------------------------------------------------------ Flow Board: two boards on a canvas */
+/* From 1100 px (redesign 7, S1; .claude/design/redesign7/a/design.md): the work column's ground is
+   the canvas and the top bar floats on it (no ground of its own). The code card and its console
+   become one board, and the chart has a board of its own beside it (layout.ts moves #panel-flowchart
+   there), shown while a file is open: two equal columns, --s4 apart and from the canvas's edges.
+   Each board: --board, a 1 px --border hairline, --r-board corners and one soft shadow in light
+   themes (--shadow-board, none in dark ones). The code board is drawn once behind its parts (the
+   ::before, as the sheet's shadow was), so the console and the editor sit inside one edge; static,
+   so typing never repaints it. No blur, blend or animated background anywhere. */
+@media (min-width: 1100px) {
+  .main, .work, .center { background: var(--canvas); }
+  .topbar { padding-right: var(--s4); background: transparent; }
+  .center { column-gap: var(--s4); padding: 0 var(--s4) var(--s4) 0; }
+  .workbench[data-open="true"] .center { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .center::before {
+    grid-row: 1 / -1;
+    border: 1px solid var(--border);
+    border-radius: var(--r-board);
+    background: var(--board);
+    box-shadow: var(--shadow-board);
+  }
+  /* Inside the board's edge: the code at its top, the console at its foot, the 8 px splitter the
+     board's own ground between them. Each rounds its own outer corners (the code does not clip:
+     tooltips may reach past it). */
+  .editor-area, .center > .panel { margin: 0 1px; border: 0; border-radius: 0; }
+  .editor-area { margin-top: 1px; background: var(--board); border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
+  .center > .panel { margin-bottom: 1px; border-radius: 0 0 calc(var(--r-board) - 1px) calc(var(--r-board) - 1px); }
+  .editor-area > .banner, .editor-head { border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
+  .editor-head { background: var(--board); }
+  .editor-area > .editor-foot { border-radius: 0; }
+  .workbench[data-open="false"] .editor-panel, .workbench[data-open="false"] .editor-empty { border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
+  /* An empty workspace has no console: the code board is the editor alone, rounded all round. */
+  .workbench[data-files="none"] .editor-area { margin-bottom: 1px; }
+  .workbench[data-files="none"] :is(.editor-area, .editor-panel, .editor-empty) { border-radius: calc(var(--r-board) - 1px); }
+
+  /* The chart board: its bar, then the chart on the ground's dot grid (CSS dots, static, on the
+     chart's stage only, never over the code). */
+  .workbench[data-open="true"] .chart-board {
+    display: flex;
+    flex-direction: column;
+    grid-row: 1 / -1;
+    grid-column: 2;
+    min-width: 0;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--r-board);
+    background: var(--board);
+    box-shadow: var(--shadow-board);
+    overflow: clip;
+  }
+  .chart-board:focus-visible { outline: var(--ring); outline-offset: 2px; }
+  .chart-board > .panel-body { flex: 1 1 0; }
+  .chart-board .fc-view, .chart-board .fc-toolbar { background: var(--board); }
+  .chart-board .fc-stage {
+    background-color: var(--ground);
+    background-image: radial-gradient(var(--dot) 1px, transparent 1.5px);
+    background-size: var(--s4) var(--s4);
+  }
 }
 
 /* ------------------------------------------------------------------ touch */

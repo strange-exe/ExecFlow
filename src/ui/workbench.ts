@@ -21,8 +21,7 @@ import { icon } from "./icons";
 import { MOVE_PATH, moveRole } from "../core/move-protocol";
 import { downloadPicked, exportZip, pickFiles, workspaceZip } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
-import { createLayout, NARROW, WIDE } from "./layout";
-import type { Splitter } from "./splitter";
+import { createLayout, NARROW } from "./layout";
 import { closeMenus, menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
 import type { PaletteApi } from "./palette-model";
@@ -1626,12 +1625,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   restartButton.addEventListener("click", restartPython);
   clearButton.addEventListener("click", () => output.clear());
   // Maximise / restore the panel: resizing without dragging (WCAG 2.2 SC 2.5.7). Desktop only;
-  // below 900 px Output fills the screen anyway. It sizes the console with whichever splitter sizes
-  // it at this width (beside the code from 1100 px, under it below), each keeping its own restore size.
-  const restoreTo = new Map<Splitter, number>();
+  // below 900 px Output fills the screen anyway. It sizes the console under the code through its
+  // splitter, and restores the size it had.
+  const panelSize = L.splitters.panel;
+  let restoreTo: number | null = null;
   const maxButton = h("button", { type: "button", class: "icon-btn small panel-max", id: "panel-max", "aria-pressed": "false" });
   const renderMax = () => {
-    const panelSize = L.panelSplitter();
     const on = panelSize.value >= panelSize.max();
     maxButton.setAttribute("aria-pressed", String(on));
     maxButton.setAttribute("aria-label", "Maximise the panel");
@@ -1639,18 +1638,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     maxButton.replaceChildren(icon(on ? "corners-in" : "corners-out"));
   };
   maxButton.addEventListener("click", () => {
-    const panelSize = L.panelSplitter();
-    const back = restoreTo.get(panelSize) ?? panelSize.initial;
+    const back = restoreTo ?? panelSize.initial;
     if (panelSize.value >= panelSize.max()) panelSize.set(back < panelSize.max() ? back : panelSize.initial);
     else {
-      restoreTo.set(panelSize, panelSize.value);
+      restoreTo = panelSize.value;
       panelSize.set(panelSize.max());
     }
     L.expandPanel();
     renderMax();
   });
-  for (const split of [L.splitters.panel, L.splitters.console]) for (const type of ["keyup", "pointerup", "dblclick"]) split.element.addEventListener(type, renderMax);
-  matchMedia(WIDE).addEventListener("change", renderMax);
+  for (const type of ["keyup", "pointerup", "dblclick"]) panelSize.element.addEventListener(type, renderMax);
   renderMax();
   // Input (text given to the program first) opens its box above the log, so it shows Output; the
   // caret goes into the box it opened (it sat four Tab stops past the toggle: review B, 2026-10-18).
@@ -2221,15 +2218,17 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     );
   }
   L.paletteButton.addEventListener("click", () => openPalette("all", L.paletteButton));
-  // The sidebar's quick actions: the same palette, the Flowchart tab (its view on phones, where the
-  // drawer closes to show it), and a new file's name field in the tree.
+  // The sidebar's quick actions: the same palette, the flowchart (its board from 1100 px, the
+  // Flowchart tab under that, its view on phones, where the drawer closes to show it), and a new
+  // file's name field in the tree.
   L.quick.search.addEventListener("click", () => openPalette("all", L.quick.search));
   L.quick.flowchart.addEventListener("click", () => {
     if (L.narrow()) {
       L.closeDrawer(false);
       L.showView("flowchart");
       L.viewTabs.flowchart.focus();
-    } else L.showPanelTab("flowchart", true);
+    } else if (L.chartOnBoard() && root.dataset.open !== "true") notice.show("Open a C, C++ or Python file to see its flowchart.");
+    else L.showPanelTab("flowchart", true);
   });
   L.quick.newFile.addEventListener("click", () => startCreate("file"));
   for (const type of ["pointerover", "focusin"]) L.quick.search.addEventListener(type, () => prefetchPalette(), { once: true });

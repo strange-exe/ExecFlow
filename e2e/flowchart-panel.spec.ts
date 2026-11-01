@@ -6,8 +6,8 @@
 import type { Page } from "@playwright/test";
 import { expect, importFiles, openApp, openFromTree, test } from "./helpers";
 
-// Under 1100 px the console docks under the code (Workbench Pro), where this rule applies; beside
-// the code it runs the full height already (the last desktop test).
+// Under 1100 px the chart is the console's third tab, where this rule applies; from 1100 px it has a
+// board of its own (Flow Board) and no panel size changes (the last desktop test).
 test.use({ serviceWorkers: "block", viewport: { width: 1000, height: 900 } });
 test.setTimeout(90_000);
 
@@ -135,18 +135,16 @@ for (const height of [450, 560]) {
   });
 }
 
-test("beside the code (1100 px and wider) the Flowchart tab changes no size: the console runs the full height", async ({ page }) => {
+test("from 1100 px the chart has its own board (Flow Board): showing it changes no panel size", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await start(page);
   await open(page, "output");
-  const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
-  await expect(cols).toHaveAttribute("aria-valuenow", "46");
-  await open(page, "flowchart");
-  await expect(page.locator("#panel-flowchart")).toBeVisible();
-  await expect(cols).toHaveAttribute("aria-valuenow", "46");
+  await expect(splitter(page)).toHaveAttribute("aria-valuenow", "35");
+  // The board is beside the code board, the console's Flowchart tab hidden.
+  await expect(page.locator("#chart-board #panel-flowchart")).toBeVisible();
+  await expect(page.locator("#ptab-flowchart")).toBeHidden();
+  await expect(splitter(page)).toHaveAttribute("aria-valuenow", "35");
   expect(await remembered(page)).toBeNull();
-  const [code, con] = [(await page.locator("#editor-area").boundingBox())!, (await page.locator("#panel").boundingBox())!];
-  expect(Math.abs(con.height - code.height)).toBeLessThan(2);
 });
 
 test("phones: the Flowchart view changes no panel size", async ({ page }) => {

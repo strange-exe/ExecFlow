@@ -130,15 +130,23 @@ test.describe("desktop", () => {
     expect(await run.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^(transparent|rgba\(0, 0, 0, 0\))$/);
   });
 
-  test("the rail's actions: Search opens the palette, Flowchart opens its tab, New file starts a name in the tree", async ({ page }) => {
+  test("the rail's actions: Search opens the palette, Flowchart goes to the chart (its board from 1100 px, its tab under that), New file starts a name in the tree", async ({ page }) => {
     await withFiles(page);
     const quick = page.locator(".rail");
     await quick.getByRole("button", { name: /^Search/ }).click();
     await expect(page.locator("dialog#palette")).toBeVisible();
     await page.keyboard.press("Escape");
+    // 1440 px: the chart is on its own board; Flowchart takes the focus there.
+    await quick.getByRole("button", { name: /^Flowchart/ }).click();
+    await expect(page.getByRole("region", { name: "Flowchart" })).toBeFocused();
+    await expect(page.locator("#chart-board #panel-flowchart")).toBeVisible();
+    // Under 1100 px it opens the console's Flowchart tab, as before.
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await expect(page.locator("#panel #panel-flowchart")).toBeAttached();
     await quick.getByRole("button", { name: /^Flowchart/ }).click();
     await expect(page.locator("#ptab-flowchart")).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#panel-flowchart")).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
     await quick.getByRole("button", { name: /^New file/ }).click();
     await expect(page.locator(".tree-input")).toBeFocused();
     await page.keyboard.press("Escape");

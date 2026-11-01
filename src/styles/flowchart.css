@@ -22,6 +22,10 @@
   background: var(--bg);
 }
 .fc-toolbar[hidden] { display: none; }
+/* The board's name (Flow Board, 1100 px and wider): only on the chart board, where no tab names the
+   view; the console's tab and the full-screen dialog's name do elsewhere. */
+.fc-title { display: none; margin: 0 var(--s1) 0 0; color: var(--text); font-size: var(--fs-1); font-weight: var(--w-strong); line-height: var(--lh-1); white-space: nowrap; }
+.chart-board .fc-title { display: block; }
 .fc-group { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
 .fc-end { margin-left: auto; }
 .fc-label { color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); white-space: nowrap; }
@@ -64,6 +68,9 @@
    (its download glyph is familiar), then Steps as text's. Each keeps its name for screen readers. */
 @container fc-view (max-width: 599px) {
   .fc-label, #fc-export .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* The board's name goes first: the board is a region named "Flowchart" for screen readers already,
+     and a 1100 to 1500 px window's board (about 380 to 580 px) has no room for it beside the bar. */
+  .chart-board .fc-title { display: none; }
 }
 @container fc-view (max-width: 439px) {
   .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

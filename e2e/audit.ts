@@ -312,7 +312,7 @@ export interface FocusStop {
   rect: { x: number; y: number; w: number; h: number };
   outline: string;
   shadow: string;
-  /** The editor's gutter-edge focus bar (the ::after of .cm-gutters), when the editor has focus. */
+  /** The editor's gutter-edge focus bar (the ::after of .cm-gutters), when the editor has focus, or a flowchart box's ring. */
   bar: string;
   indicator: boolean;
   ringContrast: number | null;
@@ -404,6 +404,19 @@ export function focusStop(page: Page): Promise<FocusStop> {
         }
       }
     }
+    // A flowchart box's indicator is an SVG ring round the box (.fc-ring, flowchart.css), stroked in
+    // --focus on :focus-visible (Flow Board puts the chart in the Tab path at desktop widths). It counts
+    // when it is really painted: an opaque stroke at least 1 px wide on screen, measured against the
+    // stage's ground. Without it, the box's own outline is what counts.
+    if (el.classList.contains("fc-node") && !bar) {
+      const ringEl = el.querySelector(".fc-ring");
+      if (ringEl) {
+        const rs = getComputedStyle(ringEl);
+        const c = parse(rs.stroke);
+        const onScreen = (parseFloat(rs.strokeWidth) || 0) * ((el as unknown as SVGGraphicsElement).getScreenCTM?.()?.a ?? 1);
+        if (c && c[3] >= 1 && onScreen >= 1) bar = { c, on: bgOf(el.closest(".fc-stage")), text: `ring ${rs.strokeWidth} ${rs.stroke}` };
+      }
+    }
     const s = getComputedStyle(ind);
     const ow = s.outlineStyle !== "none" ? parseFloat(s.outlineWidth) || 0 : 0;
     const off = parseFloat(s.outlineOffset) || 0;
@@ -449,7 +462,7 @@ export function focusStop(page: Page): Promise<FocusStop> {
       else ringContrast = contrast(oc, inside);
     }
     return {
-      tag: el.tagName.toLowerCase(), id: el.id, cls: typeof el.className === "string" ? el.className : "", role: el.getAttribute("role") ?? "",
+      tag: el.tagName.toLowerCase(), id: el.id, cls: el.getAttribute("class") ?? "", role: el.getAttribute("role") ?? "",
       name: (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
       rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
       outline: `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor} offset ${s.outlineOffset}`, shadow, bar: bar?.text ?? "",

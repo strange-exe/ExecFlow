@@ -20,8 +20,6 @@ const RUNTIME = new Set([
   "--sidebar-w", // src/ui/layout.ts, the file list's width
   "--editor-rows", // src/ui/layout.ts, the editor's share of the centre column
   "--panel-rows", // src/ui/layout.ts, the panel's share
-  "--code-cols", // src/ui/layout.ts, the code card's share beside the console (1100 px and wider)
-  "--console-cols", // src/ui/layout.ts, the console card's share beside the code
   "--level", // src/ui/tree.ts, a tree row's depth
   "--tail", // src/ui/tree.ts, a conflict copy name's uncut end, in ch
   "--row-h", // app.css, declared on .tree-row

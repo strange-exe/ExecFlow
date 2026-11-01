@@ -4,9 +4,12 @@
 // About), and the work column: a breadcrumb top bar ("Workspace / main.py", "Search or run a
 // command" in the middle, the runtime state, Capture and Run with its key), then the code card and
 // the console card (Output, Problems, Flowchart as a segmented control, full screen and hide at the
-// head's end). From 1100 px the console sits beside the code with an x-axis splitter; under that it
-// docks under the code with a y-axis one, as before. Hidden (collapsed), it is its head, docked
-// under the code at every width. Below 900 px the sidebar is a drawer, the top bar holds the mark,
+// head's end), docked under the code with a y-axis splitter. Hidden (collapsed), it is its head.
+// Flow Board (redesign 7, S1, 2026-11-01: .claude/design/redesign7/a/design.md): from 1100 px the
+// code and its console form the code board, and the flowchart leaves the console for a chart board
+// of its own beside it, shown while a file is open (the console's Flowchart tab is hidden there; the
+// chart's body, #panel-flowchart, moves between the two). Under 1100 px the chart stays the
+// console's third tab, as before. Below 900 px the sidebar is a drawer, the top bar holds the mark,
 // the file's name, Search, the sync status, Run and Settings, a status bar the facts and notices,
 // and a bottom view bar Files, Code, Output, Problems and Flowchart.
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
@@ -19,14 +22,12 @@ import { chartPanelSize } from "./panel-size";
 import { clamp, createSplitter, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
-/** From here the console card sits beside the code card (app.css). */
+/** From here the chart has a board of its own beside the code board (Flow Board, app.css). */
 export const WIDE = "(min-width: 1100px)";
 /** A short window (app.css): the page scrolls as a whole. */
 export const SHORT = "(max-height: 420px)";
 export const SIDEBAR = { min: 200, max: 480, initial: 248 };
 export const PANEL = { min: 15, max: 80, initial: 35 };
-/** The console's share of the work area's width beside the code, in percent (the mockup's 54 / 46). */
-export const CONSOLE = { min: 20, max: 80, initial: 46 };
 /** The rail's width, and what the work column keeps at the least beside the sidebar. */
 const RAIL_W = 64;
 const WORK_KEEP = 560;
@@ -98,7 +99,14 @@ export interface Layout {
   problemsPanel: HTMLElement;
   /** The Flowchart tab's body: the view (src/ui/flowchart-view.ts, a lazy chunk) fills it on first opening. */
   flowchartPanel: HTMLElement;
-  /** Whether the flowchart is on screen (its panel tab open on desktop, its view on phones). */
+  /** The chart board (1100 px and wider, while a file is open): it holds flowchartPanel there. */
+  chartBoard: HTMLElement;
+  /** Whether the chart has its own board at this width (1100 px and wider). */
+  chartOnBoard(): boolean;
+  /**
+   * Whether the flowchart is on screen: its board while a file is open (1100 px and wider), its
+   * panel tab open (900 to 1099 px), its view (phones).
+   */
   chartVisible(): boolean;
   /** Called whenever chartVisible() may have changed. */
   onChartVisibleChange(listener: (visible: boolean) => void): void;
@@ -106,13 +114,8 @@ export interface Layout {
   noticeHost: HTMLElement;
   status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement };
   viewTabs: { code: HTMLButtonElement; output: HTMLButtonElement; problems: HTMLButtonElement; flowchart: HTMLButtonElement; count: HTMLElement };
-  /**
-   * The file list's width, the stacked console's height and the side console's width (desktop):
-   * buttons resize them without dragging.
-   */
-  splitters: { sidebar: Splitter; panel: Splitter; console: Splitter };
-  /** The splitter that sizes the console at this width (beside the code from 1100 px, under it below). */
-  panelSplitter(): Splitter;
+  /** The file list's width and the console's height (desktop): buttons resize them without dragging. */
+  splitters: { sidebar: Splitter; panel: Splitter };
   narrow(): boolean;
   /** Called after the layout crossed the 900 px line (and moved Run and the runtime state). */
   onNarrowChange(listener: (narrow: boolean) => void): void;
@@ -123,7 +126,10 @@ export interface Layout {
   /** Narrow screens: which of Code / Output / Problems / Flowchart fills the screen. */
   showView(view: View): void;
   view(): View;
-  /** Selects a panel tab and opens the panel if it is collapsed. */
+  /**
+   * Selects a panel tab and opens the panel if it is collapsed. The flowchart where it has a board
+   * of its own: nothing to select; `focus` takes focus to the board.
+   */
   showPanelTab(tab: PanelTab, focus?: boolean): void;
   panelTab(): PanelTab;
   /** The panel starts collapsed to its bar (desktop) until the first run or problem. */
@@ -307,6 +313,12 @@ export function createLayout(root: HTMLElement): Layout {
   const bodies: Record<PanelTab, HTMLElement> = { output: outputPanel, problems: problemsPanel, flowchart: flowchartPanel };
   const currentTab = (): PanelTab => (PANEL_TABS.includes(panel.dataset.tab as PanelTab) ? (panel.dataset.tab as PanelTab) : "output");
 
+  // ---------------------------------------------------------------- the chart board (1100 px and wider)
+  // A region of its own beside the code board, named "Flowchart" (the view's bar heads it with the
+  // same word); app.css shows it while a file is open. Focusable from script only (the rail's
+  // Flowchart takes focus there), never a Tab stop.
+  const chartBoard = h("section", { class: "chart-board", id: "chart-board", "aria-label": "Flowchart", tabindex: "-1" });
+
   const center = h("div", { class: "center", "data-view": "code" }, editorArea);
   // The work column: the top bar over the two cards.
   // Why a disabled Run does nothing (its aria-describedby while no file is open: workbench.ts).
@@ -369,29 +381,7 @@ export function createLayout(root: HTMLElement): Layout {
       center.style.setProperty("--panel-rows", `${v}fr`);
     },
   });
-  // Beside the code (1100 px and wider): the console's share of the width, the bar left of it, so
-  // ArrowLeft makes the console wider.
-  const consoleSplit = createSplitter({
-    orientation: "vertical",
-    after: true,
-    label: "Resize the output panel",
-    controls: "panel",
-    min: CONSOLE.min,
-    max: () => CONSOLE.max,
-    initial: CONSOLE.initial,
-    step: 2,
-    unit: "percent of the width",
-    key: "console",
-    fromPointer: (e) => {
-      const r = center.getBoundingClientRect();
-      return clamp(((r.right - e.clientX) / Math.max(1, r.width)) * 100, CONSOLE.min, CONSOLE.max);
-    },
-    apply: (v) => {
-      center.style.setProperty("--code-cols", `${100 - v}fr`);
-      center.style.setProperty("--console-cols", `${v}fr`);
-    },
-  });
-  center.append(panelSplit.element, consoleSplit.element, panel);
+  center.append(panelSplit.element, panel, chartBoard);
   main.append(sidebarSplit.element, work);
   root.replaceChildren(main, statusbar, viewBar, scrim);
   root.classList.add("workbench");
@@ -402,16 +392,15 @@ export function createLayout(root: HTMLElement): Layout {
   root.dataset.open = "false";
   sidebarSplit.refresh();
   panelSplit.refresh();
-  consoleSplit.refresh();
   addEventListener("resize", () => sidebarSplit.refresh());
   // Dragging a collapsed panel's splitter opens the panel and resizes it. A key on it only opens it,
   // to the size the splitter names (one key, one effect): caught on the way down, before the
   // splitter's own handler would also apply a step.
-  for (const split of [panelSplit, consoleSplit]) split.element.addEventListener("pointerdown", () => expandPanel());
+  panelSplit.element.addEventListener("pointerdown", () => expandPanel());
   center.addEventListener(
     "keydown",
     (e) => {
-      const keys = e.target === panelSplit.element ? ["ArrowUp", "ArrowDown"] : e.target === consoleSplit.element ? ["ArrowLeft", "ArrowRight"] : null;
+      const keys = e.target === panelSplit.element ? ["ArrowUp", "ArrowDown"] : null;
       if (!keys || !panelCollapsed() || ![...keys, "Home", "End", "Enter"].includes(e.key)) return;
       e.preventDefault();
       e.stopPropagation();
@@ -538,13 +527,15 @@ export function createLayout(root: HTMLElement): Layout {
 
   // ---------------------------------------------------------------- the console: hidden to its head
   // Desktop: the console is its head, docked under the code, until the first run or problem; then it
-  // opens to the remembered size (beside the code from 1100 px, under it below). A hidden body is
-  // hidden; the run's result is still read out by the workbench's announcer, never by a hidden
-  // role=log. Below 900 px Output and Problems fill the screen from the view bar, so nothing is
-  // hidden there.
+  // opens to the remembered size. A hidden body is hidden; the run's result is still read out by the
+  // workbench's announcer, never by a hidden role=log. Below 900 px Output and Problems fill the
+  // screen from the view bar, so nothing is hidden there.
   let collapsed = true;
   const panelCollapsed = () => collapsed && !narrowQuery.matches;
-  const panelSplitter = () => (wideQuery.matches ? consoleSplit : panelSplit);
+  /** From 1100 px the chart has a board of its own, and the console's Flowchart tab is hidden. */
+  const chartOnBoard = () => wideQuery.matches;
+  /** The console's tabs at this width. */
+  const panelTabs = (): readonly PanelTab[] => (chartOnBoard() ? PANEL_TABS.filter((t) => t !== "flowchart") : PANEL_TABS);
   function syncPanel() {
     const shut = panelCollapsed();
     panel.dataset.collapsed = String(shut);
@@ -553,18 +544,43 @@ export function createLayout(root: HTMLElement): Layout {
     panelToggle.title = shut ? "Show the panel" : "Hide the panel";
     panelToggle.replaceChildren(icon(shut ? "caret-up" : "caret-down"));
     const tab = currentTab();
-    for (const t of PANEL_TABS) bodies[t].hidden = shut || t !== tab;
-    // A splitter's value is the size the console opens to; while it is its head, they say so.
-    for (const [split, unit] of [[panelSplit, "height"], [consoleSplit, "width"]] as const) {
-      if (shut) split.element.setAttribute("aria-valuetext", `Collapsed; opens at ${split.value} percent of the ${unit}`);
-      else split.refresh();
-    }
+    for (const t of panelTabs()) bodies[t].hidden = shut || t !== tab;
+    // On its board the chart's body always shows (the board itself shows while a file is open).
+    if (chartOnBoard()) flowchartPanel.hidden = false;
+    // The splitter's value is the size the console opens to; while it is its head, it says so.
+    if (shut) panelSplit.element.setAttribute("aria-valuetext", `Collapsed; opens at ${panelSplit.value} percent of the height`);
+    else panelSplit.refresh();
     tellChart();
+  }
+  /**
+   * Moves the chart's body to where it lives at this width: its board from 1100 px (a plain part of
+   * the "Flowchart" region there), the console's third tab panel under that. The element moves, so
+   * the view inside it (and its full-screen dialog's way back) keeps working; focus inside it stays.
+   */
+  function placeChart() {
+    const focused = document.activeElement;
+    const onBoard = chartOnBoard();
+    if (onBoard && currentTab() === "flowchart") selectPanelTab("output");
+    if (onBoard) {
+      chartBoard.append(flowchartPanel);
+      flowchartPanel.removeAttribute("role");
+      flowchartPanel.removeAttribute("aria-labelledby");
+    } else {
+      panel.append(flowchartPanel);
+      flowchartPanel.setAttribute("role", "tabpanel");
+      flowchartPanel.setAttribute("aria-labelledby", "ptab-flowchart");
+    }
+    ptabFlowchart.hidden = onBoard;
+    panelToggle.setAttribute("aria-controls", onBoard ? "panel-output panel-problems" : "panel-output panel-problems panel-flowchart");
+    if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
   }
   // ---------------------------------------------------------------- is the flowchart on screen?
   const chartListeners: ((visible: boolean) => void)[] = [];
   let chartWasVisible = false;
-  const chartVisible = () => (narrowQuery.matches ? center.dataset.view === "flowchart" : !panelCollapsed() && currentTab() === "flowchart");
+  const chartVisible = () =>
+    narrowQuery.matches ? center.dataset.view === "flowchart" : chartOnBoard() ? root.dataset.open === "true" : !panelCollapsed() && currentTab() === "flowchart";
+  // The board shows while a file is open (workbench.ts sets data-open): the chart is told at once.
+  new MutationObserver(() => tellChart()).observe(root, { attributes: true, attributeFilter: ["data-open"] });
   function tellChart() {
     const visible = chartVisible();
     if (visible === chartWasVisible) return;
@@ -576,7 +592,7 @@ export function createLayout(root: HTMLElement): Layout {
    * Under the code (900 to 1099 px): the Flowchart tab opening grows a small panel (panel-size.ts),
    * through the splitter, so its value and the remembered size agree. Never shrinks; leaving the
    * tab keeps the size; a size set later by dragging or keys stands until it is below the threshold
-   * at another opening. Beside the code the console runs the full height already.
+   * at another opening. From 1100 px the chart has its own board, so nothing grows.
    */
   function growForChart() {
     const rows = editorArea.getBoundingClientRect().height + panel.getBoundingClientRect().height;
@@ -624,6 +640,8 @@ export function createLayout(root: HTMLElement): Layout {
 
   // ---------------------------------------------------------------- panel tabs
   function selectPanelTab(tab: PanelTab) {
+    // The chart on its board is no tab of the console's.
+    if (tab === "flowchart" && chartOnBoard()) tab = "output";
     for (const t of PANEL_TABS) {
       ptabs[t].setAttribute("aria-selected", String(t === tab));
       ptabs[t].tabIndex = t === tab ? 0 : -1;
@@ -634,21 +652,27 @@ export function createLayout(root: HTMLElement): Layout {
     syncPanel();
   }
   function showPanelTab(tab: PanelTab, focus = false) {
+    if (tab === "flowchart" && chartOnBoard()) {
+      if (focus) chartBoard.focus();
+      return;
+    }
     selectPanelTab(tab);
     expandPanel();
     if (focus) ptabs[tab].focus();
   }
   for (const t of PANEL_TABS) ptabs[t].addEventListener("click", () => showPanelTab(t));
-  // APG tabs: arrows move round the three (wrapping), Home and End go to the ends; selection follows focus.
+  // APG tabs: arrows move round the tabs shown (wrapping), Home and End go to the ends; selection follows focus.
   panelTabsEl.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const at = PANEL_TABS.indexOf(currentTab());
-    const n = PANEL_TABS.length;
+    const tabs = panelTabs();
+    const at = Math.max(0, tabs.indexOf(currentTab()));
+    const n = tabs.length;
     const i = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
-    showPanelTab(PANEL_TABS[i], true);
+    showPanelTab(tabs[i], true);
   });
   selectPanelTab("output");
+  placeChart();
 
   // ---------------------------------------------------------------- crossing 900 px and 1100 px
   const narrowListeners: ((narrow: boolean) => void)[] = [];
@@ -664,8 +688,11 @@ export function createLayout(root: HTMLElement): Layout {
   };
   narrowQuery.addEventListener("change", syncNarrow);
   syncNarrow();
-  // The splitter that sizes the console changes at 1100 px: its value is shown again.
-  wideQuery.addEventListener("change", syncPanel);
+  // At 1100 px the chart moves between its board and the console's third tab.
+  wideQuery.addEventListener("change", () => {
+    placeChart();
+    syncPanel();
+  });
 
   // ---------------------------------------------------------------- breadcrumb
   // What the crumb shows now: a call that changes nothing keeps its nodes (a change of width calls it
@@ -733,13 +760,14 @@ export function createLayout(root: HTMLElement): Layout {
     outputPanel,
     problemsPanel,
     flowchartPanel,
+    chartBoard,
+    chartOnBoard,
     chartVisible,
     onChartVisibleChange: (listener) => void chartListeners.push(listener),
     noticeHost,
     status,
     viewTabs: { code: viewCode, output: viewOutput, problems: viewProblems, flowchart: viewFlowchart, count: viewCount },
-    splitters: { sidebar: sidebarSplit, panel: panelSplit, console: consoleSplit },
-    panelSplitter,
+    splitters: { sidebar: sidebarSplit, panel: panelSplit },
     narrow: () => narrowQuery.matches,
     onNarrowChange: (listener) => void narrowListeners.push(listener),
     openDrawer,
