@@ -54,6 +54,16 @@ const FIREFOX_CANCELLED_FONT = /^\[JavaScript Error: "downloadable font: downloa
 const WEBKIT_FONT_INTERNAL = /^request failed: http:\/\/127\.0\.0\.1:\d+\/assets\/[\w-]+\.woff2 WebKit encountered an internal error$/;
 const WEBKIT_INTERNAL_LOG = /^Failed to load resource: WebKit encountered an internal error$/;
 
+/**
+ * Linux Chromium can report a short link's fetch as net::ERR_ABORTED after the links fake's
+ * route.fulfill answered it 200, with no navigation, though the page read the whole answer: its
+ * AES-GCM tag checked and the link opened (CI on a86b85e and 3210c38, 2026-10-31 and 11-01,
+ * link-fragment.spec and short-links.spec x2; never seen locally in 114 runs). The app cancels this
+ * fetch only past the size cap, which refuses the link. Excused in Chromium only, for a fetch to
+ * /api/links/<id> already answered 200; every other cancellation still needs a navigation.
+ */
+const CHROMIUM_FULFILLED_LINK = /^request failed: http:\/\/127\.0\.0\.1:\d+\/api\/links\/[0-9A-Za-z]{10} net::ERR_ABORTED$/;
+
 /** How each engine words a request it cancelled (not one that failed). Exported for fixture-watch.spec.ts. */
 export const CANCELLED =/^(net::ERR_ABORTED|NS_BINDING_ABORTED|Load request cancelled)$/;
 
@@ -243,6 +253,7 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
     // A request whose start wasn't seen needs a navigation within 2 s either side of the cancel.
     if (CANCELLED.test(reason)) {
       const got = answered.get(r);
+      if (engine === "chromium" && got?.status === 200 && r.resourceType() === "fetch" && CHROMIUM_FULFILLED_LINK.test(text)) return;
       const detail = `${r.resourceType()}, ${got ? `answered ${got.status} at ${got.at - (startedAt.get(r) ?? got.at)} ms` : "no answer"}`;
       cancelled.push({ text, started: startedAt.get(r) ?? Date.now() - 2000, failed: Date.now(), detail });
     }

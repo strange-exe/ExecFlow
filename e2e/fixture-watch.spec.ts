@@ -113,6 +113,22 @@ test("WebKit's internal-error line with no font failure is not excused", async (
   await page.evaluate(() => console.error("Failed to load resource: WebKit encountered an internal error"));
 });
 
+// Chromium's cancelled short-link fetch is excused only once it was answered 200.
+test("Chromium's cancelled short-link fetch with no answer is not excused", async ({ page }, info) => {
+  test.skip(info.project.name !== "chromium", "the tolerance applies in Chromium only");
+  test.fail();
+  await openApp(page);
+  await page.route("**/api/links/Ab3dEf9hIj", () => {}); // held: no answer comes
+  await page.evaluate(async () => {
+    const stop = new AbortController();
+    const asked = fetch("/api/links/Ab3dEf9hIj", { signal: stop.signal }).catch(() => null);
+    await new Promise((r) => setTimeout(r, 200));
+    stop.abort();
+    await asked;
+  });
+  await page.waitForTimeout(300); // the requestfailed event reaches the fixture
+});
+
 // A load that never ends fails at openApp's own deadline, before the test's, and names what is open.
 test("a load that never ends names the requests still open", async ({ page }) => {
   test.setTimeout(25_000); // openApp's deadline: 10 s
