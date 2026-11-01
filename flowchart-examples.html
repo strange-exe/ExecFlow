@@ -186,12 +186,14 @@
           </div>
           <p>
             The same steps in Python, run with 0: the loop runs zero times, so <code>fact</code> stays 1, which is the
-            right answer. Python's whole numbers have no size limit, so it works for large <code>n</code> too.
+            right answer. Python's whole numbers have no size limit, so the calculation works for large <code>n</code>
+            too; printing a result longer than 4,300 digits (1559! and up) needs
+            <code>sys.set_int_max_str_digits()</code>.
           </p>
           <div data-example="fe-fact-py"></div>
           <p>
-            <strong>A common mistake:</strong> keeping the result in an <code>int</code>. An <code>int</code> holds
-            values up to 2,147,483,647, so 12! (479,001,600) is the last factorial that fits. 13! is 6,227,020,800,
+            <strong>A common mistake:</strong> keeping the result in an <code>int</code>. On ExecFlow's compiler, as
+            on most today, an <code>int</code> holds values up to 2,147,483,647, so 12! (479,001,600) is the last factorial that fits. 13! is 6,227,020,800,
             and the program prints a wrong number without any error:
           </p>
           <div data-example="fe-fact-bug"></div>
@@ -267,8 +269,8 @@
             <div data-flowchart="fe-fib-c"></div>
           </div>
           <p>
-            A <code>long long</code> is big enough for 91 terms in this C program, which works out one term ahead of the
-            one it prints. Python's numbers have no such limit:
+            A <code>long long</code> is big enough for 91 terms in this C program, which works out two terms ahead of the
+            one it prints: for 92 terms it would compute the 94th, which overflows. Python's numbers have no such limit:
           </p>
           <div data-example="fe-fib-py"></div>
           <p>
@@ -324,7 +326,7 @@
           <ol class="guide-list">
             <li>Read <code>n</code>, and keep a copy of it as <code>original</code>.</li>
             <li>Set <code>reverse</code> to 0.</li>
-            <li>While <code>n</code> is greater than 0: take its last digit (<code>n % 10</code>), add it to the end of <code>reverse</code> (<code>reverse * 10 + digit</code>), and drop it from <code>n</code> (<code>n / 10</code>).</li>
+            <li>While <code>n</code> is greater than 0: take its last digit (<code>n % 10</code>), add it to the end of <code>reverse</code> (<code>reverse * 10 + digit</code>), and drop it from <code>n</code> (<code>n / 10</code> in C, <code>n // 10</code> in Python).</li>
             <li>Print <code>original</code> and <code>reverse</code>.</li>
           </ol>
           <p>

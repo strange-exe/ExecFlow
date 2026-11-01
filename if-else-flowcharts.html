@@ -260,8 +260,8 @@
             shows.
           </p>
           <p>
-            The fix is a <code>break;</code> at the end of each case. Falling through is right only when two cases share
-            one body, written with nothing between them, as in <code>case 'y': case 'Y':</code>. ExecFlow draws such
+            The fix is a <code>break;</code> at the end of each case. Falling through is almost always a mistake; the
+            common deliberate use is two cases sharing one body, written with nothing between them, as in <code>case 'y': case 'Y':</code>. ExecFlow draws such
             cases as one column labelled with both.
           </p>
         </div>

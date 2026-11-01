@@ -126,7 +126,7 @@
             The test <code>n &gt; 0</code> comes first, so for 0 the body never runs. Each pass adds the
             last digit (<code>n % 10</code>) and removes it from <code>n</code>; ExecFlow puts the two statements in one
             box. For 4096 the body runs four times and adds 6, 9, 0 and 4. In Python, <code>n // 10</code> divides
-            without a remainder, as <code>n / 10</code> does for an <code>int</code> in C. Python's <code>/</code> would
+            without a remainder, as <code>n / 10</code> does for a positive <code>int</code> in C. Python's <code>/</code> would
             give 409.6.
           </p>
         </div>
@@ -186,8 +186,9 @@
         <div class="guide-example">
           <h3 id="break-continue">break and continue: adding up positive numbers</h3>
           <p>
-            <code>break</code> leaves the loop at once. <code>continue</code> skips the rest of this pass and goes back
-            to the test. This program adds up the numbers you type, skips negative ones with <code>continue</code>, and
+            <code>break</code> leaves the loop at once. <code>continue</code> skips the rest of this pass: a
+            <code>while</code> loop goes straight back to its test, and a C <code>for</code> loop runs its update
+            (<code>i++</code>) first, then the test. This program adds up the numbers you type, skips negative ones with <code>continue</code>, and
             stops at 0 with <code>break</code>. The loop itself never ends on its own: <code>while (1)</code> in C and
             <code>while True:</code> in Python are always true.
           </p>
@@ -231,7 +232,8 @@
         <div class="guide-example">
           <h3 id="never-ends">A loop that never ends</h3>
           <p>
-            Both programs were meant to add up 1 to 5, but nothing in the loop changes <code>i</code>, so
+            Both loops were meant to stop once <code>i</code> passes 5 (the Python one adds up 1 to 5, the C one
+            prints <code>i</code>), but nothing in the loop changes <code>i</code>, so
             <code>i &lt;= 5</code> stays true. The Python one prints nothing while it loops:
           </p>
           <div data-example="lp-endless-py"></div>
