@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Loop flowcharts: for, while and do-while | ExecFlow</title>
+    <meta name="description" content="How for, while and do-while loops look in a flowchart, with C and Python programs, their charts and real runs. Also nested loops, break and continue." />
+    <link rel="canonical" href="https://execflow.abhinesh.codes/loop-flowcharts" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="ExecFlow" />
+    <meta property="og:title" content="Loop flowcharts: for, while and do-while" />
+    <meta property="og:description" content="Each loop in C and Python with the flowchart ExecFlow draws for it and a real run, plus nested loops, break, continue and common loop mistakes." />
+    <meta property="og:url" content="https://execflow.abhinesh.codes/loop-flowcharts" />
+    <meta property="og:image" content="https://execflow.abhinesh.codes/icons/mark-v2-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Loop flowcharts: for, while and do-while" />
+    <meta name="twitter:description" content="Each loop in C and Python with the flowchart ExecFlow draws for it and a real run, plus nested loops, break, continue and common loop mistakes." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/guide.css" />
+  </head>
+  <body class="about guide">
+    <a class="about-skip" href="#content">Skip to the content</a>
+    <header class="about-head">
+      <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
+      <a class="about-btn about-btn-ghost" href="/">Open the editor</a>
+    </header>
+    <nav class="guide-nav" aria-label="Guides">
+      <ul>
+        <li><a href="/flowchart-from-code">Flowchart from code</a></li>
+        <li><a href="/python">Run Python</a></li>
+        <li><a href="/c">Run C</a></li>
+        <li><a href="/cpp">Run C++</a></li>
+        <li><a href="/loop-flowcharts" aria-current="page">Loop flowcharts</a></li>
+      </ul>
+    </nav>
+
+    <main id="content">
+      <section class="guide-hero" aria-labelledby="title">
+        <h1 id="title">Loop flowcharts: for, while and do-while</h1>
+        <p class="about-lede">
+          A loop in a flowchart is a decision with an arrow that goes back up to it. This page shows each kind of loop
+          in C and in Python: the program, the flowchart ExecFlow draws for it, and what it printed when it ran. Then
+          nested loops, <code>break</code> and <code>continue</code>, and three common loop mistakes.
+        </p>
+        <div class="about-ctas">
+          <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          <a class="about-btn about-btn-ghost" href="#examples">See the loops</a>
+        </div>
+        <dl class="guide-facts">
+          <div><dt>Loops</dt><dd>for, while, do-while, nested</dd></div>
+          <div><dt>Languages</dt><dd>C and Python, side by side</dd></div>
+          <div><dt>Charts</dt><dd>Drawn by ExecFlow from the code</dd></div>
+          <div><dt>Output</dt><dd>From real runs</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="shape">
+        <h2 id="shape">What a loop looks like in a flowchart</h2>
+        <p>Every loop has the same three parts, whatever the language:</p>
+        <ul class="guide-list">
+          <li><strong>A test</strong>, drawn as a diamond (a decision). Its two arrows are labelled <strong>Yes</strong> and <strong>No</strong>.</li>
+          <li><strong>The body</strong>, the steps that repeat. The Yes arrow leads into it.</li>
+          <li><strong>The way back</strong>: an arrow from the end of the body back up to the test. This arrow is what makes it a loop. Without it the chart is an <code>if</code>.</li>
+        </ul>
+        <p>
+          The No arrow leaves the loop and goes on to the next statement. Where the test sits decides the kind of loop.
+          A <code>for</code> or <code>while</code> loop tests first, so its body can run zero times. A
+          <code>do</code>-<code>while</code> loop runs its body first and tests after it, so the body always runs at
+          least once.
+        </p>
+      </section>
+
+      <section aria-labelledby="examples">
+        <h2 id="examples">Each loop, in C and Python</h2>
+        <p>
+          Each chart below is the one ExecFlow drew for the code beside it, saved with its own SVG export and shown here
+          in this page's colours. The output under each program is what it printed when it ran in ExecFlow; the
+          numbers it read are marked as typed. <strong>Open in ExecFlow</strong> shows the program in ExecFlow as a
+          preview first. <strong>Add to my files</strong> puts it in the editor, where you can change the code and
+          watch the chart follow; nothing runs until you press Run.
+        </p>
+
+        <div class="guide-example">
+          <h3 id="for">The for loop: a multiplication table</h3>
+          <p>Use a <code>for</code> loop when you know how many times to repeat: here, 10 lines of the table of a number you type.</p>
+          <div class="fc-pair">
+            <div data-example="lp-for-c"></div>
+            <div data-flowchart="lp-for-c"></div>
+          </div>
+          <p>
+            A C <code>for</code> loop is drawn in its three parts. The start, <code>int i = 1</code>, is a box before the
+            loop and runs once. The test, <code>i &lt;= 10</code>, is the diamond. The update, <code>i++</code>, is a box
+            at the end of the body, and the arrow back to the test leaves from it. When <code>i</code> reaches 11 the
+            test says No and the program ends.
+          </p>
+          <div class="fc-pair">
+            <div data-example="lp-for-py"></div>
+            <div data-flowchart="lp-for-py"></div>
+          </div>
+          <p>
+            Python's <code>for</code> has no separate start and update: the diamond asks whether
+            <code>range(1, 11)</code> has another value for <code>i</code>. A range stops before its end, so
+            <code>range(1, 11)</code> gives 1 to 10, the same ten lines as the C program.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="while">The while loop: adding up the digits of a number</h3>
+          <p>Use a <code>while</code> loop when you don't know how many times it will run, only when to stop: here, when no digits are left.</p>
+          <div class="fc-pair">
+            <div data-example="lp-while-c"></div>
+            <div data-flowchart="lp-while-c"></div>
+          </div>
+          <div class="fc-pair">
+            <div data-example="lp-while-py"></div>
+            <div data-flowchart="lp-while-py"></div>
+          </div>
+          <p>
+            The test <code>n &gt; 0</code> comes first, so for 0 the body never runs. Each pass adds the
+            last digit (<code>n % 10</code>) and removes it from <code>n</code>; ExecFlow puts the two statements in one
+            box. For 4096 the body runs four times and adds 6, 9, 0 and 4. In Python, <code>n // 10</code> divides
+            without a remainder, as <code>n / 10</code> does for an <code>int</code> in C. Python's <code>/</code> would
+            give 409.6.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="do-while">The do-while loop: asking until the answer is valid</h3>
+          <p>
+            Use a <code>do</code>-<code>while</code> loop when the body must run before there is anything to test: here,
+            the program can't check the number until it has asked for it. It asks again while the number is outside 1
+            to 10.
+          </p>
+          <div class="fc-pair">
+            <div data-example="lp-do-c"></div>
+            <div data-flowchart="lp-do-c"></div>
+          </div>
+          <p>
+            The diamond comes after the <code>printf</code> and the <code>scanf</code>, not before them. Its Yes arrow
+            goes back up to the <code>printf</code>, and No goes on to <em>You chose</em>. Compare it with the
+            <code>while</code> chart above, where the diamond is the first thing in the loop.
+          </p>
+          <p>
+            Python has no <code>do</code>-<code>while</code> loop. The usual way to write one is <code>while True:</code>
+            with a <code>break</code> at the end of the body, when the answer is valid:
+          </p>
+          <div class="fc-pair">
+            <div data-example="lp-do-py"></div>
+            <div data-flowchart="lp-do-py"></div>
+          </div>
+          <p>
+            The chart shows the difference. The first diamond is <code>True ?</code>, at the top. ExecFlow draws it
+            like any other test, with a No arrow, but <code>True</code> is never false, so that arrow is never taken.
+            The real test is the second diamond: its Yes arrow is the <code>break</code>, which leaves the loop for
+            the <code>print</code>, and its No arrow goes back up to ask again.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="nested">Nested loops: a triangle of stars</h3>
+          <p>A loop inside a loop: the outer loop picks the row, the inner loop prints that row's stars. Row <code>i</code> has <code>i</code> stars.</p>
+          <div class="fc-pair">
+            <div data-example="lp-nested-c"></div>
+            <div data-flowchart="lp-nested-c"></div>
+          </div>
+          <div class="fc-pair">
+            <div data-example="lp-nested-py"></div>
+            <div data-flowchart="lp-nested-py"></div>
+          </div>
+          <p>
+            The inner loop is a second diamond inside the Yes branch of the first, with its own arrow back. The inner
+            loop runs to the end for every pass of the outer one, so the body with the star runs 1 + 2 + 3 + 4 = 10
+            times. When the inner test says No, the program ends the line, and in C moves <code>i</code> on with
+            <code>i++</code>, then goes back to the outer test. In C, <code>int j = 1</code> sits inside the outer loop,
+            so <code>j</code> starts again at 1 on every row.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="break-continue">break and continue: adding up positive numbers</h3>
+          <p>
+            <code>break</code> leaves the loop at once. <code>continue</code> skips the rest of this pass and goes back
+            to the test. This program adds up the numbers you type, skips negative ones with <code>continue</code>, and
+            stops at 0 with <code>break</code>. The loop itself never ends on its own: <code>while (1)</code> in C and
+            <code>while True:</code> in Python are always true.
+          </p>
+          <div class="fc-pair">
+            <div data-example="lp-jump-c"></div>
+            <div data-flowchart="lp-jump-c"></div>
+          </div>
+          <div class="fc-pair">
+            <div data-example="lp-jump-py"></div>
+            <div data-flowchart="lp-jump-py"></div>
+          </div>
+          <p>
+            <code>break</code> and <code>continue</code> are not boxes of their own; ExecFlow draws them as lines. The
+            Yes arrow of <code>n == 0</code> is the <code>break</code>: it runs out of the loop, past everything else,
+            to the <code>printf</code> or <code>print</code> of the total. The Yes arrow of <code>n &lt; 0</code> is the
+            <code>continue</code>: it goes back up to the loop's test and skips <code>total = total + n</code>. So -3 is
+            never added, and the total is 5 + 8 = 13.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="mistakes">
+        <h2 id="mistakes">Common loop mistakes</h2>
+        <p>Each program below has one mistake. The output is what it really printed in ExecFlow.</p>
+
+        <div class="guide-example">
+          <h3 id="off-by-one">Off by one: &lt; where you meant &lt;=</h3>
+          <p>Both programs were meant to print 1 to 10:</p>
+          <div data-example="lp-off-c"></div>
+          <div data-example="lp-off-py"></div>
+          <p>
+            Both stop at 9. In C, <code>i &lt; 10</code> is false when <code>i</code> is 10, so the body never runs
+            for 10: write <code>i &lt;= 10</code>. In Python, <code>range(1, 10)</code> stops before 10: write
+            <code>range(1, 11)</code>. To check a loop, work out its first and its last pass by hand: what is the
+            variable the first time the body runs, and the last time? With an array the same slip goes the other way:
+            an array of 5 has the indexes 0 to 4, so its loop is <code>for (i = 0; i &lt; 5; i++)</code>, and
+            <code>i &lt;= 5</code> reads one element past the end.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="never-ends">A loop that never ends</h3>
+          <p>
+            Both programs were meant to add up 1 to 5, but nothing in the loop changes <code>i</code>, so
+            <code>i &lt;= 5</code> stays true. The Python one prints nothing while it loops:
+          </p>
+          <div data-example="lp-endless-py"></div>
+          <p>
+            While a program runs, the Run button turns into <strong>Stop</strong> (or press Ctrl+., Cmd+. on a Mac),
+            so you can end it yourself. If you don't, ExecFlow stops it at the time limit of 15 seconds, as it did
+            here, explains why under the output, and points to line 4 in Problems, the line the program was on when it
+            stopped. Time spent
+            waiting for your input doesn't count, and the limit can be changed in Settings.
+          </p>
+          <p>The C one prints <code>i</code> on every pass, so it fills the output instead:</p>
+          <div data-example="lp-endless-c"></div>
+          <p>
+            It printed <em>i is still 1</em> again and again until it reached the output limit, in under a second;
+            above are the last lines it printed. The fix for both is the line the loop is missing:
+            <code>i++;</code> in C, <code>i = i + 1</code> in Python, at the end of the body. In a flowchart, a loop
+            that never ends is one where nothing in the body changes what the diamond tests.
+          </p>
+        </div>
+
+        <div class="guide-example">
+          <h3 id="loop-variable">Changing the loop variable inside a for loop</h3>
+          <p>Both programs add 1 to <code>i</code> inside the body:</p>
+          <div data-example="lp-change-c"></div>
+          <div data-example="lp-change-py"></div>
+          <p>
+            They don't agree. In C, <code>i</code> is an ordinary variable: the body adds 1 and the update
+            <code>i++</code> adds another, so every second number is skipped. In Python, the <code>for</code> loop
+            takes the next value from <code>range</code> at the start of every pass, and that replaces whatever the
+            body did to <code>i</code>. Either way, the loop no longer says what it does. To count in steps of 2, say
+            so in the loop itself: <code>i = i + 2</code> as the update in C, <code>range(1, 7, 2)</code> in Python.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="own">
+        <h2 id="own">Draw the chart of your own loop</h2>
+        <p>
+          Open the <a href="/">editor</a>, paste your program into a <code>.c</code> or <code>.py</code> file, and open
+          the <strong>Flowchart</strong> tab next to Output. The chart follows the code as you type, and the program
+          doesn't need to run first. Click a box to jump to its line, and use <strong>Export</strong> to save the chart
+          as a PNG or an SVG. C++ works the same way. The <a href="/flowchart-from-code">flowchart guide</a> explains
+          every shape ExecFlow draws.
+        </p>
+      </section>
+
+      <section aria-labelledby="more">
+        <h2 id="more">More guides</h2>
+        <ul class="guide-more">
+          <li><a href="/flowchart-from-code">Turn Python, C or C++ code into a flowchart</a>: every shape ExecFlow draws, one function at a time, and exporting PNG or SVG.</li>
+          <li><a href="/c">Run C online in your browser</a>: scanf, arrays and pointers with clang 22, and what a crash looks like.</li>
+          <li><a href="/python">Run Python online in your browser</a>: Python 3.14 with input(), numpy and pandas, and what doesn't run.</li>
+          <li><a href="/cpp">Run C++ online in your browser</a>: cin, vector and string in C++17.</li>
+          <li><a href="/about">About ExecFlow</a>: everything the editor does, and what changed lately.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="about-foot">
+      <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+      <nav aria-label="More">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="https://github.com/strange-exe/ExecFlow">Source code</a>
+      </nav>
+    </footer>
+  </body>
+</html>

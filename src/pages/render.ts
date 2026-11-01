@@ -21,6 +21,8 @@ export interface CapturedRun {
   help: { id: string; means: string; tips: string } | null;
   problems: string[];
   steps?: string[];
+  /** The code that ran (recorded by captures from /loop-flowcharts on), to tell a stale capture. */
+  code?: string;
 }
 
 export interface Captured {

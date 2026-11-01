@@ -226,6 +226,33 @@ test.describe("/flowchart-examples", () => {
   });
 });
 
+// /loop-flowcharts: a chart beside each loop's C and Python program, the
+// runs as captured, and the links to the other guides and the editor.
+test.describe("/loop-flowcharts content", () => {
+  test("ten charts, each with its steps as text, sixteen programs, and the links a student needs", async ({ page }) => {
+    await page.goto("/loop-flowcharts");
+    const charts = page.locator("figure.fc-figure");
+    await expect(charts).toHaveCount(10);
+    for (const fig of await charts.all()) {
+      await expect(fig.locator("svg.fc-chart")).toBeVisible();
+      expect(await fig.locator(".fc-steps li").count()).toBeGreaterThan(3);
+    }
+    // Each chart sits beside the program it was drawn from.
+    for (const pair of await page.locator(".fc-pair").all()) {
+      const ex = (await pair.locator(".ex").getAttribute("id"))!.replace(/^ex-/, "");
+      await expect(pair.locator("figure")).toHaveAttribute("id", `chart-${ex}`);
+    }
+    await expect(page.locator(".ex")).toHaveCount(16);
+    // The break line: in the C chart the steps say where n == 0's Yes goes, past the loop to the total.
+    await page.locator("#chart-lp-jump-c summary").click();
+    await expect(page.locator("#chart-lp-jump-c .fc-steps")).toContainText("Decision: n == 0 ? No: step 7. Yes: step 9.");
+    await expect(page.locator("#ex-lp-endless-py .ex-status")).toHaveText("Stopped at the time limit");
+    await expect(page.locator("#ex-lp-endless-c .ex-status")).toHaveText("Stopped at the output limit");
+    for (const path of ["/flowchart-from-code", "/python", "/c", "/cpp"]) await expect(page.locator(`main a[href="${path}"]`).first()).toBeVisible();
+    await expect(page.locator('header a[href="/"]').first()).toBeVisible();
+  });
+});
+
 test.describe("with the service worker", () => {
   test.use({ serviceWorkers: "allow" });
   test.setTimeout(180_000);

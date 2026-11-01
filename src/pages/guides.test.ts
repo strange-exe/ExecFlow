@@ -214,6 +214,81 @@ describe("what the pages say matches the app (fact review)", () => {
   });
 });
 
+// /loop-flowcharts (plan-phase2.md batch 1, page 2): its examples are the "lp-" ones.
+describe("/loop-flowcharts", () => {
+  const FILE = "loop-flowcharts.html";
+  const LP = Object.keys(EXAMPLES).filter((id) => id.startsWith("lp-"));
+  const out = (id: string) => data.captured.examples[id].output;
+
+  it("is a guide route, with a title of at most 60 characters and a description of at most 160", () => {
+    const route = GUIDE_ROUTES.find((r) => r.path === "/loop-flowcharts");
+    expect(route?.file).toBe(FILE);
+    expect(route!.title.length).toBeLessThanOrEqual(60);
+    expect(GUIDE_PATH.test("/loop-flowcharts?ref=x")).toBe(true);
+    const description = attr(readFileSync(FILE, "utf8"), /<meta name="description" content="([^"]+)"/)!;
+    expect(description.length).toBeLessThanOrEqual(160);
+  });
+
+  it("shows every lp- example, each with a captured run, and a chart for each loop's C and Python program", async () => {
+    const html = await page(FILE);
+    expect(LP.length).toBe(16);
+    for (const id of LP) {
+      expect(html, id).toContain(`id="ex-${id}"`);
+      // A captured run (the time-limit example prints nothing, so its status is the evidence).
+      expect(data.captured.examples[id]?.status, id).toBeTruthy();
+      expect(data.captured.examples[id].runlog, id).toContain(EXAMPLES[id].name);
+    }
+    const charted = LP.filter((id) => EXAMPLES[id].chart);
+    expect(charted).toHaveLength(10);
+    for (const id of charted) expect(html, id).toContain(`id="chart-${id}"`);
+    // Every program is shown in both languages.
+    for (const stem of new Set(LP.map((id) => id.replace(/-(c|py)$/, "")))) {
+      expect(LP, stem).toContain(`${stem}-c`);
+      expect(LP, stem).toContain(`${stem}-py`);
+    }
+  });
+
+  it("every capture ran the code the page shows (an example edited after its capture fails here)", () => {
+    for (const id of LP) expect(data.captured.examples[id].code, id).toBe(data.sources[id].code);
+  });
+
+  it("the captured runs say what the page teaches", () => {
+    for (const id of LP.filter((i) => !i.startsWith("lp-endless"))) expect(data.captured.examples[id].status, id).toBe("ok");
+    expect(out("lp-for-c")).toContain("7 x 10 = 70");
+    expect(out("lp-for-py")).toContain("7 x 10 = 70");
+    expect(out("lp-for-py")).not.toContain("7 x 11");
+    for (const id of ["lp-while-c", "lp-while-py"]) expect(out(id), id).toMatch(/Sum of digits = 19$/m);
+    // The do-while asks again after 15 and 0, and takes 7.
+    for (const id of ["lp-do-c", "lp-do-py"]) {
+      expect(out(id).match(/Enter a number from 1 to 10: /g), id).toHaveLength(3);
+      expect(out(id), id).toMatch(/You chose 7$/m);
+    }
+    for (const id of ["lp-nested-c", "lp-nested-py"]) expect(out(id).trimEnd().split("\n").map((l) => l.trim()), id).toEqual(["*", "* *", "* * *", "* * * *"]);
+    // -3 is skipped by continue, 0 ends the loop with break: 5 + 8.
+    for (const id of ["lp-jump-c", "lp-jump-py"]) expect(out(id), id).toMatch(/Total of the positive numbers = 13$/m);
+    // Off by one: 1 to 9, never 10.
+    for (const id of ["lp-off-c", "lp-off-py"]) expect(out(id).trim(), id).toBe("1 2 3 4 5 6 7 8 9");
+    // Changing i inside the loop: C skips, Python doesn't.
+    expect(out("lp-change-c").trim()).toBe("1 3 5");
+    expect(out("lp-change-py").trim()).toBe("1 2 3 4 5 6");
+    // The endless loops are stopped by ExecFlow: one prints until the output limit, one runs into the time limit.
+    expect(data.captured.examples["lp-endless-c"].status).toBe("output-limit");
+    expect(new Set(out("lp-endless-c").trimEnd().split("\n"))).toEqual(new Set(["i is still 1"]));
+    expect(data.captured.examples["lp-endless-c"].help?.id).toBe("limit-output");
+    expect(data.captured.examples["lp-endless-py"].status).toBe("timeout");
+    expect(data.captured.examples["lp-endless-py"].help?.id).toBe("limit-time");
+    expect(data.captured.examples["lp-endless-py"].problems.join("\n")).toContain("forgot_update.py:4:");
+  });
+
+  it("says Python has no do-while, and the page links the related guides and the editor", async () => {
+    const html = (await page(FILE)).replace(/\s+/g, " ");
+    expect(html).toContain("Python has no <code>do</code>-<code>while</code>");
+    for (const path of ["/flowchart-from-code", "/python", "/c", "/cpp", "/"]) expect(html).toContain(`href="${path}"`);
+    // The other guides link back.
+    for (const route of GUIDE_ROUTES.filter((r) => r.file !== FILE)) expect(await page(route.file), route.file).toContain('href="/loop-flowcharts"');
+  });
+});
+
 describe("NAVIGATE_DENYLIST (the service worker's navigateFallbackDenylist)", () => {
   it("holds GUIDE_PATH, so a guide page the precache misses (/python?ref=x) goes to the network, never the editor", () => {
     expect(NAVIGATE_DENYLIST).toContain(GUIDE_PATH);
