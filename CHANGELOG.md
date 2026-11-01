@@ -6,6 +6,20 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.25.0] - 2026-11-01
+
+Three new flowchart guides
+
+### Added
+
+- Flowchart examples: eight classic exercises, from the largest of three numbers to simple interest, each in C and Python with its flowchart, a real run and a common mistake.
+- Loop flowcharts: for, while and do-while, nested loops, break and continue, each in C and Python with its chart, and three common loop mistakes: off by one, a loop that never ends, and changing the loop variable.
+- If-else flowcharts: if, else if, nested if, C's switch and Python's match, with the classic mistakes: = for ==, comparing strings, the dangling else and the missing break.
+
+### Changed
+
+- Every guide, and the first screen, now links to all seven guides.
+
 ## [0.24.1] - 2026-11-01
 
 C and C++ run at once after the download in Safari

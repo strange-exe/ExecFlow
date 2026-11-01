@@ -20,6 +20,17 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.25.0",
+    date: "2026-11-01",
+    title: "Three new flowchart guides",
+    items: [
+      { kind: "added", text: "Flowchart examples: eight classic exercises, from the largest of three numbers to simple interest, each in C and Python with its flowchart, a real run and a common mistake." },
+      { kind: "added", text: "Loop flowcharts: for, while and do-while, nested loops, break and continue, each in C and Python with its chart, and three common loop mistakes: off by one, a loop that never ends, and changing the loop variable." },
+      { kind: "added", text: "If-else flowcharts: if, else if, nested if, C's switch and Python's match, with the classic mistakes: = for ==, comparing strings, the dangling else and the missing break." },
+      { kind: "changed", text: "Every guide, and the first screen, now links to all seven guides." },
+    ],
+  },
+  {
     version: "0.24.1",
     date: "2026-11-01",
     title: "C and C++ run at once after the download in Safari",

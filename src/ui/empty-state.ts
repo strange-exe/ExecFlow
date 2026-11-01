@@ -82,6 +82,8 @@ const GUIDES = [
   { path: "/cpp", label: "Run C++" },
   { path: "/flowchart-from-code", label: "Flowchart from code" },
   { path: "/flowchart-examples", label: "Flowchart examples" },
+  { path: "/loop-flowcharts", label: "Loop flowcharts" },
+  { path: "/if-else-flowcharts", label: "If-else flowcharts" },
 ] as const;
 
 function guideLinks(): HTMLElement {

@@ -123,6 +123,8 @@ test.describe("search and sharing", () => {
     { name: "Run C++", path: "/cpp" },
     { name: "Flowchart from code", path: "/flowchart-from-code" },
     { name: "Flowchart examples", path: "/flowchart-examples" },
+    { name: "Loop flowcharts", path: "/loop-flowcharts" },
+    { name: "If-else flowcharts", path: "/if-else-flowcharts" },
   ];
   for (const vp of [
     { name: "desktop", width: 1440, height: 900 },
