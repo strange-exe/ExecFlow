@@ -318,6 +318,21 @@
   max-width: 100%;
   height: auto;
 }
+/* A wide chart (render.ts WIDE_CHART) keeps its own size on a narrow screen, so its words stay
+   readable, and its frame scrolls sideways; the frame is a keyboard stop, its ring inside it. */
+@media (max-width: 899.98px) {
+  .fc-frame-wide {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+  .fc-frame-wide .fc-chart {
+    flex: none;
+    max-width: none;
+  }
+}
+.guide .fc-frame-wide:focus-visible {
+  outline-offset: -3px;
+}
 .fc-steps {
   margin-top: var(--s2);
 }
@@ -374,6 +389,18 @@
   .fc-pair .ex-run {
     border-left: 0;
     border-top: 1px solid var(--divider);
+  }
+  /* A chart too wide for half the page (a switch's columns, an else-if ladder): under its code, at
+     the page's full width, and the code and its output side by side again. */
+  .fc-pair.fc-wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fc-pair.fc-wide .ex-panes {
+    grid-template-columns: fit-content(70%) minmax(0, 1fr);
+  }
+  .fc-pair.fc-wide .ex-run {
+    border-top: 0;
+    border-left: 1px solid var(--divider);
   }
 }
 

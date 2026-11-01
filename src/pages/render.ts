@@ -166,6 +166,13 @@ export function chartSvg(raw: string, label: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" class="fc-chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${escapeHtml(label)}" focusable="false">${body}</svg>`;
 }
 
+/**
+ * A chart wider than this (a switch's columns, an else-if ladder) is drawn at its own size on a
+ * narrow screen, in a frame that scrolls sideways: scaled to a phone's width its words would be a few
+ * pixels high. Such a frame is a keyboard stop with a name, like a code block.
+ */
+export const WIDE_CHART = 640;
+
 function flowchartHtml(id: string, data: GuideData): string {
   const src = data.sources[id];
   const run = data.captured.examples[id];
@@ -174,10 +181,14 @@ function flowchartHtml(id: string, data: GuideData): string {
   const title = /<title>([^<]*)<\/title>/.exec(raw)?.[1];
   if (!title) throw new Error(`guide pages: the export of "${id}" has no title`);
   // "Flowchart of find in find.py" (the export's own title), and where its words are.
-  const label = `${title.replace(/&amp;/g, "&")}. Its steps are listed as text under it.`;
+  const name = title.replace(/&amp;/g, "&");
+  const label = `${name}. Its steps are listed as text under it.`;
+  const svg = chartSvg(raw, label);
+  const wide = Number(/ viewBox="0 0 ([\d.]+) /.exec(svg)![1]) > WIDE_CHART;
+  const frame = wide ? `<div class="fc-frame fc-frame-wide" tabindex="0" role="group" aria-label="${escapeHtml(name)}, scrolls sideways on a narrow screen">` : `<div class="fc-frame">`;
   return [
     `<figure class="fc-figure" id="chart-${id}">`,
-    `<div class="fc-frame">${chartSvg(raw, label)}</div>`,
+    `${frame}${svg}</div>`,
     `<details class="fc-steps"><summary>Steps as text</summary><ol>${run.steps.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ol></details>`,
     `</figure>`,
   ].join("");

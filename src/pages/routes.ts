@@ -21,6 +21,7 @@ export const GUIDE_ROUTES: readonly GuideRoute[] = [
   // Worked flowcharts: eight classic exercises, then loops and decisions in C and Python.
   { path: "/flowchart-examples", file: "flowchart-examples.html", title: "Flowchart examples with C and Python programs | ExecFlow" },
   { path: "/loop-flowcharts", file: "loop-flowcharts.html", title: "Loop flowcharts: for, while and do-while | ExecFlow" },
+  { path: "/if-else-flowcharts", file: "if-else-flowcharts.html", title: "If-else flowcharts: decisions in C and Python | ExecFlow" },
 ];
 
 /** A guide page's path, with or without ".html" or a trailing slash, and with any query string. */

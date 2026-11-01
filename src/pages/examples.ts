@@ -93,6 +93,23 @@ export const EXAMPLES: Readonly<Record<string, Example>> = {
   "lp-endless-py": { name: "forgot_update.py" },
   "lp-change-c": { name: "skip_ahead.c" },
   "lp-change-py": { name: "skip_ahead.py" },
+  // /if-else-flowcharts
+  "ie-if-c": { name: "distance.c", chart: "main" },
+  "ie-if-py": { name: "distance.py", chart: "Program" },
+  "ie-ifelse-c": { name: "vote.c", chart: "main" },
+  "ie-ifelse-py": { name: "vote.py", chart: "Program" },
+  "ie-ladder-c": { name: "grade.c", chart: "main" },
+  "ie-ladder-py": { name: "grade.py", chart: "Program" },
+  "ie-nested-c": { name: "leap.c", chart: "main" },
+  "ie-nested-py": { name: "leap.py", chart: "Program" },
+  "ie-switch-c": { name: "calc.c", chart: "main" },
+  "ie-fall-c": { name: "drinks.c", chart: "main" },
+  "ie-match-py": { name: "calc.py", chart: "Program" },
+  "ie-assign-c": { name: "full_marks.c" },
+  "ie-assign-py": { name: "full_marks.py" },
+  "ie-strcmp-c": { name: "answer.c" },
+  "ie-strcmp-fix-c": { name: "answer_fixed.c" },
+  "ie-dangling-c": { name: "entry.c", chart: "main" },
 };
 
 /** The extension of an example's source file (its editor name's). */
