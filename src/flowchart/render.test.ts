@@ -325,6 +325,58 @@ describe("the run trace on the chart", () => {
     expect(order).toEqual(["edges", "counts", "steps"]);
   });
 
+  test("no chip covers a box (a decision by its diamond), a branch label or another chip", async () => {
+    // Nested ifs, elif, continue and break: Yes labels on a decision's left corner (anchored at
+    // their end) as well as its right and its foot. The run: every score once, 102 breaks.
+    const src = [
+      "scores = [55, 91, 78, 0, 64, 88, 102]",
+      "passed = 0",
+      "for s in scores:",
+      "    if s == 0:",
+      "        continue",
+      "    if s > 100:",
+      "        break",
+      "    if s >= 90:",
+      "        print('A')",
+      "    elif s >= 75:",
+      "        print('B')",
+      "    else:",
+      "        print('C')",
+      "    passed += 1",
+      "print(passed)",
+      "",
+    ].join("\n");
+    const lines = [1, 2, ...[[3, 4, 6, 8, 10, 13, 14], [3, 4, 6, 8, 9, 14], [3, 4, 6, 8, 10, 11, 14], [3, 4, 5], [3, 4, 6, 8, 10, 13, 14], [3, 4, 6, 8, 10, 11, 14], [3, 4, 6, 7]].flat(), 15];
+    const chart = ok((await chartFile("python", src)).charts[0]);
+    const layout = layoutChart(chart);
+    const trace = traceChart(chart, moduleTrace(lines), true)!;
+    const svg = renderChart(chart, layout, fakeDocument as unknown as Document, undefined, trace) as unknown as FakeElement;
+    const chips = svg.all().filter((e) => e.getAttribute("data-part") === "count");
+    expect(chips.map((c) => c.textContent).sort()).toEqual(["1x", "1x", "1x", "2x", "2x", "4x", "5x", "5x", "6x", "7x"]);
+    const rects = chips.map((c) => {
+      const r = c.children[0] as FakeElement;
+      const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => Number(r.getAttribute(k)));
+      return { text: c.textContent, x, y, w, h };
+    });
+    const inBox = (b: (typeof layout.boxes)[number], px: number, py: number) =>
+      b.kind === "decision"
+        ? Math.abs(px - (b.x + b.w / 2)) / (b.w / 2) + Math.abs(py - (b.y + b.h / 2)) / (b.h / 2) < 1
+        : px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h;
+    const problems: string[] = [];
+    for (const [i, c] of rects.entries()) {
+      // Every point of the chip, a pixel apart, against every box's own shape.
+      for (const b of layout.boxes) {
+        let hit = false;
+        for (let px = c.x; px <= c.x + c.w && !hit; px++) for (let py = c.y; py <= c.y + c.h && !hit; py++) hit = inBox(b, px, py);
+        if (hit) problems.push(`chip ${c.text} over box ${chart.nodes[b.id].text}`);
+      }
+      const apart = (a: { x0: number; y0: number; x1: number; y1: number }) => c.x + c.w <= a.x0 || c.x >= a.x1 || c.y + c.h <= a.y0 || c.y >= a.y1;
+      for (const e of layout.edges) if (e.label !== undefined && e.labelAt && !apart(labelRect(e.labelAt, e.label))) problems.push(`chip ${c.text} over label ${e.label}`);
+      for (const d of rects.slice(i + 1)) if (!apart({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h })) problems.push(`chip ${c.text} over chip ${d.text}`);
+    }
+    expect(problems).toEqual([]);
+  });
+
   test("without a trace the drawing is exactly the plain chart", async () => {
     const { chart, layout } = await traced();
     const plain = serialize(renderChart(chart, layout, fakeDocument as unknown as Document) as unknown as FakeElement);

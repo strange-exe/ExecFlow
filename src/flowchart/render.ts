@@ -119,7 +119,7 @@ export interface TraceMark {
 /**
  * What the run trace adds to each of the layout's edges (null: the run didn't go that way). The
  * view's SVG and the export's SVG and PNG all draw from this, so they can't disagree. A branch's
- * chip follows its label ("Yes 5x"); any other chip sits on the middle of the edge's longest
+ * chip sits beside its label, away from the box; any other chip sits on the middle of the edge's longest
  * segment, its fill covering the line under it.
  */
 export function traceMarks(chart: FlowChart, layout: Layout, ct: ChartTrace): (TraceMark | null)[] {
@@ -136,8 +136,11 @@ export function traceMarks(chart: FlowChart, layout: Layout, ct: ChartTrace): (T
     const h = CHIP.h;
     if (e.label !== undefined && e.labelAt) {
       const r = labelRect(e.labelAt, e.label);
-      // Centred on the label's x-height, just after its text.
-      mark.chip = { x: r.x1 + CHIP.gap, y: Math.round(e.labelAt.y - 4 - h / 2), w, h, text };
+      // Centred on the label's x-height, on the label's far side from its box: just after a label
+      // that starts at the corner ("Yes 5x"), just before one that ends at it ("5x Yes", left of a
+      // decision's left corner), so the chip never runs into the diamond.
+      const x = e.labelAt.anchor === "end" ? r.x0 - CHIP.gap - w : r.x1 + CHIP.gap;
+      mark.chip = { x, y: Math.round(e.labelAt.y - 4 - h / 2), w, h, text };
       return mark;
     }
     let best = { len: -1, mid: e.points[0] };
