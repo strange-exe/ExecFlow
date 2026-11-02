@@ -324,15 +324,17 @@ describe("structured layout", () => {
     expect(() => layoutChart(chart, { stats })).toThrow(/too many break and continue lines to draw/);
     expect(spent(stats)).toBeGreaterThanOrEqual(LAYOUT_BUDGET);
     expect(spent(stats)).toBeLessThanOrEqual(LAYOUT_BUDGET + 4);
-    // The worker's deadline: the same answer, on time, however slow the computer. The search stops
-    // far short of the step budget (counted, so a busy test machine can't hide it); the time bound
-    // is loose because placing the boxes and grids before the search isn't on the clock.
+    // The worker's deadline: the same answer, on time, however slow the computer. The deadline, not
+    // the step budget, stops the search (counted, so a busy test machine can't hide it); the time bound
+    // is loose because placing the boxes and grids before the search isn't on the clock. Not "half the
+    // budget": CI's faster runner searched 100 672 steps in 200 ms (2026-11-02), so the deadline is
+    // 100 ms and the bound is the budget itself, which only a missing deadline check reaches.
     const timed: LayoutStats = { tiers: [0, 0, 0, 0] };
     const t = performance.now();
-    expect(() => layoutChart(chart, { stats: timed, deadline: t + 200 })).toThrow(/too many break and continue lines to draw/);
+    expect(() => layoutChart(chart, { stats: timed, deadline: t + 100 })).toThrow(/too many break and continue lines to draw/);
     const ms = performance.now() - t;
     expect(spent(timed)).toBeGreaterThan(0);
-    expect(spent(timed)).toBeLessThan(LAYOUT_BUDGET / 2);
+    expect(spent(timed)).toBeLessThan(LAYOUT_BUDGET);
     expect(ms, `layout took ${Math.round(ms)} ms`).toBeLessThan(1500);
   }, 30_000);
 
