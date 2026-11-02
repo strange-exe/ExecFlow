@@ -1058,12 +1058,21 @@ export function createLayout(root: HTMLElement): Layout {
   });
   // The window, the full screen or the boards' own content changing size: both sizes are fitted
   // again (a stored size is clamped, never overwritten), and the output's place is judged again.
+  // In the next frame, not in the observer's own delivery: syncBoards moves the run strip and resizes
+  // the boards, and doing that inside the callback made WebKit report "ResizeObserver loop completed
+  // with undelivered notifications" (CI, 0.27.0, short-links.spec QR test).
   let boardsW = -1;
+  let boardsQueued = false;
   new ResizeObserver(() => {
-    const w = boardsWidth();
-    if (w === boardsW) return;
-    boardsW = w;
-    if (wideQuery.matches) syncBoards();
+    if (boardsQueued) return;
+    boardsQueued = true;
+    requestAnimationFrame(() => {
+      boardsQueued = false;
+      const w = boardsWidth();
+      if (w === boardsW) return;
+      boardsW = w;
+      if (wideQuery.matches) syncBoards();
+    });
   }).observe(center);
 
   // ---------------------------------------------------------------- crossing 900 px and 1100 px
