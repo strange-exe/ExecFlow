@@ -7,7 +7,7 @@
 // Every keyboard path is driven with the keyboard.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, run, setCode, test } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, run, setCode, showPanel, test } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -409,5 +409,49 @@ test.describe("the console from 1100 px", () => {
     await run(page);
     await expect(panel).toHaveAttribute("data-collapsed", "false");
     await expect(page.locator("#panel-output")).toBeVisible();
+  });
+
+  // Playwright's Firefox hides every scrollbar (its computed scrollbar-width is "none" even for an
+  // inline "thin", probed 2026-11-02), and WebKit has no scrollbar-color: there the stylesheet's own
+  // rule is read and matched against the element (WebKit's ::-webkit-scrollbar fallback included).
+  test("the boards' scrollers have thin scrollbars in the control edge's colour, on a track that is the board", async ({ page, browserName }, info) => {
+    await openMain(page);
+    await run(page);
+    const read = (sel: string) =>
+      page.locator(sel).first().evaluate((el) => {
+        const s = getComputedStyle(el);
+        const probe = document.createElement("span");
+        probe.style.color = "var(--border-strong)";
+        document.body.append(probe);
+        const edge = getComputedStyle(probe).color;
+        probe.remove();
+        // The rules that apply to it, from the stylesheets (inside the 1100 px media block).
+        const rules: { width: string; colour: string }[] = [];
+        const walk = (list: CSSRuleList) => {
+          for (const r of list) {
+            if (r instanceof CSSStyleRule && r.style.getPropertyValue("scrollbar-width") && el.matches(r.selectorText)) rules.push({ width: r.style.getPropertyValue("scrollbar-width"), colour: r.style.getPropertyValue("scrollbar-color") });
+            else if (r instanceof CSSMediaRule && matchMedia(r.conditionText).matches) walk(r.cssRules);
+          }
+        };
+        for (const sheet of document.styleSheets) walk(sheet.cssRules);
+        const thumb = getComputedStyle(el, "::-webkit-scrollbar-thumb").backgroundColor;
+        return { width: s.getPropertyValue("scrollbar-width"), colour: s.getPropertyValue("scrollbar-color"), edge, thumb, colourSupported: CSS.supports("scrollbar-color", "auto"), rules };
+      });
+    const check = async (sel: string) => {
+      const got = await read(sel);
+      info.annotations.push({ type: "scrollbar", description: `${sel} ${JSON.stringify(got)}` });
+      expect(got.rules.map((r) => r.width), `${sel}: a thin rule applies`).toContain("thin");
+      if (browserName !== "firefox") expect(got.width, sel).toBe("thin");
+      if (got.colourSupported) {
+        expect(got.rules.map((r) => r.colour), sel).toContain("var(--border-strong) transparent");
+        if (browserName !== "firefox") {
+          expect(got.colour.startsWith(got.edge), `${sel}: ${got.colour}`).toBe(true);
+          expect(got.colour, sel).toMatch(/(transparent|rgba\(0, 0, 0, 0\))$/);
+        }
+      } else expect(got.thumb, `${sel}: the WebKit thumb is the edge colour`).toBe(got.edge);
+    };
+    for (const sel of ["#editor-area .cm-scroller", "#chart-board .fc-stage", "#panel .console-scroll"]) await check(sel);
+    await showPanel(page, "problems");
+    await check("#panel .problems-view");
   });
 });

@@ -1823,6 +1823,26 @@ input.switch {
   .panel-title { display: block; margin: 0; padding: 0 var(--s1); color: var(--text); font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui); white-space: nowrap; }
   .panel-back { display: inline-flex; }
   .panel-back[hidden] { display: none; }
+
+  /* Thin scrollbars on the boards' scrollers (the code, the chart, the output and the problems), so
+     two system bars don't meet at the seam: the thumb in the control edge's colour (3:1 on the board
+     and on the console: contrast.ts), the track the board itself. Browsers without scrollbar-color
+     take the WebKit pseudo-elements; one that has it ignores them, so they are only a fallback. */
+  .editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  @supports not (scrollbar-color: auto) {
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar { width: 10px; height: 10px; }
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar-track,
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar-corner { background: transparent; }
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: var(--r-key);
+      background-color: var(--border-strong);
+      background-clip: padding-box;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ touch */

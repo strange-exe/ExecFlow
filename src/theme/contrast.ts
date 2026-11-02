@@ -486,6 +486,9 @@ function board(): Pair[] {
   // The layout fix (2026-11-02): the splitters' grips, the board splitter's on the canvas (an alias
   // of surface) and the output splitter's on the code board (an alias of bg).
   add("border-strong", "surface", UI, "the board splitter's grip on the canvas, between the code and chart boards");
+  // The same edge colour is the thumb of the boards' thin scrollbars (app.css): on the code and the
+  // problems (bg, this row), on the chart's ground (the step box outline row) and on the output
+  // (terminal-bg, the live input field row).
   add("border-strong", "bg", UI, "the output splitter's grip on the code board, between the code and the output beside it");
   return list;
 }
