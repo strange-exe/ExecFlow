@@ -20,6 +20,17 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.27.0",
+    date: "2026-11-02",
+    title: "The flowchart shows the path your Python program took",
+    items: [
+      { kind: "added", text: "After a Python run, the flowchart shows the way the program went: each Yes and No, and each loop, is drawn thicker the more often it ran, with a count such as 5x beside it." },
+      { kind: "added", text: "The chart says what the last run did in words too (for screen readers), and Steps as text lists the same counts." },
+      { kind: "added", text: "An exported SVG or PNG of the chart keeps the path of the last run." },
+      { kind: "changed", text: "Editing the code clears the path, since it no longer matches the program. C and C++ programs show no path yet." },
+    ],
+  },
+  {
     version: "0.26.0",
     date: "2026-11-02",
     title: "Code and its flowchart side by side",

@@ -6,6 +6,20 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.27.0] - 2026-11-02
+
+The flowchart shows the path your Python program took
+
+### Added
+
+- After a Python run, the flowchart shows the way the program went: each Yes and No, and each loop, is drawn thicker the more often it ran, with a count such as 5x beside it.
+- The chart says what the last run did in words too (for screen readers), and Steps as text lists the same counts.
+- An exported SVG or PNG of the chart keeps the path of the last run.
+
+### Changed
+
+- Editing the code clears the path, since it no longer matches the program. C and C++ programs show no path yet.
+
 ## [0.26.0] - 2026-11-02
 
 Code and its flowchart side by side
