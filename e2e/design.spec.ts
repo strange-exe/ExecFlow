@@ -635,6 +635,9 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(rows).toHaveAttribute("aria-valuenow", "35");
   await page.keyboard.press("ArrowUp");
   await expect(rows).toHaveAttribute("aria-valuenow", "40");
+  // At 1440 px the open file's chart is drawn on its board: let its parser arrive before the reload,
+  // which would cancel that fetch (WebKit logs it as a console error, 1 run in 3, 2026-11-02).
+  await expect(page.locator("#chart-board .fc-view")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await page.reload();
   await waitReady(page);
   await expect(rows).toHaveAttribute("aria-valuenow", "40");

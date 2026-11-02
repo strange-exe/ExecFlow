@@ -6,7 +6,22 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
-## [0.25.0] - 2026-11-01
+## [0.26.0] - 2026-11-02
+
+Code and its flowchart side by side
+
+### Added
+
+- On wide screens (1100 px and up) the flowchart has a board of its own beside your code, on a dotted ground, and follows your code as you type.
+
+### Changed
+
+- Run, the result of the last run and the problems count now sit at the foot of the code, above the output. The count opens the Problems list.
+- On wide screens the file list opens from the Files button above the code, and closes when you open a file or press Escape.
+- On wide screens the output is light in the light theme, and always sits under the code; its height can still be changed.
+- After a run fails, Run keeps a dark outline so it is easy to find, while Go to error leads.
+
+## [0.25.0] - 2026-11-02
 
 Three new flowchart guides
 
