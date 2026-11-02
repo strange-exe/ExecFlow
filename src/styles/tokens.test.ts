@@ -24,6 +24,7 @@ const RUNTIME = new Set([
   "--tail", // src/ui/tree.ts, a conflict copy name's uncut end, in ch
   "--row-h", // app.css, declared on .tree-row
   "--kind", // about.css, a What's new change tag's hue, declared on each kind's rule
+  "--fc-i", // src/flowchart/render.ts, a traced connector's place in the run trace's draw-in
 ]);
 /** The theme picker's preview tiles set their own colours as --tile-* on each tile. */
 const RUNTIME_PREFIX = "--tile-";
@@ -78,7 +79,7 @@ describe("every var() names a real token", () => {
   });
 
   it("every run-time name on the list is really set by the app", () => {
-    const app = readFileSync(`${DIR}/app.css`, "utf8") + readFileSync(`${DIR}/about.css`, "utf8") + readFileSync("src/ui/layout.ts", "utf8") + readFileSync("src/ui/tree.ts", "utf8");
+    const app = readFileSync(`${DIR}/app.css`, "utf8") + readFileSync(`${DIR}/about.css`, "utf8") + readFileSync("src/ui/layout.ts", "utf8") + readFileSync("src/ui/tree.ts", "utf8") + readFileSync("src/flowchart/render.ts", "utf8");
     for (const name of RUNTIME) expect(app, name).toMatch(new RegExp(`["\`\\s{;]${name}[:"]|${name}: `));
   });
 });

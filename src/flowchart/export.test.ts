@@ -9,6 +9,8 @@ import { layoutChart } from "./layout";
 import type { FlowChart } from "./model";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
+import { MARKS, MARKS_LINES, moduleTrace } from "./fixtures/trace-runs";
+import { traceChart } from "./trace";
 
 const test = withPack ? it : it.skip;
 const doc = fakeDocument as unknown as Document;
@@ -243,6 +245,51 @@ describe("flowchart PNG export", () => {
     expect(ops).toContainEqual(expect.objectContaining({ op: "stroke", color: c.success, width: 1.5 }));
     expect(ops).toContainEqual(expect.objectContaining({ op: "stroke", color: c.danger, width: 1.5 }));
     expect(ops).toContainEqual({ op: "text", color: c.text, weight: "600" });
+  });
+});
+
+describe("export with the run trace", () => {
+  async function traced() {
+    const chart = ok((await chartFile("python", MARKS)).charts[0]);
+    const layout = layoutChart(chart);
+    return { chart, layout, trace: traceChart(chart, moduleTrace(MARKS_LINES), true)! };
+  }
+
+  test("the SVG has the trace as drawn: one path per connector at its width, the chips in resolved colours, nothing interactive", async () => {
+    const { chart, layout, trace } = await traced();
+    const svg = exportSvg({ chart, layout, file: "marks.py", look: LOOK, trace }, doc) as unknown as FakeElement;
+    const xml = serialize(svg);
+    expect(xml).not.toMatch(/var\(|data-|--fc-i|pathLength|class=/);
+    const drawing = svg.all().filter((e) => e.tagName === "svg")[1];
+    const edgeGroups = (drawing.children[0] as FakeElement).children as FakeElement[];
+    expect(edgeGroups).toHaveLength(layout.edges.length);
+    const widths = edgeGroups.map((g) => {
+      const paths = g.children.filter((c): c is FakeElement => c instanceof FakeElement && c.tagName === "path");
+      expect(paths).toHaveLength(1);
+      return Number(styleOf(paths[0]).get("stroke-width"));
+    });
+    expect(widths).toContain(4);
+    expect(widths).toContain(2.5);
+    expect(widths).toContain(3);
+    const chips = ((drawing.children[1] as FakeElement).children as FakeElement[]).map((g) => g.textContent).sort();
+    expect(chips).toEqual(["1x", "2x", "3x", "5x", "5x"]);
+    expect(xml).toContain(`fill:${LOOK.colors["surface-raised"]};stroke:${LOOK.colors["border-strong"]};stroke-width:1`);
+    // Without a trace, the export is unchanged (but for the brand mark's gradient ids, new each time).
+    const same = (e: FakeElement) => serialize(e).replace(/ef-mark-[\w-]+/g, "ef-mark");
+    expect(same(exportSvg({ chart, layout, file: "marks.py", look: LOOK, trace: null }, doc) as unknown as FakeElement)).toBe(same(svgOf(chart, "marks.py")));
+  });
+
+  test("the PNG paints the trace as the SVG does: widths, then the chips over every connector", async () => {
+    const { chart, layout, trace } = await traced();
+    const svg = exportSvg({ chart, layout, file: "marks.py", look: LOOK, trace }, doc) as unknown as FakeElement;
+    const drawing = svg.all().filter((e) => e.tagName === "svg")[1];
+    const { ctx, ops } = recordingContext();
+    drawExport(ctx, { chart, layout, file: "marks.py", look: LOOK, trace }, 2);
+    const want = svgOps(drawing);
+    const got = ops.map((o, i) => (want[i]?.d === undefined ? { ...o, d: undefined } : o));
+    expect(got).toEqual(want.map((o) => ({ ...o, d: o.d })));
+    expect(ops).toContainEqual(expect.objectContaining({ op: "stroke", color: LOOK.colors.success, width: 4 }));
+    expect(ops.filter((o) => o.op === "stroke" && o.color === LOOK.colors["border-strong"] && o.width === 1)).toHaveLength(5); // the five chips
   });
 });
 

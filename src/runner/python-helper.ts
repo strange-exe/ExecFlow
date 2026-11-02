@@ -353,9 +353,84 @@ def _shadow_warnings(entry_path):
     return out
 
 
-def __ce_run(entry, cwd, unavailable_json="[]", args_json="[]"):
+# The run trace (the flowchart's "path of the last run"): the lines the run file's own functions and
+# top level execute, one (call, line) pair per line event. Stops after TRACE_STEPS lines, so a long
+# loop pays for the first part only; the trace then says it is partial.
+TRACE_STEPS = 50000
+_CO_OPTIMIZED = 0x1
+_CO_SKIP = 0x20 | 0x80 | 0x100 | 0x200  # generators and coroutines: each resume would look like a fresh call
+_TRACE = {}
+
+
+def _trace_start(path):
+    from array import array
+    events = array("i")
+    calls = array("i")
+    index = {}
+    codes = []
+    add = events.append
+    left = TRACE_STEPS
+    _TRACE.clear()
+    _TRACE.update(codes=codes, calls=calls, events=events, partial=False)
+
+    def cut():
+        _TRACE["partial"] = True
+        sys.settrace(None)  # no more events at all: the rest of the run is as fast as untraced
+
+    def on_call(frame, event, arg):
+        code = frame.f_code
+        if left <= 0 or code.co_filename != path:
+            return None
+        # The top level, and functions with a chart (no lambdas, comprehensions or nested functions).
+        if code.co_name != "<module>" and not (code.co_flags & _CO_OPTIMIZED and "<" not in code.co_qualname):
+            return None
+        at = index.get(code)
+        if at is None:
+            at = index[code] = len(codes)
+            # A generator or coroutine is named (it ran) but not traced: [name, first line, untraced].
+            codes.append([code.co_qualname, code.co_firstlineno, bool(code.co_flags & _CO_SKIP)])
+        if codes[at][2]:
+            return None
+        serial = len(calls)
+        calls.append(at)
+        raised = False
+
+        def on_event(frame, event, arg):
+            nonlocal left, raised
+            if event == "line":
+                if left <= 0:
+                    return cut()
+                left -= 1
+                add(serial)
+                add(frame.f_lineno)
+                raised = False
+            elif event == "exception":
+                raised = True
+            elif event == "return":
+                add(serial)
+                add(-2 if raised else -1)
+            return on_event
+
+        return on_event
+
+    return on_call
+
+
+def __ce_trace():
+    """The last run's trace: [meta JSON, calls as int32 bytes, events as int32 bytes], or None."""
+    if not _TRACE:
+        return None
+    out = [json.dumps({"codes": _TRACE["codes"], "partial": _TRACE["partial"]}, ensure_ascii=False),
+           _TRACE["calls"].tobytes(), _TRACE["events"].tobytes()]
+    _TRACE.clear()
+    return out
+
+
+def __ce_run(entry, cwd, unavailable_json="[]", args_json="[]", trace=False):
     """unavailable_json: packages that failed to load this session (for the ModuleNotFoundError note).
-    args_json: the command-line arguments, a JSON list of strings (anything else is left out)."""
+    args_json: the command-line arguments, a JSON list of strings (anything else is left out).
+    trace: record the run trace (__ce_trace reads it)."""
+    _TRACE.clear()
     _config["unavailable"] = set(json.loads(unavailable_json))
     args = json.loads(args_json)
     args = [a for a in args if isinstance(a, str)] if isinstance(args, list) else []
@@ -385,7 +460,13 @@ def __ce_run(entry, cwd, unavailable_json="[]", args_json="[]"):
 
         warnings.showwarning = showwarning
         try:
-            runpy.run_path(entry_path, run_name="__main__")
+            tracer = _trace_start(entry_path) if trace else None
+            if tracer:
+                sys.settrace(tracer)
+            try:
+                runpy.run_path(entry_path, run_name="__main__")
+            finally:
+                sys.settrace(None)
         except SystemExit as e:
             if e.code is None:
                 exit_code = 0

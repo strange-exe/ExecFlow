@@ -21,6 +21,7 @@ import { checkDiagnostics } from "./python-diagnostics";
 import { checkWritten, prepareRunFiles } from "./python-files";
 import { nextPackageSet } from "./python-packages";
 import { GRACE_MS, RunClock, START_ATTEMPTS } from "./run-clock";
+import { checkTrace } from "./run-trace";
 
 export type PythonState = "idle" | "booting" | "ready" | "running" | "failed";
 type StopReason = "timeout" | "stopped" | "output-limit";
@@ -431,6 +432,8 @@ export class PythonRunner {
             written: checkWritten(data.written),
             ms: { run: typeof data.ms === "number" && data.ms >= 0 ? data.ms : performance.now() - started - clock.waitedMs },
           };
+          const trace = checkTrace(data.trace);
+          if (trace) result.trace = trace;
           const skipped = Number.isSafeInteger(data.writtenSkipped) ? data.writtenSkipped : 0;
           if (oom) result.message = `Python ran out of memory (its limit is ${HEAP_MB} MB).`;
           else if (skipped > 0) result.message = `The program also wrote ${skipped} file${skipped > 1 ? "s" : ""} that can't be saved to your files (not text, larger than 1 MB, or more than 20 files).`;

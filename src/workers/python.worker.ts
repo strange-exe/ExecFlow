@@ -18,6 +18,8 @@ import { DownloadError, downloadRuntime, failureWords, missingFiles, PYTHON_CACH
 import { collectWritten, prepareRunFiles, writeWorkspace, type FsLike } from "../runner/python-files";
 import { RUNNER_PY } from "../runner/python-helper";
 import { canonicalName, importIndex, missingPackages, packageClosure, PYTHON_PACKAGES, type LockFile } from "../runner/python-packages";
+import { traceFromPython } from "../runner/run-trace";
+import type { RunTrace } from "../core/types";
 import { lockDown } from "./lockdown";
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -174,7 +176,9 @@ interface Runtime {
   available: string[];
   /** Top-level import name -> package, for `available`. */
   index: Map<string, string>;
-  run: (entry: string, cwd: string, unavailableJson: string, argsJson: string) => string;
+  run: (entry: string, cwd: string, unavailableJson: string, argsJson: string, trace: boolean) => string;
+  /** The last run's trace, as the helper's __ce_trace returns it (a list proxy), or undefined. */
+  trace: () => { toJs(): unknown; destroy(): void } | undefined;
   check: (path: string, text: string) => string;
   imports: (entry: string) => string;
 }
@@ -290,7 +294,7 @@ async function setUp(py: PyodideAPI, source: BootSource, interrupt: SharedArrayB
   // Fail closed: never run user code with storage or network still reachable.
   const reachable = lockDown(self);
   if (reachable.length) throw new Error(`couldn't isolate Python from: ${reachable.join(", ")}`);
-  return { py, source, packageMs, available, index, run: fn("__ce_run"), check: fn("__ce_check"), imports: fn("__ce_imports") };
+  return { py, source, packageMs, available, index, run: fn("__ce_run"), trace: fn("__ce_trace"), check: fn("__ce_check"), imports: fn("__ce_imports") };
 }
 
 // ---------------------------------------------------------------- messages
@@ -370,7 +374,7 @@ function run(rt: Runtime, data: Extract<ToPython, { type: "run" }>) {
   fsAdded = 0;
   fsLimited = true;
   try {
-    result = JSON.parse(rt.run(data.entry, data.cwd, JSON.stringify(data.unavailable), JSON.stringify(Array.isArray(data.args) ? data.args : [])));
+    result = JSON.parse(rt.run(data.entry, data.cwd, JSON.stringify(data.unavailable), JSON.stringify(Array.isArray(data.args) ? data.args : []), true));
   } catch (e) {
     // Only an interrupt or out-of-memory landing in the helper's own steps can get here.
     const type = (e as { type?: string }).type;
@@ -395,7 +399,26 @@ function run(rt: Runtime, data: Extract<ToPython, { type: "run" }>) {
     diagnostics: fromPythonJson(result.diagnostics, known),
     written: written.written,
     writtenSkipped: written.skipped,
+    trace: takeTrace(rt),
   });
+}
+
+/** The run trace the helper recorded (python-helper.ts), or undefined; the runner checks its shape. */
+function takeTrace(rt: Runtime): RunTrace | undefined {
+  let proxy: ReturnType<Runtime["trace"]>;
+  try {
+    proxy = rt.trace();
+  } catch {
+    return undefined; // a Stop landing now: no trace, the run's result still goes
+  }
+  if (!proxy) return undefined;
+  try {
+    return traceFromPython(proxy.toJs());
+  } catch {
+    return undefined;
+  } finally {
+    proxy.destroy();
+  }
 }
 
 function check(rt: Runtime, data: Extract<ToPython, { type: "check" }>) {

@@ -4,11 +4,13 @@
 // outline of the steps in reading order.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { layoutChart, type LaidEdge } from "./layout";
+import { labelRect, layoutChart, type LaidEdge } from "./layout";
 import type { FlowChart, FlowNode } from "./model";
-import { arrowCorners, arrowLength, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList } from "./render";
+import { arrowCorners, arrowLength, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList, TRACE_LEGEND, traceSwatch } from "./render";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
+import { MARKS, MARKS_LINES, moduleTrace } from "./fixtures/trace-runs";
+import { traceChart } from "./trace";
 
 const test = withPack ? it : it.skip;
 const SVG = "http://www.w3.org/2000/svg";
@@ -256,5 +258,109 @@ describe("flowchart renderer", () => {
         });
       }
     }
+  });
+});
+
+describe("the run trace on the chart", () => {
+  async function traced() {
+    const chart = ok((await chartFile("python", MARKS)).charts[0]);
+    const layout = layoutChart(chart);
+    const trace = traceChart(chart, moduleTrace(MARKS_LINES), true)!;
+    const svg = renderChart(chart, layout, fakeDocument as unknown as Document, undefined, trace) as unknown as FakeElement;
+    const groups = svg.all().filter((e) => e.tagName === "g" && e.getAttribute("data-from") !== null);
+    return { chart, layout, trace, svg, groups };
+  }
+  const tracePath = (g: FakeElement) => g.children.find((c): c is FakeElement => c instanceof FakeElement && c.getAttribute("data-part") === "trace");
+  const widthOf = (e: FakeElement) => Number(/stroke-width:([\d.]+)/.exec(e.getAttribute("style")!)![1]);
+
+  test("each connector the run took is drawn at its count's width over the plain line; the rest stay plain", async () => {
+    const { chart, layout, groups } = await traced();
+    const byText = (text: string, label?: string) => layout.edges.findIndex((e) => chart.nodes[e.from].text.startsWith(text) && (label === undefined || e.label === label));
+    const expectWidth = (i: number, count: number, width: number) => {
+      const g = groups[i];
+      expect(g.getAttribute("data-count"), `edge ${i}`).toBe(String(count));
+      const plain = g.children.filter((c): c is FakeElement => c instanceof FakeElement && c.tagName === "path" && c.getAttribute("data-part") === null);
+      expect(plain).toHaveLength(1);
+      expect(widthOf(plain[0])).toBe(1.5);
+      const over = tracePath(g)!;
+      expect(over.getAttribute("d")).toBe(plain[0].getAttribute("d"));
+      expect(over.getAttribute("pathLength")).toBe("1");
+      expect(widthOf(over)).toBe(width);
+    };
+    expectWidth(byText("i < n", "Yes"), 5, 4);
+    expectWidth(byText("i < n", "No"), 1, 1.5);
+    expectWidth(byText("marks[i] > best", "Yes"), 2, 2.5);
+    expectWidth(byText("marks[i] > best", "No"), 3, 3);
+    expectWidth(byText("i += 1"), 5, 4);
+    // Every edge of this run was taken: each has its trace path, in run order (--fc-i from 0).
+    expect(groups.every((g) => tracePath(g))).toBe(true);
+    const steps = groups.map((g) => Number(/--fc-i:(\d+)/.exec(tracePath(g)!.getAttribute("style")!)![1]));
+    expect(Math.min(...steps)).toBe(0);
+    expect(steps[byText("i < n", "Yes")]).toBeLessThan(steps[byText("i < n", "No")]);
+  });
+
+  test("a pass-count chip on each branch and on the loop's way back, after its label; none on plain steps", async () => {
+    const { chart, layout, svg } = await traced();
+    const counts = svg.all().find((e) => e.getAttribute("data-part") === "counts")!;
+    expect(counts.getAttribute("aria-hidden")).toBe("true");
+    const chips = counts.children.filter((c): c is FakeElement => c instanceof FakeElement);
+    expect(chips.map((c) => c.textContent).sort()).toEqual(["1x", "2x", "3x", "5x", "5x"]);
+    for (const c of chips) {
+      const [rect, text] = c.children as FakeElement[];
+      expect(rect.tagName).toBe("rect");
+      expect(rect.getAttribute("style")).toBe("fill:var(--surface-raised);stroke:var(--border-strong);stroke-width:1");
+      expect(text.getAttribute("style")).toContain("font-family:var(--font-code);font-size:11px");
+      expect(c.getAttribute("data-count") + "x").toBe(text.textContent);
+    }
+    // "Yes 5x": the chip starts after the label's text.
+    const yes = layout.edges.find((e) => e.label === "Yes" && chart.nodes[e.from].text.startsWith("i < n"))!;
+    const after = labelRect(yes.labelAt!, "Yes").x1;
+    const chip = chips.find((c) => c.textContent === "5x" && Math.abs(Number((c.children[0] as FakeElement).getAttribute("x")) - after - 3) < 0.01);
+    expect(chip, "a 5x chip just after the loop's Yes").toBeDefined();
+    const rect = chip!.children[0] as FakeElement;
+    // Level with the label: its middle on the label's x-height (12 px text, baseline labelAt.y).
+    expect(Number(rect.getAttribute("y")) + Number(rect.getAttribute("height")) / 2).toBeCloseTo(yes.labelAt!.y - 4, 0);
+    // The chips come after every connector (drawn over them) and before the boxes.
+    const order = svg.children.map((c) => (c as FakeElement).getAttribute("data-part"));
+    expect(order).toEqual(["edges", "counts", "steps"]);
+  });
+
+  test("without a trace the drawing is exactly the plain chart", async () => {
+    const { chart, layout } = await traced();
+    const plain = serialize(renderChart(chart, layout, fakeDocument as unknown as Document) as unknown as FakeElement);
+    expect(serialize(renderChart(chart, layout, fakeDocument as unknown as Document, undefined, null) as unknown as FakeElement)).toBe(plain);
+    expect(plain).not.toContain("data-count");
+    expect(plain).not.toContain('data-part="trace"');
+  });
+
+  test("an edge the run didn't take has no trace path and no chip", async () => {
+    const chart = ok((await chartFile("python", "a = 2\nif a == 1:\n    print(1)\nelse:\n    print(2)\n")).charts[0]);
+    const layout = layoutChart(chart);
+    const trace = traceChart(chart, moduleTrace([1, 2, 5]), true)!;
+    const svg = renderChart(chart, layout, fakeDocument as unknown as Document, undefined, trace) as unknown as FakeElement;
+    const groups = svg.all().filter((e) => e.tagName === "g" && e.getAttribute("data-from") !== null);
+    const yes = layout.edges.findIndex((e) => e.label === "Yes");
+    const no = layout.edges.findIndex((e) => e.label === "No");
+    expect(tracePath(groups[yes])).toBeUndefined();
+    expect(groups[yes].getAttribute("data-count")).toBeNull();
+    expect(groups[no].getAttribute("data-count")).toBe("1");
+    const chips = svg.all().filter((e) => e.getAttribute("data-part") === "count");
+    expect(chips.map((c) => c.textContent)).toEqual(["1x"]);
+  });
+
+  test("Steps as text carries the counts; the legend gains the trace's two rows", async () => {
+    const { chart, trace } = await traced();
+    const words = stepList(chart, trace).map((s) => s.text);
+    expect(words.find((w) => w.includes("Decision: i < n ?"))).toMatch(/Yes: step \d+\. No: step \d+\. Last run: Yes 5 times, No 1 time\.$/);
+    expect(words.find((w) => w.includes("Decision: marks[i] > best ?"))).toMatch(/Last run: Yes 2 times, No 3 times\.$/);
+    expect(words.find((w) => w.includes("i += 1"))).toMatch(/Last run: 5 times\.$/);
+    // Without a trace, the outline is as before.
+    expect(stepList(chart).map((s) => s.text).join(" ")).not.toContain("Last run");
+    expect(TRACE_LEGEND.map((e) => e.words)).toEqual(["Thicker ran more often", "Times that way ran"]);
+    const width = traceSwatch("width", fakeDocument as unknown as Document) as unknown as FakeElement;
+    expect(width.getAttribute("aria-hidden")).toBe("true");
+    expect((width.children as FakeElement[]).map(widthOf)).toEqual([1.5, 4]);
+    const count = traceSwatch("count", fakeDocument as unknown as Document) as unknown as FakeElement;
+    expect(count.textContent).toBe("5x");
   });
 });

@@ -27,7 +27,10 @@ import { BRAND_MARK, tileColorAt } from "../editor/brand-mark";
 import {
   chooseExportScale, drawExport, exportFileName, exportSize, exportSvg, footerWhat, markSpot, printColors, type ExportColors, type ExportInput, type ExportLook,
 } from "../flowchart/export";
-import { kindSwatch, LEGEND, renderChart, stepList } from "../flowchart/render";
+import { kindSwatch, LEGEND, renderChart, stepList, TRACE_LEGEND, traceSwatch } from "../flowchart/render";
+import { lastRun, onRun } from "../flowchart/last-run";
+import { ranUntraced, traceChart, traceSummary, type ChartTrace } from "../flowchart/trace";
+import { TRACE_STEPS } from "../runner/run-trace";
 import { openModal } from "./dialogs";
 import { downloadBlob, h, svg } from "./dom";
 import { icon, pathData } from "./icons";
@@ -100,11 +103,15 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   // other views and outputs at the end. The Output tab's tool row is hidden on this tab (app.css).
   // On the chart board (Flow Board, 1100 px and wider) the bar starts with the board's name, where
   // the console's tab named it before; elsewhere a tab or the dialog names the view (flowchart.css).
+  // Shown with a run trace (Flow Board): what the thick lines and chips are.
+  const traceCaption = h("p", { class: "fc-trace-caption", id: "fc-trace-caption" }, "Path of the last run");
+  traceCaption.hidden = true;
   const toolbar = h(
     "div",
     { class: "fc-toolbar" },
     h("h2", { class: "fc-title" }, "Flowchart"),
     h("div", { class: "fc-group fc-pick" }, pickerLabel, picker),
+    traceCaption,
     h("div", { class: "fc-group", role: "group", "aria-label": "Zoom" }, zoomOut, zoomIn, fitButton),
     // At the bar's end; on a very narrow bar (a 320 px phone) these three wrap together to a second row.
     h("div", { class: "fc-group fc-end" }, stepsToggle, exportButton, fullButton),
@@ -129,7 +136,10 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   retry.hidden = true;
   // A polite live region: what the view says (loading, a mistake, too big, failed) is heard once.
   const message = h("div", { class: "fc-message", role: "status" }, messageText, skeleton, retry);
-  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, status, banner, stage, legend, steps, message);
+  // The run trace in words, said once after each traced run (the chart's thick lines and chips are
+  // aria-hidden; Steps as text has the counts box by box).
+  const traceSaid = h("p", { class: "visually-hidden", id: "fc-trace-said", role: "status" });
+  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, status, banner, stage, legend, steps, message, traceSaid);
   panel.append(root);
   const dialog = h("dialog", { class: "fc-dialog", id: "fc-dialog", "aria-label": "Flowchart, full screen" });
 
@@ -139,8 +149,15 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   let redrawTimer: ReturnType<typeof setTimeout> | undefined;
   let wordsTimer: ReturnType<typeof setTimeout> | undefined;
   let token = 0;
-  /** The file whose chart is shown: its id, language, results, and the picked chart with its layout (made in the worker). */
-  let shown: { id: string; lang: FlowLanguage; file: FlowFile; picked: number; layout: Layout | null } | null = null;
+  /** The file whose chart is shown: its id, text, language, results, and the picked chart with its layout (made in the worker). */
+  let shown: { id: string; text: string; lang: FlowLanguage; file: FlowFile; picked: number; layout: Layout | null } | null = null;
+  /** The run trace drawn on the chart (Python, while the file's text is what ran). */
+  let traced: ChartTrace | null = null;
+  let traceCache: { key: string; value: ChartTrace | null } | null = null;
+  /** Traces already drawn in (run serial and chart): a redraw of the same one appears at once. */
+  const drawnIn = new Set<string>();
+  /** The last trace said in the live region, so a redraw doesn't say it again. */
+  let saidKey = "";
   /** The function shown, by name and occurrence (C++ overloads and Python redefinitions share a name). */
   let chosen: Pick | null = null;
   /**
@@ -177,7 +194,11 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     for (const b of [zoomOut, fitButton, zoomIn, stepsToggle, exportButton]) b.hidden = !drawn;
     if (!drawn) say("", "");
     message.hidden = drawn;
-    if (!drawn) banner.hidden = true;
+    if (!drawn) {
+      banner.hidden = true;
+      traceCaption.hidden = true;
+      root.dataset.trace = "none";
+    }
   }
 
   /**
@@ -252,7 +273,7 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
         return setState("failed", "The flowchart couldn't be drawn.", true);
       case "charts": {
         const sameFile = chosenFile === f.id;
-        shown = { id: f.id, lang, file: result.file, picked: result.picked, layout: result.layout };
+        shown = { id: f.id, text: f.text, lang, file: result.file, picked: result.picked, layout: result.layout };
         if (!result.file.charts.length) return setState("no-functions", "No functions in this file yet.");
         // The worker falls back to the entry point when the picked function is gone.
         const now = pickOf(result.file.charts, result.picked);
@@ -291,14 +312,42 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     if (!shown!.layout) return setState("failed", "The flowchart couldn't be drawn.", true);
     chart = result;
     layout = shown!.layout;
-    svgEl = renderChart(result, layout);
+    // The last run of this file, while its text is still what ran (Python only; C and C++ have none yet).
+    const run = shown!.lang === "python" ? lastRun(shown!.id, shown!.text) : null;
+    // A Python file's first chart is its top level.
+    const program = shown!.picked === 0;
+    // One run and one function: the same text, so the same chart and the same counts (mapped once).
+    const key = run ? `${run.serial}:${shown!.picked}` : "";
+    if (run && traceCache?.key !== key) traceCache = { key, value: traceChart(result, run.trace, program) };
+    traced = run ? traceCache!.value : null;
+    const hadFocus = stage.contains(document.activeElement);
+    svgEl = renderChart(result, layout, document, undefined, traced);
+    if (traced && !drawnIn.has(key)) {
+      drawnIn.add(key);
+      svgEl.classList.add("fc-trace-new"); // draws in once (flowchart.css), not on every redraw
+    }
     stage.replaceChildren(svgEl);
-    steps.replaceChildren(...stepList(result).map((s) => h("li", null, s.text)));
+    root.dataset.trace = traced ? "shown" : "none";
+    // A function the last run never called says so, rather than looking like a chart with no run.
+    // A generator or coroutine ran, but its lines aren't recorded (the Python helper skips them).
+    const untraced = !traced && run !== null && ranUntraced(result, run.trace, program);
+    traceCaption.hidden = !run;
+    traceCaption.textContent = traced ? "Path of the last run" : untraced ? "Ran; generators aren't traced" : "Not called in the last run";
+    steps.replaceChildren(...stepList(result, traced).map((s) => h("li", null, s.text)));
     const kinds = new Set(result.nodes.map((n) => n.kind));
     legend.replaceChildren(
       ...LEGEND.filter((e) => kinds.has(e.kind) || (e.also !== undefined && kinds.has(e.also))).map((e) => h("li", { "data-kind": e.kind }, kindSwatch(e.kind), e.words)),
+      ...(traced ? TRACE_LEGEND.map((e) => h("li", { "data-trace": e.which }, traceSwatch(e.which), e.words)) : []),
     );
     setState("ready");
+    if (run && key !== saidKey && visible) {
+      saidKey = key;
+      traceSaid.textContent = traced
+        ? traceSummary(result, traced, program, TRACE_STEPS)
+        : untraced
+          ? `${result.name} ran in the last run; generators and coroutines aren't traced.`
+          : `${result.name} wasn't called in the last run.`;
+    }
     if (file.syntaxError !== undefined) {
       bannerText.textContent = `Line ${file.syntaxError} has a mistake, so this part of the chart may be incomplete.`;
       bannerGo.textContent = `Go to line ${file.syntaxError}`;
@@ -311,6 +360,8 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     for (const g of nodes()) g.tabIndex = -1;
     const first = nodes()[focusIndex];
     if (first) first.tabIndex = 0;
+    // A run's trace redraws the chart under a student browsing it: the focus stays on its box.
+    if (hadFocus && first) first.focus({ preventScroll: true });
     if (fitting) fit();
     else applyZoom();
     markCaret(false);
@@ -581,7 +632,8 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   function exportInput(): ExportInput | null {
     const f = host.file();
     if (!chart || !layout || !shown || !f || f.id !== shown.id || root.dataset.state !== "ready") return null;
-    return { chart, layout, file: f.path, look: exportLook() };
+    // The trace as shown: none once an edit made it stale.
+    return { chart, layout, file: f.path, look: exportLook(), trace: root.dataset.trace === "shown" ? traced : null };
   }
 
   type Failure = "too-big" | "device" | "privacy";
@@ -727,6 +779,15 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     return items;
   });
 
+  // ---------------------------------------------------------------- the run trace
+  // A run of the file on screen: its trace goes on the chart now (no new chart is needed: the run
+  // is of the text the chart shows, or lastRun finds nothing and the chart stays plain).
+  onRun((fileId) => {
+    if (fileId !== shown?.id || root.dataset.state !== "ready") return;
+    if (visible) drawChosen();
+    else stale = true;
+  });
+
   // ---------------------------------------------------------------- what the workbench calls
   setState("none", "Open a C, C++ or Python file to see its flowchart.");
   return {
@@ -740,6 +801,9 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
       schedule(0);
     },
     docChanged() {
+      // The trace was of the text before this edit: hidden at once (one attribute; flowchart.css),
+      // dropped by the redraw.
+      if (root.dataset.trace === "shown") root.dataset.trace = "stale";
       schedule(REDRAW_MS);
     },
     caretMoved() {

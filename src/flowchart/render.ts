@@ -7,8 +7,9 @@
 // and carries its source lines; the lines are decoration (aria-hidden), since stepList() says where
 // each step goes in words.
 import type { Layout, LaidBox, LaidEdge, Point } from "./layout";
-import { METRICS } from "./layout";
+import { labelRect, METRICS } from "./layout";
 import type { FlowChart, FlowEdge, FlowNode, Step } from "./model";
+import { chipText, countsByKey, edgeKey, stepTraceWords, traceWidth, type ChartTrace } from "./trace";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -65,10 +66,10 @@ export const VIEW_LOOK: ChartLook = {
   interactive: true,
 };
 
-type Styles = Record<"shape" | "bar" | "text" | "note" | "edgeLabel", string> & {
+type Styles = Record<"shape" | "bar" | "text" | "note" | "edgeLabel" | "chip" | "chipText", string> & {
   kindShape(hue: KindHue | null): string;
   kindBar(hue: KindHue | null): string;
-  edge(hue: EdgeHue): string;
+  edge(hue: EdgeHue, width?: number): string;
   arrow(hue: EdgeHue): string;
 };
 
@@ -89,9 +90,76 @@ function styles(look: ChartLook): Styles {
     edgeLabel: `fill:${c("text")};font-family:${look.uiFont};font-size:12px;font-weight:600`,
     kindShape: (hue) => (hue ? `fill:${look.tint(hue, CHART_TINT)};stroke:${c(hue)};stroke-width:1.75` : shape),
     kindBar: (hue) => `fill:none;stroke:${c(hue ?? "border-strong")};stroke-width:1.5`,
-    edge: (hue) => `fill:none;stroke:${c(hue)};stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round`,
+    edge: (hue, width = 1.5) => `fill:none;stroke:${c(hue)};stroke-width:${width};stroke-linejoin:round;stroke-linecap:round`,
     arrow: (hue) => `fill:${c(hue)};stroke:none`,
+    // The pass-count chip (Flow Board's signature): secondary ink on the raised surface, a hairline round it.
+    chip: `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1`,
+    chipText: `fill:${c("text-secondary")};font-family:${look.codeFont};font-size:${CHIP.fontSize}px`,
   };
+}
+
+// ---------------------------------------------------------------- the run trace
+
+/** The pass-count chip's size: mono 11 px, about 6.6 px a character. */
+export const CHIP = { h: 16, charW: 6.6, padX: 4, fontSize: 11, gap: 3, rx: 4 } as const;
+/** Draw-in steps: the 17th connector and later start with the 16th (a long trace doesn't crawl). */
+export const TRACE_STAGGER_STEPS = 16;
+
+export interface TraceMark {
+  /** Times the run went this way. */
+  count: number;
+  /** Its place in the draw-in (0 first, in run order, at most TRACE_STAGGER_STEPS). */
+  step: number;
+  /** The connector's width (traceWidth). */
+  width: number;
+  /** The chip with the count, on a branch (a labelled edge), a loop's way back, or a break or continue. */
+  chip: { x: number; y: number; w: number; h: number; text: string } | null;
+}
+
+/**
+ * What the run trace adds to each of the layout's edges (null: the run didn't go that way). The
+ * view's SVG and the export's SVG and PNG all draw from this, so they can't disagree. A branch's
+ * chip follows its label ("Yes 5x"); any other chip sits on the middle of the edge's longest
+ * segment, its fill covering the line under it.
+ */
+export function traceMarks(chart: FlowChart, layout: Layout, ct: ChartTrace): (TraceMark | null)[] {
+  const by = countsByKey(chart, ct);
+  const firsts = [...new Set(layout.edges.map((e) => by.get(edgeKey(e))).filter((c) => c && c.count > 0 && c.order >= 0).map((c) => c!.order))].sort((a, b) => a - b);
+  return layout.edges.map((e) => {
+    const c = by.get(edgeKey(e));
+    if (!c || c.count <= 0) return null;
+    const step = Math.min(TRACE_STAGGER_STEPS, Math.max(0, firsts.indexOf(c.order)));
+    const mark: TraceMark = { count: c.count, step, width: traceWidth(c.count), chip: null };
+    if (e.label === undefined && e.kind !== "back" && e.kind !== "jump") return mark;
+    const text = chipText(c.count);
+    const w = Math.round(text.length * CHIP.charW + 2 * CHIP.padX);
+    const h = CHIP.h;
+    if (e.label !== undefined && e.labelAt) {
+      const r = labelRect(e.labelAt, e.label);
+      // Centred on the label's x-height, just after its text.
+      mark.chip = { x: r.x1 + CHIP.gap, y: Math.round(e.labelAt.y - 4 - h / 2), w, h, text };
+      return mark;
+    }
+    let best = { len: -1, mid: e.points[0] };
+    for (let i = 1; i < e.points.length; i++) {
+      const [p, q] = [e.points[i - 1], e.points[i]];
+      const len = Math.hypot(q.x - p.x, q.y - p.y);
+      if (len > best.len) best = { len, mid: { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 } };
+    }
+    mark.chip = { x: Math.round(best.mid.x - w / 2), y: Math.round(best.mid.y - h / 2), w, h, text };
+    return mark;
+  });
+}
+
+/** The chip as SVG: a rounded rect and its count. */
+function chip(doc: SvgDocument, m: TraceMark, STYLE: Styles, live: boolean): SVGGElement {
+  const c = m.chip!;
+  const g = el(doc, "g", live ? { "data-part": "count", "data-count": m.count, style: `--fc-i:${m.step}` } : {});
+  g.appendChild(el(doc, "rect", { x: c.x, y: c.y, width: c.w, height: c.h, rx: CHIP.rx, style: STYLE.chip }));
+  const t = el(doc, "text", { x: c.x + c.w / 2, y: c.y + c.h / 2 + CHIP.fontSize * 0.35, "text-anchor": "middle", style: STYLE.chipText });
+  t.textContent = c.text;
+  g.appendChild(t);
+  return g;
 }
 
 /**
@@ -245,8 +313,13 @@ function arrow(doc: SvgDocument, edge: LaidEdge, STYLE: Styles, interactive: boo
 /**
  * The chart as an <svg> element (not yet in the page). With the export's look (interactive false)
  * it carries no rings, Tab stops, list roles, classes or data attributes: only the drawing.
+ *
+ * With a run trace, each connector the run took is drawn at its count's width and branches, ways
+ * back and jumps get a pass-count chip; the rest stay plain. In the view a traced connector is a
+ * second path over the plain one (data-part "trace", pathLength 1), so the view's CSS can draw it
+ * in along its length while the plain line is always there; the export draws the traced path only.
  */
-export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument = document, look: ChartLook = VIEW_LOOK): SVGSVGElement {
+export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument = document, look: ChartLook = VIEW_LOOK, trace: ChartTrace | null = null): SVGSVGElement {
   const STYLE = styles(look);
   const live = look.interactive;
   const svg = el(
@@ -258,19 +331,28 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   );
   const unreachable = new Set(chart.unreachable);
 
+  const marks = trace ? traceMarks(chart, layout, trace) : [];
   const edges = el(doc, "g", live ? { "data-part": "edges", "aria-hidden": "true" } : {});
-  for (const e of layout.edges) {
-    const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind } : {});
-    g.appendChild(el(doc, "path", { d: edgePath(e), style: STYLE.edge(edgeHue(e.label)) }));
+  const chips = el(doc, "g", live ? { "data-part": "counts", "aria-hidden": "true" } : {});
+  for (const [i, e] of layout.edges.entries()) {
+    const m = marks[i] ?? null;
+    const hue = edgeHue(e.label);
+    const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind, ...(m ? { "data-count": m.count } : {}) } : {});
+    const d = edgePath(e);
+    if (live || !m) g.appendChild(el(doc, "path", { d, style: STYLE.edge(hue) }));
+    if (m) g.appendChild(el(doc, "path", live ? { d, pathLength: 1, "data-part": "trace", style: `${STYLE.edge(hue, m.width)};--fc-i:${m.step}` } : { d, style: STYLE.edge(hue, m.width) }));
     g.appendChild(arrow(doc, e, STYLE, live));
     if (e.label !== undefined && e.labelAt) {
       const t = el(doc, "text", { x: e.labelAt.x, y: e.labelAt.y, "text-anchor": e.labelAt.anchor, style: STYLE.edgeLabel });
       t.textContent = e.label;
       g.appendChild(t);
     }
+    if (m?.chip) chips.appendChild(chip(doc, m, STYLE, live));
     edges.appendChild(g);
   }
   svg.appendChild(edges);
+  // Over every connector (a chip covers the line it sits on), under the boxes.
+  if (marks.some((m) => m?.chip)) svg.appendChild(chips);
 
   const list = el(doc, "g", live ? { role: "list", "aria-label": "Steps", "data-part": "steps" } : {});
   const boxes = new Map(layout.boxes.map((b) => [b.id, b]));
@@ -382,8 +464,11 @@ function gotoIds(step: Step, out: Set<number>): Set<number> {
   return out;
 }
 
-/** The chart as a text outline in reading order, one entry per box: never the only way to read it. */
-export function stepList(chart: FlowChart): { id: number; text: string }[] {
+/**
+ * The chart as a text outline in reading order, one entry per box: never the only way to read it.
+ * With a run trace, each box the run left says how many times it went each way ("Last run: Yes 5 times, No 1 time.").
+ */
+export function stepList(chart: FlowChart, trace: ChartTrace | null = null): { id: number; text: string }[] {
   const unreachable = new Set(chart.unreachable);
   const gotos = gotoIds(chart.body, new Set());
   return chart.nodes.map((node) => {
@@ -392,6 +477,31 @@ export function stepList(chart: FlowChart): { id: number; text: string }[] {
     if (node.kind === "connector") words = gotos.has(node.id) ? `Go to ${node.text}` : `Label ${node.text}`;
     if (node.note) words += ` (${node.note})`;
     if (unreachable.has(node.id)) words += " (never reached)";
-    return { id: node.id, text: `${node.id + 1}. ${words}${next(node, out)}` };
+    return { id: node.id, text: `${node.id + 1}. ${words}${next(node, out)}${trace ? stepTraceWords(chart, trace, node.id) : ""}` };
   });
 }
+
+/**
+ * The trace legend's pictures, in the trace's own style: "width" a plain connector over a 4 px one
+ * ("Thicker ran more often"), "count" a chip ("Times that way ran"). Decorative: the words say it.
+ */
+export function traceSwatch(which: "width" | "count", doc: SvgDocument = document, look: ChartLook = VIEW_LOOK): SVGSVGElement {
+  const STYLE = styles(look);
+  const svg = el(doc, "svg", { xmlns: NS, viewBox: "0 0 24 16", width: 24, height: 16, "aria-hidden": "true", focusable: "false" });
+  if (which === "width") {
+    svg.appendChild(el(doc, "path", { d: "M2,4 L22,4", style: STYLE.edge("text-secondary") }));
+    svg.appendChild(el(doc, "path", { d: "M2,11 L22,11", style: STYLE.edge("text-secondary", traceWidth(5)) }));
+  } else {
+    svg.appendChild(el(doc, "rect", { x: 0.5, y: 0.5, width: 23, height: 15, rx: CHIP.rx, style: STYLE.chip }));
+    const t = el(doc, "text", { x: 12, y: 8 + CHIP.fontSize * 0.35, "text-anchor": "middle", style: STYLE.chipText });
+    t.textContent = chipText(5);
+    svg.appendChild(t);
+  }
+  return svg;
+}
+
+/** The trace's two legend rows, shown only while a trace is. */
+export const TRACE_LEGEND: readonly { which: "width" | "count"; words: string }[] = [
+  { which: "width", words: "Thicker ran more often" },
+  { which: "count", words: "Times that way ran" },
+];

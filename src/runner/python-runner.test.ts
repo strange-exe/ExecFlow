@@ -91,6 +91,17 @@ describe("PythonRunner", () => {
     expect(workers[0].runs[0]).toMatchObject({ entry: "main.py", cwd: "", packageCheck: true, unavailable: [] });
   });
 
+  it("passes on the run trace when it is well formed, and drops one that isn't", async () => {
+    const trace = { codes: [{ name: "<module>", line: 1 }], calls: Int32Array.from([0]), events: Int32Array.from([0, 1, 0, -1]), partial: false };
+    let next: unknown = trace;
+    const { runner } = setUp((w) => w.emit(done({ trace: next as never })));
+    expect((await runner.run(request(), hooks())).trace).toEqual(trace);
+    for (const bad of [{ ...trace, events: Int32Array.from([0]) }, { ...trace, calls: [0] }, { ...trace, codes: [{ name: 1, line: 1 }] }, "x"]) {
+      next = bad;
+      expect((await runner.run(request(), hooks())).trace, JSON.stringify(bad)).toBeUndefined();
+    }
+  });
+
   it("sends the command-line arguments with the run (none when the request has none), on every attempt", async () => {
     const { runner, workers } = setUp((w, msg) => {
       if (msg.packageCheck && !w.init.packages.includes("numpy")) w.emit({ type: "need-packages", packages: ["numpy"] });

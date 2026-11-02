@@ -143,6 +143,30 @@ export interface RunResult {
    */
   written?: WorkspaceFile[];
   ms: { build?: number; run?: number };
+  /** Python only: the lines the run file's own code ran, for the flowchart's run trace. */
+  trace?: RunTrace;
+}
+
+/**
+ * The lines a run executed in the file that was run (not in modules it imported), as the Python
+ * runner records them: one (call, line) pair per line event, in order. flowchart/trace.ts maps them
+ * onto a chart's connectors.
+ */
+export interface RunTrace {
+  /**
+   * Each code object of the file that ran: its qualified name ("<module>", "area", "Shape.area") and
+   * first line; `untraced` for a generator or coroutine (it ran, but its lines weren't recorded).
+   */
+  codes: { name: string; line: number; untraced?: boolean }[];
+  /** Per call (a frame of a traced code object, numbered from 0): the index of its code in `codes`. */
+  calls: Int32Array;
+  /**
+   * Pairs of (call, line): a line event in that call; line -1 when the call returned, -2 when it
+   * ended by an exception. A call with neither was still running when the trace stopped.
+   */
+  events: Int32Array;
+  /** The trace stopped early (TRACE_STEPS lines): counts cover only the start of the run. */
+  partial: boolean;
 }
 
 // ---------------------------------------------------------------- sync

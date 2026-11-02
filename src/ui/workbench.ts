@@ -40,6 +40,7 @@ import { TabStrip } from "./tabs";
 import type { CodeLinkDeps } from "./code-link-dialog";
 import { onLinkFragment, type LinkFragment } from "./link-fragment";
 import type { ChartHost, FlowchartView } from "./flowchart-view";
+import { noteRun } from "../flowchart/last-run";
 import { FileTree } from "./tree";
 import { starterText, type TreeNode } from "./tree-model";
 
@@ -1409,9 +1410,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
           },
         },
       );
+      // Flow Board run trace: the chart shows the path this run took (Python; none for C and C++).
+      noteRun(file.id, byPath.get(file.path)?.text ?? "", result.trace);
       // A file deleted during the run takes its errors with it; a renamed one keeps them under its
       // new name (endBuild stores a closed file's results under the path the tool saw).
-      const marks = [...result.diagnostics, ...callSiteMarks(result.diagnostics)].filter((d) => !(d.path && moves.get(d.path) === null));
+      const marks =[...result.diagnostics, ...callSiteMarks(result.diagnostics)].filter((d) => !(d.path && moves.get(d.path) === null));
       ed.endBuild(ticket, marks);
       for (const [from, to] of moves) if (to !== null) ed.movePending(from, to);
       // The run's first error: the editor head's jump (when it is in another file) and the header's
@@ -1456,6 +1459,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       announcer.say(announcement(result, summary, file.path, current.timeLimitS));
       void saveWritten(result.written, parentOf(file.path));
     } catch (e) {
+      noteRun(file.id, "", undefined); // no run, no path: the chart drops the last one's
       ed.cancelBuild(ticket);
       output.fail(errorText(e));
       finishedRun(file.path, true, moves);

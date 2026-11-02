@@ -112,6 +112,38 @@
 .fc-node[data-current="true"] .fc-ring { stroke: var(--location); stroke-width: 2; stroke-dasharray: 5 3; }
 .fc-node:focus-visible .fc-ring { stroke: var(--focus); stroke-width: 2.5; stroke-dasharray: none; }
 
+/* ------------------------------------------------------------------ the run trace (Flow Board's signature) */
+/* render.ts draws each traced connector twice: the plain line, always there, and the traced one over
+   it (pathLength 1, its widths and chips from render.ts). After a run (.fc-trace-new, once per run) the
+   traced lines draw in along their own path, start to end, 640 ms ease-out, 50 ms apart in the order
+   the run first took them (--fc-i); each chip fades in as its line lands. A dash of the whole length
+   and a gap of twice it, shifted 1.01, hides the line without leaving a round cap's dot. The resting
+   style is the drawn one: the animation only runs from hidden to it (fill "backwards"). */
+.fc-trace-new [data-part="trace"] {
+  stroke-dasharray: 1 2;
+  animation: fc-trace-draw 640ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--fc-i, 0) * 50ms);
+}
+.fc-trace-new [data-part="count"] {
+  animation: fc-chip-in 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--fc-i, 0) * 50ms + 480ms);
+}
+@keyframes fc-trace-draw { from { stroke-dashoffset: 1.01; } to { stroke-dashoffset: 0; } }
+@keyframes fc-chip-in { from { opacity: 0; } to { opacity: 1; } }
+/* An edit makes the trace stale: it goes at once (the redraw then drops it). */
+.fc-view[data-trace="stale"] :is([data-part="trace"], [data-part="counts"], .fc-legend [data-trace]) { display: none; }
+.fc-view[data-trace="stale"] .fc-trace-caption { visibility: hidden; }
+/* Says what the lines and chips are: quiet tier, beside the function picker. */
+.fc-trace-caption { margin: 0; color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); white-space: nowrap; }
+.fc-trace-caption[hidden] { display: none; }
+@container fc-view (max-width: 599px) {
+  .fc-trace-caption { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-trace-new [data-part="trace"],
+  .fc-trace-new [data-part="count"] { animation: none; }
+}
+
 /* ------------------------------------------------------------------ the legend (quiet tier) */
 /* Under the chart: the shapes it uses, each drawn by render.ts in its boxes' own colours, then its
    name in the secondary ink. Wraps to a second line on a narrow card. */

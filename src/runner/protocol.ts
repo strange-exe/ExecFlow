@@ -4,7 +4,7 @@
 // (python-diagnostics.ts, python-files.ts) and never wires a privileged action (sync, saving a
 // file) to a worker message.
 
-import type { ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
+import type { RunTrace, ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
 
 // ---------------------------------------------------------------- generic (any language worker)
 
@@ -137,5 +137,7 @@ export type FromPython =
       written: WorkspaceFile[];
       /** Files the program created or changed that aren't in `written` (binary, too big, over the cap). */
       writtenSkipped: number;
+      /** The run file's executed lines (absent when tracing was off or failed); checked by the runner. */
+      trace?: RunTrace;
     }
   | { type: "checked"; id: number; diagnostics: ToolDiagnostic[] };

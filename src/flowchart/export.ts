@@ -12,7 +12,8 @@ import { PAPER } from "../theme/print-ink";
 import { nameText } from "./labels";
 import { METRICS, type Layout, type Point } from "./layout";
 import type { FlowChart, FlowNode } from "./model";
-import { arrowCorners, CHART_TINT, CHART_TOKENS, edgeHue, edgePath, kindHue, renderChart, type ChartToken, type SvgDocument } from "./render";
+import { arrowCorners, CHART_TINT, CHART_TOKENS, CHIP, edgeHue, edgePath, kindHue, renderChart, traceMarks, type ChartToken, type SvgDocument } from "./render";
+import type { ChartTrace } from "./trace";
 
 export { CHART_TOKENS };
 
@@ -79,6 +80,8 @@ export interface ExportInput {
   /** The file's path or name (only its name is shown). */
   file: string;
   look: ExportLook;
+  /** The run trace on screen, exported as drawn: widths and pass-count chips. */
+  trace?: ChartTrace | null;
 }
 
 /** The export as an <svg> element: title, ground, the chart, then the footer. Serialize it with XMLSerializer. */
@@ -93,13 +96,19 @@ export function exportSvg(input: ExportInput, doc: SvgDocument = document): SVGS
   titleEl.textContent = title;
   root.appendChild(titleEl);
   root.appendChild(el(doc, "rect", { x: 0, y: 0, width, height, fill: look.colors.bg }));
-  const drawing = renderChart(chart, layout, doc, {
-    color: (t) => look.colors[t],
-    tint: (t, pct) => mixHex(look.colors[t], look.colors["surface-raised"], pct),
-    codeFont: look.codeFont,
-    uiFont: look.uiFont,
-    interactive: false,
-  });
+  const drawing = renderChart(
+    chart,
+    layout,
+    doc,
+    {
+      color: (t) => look.colors[t],
+      tint: (t, pct) => mixHex(look.colors[t], look.colors["surface-raised"], pct),
+      codeFont: look.codeFont,
+      uiFont: look.uiFont,
+      interactive: false,
+    },
+    input.trace ?? null,
+  );
   drawing.setAttribute("x", String(Math.round((width - layout.width) / 2)));
   drawing.setAttribute("y", "0");
   root.appendChild(drawing);
@@ -244,10 +253,12 @@ export function drawExport(ctx: CanvasRenderingContext2D, input: ExportInput, sc
   ctx.translate(Math.round((width - layout.width) / 2), 0);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  // Edges, arrowheads and their labels: the SVG's styles (render.ts styles()), one hue per edge.
-  for (const e of layout.edges) {
+  // Edges, arrowheads and their labels: the SVG's styles (render.ts styles()), one hue per edge; a
+  // traced edge at its count's width, its chip drawn after every edge (as the SVG's are).
+  const marks = input.trace ? traceMarks(chart, layout, input.trace) : [];
+  for (const [i, e] of layout.edges.entries()) {
     const hue = c[edgeHue(e.label)];
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = marks[i]?.width ?? 1.5;
     ctx.strokeStyle = hue;
     tracePath(ctx, edgePath(e));
     ctx.stroke();
@@ -260,6 +271,20 @@ export function drawExport(ctx: CanvasRenderingContext2D, input: ExportInput, sc
       ctx.textAlign = e.labelAt.anchor === "end" ? "right" : "left";
       ctx.fillText(e.label, e.labelAt.x, e.labelAt.y);
     }
+  }
+  for (const m of marks) {
+    if (!m?.chip) continue;
+    const k = m.chip;
+    ctx.fillStyle = c["surface-raised"];
+    ctx.strokeStyle = c["border-strong"];
+    ctx.lineWidth = 1;
+    roundRect(ctx, k.x, k.y, k.w, k.h, CHIP.rx);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `${CHIP.fontSize}px ${look.codeFont}`;
+    ctx.fillStyle = c["text-secondary"];
+    ctx.textAlign = "center";
+    ctx.fillText(k.text, k.x + k.w / 2, k.y + k.h / 2 + CHIP.fontSize * 0.35);
   }
   // Boxes and their labels: a kind's hue as the outline over its tint (CHART_TINT), the rest plain.
   const boxes = new Map(layout.boxes.map((b) => [b.id, b]));
