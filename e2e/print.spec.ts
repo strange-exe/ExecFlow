@@ -9,7 +9,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { writeFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { PRINT_INK } from "../src/theme/print-ink";
-import { afterFetch, expect, importFiles, openApp, openFromTree, test, tolerating } from "./helpers";
+import { afterFetch, expect, importFiles, openApp, openFromTree, showFiles, test, tolerating } from "./helpers";
 import { pdfFillColours, pdfPages } from "./pdf-text";
 
 test.use({ serviceWorkers: "block" });
@@ -53,6 +53,7 @@ async function openWithFiles(page: Page) {
 }
 
 async function openFromFileMenu(page: Page) {
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Save as PDF..." }).click();
   await expect(dialog(page)).toHaveAttribute("data-state", "ready");

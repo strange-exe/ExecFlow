@@ -1,4 +1,4 @@
-import { expect, openApp, openFromTree, reloadApp, setCode, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, openApp, openFromTree, reloadApp, setCode, showFiles, test, treeItem } from "./helpers";
 
 // These tests reload; a reload while the app registers its service worker cancels sw.js (WebKit logs
 // it). Offline behaviour isn't what is tested here, so the service worker is left out.
@@ -15,8 +15,13 @@ test("a first visit offers starters, and one becomes a saved, open file", async 
   await expect(activeTab(page)).toHaveAttribute("title", "main.py");
   await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
   await expect(page.locator("#app")).toHaveAttribute("data-runnable", "true");
+  // From 1100 px the open file's chart is drawn on its board at once: let its parser arrive before
+  // the reload, which would cancel that fetch (WebKit logs a cancelled fetch as a console error,
+  // 2 runs in 6 at 1280 px, 2026-11-02).
+  if (page.viewportSize()!.width >= 1100) await expect(page.locator("#chart-board .fc-view")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
 
   await reloadApp(page);
+  await showFiles(page);
   await expect(treeItem(page, "main.py")).toBeVisible();
   await expect(activeTab(page)).toHaveAttribute("title", "main.py");
   await expect(page.locator('[data-empty="workspace"]')).toHaveCount(0);
@@ -26,6 +31,7 @@ test("files and folders are created, edited, renamed and deleted, and all of it 
   await openApp(page);
 
   // New folder at the top level.
+  await showFiles(page);
   await page.locator("#new-folder").click();
   const folderName = page.getByRole("textbox", { name: "Name of the new folder at the top level" });
   await expect(folderName).toBeFocused();
@@ -46,14 +52,16 @@ test("files and folders are created, edited, renamed and deleted, and all of it 
   await expect(page.locator('.tab[data-active="true"]')).toHaveAttribute("data-dirty", "false");
 
   // A path typed with a slash creates the folders on the way, at the top level after clicking empty space.
-  await page.locator(".tree-host").click({ position: { x: 20, y: 300 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const topName = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await topName.fill("lib/deep/notes.txt");
   await topName.press("Enter");
   await expect(treeItem(page, "lib/deep/notes.txt")).toBeVisible();
 
-  // Rename with F2: a bad name is explained next to the field, which keeps focus.
+  // Rename with F2: a bad name is explained next to the field, which keeps focus. (Opening
+  // notes.txt closed the Files popover.)
+  await showFiles(page);
   await treeItem(page, "src/util.py").focus();
   await page.keyboard.press("F2");
   const rename = page.getByRole("textbox", { name: "New name for util.py" });
@@ -85,6 +93,7 @@ test("files and folders are created, edited, renamed and deleted, and all of it 
   await expect(treeItem(page, "lib")).toHaveCount(0);
 
   await reloadApp(page);
+  await showFiles(page);
   await expect(treeItem(page, "src")).toBeVisible();
   await expect(treeItem(page, "lib")).toHaveCount(0);
   await expect(activeTab(page)).toHaveAttribute("title", "src/helpers.py");
@@ -101,6 +110,7 @@ test("a file that is still opening doesn't pull focus out of a menu opened meanw
     await route.continue();
   });
   await page.locator('.starter[data-language="python"]').click();
+  await showFiles(page);
   await expect(treeItem(page, "main.py")).toBeVisible();
   await page.locator("#file-actions").click();
   const menu = page.getByRole("menu", { name: "File actions" });
@@ -117,12 +127,14 @@ test("a file that is still opening doesn't pull focus out of a menu opened meanw
 test("an import adds files, and replacing an existing file asks first", async ({ page }) => {
   await openApp(page);
   const pick = async (files: { name: string; text: string }[]) => {
+    await showFiles(page);
     const chooser = page.waitForEvent("filechooser");
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: "Import files" }).click();
     await (await chooser).setFiles(files.map((f) => ({ name: f.name, mimeType: "text/plain", buffer: Buffer.from(f.text) })));
   };
   await pick([{ name: "a.py", text: "print('a')\n" }, { name: "b.c", text: "int main(void) { return 0; }\n" }]);
+  await showFiles(page); // the import opened a.py, which closed the Files popover
   await expect(treeItem(page, "a.py")).toBeVisible();
   await expect(treeItem(page, "b.c")).toBeVisible();
   await expect(page.locator(".notice")).toHaveAttribute("data-tone", "success");
@@ -147,6 +159,7 @@ test("an import adds files, and replacing an existing file asks first", async ({
 test("replacing the open file by an import moves Ln/Col to the cursor in the new text", async ({ page }) => {
   await openApp(page);
   const pick = async (files: { name: string; text: string }[]) => {
+    await showFiles(page);
     const chooser = page.waitForEvent("filechooser");
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: "Import files" }).click();
@@ -167,6 +180,7 @@ test("replacing the open file by an import moves Ln/Col to the cursor in the new
 
 test("binary files and Trojan Source text are refused on import, with the reason", async ({ page }) => {
   await openApp(page);
+  await showFiles(page);
   const chooser = page.waitForEvent("filechooser");
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import files" }).click();
@@ -176,6 +190,7 @@ test("binary files and Trojan Source text are refused on import, with the reason
     { name: "check.py", mimeType: "text/plain", buffer: Buffer.from(`access = "user${rlo} # admin"\n`) },
     { name: "fine.py", mimeType: "text/plain", buffer: Buffer.from("print(1)\n") },
   ]);
+  await showFiles(page);
   await expect(treeItem(page, "fine.py")).toBeVisible();
   await expect(treeItem(page, "homework.py")).toHaveCount(0);
   await expect(treeItem(page, "check.py")).toHaveCount(0);
@@ -189,6 +204,7 @@ test("Export saves the workspace as a .zip", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="c"]').click();
   await expect(activeTab(page)).toHaveAttribute("title", "main.c");
+  await showFiles(page);
   const download = page.waitForEvent("download");
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Export workspace (.zip)" }).click();

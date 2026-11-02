@@ -1,4 +1,4 @@
-import { expect, importFiles, openApp, openFromTree, run, setCode, showView, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, run, setCode, showFiles, showView, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -170,6 +170,8 @@ test("a file the program writes is saved to the workspace by itself, with a line
   await openFromTree(page, "write.py");
   const r = await run(page);
   expect(r.status, r.output).toBe("ok");
+  // The file list is shown to look (from 1100 px a popover, closed while the code is in use).
+  await showFiles(page);
   await expect(treeItem(page, "result.txt")).toBeVisible();
   await expect(page.locator('#console [data-stream="note"]')).toContainText("Saved result.txt to your files.");
   await expect(page.locator(".notice").getByRole("button")).toHaveCount(0);
@@ -201,11 +203,13 @@ test("new code a program writes is asked about; Keep it adds it, and data files 
   await openFromTree(page, "writer.py");
   const r = await run(page);
   expect(r.status, r.output).toBe("ok");
+  await showFiles(page);
   await expect(treeItem(page, "out.txt")).toBeVisible();
   await expect(treeItem(page, "extra.py")).toHaveCount(0);
   const notice = page.locator(".notice");
   await expect(notice).toContainText("The program wrote extra.py, code that later runs would build. Keep it in your files?");
   await notice.getByRole("button", { name: "Keep it" }).click();
+  await showFiles(page);
   await expect(treeItem(page, "extra.py")).toBeVisible();
   await expect(page.locator('#console [data-stream="note"]').last()).toContainText("Saved extra.py to your files.");
   await openFromTree(page, "extra.py");
@@ -237,6 +241,7 @@ test("a program's writes outside its own folder aren't saved, and the question n
   const notice = page.locator(".notice");
   await expect(notice).toContainText("The program wrote 4 code files (listed in Output), code that later runs would build. Keep them in your files?");
   await notice.getByRole("button", { name: "Keep them" }).click();
+  await showFiles(page);
   await expect(treeItem(page, "shared/d.py")).toBeVisible();
   await expect(treeItem(page, "mine/random.py")).toHaveCount(0);
   const mine = treeItem(page, "mine");

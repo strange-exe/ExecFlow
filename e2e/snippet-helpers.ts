@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import type { Download, Locator, Page } from "@playwright/test";
 import { IMAGE_MIXES, over } from "../src/theme/contrast";
-import { expect, importFiles, openApp, openFromTree, treeItem, type FileSpec } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, showFiles, treeItem, type FileSpec } from "./helpers";
 
 /** 9.2's main.py: lines 2 to 3 are the default capture (694 x 229 at scale 2). */
 export const FIXTURE = "# total of two numbers\ndef add(a, b):\n    return a + b\n\nprint(add(2, 3))\n";
@@ -46,6 +46,7 @@ export const dialogOf = (page: Page) => page.locator("dialog#snippet-dialog");
 
 /** More file actions, then the Capture snippet item (its label names the file and the lines). */
 export async function openFromFileMenu(page: Page, label: RegExp = /^Capture snippet of main\.py, lines 2 to 3\.\.\./) {
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: label }).click();
   const dialog = dialogOf(page);

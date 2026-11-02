@@ -2,7 +2,7 @@
 // pack is served by the local preview server; every test gets a fresh browser profile, so each
 // downloads it.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test, tolerating, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showFiles, showView, test, tolerating, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(240_000);
@@ -229,7 +229,7 @@ test("an error in a header in a sub-folder, included by two files, is listed onc
     { name: "util.c", text: '#include "lib/util.h"\nint square(int x) { return x * x; }\n' },
   ]);
   // The header lives in lib/, created through the tree.
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const name = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await name.fill("lib/util.h");
@@ -264,6 +264,7 @@ test("a header renamed while the build runs: every Problems row names a file tha
   await page.locator("#run-button").click();
   await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 120_000 });
   // util.c has a warning (unused variable); rename it while the program waits.
+  await showFiles(page);
   await treeItem(page, "util.c").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for util.c" });

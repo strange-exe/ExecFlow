@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test, tolerating } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showView, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -410,7 +410,7 @@ test.describe("B11: Run's step-back and the run header belong to the file that r
     await importFiles(page, [{ name: "readme.txt", text: "notes\n" }]);
     // Files in folders go in through New file, which makes the folders (import keeps base names).
     for (const [path, code] of [["lab1/bad.py", "print('one')\n"], ["lab2/bad.py", "print(1 / 0)\n"]]) {
-      await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+      await clickTreeSpace(page);
       await page.locator("#new-file").click();
       const field = page.getByRole("textbox", { name: /Name of the new file/ });
       await field.fill(path);
@@ -471,7 +471,9 @@ test.describe("B13: runs that never end, crashes, and a file without main()", ()
     expect((await run(page, { timeout: 120_000 })).status).toBe("crashed");
     await expect(page.locator("#console .note")).toContainText("The program stopped itself: abort() was called");
     await expect(announcer(page)).toHaveText(/^Crashed\. The program stopped itself: abort\(\) was called/);
-    const words = `${await page.locator("#runlog").textContent()} ${await page.locator("#console").textContent()} ${await announcer(page).textContent()}`;
+    // The status word is in the run-log header, or from 1100 px in the run strip's outcome (Flow Board S2).
+    const header = (await page.locator("#runlog, .run-outcome").allTextContents()).join(" ");
+    const words = `${header} ${await page.locator("#console").textContent()} ${await announcer(page).textContent()}`;
     expect(words.toLowerCase()).not.toMatch(/crashed: the program crashed/);
     expect(words.match(/crashed/gi) ?? []).toHaveLength(2); // the header's status word, and the announcement's
   });

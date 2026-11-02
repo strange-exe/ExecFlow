@@ -429,15 +429,31 @@ export type FileSpec = { name: string; text: string };
 
 /** On narrow screens the file list is a drawer: open it (no-op where the sidebar always shows). */
 export async function showFiles(page: Page) {
-  // Files is the rail's toggle from 900 px (expanded while the sidebar shows) and the view bar's
+  // Files is the code board's popover toggle from 1100 px (the list closes again once a file is
+  // chosen), the rail's toggle from 900 px (expanded while the sidebar shows) and the view bar's
   // drawer toggle below: the layout must have crossed to the viewport's side first (WebKit reports
   // the new width a frame late), or a desktop "expanded" is read on a phone with the drawer shut.
   await expect(page.locator("#app")).toHaveAttribute("data-narrow", String(isNarrow(page)));
   const toggle = page.locator(".drawer-toggle");
+  // The same for 1100 px: Files names the popover from there, the sidebar under it.
+  await expect(toggle).toHaveAttribute("aria-controls", (page.viewportSize()?.width ?? 1280) >= 1100 ? "files-popover" : "sidebar");
   if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();
     await expect(page.locator("#sidebar")).toBeInViewport();
   }
+}
+
+/**
+ * Clicks the file list's empty space under the last file, which chooses nothing (New file then
+ * goes to the top level). The list is shown first (from 1100 px it is the Files popover, only as
+ * tall as its files), scrolled to its end, and clicked 4 px above its foot: always the space under
+ * the files, however many there are and however tall the list is.
+ */
+export async function clickTreeSpace(page: Page) {
+  await showFiles(page);
+  const host = page.locator(".tree-host");
+  await host.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await host.click({ position: { x: 20, y: (await host.boundingBox())!.height - 4 } });
 }
 
 /** Imports files through the real "Import files" picker (the sidebar's More file actions menu). */

@@ -4,7 +4,7 @@
 // policy violation may even be attempted (CSP would block an injected handler, so "no alert" alone
 // proves nothing: the DOM and the violation log are checked too).
 import type { Page } from "@playwright/test";
-import { expect, installCpp, OWN_JSON_LD, openApp, openFromTree, openThemePicker, run, setCode, showFiles, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, installCpp, OWN_JSON_LD, openApp, openFromTree, openThemePicker, run, setCode, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -56,8 +56,7 @@ async function expectInert(page: Page, dialogs: string[]) {
 }
 
 async function newEntry(page: Page, kind: "file" | "folder", name: string) {
-  await showFiles(page);
-  await page.locator(".tree-host").click({ position: { x: 20, y: 300 } });
+  await clickTreeSpace(page);
   await page.locator(kind === "file" ? "#new-file" : "#new-folder").click();
   const field = page.getByRole("textbox", { name: new RegExp(`Name of the new ${kind}`) });
   await field.fill(name);

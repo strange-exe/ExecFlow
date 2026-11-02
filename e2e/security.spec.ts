@@ -1,4 +1,4 @@
-import { expect, importFiles, openApp, openFromTree, run, test, tolerating } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, run, showFiles, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -159,6 +159,7 @@ test("file names and program output are shown as text, never as markup", async (
   await openApp(page);
   const name = "x<img src=x onerror=alert(1)>.py";
   const chooser = page.waitForEvent("filechooser");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import files" }).click();
   await (await chooser).setFiles([{ name: "markup.py", mimeType: "text/plain", buffer: Buffer.from('print("<img src=x onerror=alert(1)><b>bold</b>")\n') }]);
@@ -172,6 +173,7 @@ test("file names and program output are shown as text, never as markup", async (
   expect(r.output).toContain("<img src=x onerror=alert(1)><b>bold</b>");
   expect(await page.locator("#console img, #console b").count()).toBe(0);
   // A typed file name with markup characters is refused or kept as text, never parsed.
+  await showFiles(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: /Name of the new file/ });
   await field.fill(name);

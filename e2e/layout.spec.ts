@@ -5,7 +5,7 @@
 // shortcuts dialog's one grid. Every keyboard path these touch is driven with the keyboard.
 import type { Page } from "@playwright/test";
 import { BRAND_MARK, rampColor, tileColorAt } from "../src/editor/brand-mark";
-import { expect, expectActive, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, setCode, showFiles, test, treeItem, waitReady } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, setCode, showFiles, test, treeItem, waitReady } from "./helpers";
 import { decodeRgba, off } from "./snippet-helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -166,7 +166,10 @@ test("on a Mac the shortcuts are announced with Meta and shown with Cmd, and Met
 });
 
 test("after a failed run the error jump comes first in the editor head, and it and the lifted exception open calc.py at line 2", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // The 0.7.0 shell's order (Run in the top bar, the outcome in the run-log header) holds under
+  // 1100 px; from 1100 px Run and the outcome are on the run strip and Files heads the editor head
+  // (flow-board.spec.ts).
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");
@@ -265,16 +268,17 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   await openFromTree(page, "main.py");
   const crumb = page.locator(".topbar .crumb");
   // Workbench Pro: the breadcrumb starts with the workspace's name (the one heading the sidebar),
-  // then the folders and the file; the app's mark heads the rail.
+  // then the folders and the file; from 1100 px (Flow Board S2, no rail) the app's mark heads the
+  // top bar, before the breadcrumb.
   // The "/" between segments is decorative (aria-hidden): compare each segment's own words.
   await expect(crumb.locator("li > .crumb-text")).toHaveText(["Workspace", "main.py"]);
   await expect(page.locator("#sidebar .ws-switcher #ws-name")).toHaveText("Workspace");
-  await expect(page.locator(".rail > .rail-mark > svg.brand-mark")).toBeVisible();
+  await expect(page.locator(".topbar .topbar-start > svg.brand-mark + .crumb")).toBeVisible();
   // A deep path, made in place (a name with folders makes them).
   const folders = ["course-materials", "semester-two", "week-eleven", "lab-practice", "exercises"];
   const file = "finding_the_largest_value_in_a_list.py";
   const deep = [...folders, file].join("/");
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const name = page.getByRole("textbox", { name: /Name of the new file/ });
   await name.fill(deep);
@@ -323,7 +327,9 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
 
 for (const scheme of ["light", "dark"] as const) {
   test(`the app's mark is the logo in ${scheme}: the blue-to-teal tile and white chevrons, at the rail's head and in the phone's top bar`, async ({ page }) => {
-    await page.setViewportSize(DESKTOP);
+    // The rail is under 1100 px only (Flow Board S2); from 1100 px the mark is the top bar's svg,
+    // the same one the phone's top bar checks below.
+    await page.setViewportSize({ width: 1000, height: 800 });
     await openIn(page, "/", scheme);
     await waitReady(page);
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
@@ -367,7 +373,9 @@ for (const scheme of ["light", "dark"] as const) {
 }
 
 test("notices speak from the sidebar's foot: kept rendered while empty, dismissed in place; sync shows once, in the foot", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // Under 1100 px: from 1100 px (Flow Board S2) there is no sidebar column, and notices float over
+  // the code board's foot (flow-board.spec.ts).
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   // 0.7.0 shell: no status bar on desktop; the notice slot is in the sidebar's foot, over the sync
   // status, Shortcuts and Settings (layout.ts place()).
@@ -394,7 +402,7 @@ test("notices speak from the sidebar's foot: kept rendered while empty, dismisse
   expect(words.x + words.width).toBeLessThanOrEqual(side.x + side.width);
   expect(words.y + words.height).toBeLessThanOrEqual(syncBox.y);
   expect(words.y + words.height).toBeLessThanOrEqual(about.y);
-  expect(Math.round(foot.y + foot.height)).toBe(900);
+  expect(Math.round(foot.y + foot.height)).toBe(800);
   // From the keyboard (WebKit does not focus a button on click): the dismiss button that had the
   // focus goes with the notice, and the focus is back in the code.
   await notice.getByRole("button", { name: "Dismiss notice" }).focus();
@@ -402,11 +410,13 @@ test("notices speak from the sidebar's foot: kept rendered while empty, dismisse
   await expect(notice).toHaveAttribute("data-empty", "true");
   await expect(notice).toHaveCount(1);
   await expect(page.locator(".cm-content")).toBeFocused();
-  expect(Math.round((await box(page, ".sidebar-foot")).y + (await box(page, ".sidebar-foot")).height)).toBe(900);
+  expect(Math.round((await box(page, ".sidebar-foot")).y + (await box(page, ".sidebar-foot")).height)).toBe(800);
 });
 
 test("the file menu is grouped by separators that are not focusable and that the arrow keys skip", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // At 1000 px, where the file list is a column and its menu ends with the width steps (from 1100 px
+  // the list is the fixed-width Files popover and the menu has no width group: design.spec.ts).
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");
@@ -741,6 +751,7 @@ test("after the error's file is renamed, the lifted exception and the error jump
   const exception = page.locator("#run-exception");
   const jump = page.locator("#error-jump");
   await expect(exception).toContainText("calc.py, line 2");
+  await showFiles(page);
   await treeItem(page, "calc.py").focus();
   await page.keyboard.press("F2");
   const rename = page.getByRole("textbox", { name: "New name for calc.py" });
@@ -757,6 +768,7 @@ test("after the error's file is renamed, the lifted exception and the error jump
   await expectActive(page, "helpers.py");
   await expect(page.locator("#status-pos")).toHaveText(/^Ln 2,/);
   // Deleted: nothing points at it any more; the run still reads as failed.
+  await showFiles(page);
   await treeItem(page, "helpers.py").focus();
   await page.keyboard.press("Delete");
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();

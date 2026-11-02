@@ -120,7 +120,9 @@ export function createSnippetCapture(deps: CaptureDeps): SnippetCapture {
         return whenShown(fallback);
       };
     }
-    return () => whenShown(() => (deps.narrow() ? deps.filesButton : isShown(opener) ? opener : deps.fileActions));
+    // From 1100 px More file actions is in the Files popover, which a change of width closes: then
+    // Files itself, the popover's button.
+    return () => whenShown(() => (deps.narrow() ? deps.filesButton : isShown(opener) ? opener : isShown(deps.fileActions) ? deps.fileActions : deps.filesButton));
   }
 
   function open(opener: HTMLElement, entry: Entry): void {

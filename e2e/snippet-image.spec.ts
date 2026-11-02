@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { rampColor, tileColorAt } from "../src/editor/brand-mark";
 import { contrast, deltaE, lift, over, UI_MIXES } from "../src/theme/contrast";
 import { audit } from "./audit";
-import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, test, tolerating } from "./helpers";
+import { expect, hierarchyShots, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, showFiles, test, tolerating } from "./helpers";
 import {
   CARD_AT, FIXTURE, MOD, box, calls, canCopy, captures, clearCalls, decodeRgba, dialogOf, downloadPng, hexRgb, inkOf, instrument, markOf, matOf, off,
   openFromFileMenu, openWith, pngInfo, previewPng, previewReady, salience, selectAll, selectFixtureLines, tokens, writtenPng,
@@ -147,6 +147,7 @@ for (const scheme of ["light", "dark"] as const) {
     await openWith(page);
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
     await selectFixtureLines(page);
+    await showFiles(page);
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: ITEM }).click();
     const dialog = page.getByRole("dialog", { name: TITLE });
@@ -290,6 +291,7 @@ test("5: refusals before opening: nothing selected, blank-free cursor, the head 
     await expect(dialogOf(page)).toHaveCount(0);
   };
   const menuItem = async () => {
+    await showFiles(page);
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: "Capture snippet of the selected lines..." }).click();
   };
@@ -317,6 +319,7 @@ test("5: refusals before opening: nothing selected, blank-free cursor, the head 
   await page.keyboard.press("Shift+ArrowDown");
   await expect(page.locator("#status-pos")).toHaveText("Ln 5, Col 1");
   await refuse(async () => {
+    await showFiles(page);
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: "Capture snippet of the selected lines..." }).click();
   }, "The selected lines are blank. Select some code first.", "blank");
@@ -325,6 +328,7 @@ test("5: refusals before opening: nothing selected, blank-free cursor, the head 
   await openFromTree(page, "long.py");
   await selectAll(page);
   await refuse(async () => {
+    await showFiles(page);
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: "Capture snippet of long.py, lines 1 to 301..." }).click();
   }, "That's 301 lines. An image can show up to 300, so select fewer lines.", "cap");
@@ -583,14 +587,23 @@ for (const key of ["Enter", "Space"] as const) {
 }
 
 // 0.7.0 (v07-shell.md): Capture is a ghost button in the top bar, right before Run (Run, the one
-// fill, ends the bar); 30 px tall like the desktop tool buttons, wider for its word.
-test("11: the head button: in the top bar right before Run, named, quiet, 30 px tall (the desktop tool height); it opens the dialog and gets focus back; none on phones", async ({ page }) => {
+// fill, ends the bar); 30 px tall like the desktop tool buttons, wider for its word. From 1100 px
+// (Flow Board S2) Run is in the code board's run strip, and Capture leads the top bar's end group.
+test("11: the head button: in the top bar right before Run (from 1100 px, leading the bar's end; Run is in the run strip), named, quiet, 30 px tall (the desktop tool height); it opens the dialog and gets focus back; none on phones", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWith(page);
   const button = page.locator("#snippet-button");
-  const stops = await page.locator(".topbar").evaluate((bar) =>
-    [...bar.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
-  );
+  const topStops = () =>
+    page.locator(".topbar").evaluate((bar) =>
+      [...bar.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
+    );
+  expect((await topStops()).slice(-3)).toEqual(["snippet-button", "shortcuts-button", "settings-button"]);
+  await expect(page.locator(".run-strip > #run-button")).toBeVisible();
+  expect((await box(button)).height).toBe(30);
+  // Under 1100 px the top bar keeps Run, and Capture sits right before it.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(page.locator(".topbar #run-button")).toBeVisible();
+  const stops = await topStops();
   expect(stops.at(-1)).toBe("run-button");
   expect(stops.at(-2)).toBe("snippet-button");
   await expect(button).toHaveAccessibleName("Capture snippet of the selected lines");
@@ -874,8 +887,9 @@ for (const vp of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone"
         expect(a.targets.filter((t) => mine(t) && !t.spaced).map((t) => `${t.sel} ${t.w}x${t.h}`), `targets ${what}`).toEqual([]);
       };
       await selectFixtureLines(page);
-      if (vp.width < 900) await page.locator(".drawer-toggle").click();
-      // The file menu open with a selection.
+      // The file list shown (a phone's drawer, from 1100 px the Files popover), then the file menu
+      // open with a selection.
+      await showFiles(page);
       await page.locator("#file-actions").click();
       await expect(page.getByRole("menuitem", { name: ITEM })).toBeVisible();
       await check("file menu");
@@ -1129,6 +1143,7 @@ test.describe("the dialog's chunk fails to load", () => {
     await openWith(page);
     await selectFixtureLines(page);
     await page.route(/\/assets\/[\w-]+\.(js|css)$/, (route) => route.abort("failed"));
+    await showFiles(page);
     await page.locator("#file-actions").click();
     await page.getByRole("menuitem", { name: ITEM }).click();
     await expect(notice(page)).toHaveText(/^The image tool couldn't open: .+\.$/);
@@ -1241,6 +1256,20 @@ test("23: with Tab moving focus, Shift+Tab from the code reaches the head button
   await selectFixtureLines(page);
   const mac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform));
   await page.keyboard.press(mac ? "Shift+Alt+M" : "Control+M");
+  // From 1100 px (Flow Board S2) Run is in the run strip under the code, so Shift+Tab goes from the
+  // open tab to Files, then back along the top bar's end (About, Settings, Shortcuts) to Capture.
+  // Playwright's WebKit leaves links out of the Tab order (Safari's default), so About is optional.
+  const wide: string[] = [];
+  for (let i = 0; i < 8 && wide.at(-1) !== "snippet-button"; i++) {
+    await page.keyboard.press("Shift+Tab");
+    wide.push(await page.evaluate(() => document.activeElement?.id || (document.activeElement?.matches(".drawer-toggle") ? "files" : document.activeElement?.className) || ""));
+  }
+  info.annotations.push({ type: "23 wide", description: `${info.project.name}: ${wide.join(" < ")}` });
+  expect(wide.filter((s) => s !== "about-link")).toEqual([await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"), "files", "settings-button", "shortcuts-button", "snippet-button"]);
+  // Under 1100 px the top bar keeps Run, right after Capture.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(page.locator(".topbar #run-button")).toBeVisible();
+  await page.locator(".cm-content").focus();
   // 0.7.0: Capture sits in the top bar before Run, so Shift+Tab from the code goes back through the
   // editor head (the open tab; the error jump is hidden before a run), then Run, then Capture: the
   // DOM order is the visual order (layout.ts).
@@ -1281,7 +1310,9 @@ for (const scheme of ["light", "dark"] as const) {
   test(`24: the head button stays quieter than Run before a run, and than the error jump and Run after a failure (${scheme})`, async ({ page, browserName }, info) => {
     test.skip(browserName !== "chromium", "a luminance measure of screenshots: one engine is enough, and the run needs Python");
     test.setTimeout(180_000);
-    await page.setViewportSize({ width: 1440, height: 900 });
+    // Where Run and Capture share the top bar (under 1100 px). From 1100 px (Flow Board S2) Run is in
+    // the run strip; that layout is measured after the failure, below.
+    await page.setViewportSize({ width: 1000, height: 800 });
     await openIn(page, "/", scheme);
     await openWith(page, [
       { name: "main.py", text: 'from calc import ratio\nname = input("Name: ")\nprint("Hello,", name)\nprint(ratio(1, 0))\n' },
@@ -1300,6 +1331,15 @@ for (const scheme of ["light", "dark"] as const) {
       expect(after[kind]["#run-button"]).toBeGreaterThan(after[kind]["#snippet-button"]);
     }
     if (scheme === "light") await hierarchyShots(page, test.info().outputPath("head-after"));
+    // From 1100 px: before a run Run (the strip's one fill) far outweighs Capture, and after a failure
+    // the error jump still leads Capture. The stepped-back Run (an outline, as everywhere) on the
+    // strip's ground measures about level with Capture there, so it is recorded, not asserted.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator(".run-strip > #run-button")).toBeVisible();
+    await expect(page.locator("#error-jump")).toBeVisible();
+    const wide = await headSalience(page);
+    info.annotations.push({ type: `24 after, 1440 (${scheme})`, description: JSON.stringify(wide) });
+    for (const kind of ["gray", "blur"]) expect(wide[kind]["#error-jump"]).toBeGreaterThan(wide[kind]["#snippet-button"]);
   });
 }
 
@@ -1519,6 +1559,7 @@ test("29: double activation: one dialog from a double click or two quick clicks;
   await page.keyboard.press("Escape");
 
   // (c) A double click on the file menu item: one dialog.
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: ITEM }).dblclick();
   await page.waitForTimeout(600);
@@ -1542,10 +1583,13 @@ test("29: double activation: one dialog from a double click or two quick clicks;
   await page.waitForTimeout(200);
   await expect(page.locator("dialog#snippet-dialog[open]")).toHaveCount(1);
 
-  // (e) One click on the backdrop closes it, and focus returns to More file actions.
+  // (e) One click on the backdrop closes it, and focus returns to More file actions. From 1100 px the
+  // double click's second press (c) landed on the code behind the closed menu, a press outside the
+  // Files popover, which closed it: focus then goes to Files, the popover's button.
   await page.mouse.click(5, 5);
   await expect(page.locator("dialog#snippet-dialog")).toHaveCount(0);
-  await expect(page.locator("#file-actions")).toBeFocused();
+  const popClosed = page.viewportSize()!.width >= 1100 && (await page.locator("#files-popover").evaluate((el) => (el as HTMLElement).hidden));
+  await expect(page.locator(popClosed ? ".drawer-toggle" : "#file-actions")).toBeFocused();
 
   // (f) A double click on Settings: Settings stays open.
   await page.locator("#settings-button").dblclick();
@@ -1626,6 +1670,7 @@ test("31: a held Enter exports once, and a held Enter on the file menu item open
 
   // Held on the file menu item (the chunk is cached by now): the dialog opens, nothing is exported.
   const now = await captures(page);
+  await showFiles(page);
   await page.locator("#file-actions").focus();
   await page.keyboard.press("Enter");
   // Type-ahead "c" steps through every item starting with C (Close, Choose files..., Capture snippet).

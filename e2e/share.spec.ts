@@ -97,6 +97,7 @@ async function shareFromTree(page: Page, path: string, choice: "repo" | "code" =
 }
 
 async function shareFromMore(page: Page, choice: "repo" | "code" = "repo") {
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Share link..." }).click();
   await choose(page, choice);

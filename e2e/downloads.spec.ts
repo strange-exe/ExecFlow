@@ -2,7 +2,7 @@
 // menu comes out byte for byte as it was saved, a folder comes out as one .zip that unpacks to that
 // folder, and the command palette does the same for the open file.
 import type { Download, Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, setCode, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, openFromTree, setCode, showFiles, test, treeItem } from "./helpers";
 import { readZip } from "./zip-read";
 
 test.use({ serviceWorkers: "block" });
@@ -12,7 +12,7 @@ const BOM = String.fromCodePoint(0xfeff);
 const bytesOf = async (d: Download) => Buffer.concat(await (await d.createReadStream()).toArray());
 
 async function create(page: Page, path: string, text: string) {
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await field.fill(path);
@@ -24,6 +24,7 @@ async function create(page: Page, path: string, text: string) {
 
 async function fromMenu(page: Page, path: string, item: string): Promise<Download> {
   const download = page.waitForEvent("download");
+  await showFiles(page);
   await treeItem(page, path).locator(":scope > .tree-row").click({ button: "right" });
   await page.getByRole("menuitem", { name: item, exact: true }).click();
   return download;

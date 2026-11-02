@@ -1,7 +1,7 @@
 // Renaming and deleting files that are open, and typing just before a reload or a closed tab, as a
 // student does it (from the functional review, 2026-10-17).
 import type { Page } from "@playwright/test";
-import { expect, openApp, openFromTree, openInputBox, reloadApp, run, setCode, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, openApp, openFromTree, openInputBox, reloadApp, run, setCode, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -9,7 +9,7 @@ test.setTimeout(90_000);
 const tabTitles = (page: Page) => page.locator(".tabs [role=tab]").evaluateAll((els) => els.map((e) => e.getAttribute("title")));
 
 async function newFile(page: Page, path: string, text: string) {
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: /Name of the new file/ });
   await field.fill(path);
@@ -23,6 +23,7 @@ test("renaming a folder moves its open tabs with it, and the run uses the new pa
   await openApp(page);
   await newFile(page, "src/helper.py", "def name():\n    return 'helper'\n");
   await newFile(page, "src/main.py", "from helper import name\nprint(name())\n");
+  await showFiles(page);
   await treeItem(page, "src").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for src" });
@@ -43,6 +44,7 @@ test("renaming an expanded folder keeps it expanded", async ({ page }) => {
   await openApp(page);
   await newFile(page, "src/a.py", "A = 1\n");
   await expect(treeItem(page, "src")).toHaveAttribute("aria-expanded", "true");
+  await showFiles(page);
   await treeItem(page, "src").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for src" });
@@ -60,7 +62,9 @@ test("typing and renaming at once: the rename keeps what was just typed", async 
   await page.locator(".cm-content").click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type("b = 2\n");
-  // Straight to F2 on the file, before the 400 ms autosave.
+  // Straight to F2 on the file, before the 400 ms autosave (Ctrl+Shift+E shows the list and moves
+  // into it in one key, wherever the list lives).
+  await page.keyboard.press("Control+Shift+E");
   await treeItem(page, "notes.py").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for notes.py" });
@@ -76,6 +80,7 @@ test("renaming main.py to main.c switches the file to C (language, run target)",
   await openApp(page);
   await newFile(page, "main.py", "print(1)\n");
   await expect(page.locator("#status-lang")).toHaveText("Python");
+  await showFiles(page);
   await treeItem(page, "main.py").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for main.py" });
@@ -91,6 +96,7 @@ test("deleting a folder with an open, just-edited file closes the tab without as
   await newFile(page, "tmp/scratch.py", "x = 1\n");
   await page.locator(".cm-content").click();
   await page.keyboard.type("# more\n");
+  await page.keyboard.press("Control+Shift+E"); // the list, wherever it lives, before the autosave
   await treeItem(page, "tmp").focus();
   await page.keyboard.press("Delete");
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();

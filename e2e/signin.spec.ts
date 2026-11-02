@@ -4,7 +4,7 @@
 // data-sync-state, never on wording; the relay's recorded calls and the fake's files are the proof.
 import { createHash } from "node:crypto";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, reloadApp, test, tolerating, treeItem, waitReady } from "./helpers";
+import { expect, importFiles, openApp, reloadApp, showFiles, test, tolerating, treeItem, waitReady } from "./helpers";
 import {
   APP,
   appSecrets,
@@ -364,6 +364,7 @@ test.describe("signing out", () => {
     }
     await openApp(other);
     await expect(other.locator("#app")).toHaveAttribute("data-role", "reader");
+    await showFiles(other);
     await expect(treeItem(other, "main.py")).toBeVisible();
     // This tab deletes the secrets database too, once its own sign-in has ended (a seal it was
     // writing could otherwise make the database again after the clearing tab's delete).

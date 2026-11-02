@@ -100,6 +100,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const runtimes = new Runtimes();
   const output = new OutputView();
   L.outputPanel.append(output.element);
+  // The run's outcome ("Finished, exit code 0, ran in 41 ms"): in the run strip from 1100 px, in
+  // the run-log header under that.
+  const placeOutcome = () => output.placeReceipt(L.chartOnBoard() ? L.runOutcome : null);
+  placeOutcome();
+  L.onWideChange(placeOutcome);
   const problemsView = new ProblemsView();
   L.problemsPanel.append(problemsView.element);
   L.editorPanel.append(
@@ -315,7 +320,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // query can lag a resize until the next frame (WebKit kept it wide, so focus went to the hidden list).
   const snippet = createSnippetCapture({
     root, notice, editors: () => editors, view: () => manager?.view ?? null, fileOf,
-    narrow: () => matchMedia(NARROW).matches, closeDrawer: () => L.closeDrawer(), filesButton: L.drawerToggle, fileActions: moreButton,
+    // Only the phone's drawer closes: the Files popover (1100 px and wider) stays under the dialog, so
+    // focus goes back to More file actions in it, as it does in the sidebar between 900 and 1099 px.
+    narrow: () => matchMedia(NARROW).matches, closeDrawer: () => void (matchMedia(NARROW).matches && L.closeDrawer()), filesButton: L.drawerToggle, fileActions: moreButton,
   });
   // The editor context menu: a right-click on selected code (or Shift+F10 with code selected).
   attachCodeMenu(L.editorHost, {
@@ -578,13 +585,14 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const pending = opening.get(path);
     if (pending) return pending;
     // Opening can wait for storage and, the first time, for the editor to download. If the user
-    // has moved on meanwhile (into a menu, a dialog or a text field), the file opens without
-    // taking focus. (The tree redraws its items while a file opens, so "the same element" can't
-    // be the test.)
+    // has moved on meanwhile (into a menu, a dialog, a text field, or the Files popover opened
+    // since), the file opens without taking focus or closing the popover. (The tree redraws its
+    // items while a file opens, so "the same element" can't be the test.)
     const focusedAtStart = document.activeElement;
+    const startedInFiles = focusedAtStart instanceof Element && focusedAtStart.closest("#files-popover") !== null;
     const focusStayed = () => {
       const now = document.activeElement;
-      return now === focusedAtStart || !(now instanceof Element) || (!now.closest(".menu, dialog[open]") && !isTyping(now));
+      return now === focusedAtStart || !(now instanceof Element) || (!now.closest(".menu, dialog[open]") && !isTyping(now) && (startedInFiles || !now.closest("#files-popover")));
     };
     const job = (async () => {
       const entry = entries.find((e) => e.path === path) ?? (await store.getEntry(ws, path));
@@ -604,7 +612,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         if (L.narrow()) {
           L.closeDrawer(false);
           L.showView("code");
-        }
+        } else L.closeDrawer(false); // the Files popover (1100 px and wider) has done its job
         focusEditor();
       }
       return file;
@@ -791,6 +799,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     renderLastRun();
     schedulePosition();
     chartView?.fileChanged();
+    // The run strip's count names a line of the open file.
+    scheduleProblems();
   }
 
   // ---------------------------------------------------------------- creating, renaming, deleting
@@ -894,7 +904,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     afterActiveChange();
     persistUi();
     announcer.say(`Deleted ${node.name}.`);
-    tree.focus();
+    // The list with the focus, or Files when the list is a closed popover (1100 px and wider: a
+    // delete from Search), so the focus never drops to the page.
+    if (L.chartOnBoard() && !L.drawerOpen()) L.drawerToggle.focus();
+    else tree.focus();
   }
 
   // ---------------------------------------------------------------- import and export
@@ -1048,6 +1061,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         count.dataset.errors = String(counts.errors);
         tab.setAttribute("aria-label", counts.total ? `Problems, ${describeCounts(counts)}` : "Problems");
       }
+      renderProblemsCount(list, counts);
       // The collapsed panel opens for the first problem of the session (as it does for every run).
       if (counts.total && !problemsSeen) {
         problemsSeen = true;
@@ -1064,6 +1078,32 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   }
   let problemsSeen = false;
   problemsView.onOpen = (p) => void revealProblem(p);
+  /**
+   * The run strip's count (1100 px and wider): "No problems", or "1 problem, line 12" (the first
+   * one in the open file; "2 problems, in calc.py" when none is in it), in the danger colour while
+   * there are errors. Words, so the state never rests on the colour or the icon.
+   */
+  let countKey = "";
+  function renderProblemsCount(list: readonly Problem[], counts: ReturnType<typeof countProblems>) {
+    const active = fileOf(editors.activeId)?.path ?? null;
+    const first = list.find((p) => p.path !== null && p.path === active) ?? list.find((p) => p.path !== null) ?? null;
+    const what = counts.total === 1 ? "1 problem" : `${counts.total} problems`;
+    const where = !first ? "" : first.path === active ? `, line ${first.line}` : `, in ${nameOf(first.path!)}`;
+    const words = counts.total ? `${what}${where}` : "No problems";
+    const tone = counts.errors ? "error" : counts.total ? "warning" : "none";
+    const key = `${words}\n${tone}`;
+    if (key === countKey) return;
+    countKey = key;
+    const button = L.problemsButton;
+    button.dataset.count = String(counts.total);
+    button.dataset.tone = tone;
+    button.firstElementChild!.replaceWith(icon(tone === "error" ? "x-circle" : tone === "warning" ? "warning" : "check-circle"));
+    L.problemsWords.textContent = words;
+  }
+  L.problemsButton.addEventListener("click", () => {
+    L.showPanelTab("problems");
+    L.panelTabs.problems.focus();
+  });
 
   async function revealProblem(p: Problem) {
     if (!p.path) return;
@@ -1706,10 +1746,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     else chartView?.setVisible(false);
   });
 
-  /** The file list's width in steps, from the More file actions menu (no dragging needed). */
+  /** The file list's width in steps, from the More file actions menu (no dragging needed). Only
+   * where the list is a column with a splitter: not on a phone, and not from 1100 px, where it is
+   * the fixed-width Files popover (Flow Board S2). */
   const WIDTH_STEP = 64;
   function widthItems(): MenuItem[] {
-    if (L.narrow()) return [];
+    if (L.narrow() || L.chartOnBoard()) return [];
     const side = L.splitters.sidebar;
     const items: MenuItem[] = [];
     if (side.value < side.max()) items.push({ label: "Wider file list", icon: "corners-out", run: () => side.set(side.value + WIDTH_STEP) });
@@ -2085,7 +2127,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
             const state = id ? editors.state(id) : null;
             return { path, state, text: state ? state.doc.toString() : await store.readFile(ws, path) };
           },
-          app: root, notice, storage, returnTo: opener,
+          // Should the Files popover have closed meanwhile, focus goes to Files, the popover's
+          // button, not to a hidden More file actions.
+          app: root, notice, storage, returnTo: () => (opener?.closest<HTMLElement>("#files-popover")?.hidden ? L.drawerToggle : opener),
         });
       },
       (e: unknown) => {

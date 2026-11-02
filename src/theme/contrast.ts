@@ -479,6 +479,10 @@ function board(): Pair[] {
   add("gutter-text", "line-here@bg", TEXT, "line number on the linked code line");
   add("location", "line-here@bg", UI, "the linked line's bar in the gutter");
   add("focus", "line-here@bg", UI, "caret on the linked code line");
+  // S2: the run strip, on the console's header ground (its words, the outcome and the count are the
+  // run-log header's pairs already).
+  add("action", "runlog-bg", UI, "Run fill on the run strip");
+  add("info", "runlog-bg", UI, "the runtime state's download icon on the run strip");
   return list;
 }
 

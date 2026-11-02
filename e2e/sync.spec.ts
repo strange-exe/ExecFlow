@@ -3,7 +3,7 @@
 // data-sync-state, never on wording; the fake's own files and commits are the proof.
 import { gzipSync } from "node:zlib";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, setCode, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, reloadApp, responseBodies, run, setCode, showFiles, test, treeItem } from "./helpers";
 import {
   answer,
   connectGitHub,
@@ -106,6 +106,8 @@ test("a change made on GitHub reaches the open, clean file and the tree; an idle
   await waitSync(page, n, "synced");
   await expect(editorText(page)).toContainText("print('from github')");
   await expect(activeTab(page, "main.py")).not.toHaveAttribute("aria-label", /unsaved/);
+  // The file list is shown to look (from 1100 px a popover, closed while the code is in use).
+  await showFiles(page);
   await expect(treeItem(page, "lib")).toBeVisible();
   await expect(page.locator(".notice")).toContainText("2 files downloaded");
 
@@ -136,6 +138,7 @@ test("both sides changed main.py: GitHub's version keeps the name, this computer
   expect(copies).toHaveLength(1);
   expect(files["main.py"]).toBe("print('github')\n");
   expect(files[copies[0]]).toBe("print('mine')\n");
+  await showFiles(page);
   await expect(treeItem(page, copies[0])).toBeVisible();
   await expect(syncStatus(page)).toHaveAttribute("data-tone", "warning");
   await expect(syncStatus(page)).toHaveAttribute("aria-label", "1 conflict. Open the conflict copy");
@@ -256,6 +259,7 @@ test.describe("first connect with different files on both sides", () => {
     expect(files["main.py"]).toBe("print('repo')\n");
     expect(copy && files[copy]).toBe("print('here')\n");
     expect(files["only-remote.py"]).toBe("R = 1\n");
+    await showFiles(page);
     await expect(treeItem(page, "only-remote.py")).toBeVisible();
     await expect(editorText(page)).toContainText("print('repo')");
   });

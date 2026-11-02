@@ -2,7 +2,7 @@
 // meets (from the functional review, 2026-10-17): typing during a sync, a token revoked halfway
 // through an upload, a server error, a file deleted on GitHub while it is open.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, setCode, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, setCode, showFiles, test, treeItem } from "./helpers";
 import { answer, connectGitHub, fillConnect, githubNoise, routeGitHub, saveKey, syncCount, syncNoise, syncStatus, waitSync, type GitHubRoute } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -94,6 +94,7 @@ test("typing into a file while a sync brings GitHub's change to it loses neither
   await expect(page.locator('.tab[data-active="true"]')).toHaveAttribute("data-dirty", "false");
   await expect(page.locator(".cm-content")).toContainText("print('github')");
   expect(await localCopies()).toEqual(copies);
+  await showFiles(page);
   await treeItem(page, copies[0]).locator(":scope > .tree-row").click();
   await expect(activeTab(page, copies[0])).toBeVisible();
   await expect(page.locator(".cm-content")).toContainText("# typed during the sync");
@@ -148,6 +149,7 @@ test("a file deleted on GitHub closes its open tab with a notice, and leaves the
     { name: "main.py", text: "print('hi')\n" },
     { name: "util.py", text: "U = 1\n" },
   ]);
+  await showFiles(page);
   await treeItem(page, "util.py").locator(":scope > .tree-row").click();
   await expect(activeTab(page, "util.py")).toBeVisible();
   await gh.fake.remoteCommit({ "util.py": null });
@@ -161,7 +163,7 @@ test("a file deleted on GitHub closes its open tab with a notice, and leaves the
 test("a conflict inside a folder keeps the copy in that folder, and the notice opens it", async ({ page }) => {
   const { gh, n } = await connected(page, [{ name: "lib.py", text: "L = 1\n" }]);
   // Move the file into a folder on both sides first: create lib/x.py locally and push it.
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: /Name of the new file/ });
   await field.fill("lib/x.py");

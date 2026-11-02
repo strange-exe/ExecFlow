@@ -1,4 +1,4 @@
-import { expect, importFiles, openApp, openFromTree, reloadApp, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, reloadApp, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -108,10 +108,12 @@ test("Ctrl+S saves at once, without the browser's Save page dialog", async ({ pa
 test("a file's menu closes its tab (a way to close without a keyboard)", async ({ page }) => {
   await threeOpen(page);
   await expect(tab(page, "b.py")).toBeVisible();
+  await showFiles(page);
   await treeItem(page, "b.py").locator(":scope > .tree-row").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Close tab" }).click();
   await expect(tab(page, "b.py")).toHaveCount(0);
   await expect(page.locator(".tabs [role=tab]")).toHaveCount(2);
+  await showFiles(page);
   await expect(treeItem(page, "b.py")).toBeVisible();
   // A file that isn't open has no Close tab item.
   await treeItem(page, "b.py").locator(":scope > .tree-row").click({ button: "right" });

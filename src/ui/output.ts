@@ -481,6 +481,15 @@ export class OutputView {
     return tail.data;
   }
 
+  /**
+   * Where the run's outcome (#receipt) shows: `host` (the Flow Board's run strip, from 1100 px), or
+   * null for its own place in the run-log header, after End input. Moved, never copied.
+   */
+  placeReceipt(host: HTMLElement | null): void {
+    if (host) host.append(this.receipt);
+    else if (this.receipt.parentElement !== this.header) this.endButton.after(this.receipt);
+  }
+
   get waiting(): boolean {
     return this.reply !== null;
   }

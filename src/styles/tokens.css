@@ -243,7 +243,11 @@
    palettes.ts SIGNAL_CONSOLE, Signal dark on the mockup's console grounds for a light page, so
    everything drawn in the panel (log, run-log header, problems, flowchart) uses colours checked
    against those grounds. A custom property's var() resolves where it is declared, so the two built
-   from colours on :root (--hover, --ring) are declared again here, or they would keep light ink. */
+   from colours on :root (--hover, --ring) are declared again here, or they would keep light ink.
+   Under 1100 px only: from there (Flow Board S2) the console is the code board's foot, on Signal
+   light's own light console ground (--terminal-bg, tokens.md "console"), so it no longer outweighs
+   the code; Signal dark is unchanged. */
+@media (max-width: 1099px) {
 :root[data-palette="signal"]:not([data-theme="dark"]) .panel {
   color-scheme: dark;
   --bg: #15181d;
@@ -289,6 +293,7 @@
   --hover: color-mix(in srgb, var(--text) 7%, transparent);
   --ring: 2px solid var(--focus);
   --shadow-pop: none;
+}
 }
 
 :root[data-palette="slate"] {

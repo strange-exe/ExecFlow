@@ -7,7 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
-import { expect, importFiles, openFromTree, openInputBox, openThemePicker, reloadApp, showPanel, showView, test, waitReady } from "./helpers";
+import { expect, importFiles, openFromTree, openInputBox, openThemePicker, reloadApp, showFiles, showPanel, showView, test, waitReady } from "./helpers";
 import { openConnect, routeGitHub } from "./sync-fake";
 import { audit, focusStop, type Audit, type FocusStop } from "./audit";
 import { contrast, decodePng, type Pixels, type RGB } from "./pixels";
@@ -133,7 +133,11 @@ for (const vp of viewports) {
       await showView(page, "code");
       expect.soft(await marked("info"), "main.py marks the call that led to the error").toBe(true);
       await expect.soft(page.locator("#status-pos")).toHaveText(/^Ln 4,/);
-      if (!narrow) await expect.soft(page.locator('.tree [role=treeitem][data-path="calc.py"] [data-errors]')).toBeVisible();
+      // From 1100 px the tree is in the Files popover: opened, so this view is also checked with it.
+      if (!narrow) {
+        await showFiles(page);
+        await expect.soft(page.locator('.tree [role=treeitem][data-path="calc.py"] [data-errors]')).toBeVisible();
+      }
       await record(page, dir, `error-code-${vp.name}-${scheme}`, records);
       await openFromTree(page, "calc.py");
       if (narrow) await expect(page.locator(".drawer-toggle")).toHaveAttribute("aria-expanded", "false");
@@ -400,7 +404,8 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   }
   log.dialogs = dialogs;
 
-  // 7. Menus: the file actions menu button.
+  // 7. Menus: the file actions menu button (in the Files popover from 1100 px: opened first).
+  await showFiles(page);
   await page.locator("#file-actions").focus();
   await page.keyboard.press("ArrowDown");
   stop = await focusStop(page);
@@ -769,6 +774,7 @@ test("in forced colours the menus' separators still show", async ({ page, browse
   expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches), "forced colours emulated").toBe(true);
   await importFiles(page, FILES);
   await openFromTree(page, "main.py");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   const menu = page.getByRole("menu", { name: "File actions" });
   await expect(menu.getByRole("menuitem").first()).toBeFocused();
@@ -789,7 +795,9 @@ test("in forced colours the menus' separators still show", async ({ page, browse
     const r = e.getBoundingClientRect();
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   }));
-  expect(seps, "the file menu's separators").toHaveLength(4);
+  // Three rules between the menu's groups, and a fourth before the file list's width steps, which
+  // are offered under 1100 px only (from 1100 px the list is the fixed-width Files popover).
+  expect(seps, "the file menu's separators").toHaveLength((page.viewportSize()?.width ?? 1280) >= 1100 ? 3 : 4);
   const shown = seps.map((s) => {
     const ref = px.at(Math.ceil(s.x + 4), Math.floor(s.y) - 2);
     let best = 1;
@@ -911,7 +919,10 @@ test("every file tree item has its name in the browser's accessibility tree, scr
   await importFiles(page, files);
   await expect(page.locator(".tree [role=treeitem]")).toHaveCount(100);
   await openFromTree(page, "main.c");
-  // Most rows are below the fold (the list shows about 30 at this size).
+  // At 1440 the file list is the Files popover, which closed when main.c was chosen (and a closed
+  // popover is out of the accessibility tree by design): it is opened again to read its items.
+  await showFiles(page);
+  // Most rows are below the fold (the popover shows about 18 at this size).
   expect(await page.locator('.tree [role=treeitem][data-path="part_098.c"]').evaluate((el) => el.getBoundingClientRect().top > innerHeight)).toBe(true);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Accessibility.enable");

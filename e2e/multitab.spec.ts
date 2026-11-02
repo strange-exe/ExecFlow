@@ -1,11 +1,12 @@
-import { expect, openApp, test, treeItem } from "./helpers";
+import { expect, openApp, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
 test("a second tab is read-only with a banner, and Edit here moves editing to it", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  // In the file list (from 1100 px a popover, closed once the file opens: attached, not shown).
+  await expect(treeItem(page, "main.py")).toBeAttached();
   await expect(page.locator("#app")).toHaveAttribute("data-role", "writer");
 
   const second = await context.newPage();
@@ -15,6 +16,7 @@ test("a second tab is read-only with a banner, and Edit here moves editing to it
   await expect(banner).toBeVisible();
   await expect(banner).toHaveAttribute("role", "status");
   // It can read the workspace, but not change it: the editor and the tree refuse edits.
+  await showFiles(second);
   await expect(treeItem(second, "main.py")).toBeVisible();
   await expect(second.locator(".cm-content")).toHaveAttribute("aria-readonly", "true");
   await second.locator("#new-file").click();

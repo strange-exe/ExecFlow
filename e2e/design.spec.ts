@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
-import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, openThemePicker, reloadApp, responseBodies, run, showPanel, showView, test, tolerating, unrouteAfterFetch, waitReady } from "./helpers";
+import type { Locator, Page } from "@playwright/test";
+import { afterFetch, expect, expectActive, hierarchyShots, importFiles, openApp, openFromTree, openThemePicker, reloadApp, responseBodies, run, showFiles, showPanel, showView, test, tolerating, unrouteAfterFetch, waitReady } from "./helpers";
 
 // Desktop and phone, light and dark. Each test loads, emulates, reloads and
 // proves the theme is really active before checking anything. These reload right after the first
@@ -52,12 +52,17 @@ for (const vp of viewports) {
 
       // 1. Empty workspace: New file leads (reading order 4, Workbench Pro item 7), the starters
       // under it. Nothing competes with it: Run is shown disabled (there is nothing to run), and
-      // there is no console.
+      // there is no console. From 1100 px (Flow Board S2) Run lives on the run strip at the code
+      // board's foot, so the panel shows that strip alone: no console bar, no output.
       await expect(page.getByRole("heading", { name: "Write your first program" })).toBeInViewport();
       await expect(page.locator("#empty-new-file")).toBeInViewport();
       await expect(page.locator('.starter[data-language="python"]')).toBeInViewport();
       await expect(page.locator("#run-button")).toHaveAttribute("aria-disabled", "true");
-      await expect(page.locator("#panel")).toBeHidden();
+      if (vp.width >= 1100) {
+        await expect(page.locator("#panel > .run-strip > #run-button")).toBeVisible();
+        await expect(page.locator("#panel > .panel-bar")).toBeHidden();
+        await expect(page.locator("#panel-output")).toBeHidden();
+      } else await expect(page.locator("#panel")).toBeHidden();
       expect(await noOverflow(page), "no horizontal scroll (empty)").toBe(true);
       await page.screenshot({ path: `${dir}/empty-${vp.name}-${scheme}.png`, animations: "disabled" });
       await axe(page, "empty");
@@ -83,8 +88,9 @@ for (const vp of viewports) {
         await expect(page.locator("#panel-output")).toBeHidden();
         await expect(page.locator("#panel-problems")).toBeHidden();
         // 674 px at 1440 x 900 in Workbench Pro (its 56 px top bar, the card's foot and the
-        // console's head with its tool row under the code); 759 before.
-        expect(editorBox.height, "code height before the first run").toBeGreaterThanOrEqual(660);
+        // console's head with its tool row under the code); 759 before. Flow Board S2 adds the
+        // 44 px run strip (Run, moved down from the top bar) at the code board's foot: 626.
+        expect(editorBox.height, "code height before the first run").toBeGreaterThanOrEqual(vp.width >= 1100 ? 620 : 660);
       }
       await page.screenshot({ path: `${dir}/editor-${vp.name}-${scheme}.png`, animations: "disabled" });
       await axe(page, "editor");
@@ -600,7 +606,9 @@ async function withAFile(page: Page) {
 }
 
 test("splitters are separators with values, keyboard resizing, and remembered sizes", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // The file list is a column with a splitter under 1100 px; from 1100 px it is the Files popover
+  // (Flow Board S2), with no splitter. So its width is set at 1000 px.
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   await withAFile(page);
   const side = page.getByRole("separator", { name: "Resize the file list" });
@@ -610,6 +618,8 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(side).toHaveAttribute("aria-valuenow", "264");
   await page.keyboard.press("Home");
   await expect(side).toHaveAttribute("aria-valuenow", "200");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(side).toBeHidden();
   // One splitter sizes the console, the y-axis one: it sits under the code at every width (Flow
   // Board: from 1100 px the chart's board, not the console, is beside the code).
   const rows = page.locator('[role=separator][aria-orientation="horizontal"]');
@@ -627,12 +637,13 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(rows).toHaveAttribute("aria-valuenow", "40");
   await page.reload();
   await waitReady(page);
-  await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "200");
   await expect(rows).toHaveAttribute("aria-valuenow", "40");
-  const width = await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width);
-  expect(Math.round(width)).toBe(200);
-  // Under 1100 px the same splitter and the same remembered size.
+  // Under 1100 px the same splitter and the same remembered size, and the file list's width kept.
   await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "200");
+  // The list leaves the Files popover for its column a frame after the resize in WebKit.
+  await expect(page.locator(".main > .splitter")).toBeVisible();
+  await expect.poll(async () => Math.round(await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width))).toBe(200);
   await expect(rows).toHaveAttribute("aria-valuenow", "40");
   await rows.focus();
   await page.keyboard.press("ArrowUp");
@@ -645,9 +656,10 @@ test("splitters are separators with values, keyboard resizing, and remembered si
 });
 
 // A phone-wide window allows the file list 200 px at most; its refresh used to overwrite the
-// width the user had with that (248 became 200 for good: polish audit, 2026-10-24).
+// width the user had with that (248 became 200 for good: polish audit, 2026-10-24). At 1000 px:
+// from 1100 px the file list is the Files popover, with no splitter (Flow Board S2).
 test("the file list keeps the width it was given through a trip to a phone-wide window", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   const splitter = page.getByRole("separator", { name: "Resize the file list" });
   const width = async () => Math.round((await page.locator("#sidebar").boundingBox())!.width);
@@ -655,7 +667,7 @@ test("the file list keeps the width it was given through a trip to a phone-wide 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#app")).toHaveAttribute("data-narrow", "true");
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize({ width: 1000, height: 800 });
     await expect(page.locator("#app")).toHaveAttribute("data-narrow", "false");
   };
   await expect(splitter).toHaveAttribute("aria-valuenow", "248");
@@ -704,7 +716,7 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await expect(maximise).toHaveAttribute("aria-pressed", "true");
   await maximise.click();
   await expect(rows).toHaveAttribute("aria-valuenow", "35");
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // The file list's width: a column with a splitter under 1100 px (here, 1000 px).
   const side = page.getByRole("separator", { name: "Resize the file list" });
   await expect(side).toHaveAttribute("aria-valuenow", "248");
   await page.locator("#file-actions").click();
@@ -713,6 +725,14 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Narrower file list" }).click();
   await expect(side).toHaveAttribute("aria-valuenow", "248");
+  // From 1100 px the file list is the fixed-width Files popover: the menu offers no width steps
+  // there, since they would change nothing on screen (Flow Board S2).
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await showFiles(page);
+  await page.locator("#file-actions").click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /file list$/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });
 
 test("run results are read out, and the run state is beside Run", async ({ page }) => {
@@ -723,11 +743,18 @@ test("run results are read out, and the run state is beside Run", async ({ page 
   await expect(page.locator("[data-announcer]")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("[data-announcer]")).toHaveText(/Finished/);
   await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready");
-  // At the top bar's end with Run (desktop, the 0.7.0 shell): the runtime words, Capture, then Run.
-  const runtime = page.locator(".topbar .topbar-end > #status-runtime");
-  await expect(runtime).toBeVisible();
+  const onRunsLine = async (runtime: Locator, side: "left" | "right") => {
+    await expect(runtime).toBeVisible();
+    const [state, runBox] = [(await runtime.boundingBox())!, (await page.locator("#run-button").boundingBox())!];
+    if (side === "left") expect(state.x + state.width, "the run state is left of Run").toBeLessThanOrEqual(runBox.x);
+    else expect(state.x, "the run state is right of Run").toBeGreaterThanOrEqual(runBox.x + runBox.width);
+    expect(Math.abs(state.y + state.height / 2 - (runBox.y + runBox.height / 2)), "on Run's line").toBeLessThan(4);
+  };
+  // From 1100 px (Flow Board S2): on the run strip at the code board's foot, after Run and the
+  // run's outcome.
+  await onRunsLine(page.locator(".run-strip > #run-button ~ #status-runtime"), "right");
+  // Under it, at the top bar's end with Run (the 0.7.0 shell): the runtime words, Capture, then Run.
+  await page.setViewportSize({ width: 1000, height: 800 });
   await expect(page.locator(".topbar .topbar-end > #status-runtime ~ #run-button")).toBeVisible();
-  const [state, runBox] = [(await runtime.boundingBox())!, (await page.locator("#run-button").boundingBox())!];
-  expect(state.x + state.width, "the run state is left of Run").toBeLessThanOrEqual(runBox.x);
-  expect(Math.abs(state.y + state.height / 2 - (runBox.y + runBox.height / 2)), "on Run's line").toBeLessThan(4);
+  await onRunsLine(page.locator(".topbar .topbar-end > #status-runtime"), "left");
 });

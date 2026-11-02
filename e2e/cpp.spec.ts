@@ -1,4 +1,4 @@
-import { expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showView, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showFiles, showView, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -50,7 +50,9 @@ test("multi-file C with a header, live scanf input, fopen of a data file, and th
   const ok = await run(page, { input: ["7"], timeout: 120_000 });
   expect(ok.status, ok.output).toBe("ok");
   expect(ok.output).toContain("How many? 7\nsquare = 49\nfile says hello\n");
-  // The file it wrote is saved to the workspace by itself, without a question.
+  // The file it wrote is saved to the workspace by itself, without a question (from 1100 px the
+  // file list is a popover that closed when main.c was chosen, so it is opened to look).
+  await showFiles(page);
   await expect(treeItem(page, "out.txt")).toBeVisible();
   await expect(page.locator('#console [data-stream="note"]')).toContainText("Saved out.txt to your files.");
   await expect(page.locator(".notice").getByRole("button")).toHaveCount(0);
@@ -92,7 +94,7 @@ test("C++ with several files in its own folder, and a sibling with its own main(
   test.setTimeout(240_000);
   await openApp(page);
   const create = async (path: string, text: string) => {
-    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+    await clickTreeSpace(page);
     await page.locator("#new-file").click();
     const field = page.getByRole("textbox", { name: /Name of the new file/ });
     await field.fill(path);

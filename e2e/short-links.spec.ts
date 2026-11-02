@@ -15,7 +15,7 @@ import { shortMakeRefusalText, shortReadRefusalText } from "../src/core/short-li
 import { BRAND_MARK } from "../src/editor/brand-mark";
 import { forgeLink, keyOf, linksSite, type LinksSite } from "./links-fake";
 import { decodePng, parseHex } from "./pixels";
-import { expect, expectActive, importFiles, openApp, setCode, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, openApp, setCode, showFiles, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -42,6 +42,7 @@ async function serveLinks(page: Page): Promise<LinksSite> {
 async function openShare(page: Page, name: string, text: string) {
   await openApp(page);
   await importFiles(page, [{ name, text }]);
+  await showFiles(page);
   await treeItem(page, name).locator(":scope > .tree-row").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Share link..." }).click();
   await expect(dialog(page)).toHaveAttribute("data-state", /^code/);
@@ -295,6 +296,7 @@ test("QR: code links are marked at level H up to 1,273 characters, plain level L
     const name = `${want}.txt`;
     const { text } = await sized(name, min, max, seed);
     await importFiles(page, [{ name, text }]);
+    await showFiles(page);
     await treeItem(page, name).locator(":scope > .tree-row").click({ button: "right" });
     await page.getByRole("menuitem", { name: "Share link..." }).click();
     await expect(dialog(page)).toHaveAttribute("data-state", "code");
@@ -328,7 +330,7 @@ test("QR: code links are marked at level H up to 1,273 characters, plain level L
 // ---------------------------------------------------------------- Choose files
 
 async function create(page: Page, path: string, text: string) {
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await field.fill(path);
@@ -339,6 +341,7 @@ async function create(page: Page, path: string, text: string) {
 }
 
 async function openChooser(page: Page) {
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Choose files to download or share..." }).click();
   const chooser = page.locator("dialog#choose-files");
@@ -376,6 +379,7 @@ test("Choose files: a folder as a short link kept 90 days; another browser opens
     await expect(open).toHaveAttribute("data-state", "ready");
     await expect(open.locator(".dialog-title")).toHaveText("Open the folder lab1?");
     await open.locator("#code-link-add").click();
+    await showFiles(them);
     await expect(treeItem(them, "lab1/main.c")).toBeVisible();
     await expect(treeItem(them, "lab1/util.h")).toBeVisible();
   });
@@ -387,6 +391,7 @@ test("Choose files: files too big for a code link still make a short link", asyn
   await openApp(page);
   await create(page, "big/more.txt", "x\n");
   await importFiles(page, [{ name: "data.txt", text: `${noise(14000, 3)}\n` }]);
+  await showFiles(page);
   await expect(treeItem(page, "big/data.txt")).toBeVisible();
   const chooser = await openChooser(page);
   await chooser.locator('input[data-path="big"]').check();

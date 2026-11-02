@@ -3,7 +3,9 @@
 // over its console, beside the chart board, in place of the console beside the code), the
 // activity rail, the breadcrumb top bar that hides Capture and the runtime state with no file and
 // shows Run disabled, the empty workspace's one primary action over a ruled list, and the phone's
-// bottom view bar. Every keyboard path is driven with the keyboard.
+// bottom view bar. Every keyboard path is driven with the keyboard. Flow Board S2 (from 1100 px:
+// no rail, Run on the run strip, Files a popover) is e2e/flow-board.spec.ts's; the rail is checked
+// under 1100 px here.
 import type { Page } from "@playwright/test";
 import { expect, importFiles, openApp, openFromTree, reloadApp, run, test } from "./helpers";
 
@@ -98,6 +100,9 @@ test.describe("desktop", () => {
   });
 
   test("the activity rail holds Files, Search, Flowchart and New file, with Shortcuts and Settings at its foot; Files hides and shows the file list", async ({ page }) => {
+    // Under 1100 px: from 1100 px Flow Board S2 retires the rail (Files is the code board's popover,
+    // flow-board.spec.ts).
+    await page.setViewportSize({ width: 1000, height: 800 });
     await openApp(page);
     await importFiles(page, FAILS);
     const rail = page.getByRole("navigation", { name: "Activity" });
@@ -109,7 +114,7 @@ test.describe("desktop", () => {
     expect(Math.round(r.width)).toBe(64);
     // Shortcuts and Settings sit at the rail's foot.
     const settings = await box(page, "#settings-button");
-    expect(settings.y + settings.height).toBeGreaterThan(900 - 80);
+    expect(settings.y + settings.height).toBeGreaterThan(800 - 80);
     // The file list sits beside the rail, and the About link stays in its foot.
     const side = await box(page, "#sidebar");
     expect(side.x).toBeGreaterThanOrEqual(r.x + r.width - 1);
@@ -171,14 +176,16 @@ test.describe("desktop", () => {
 // Found in S3's review shots: with a C file open before the compiler's one-time download, the
 // runtime's words ("C/C++ needs a one-time download") kept the top bar's end at its full width, so
 // the page scrolled sideways (146 px at 900, 7 px at 1100) and Run was cut off at the right edge.
-test.describe("the top bar with a long runtime state", () => {
+// From 1100 px (Flow Board S2) Run and the runtime state are on the run strip at the code board's
+// foot instead, held to the same rules.
+test.describe("the top bar (from 1100 px the run strip) with a long runtime state", () => {
   for (const width of [900, 1000, 1099, 1100, 1279, 1280, 1366, 1440]) {
     test(`${width} px: the page never scrolls sideways and Run stays whole; the words stay in the name`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await openApp(page);
       await importFiles(page, [{ name: "main.c", text: "int main(void) {\n    return 0;\n}\n" }]);
       await openFromTree(page, "main.c");
-      const runtime = page.locator(".topbar #status-runtime");
+      const runtime = page.locator(width >= 1100 ? ".run-strip > #status-runtime" : ".topbar #status-runtime");
       await expect(runtime).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
       await expect(runtime).toContainText("C/C++ needs a one-time download");
       expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);

@@ -2,7 +2,7 @@
 // open C file's functions, the names of a header it includes with quotes, a Python workspace
 // module's members after `helpers.` (typing speed in a big workspace: speed.spec.ts).
 import type { Page } from "@playwright/test";
-import { expect, expectActive, importFiles, openApp, openFromTree, setCode, showView, test } from "./helpers";
+import { expect, expectActive, importFiles, openApp, openFromTree, setCode, showFiles, showView, test } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -143,6 +143,7 @@ test("a header that is not open and changes in storage (an import replaces it) i
 
   // The same name again, and Replace: storage changes under the index, util.h never opened.
   const chooser = page.waitForEvent("filechooser");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import files" }).click();
   await (await chooser).setFiles([{ name: "util.h", mimeType: "text/plain", buffer: Buffer.from(UTIL_H.replace("#endif", "int helper_four(void);\n#endif")) }]);

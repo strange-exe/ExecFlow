@@ -4,7 +4,7 @@
 // a selection too big for a link, and a hostile folder link that is refused before any preview.
 import { deflateRawSync } from "node:zlib";
 import type { Download, Page } from "@playwright/test";
-import { expect, importFiles, openApp, setCode, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, setCode, showFiles, test, treeItem } from "./helpers";
 import { readZip } from "./zip-read";
 
 test.use({ serviceWorkers: "block" });
@@ -13,7 +13,7 @@ test.setTimeout(120_000);
 const bytesOf = async (d: Download) => Buffer.concat(await (await d.createReadStream()).toArray());
 
 async function create(page: Page, path: string, text: string) {
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await field.fill(path);
@@ -24,6 +24,7 @@ async function create(page: Page, path: string, text: string) {
 }
 
 async function openChooser(page: Page) {
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Choose files to download or share..." }).click();
   const dialog = page.locator("dialog#choose-files");
@@ -42,6 +43,7 @@ async function lab(page: Page) {
 test("the keyboard ticks files and folders; a folder shows mixed; Download names and saves what is ticked", async ({ page }) => {
   await openApp(page);
   await lab(page);
+  await showFiles(page);
   await treeItem(page, "notes.txt").locator(":scope > .tree-row").click();
   const dialog = await openChooser(page);
   // The file list's selection starts ticked, and has the focus.
@@ -72,7 +74,7 @@ test("the keyboard ticks files and folders; a folder shows mixed; Download names
 test("Download and Share link with nothing ticked say so, and do nothing", async ({ page }) => {
   await openApp(page);
   await lab(page);
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } }); // nothing selected
+  await clickTreeSpace(page); // nothing selected
   const dialog = await openChooser(page);
   await expect(dialog.locator("#choose-summary")).toHaveText("Nothing ticked yet.");
   await dialog.locator("#choose-download").click();
@@ -109,6 +111,7 @@ test("a shared folder opens in another browser as a new folder, previewed first;
     if (expected === "lab1-2") await expect(open.locator("#code-link-about")).toContainText("so this one is added as lab1-2");
     await open.locator("#code-link-add").click();
     await expect(open).toHaveCount(0);
+    await showFiles(them);
     await expect(treeItem(them, `${expected}/main.c`)).toBeVisible();
     await expect(treeItem(them, `${expected}/util.h`)).toBeVisible();
     await expect(them.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", `${expected}/main.c`);
@@ -165,6 +168,7 @@ test("a selection too big for a link says how big, keeps Download, and makes no 
   await create(page, "big/more.txt", "x\n");
   // Imported, not typed (the editor shows only the lines in view): it lands in big/, the folder selected.
   await importFiles(page, [{ name: "data.txt", text: `${Array.from({ length: 175 }, line).join("\n")}\n` }]);
+  await showFiles(page);
   await expect(treeItem(page, "big/data.txt")).toBeVisible();
   const dialog = await openChooser(page);
   await box(page, "big").check();
