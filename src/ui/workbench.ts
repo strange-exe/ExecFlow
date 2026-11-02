@@ -104,6 +104,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const placeOutcome = () => output.placeReceipt(L.chartOnBoard() ? L.runOutcome : null);
   placeOutcome();
   L.onWideChange(placeOutcome);
+  // Why the output can't stand beside the code (the layout's words), said in the notice.
+  L.onSay((words) => notice.show(words, { tone: "info" }));
   const problemsView = new ProblemsView();
   L.problemsPanel.append(problemsView.element);
   L.editorPanel.append(
@@ -1062,9 +1064,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       }
       renderProblemsCount(list, counts);
       // The collapsed panel opens for the first problem of the session (as it does for every run).
+      // From 1100 px the run strip's count shows it already: the console stays its head until a
+      // run, never a tall empty Output (owner, 2026-11-02).
       if (counts.total && !problemsSeen) {
         problemsSeen = true;
-        L.expandPanel();
+        if (!L.chartOnBoard()) L.expandPanel();
       }
       // The error jump and the lifted exception go with their error (deleted, or no longer in the
       // build's results), so the header never names a place Problems no longer has.
@@ -1099,9 +1103,13 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     button.firstElementChild!.replaceWith(icon(tone === "error" ? "x-circle" : tone === "warning" ? "warning" : "check-circle"));
     L.problemsWords.textContent = words;
   }
+  // The count discloses the list (aria-expanded, layout.ts): pressed again, the console goes back to
+  // Output. The focus stays on it, set here because WebKit doesn't focus a clicked button (from
+  // 1100 px the console's tabs give way to it; under it the Problems tab takes the focus, as before).
   L.problemsButton.addEventListener("click", () => {
-    L.showPanelTab("problems");
-    L.panelTabs.problems.focus();
+    const open = L.problemsButton.getAttribute("aria-expanded") === "true";
+    L.showPanelTab(open ? "output" : "problems");
+    (L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
   });
 
   async function revealProblem(p: Problem) {
@@ -1421,8 +1429,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     discardHeld("next-run");
     // Ready before the run can fail, so its help shows with the error (a failed load says nothing).
     loadHelp().catch(() => {});
-    // The panel opens on Run (to its remembered height) and shows Output.
-    L.showPanelTab("output");
+    // The panel opens on Run (to its remembered height) and shows Output. In focus code it stays the
+    // run strip, which reports the run (a program waiting for input shows its console).
+    L.showPanelTab("output", false, true);
     if (L.narrow()) L.showView("output");
     setRunning("running");
     output.setPhase(lang === "python" ? "running" : "compiling", lang === "python" ? "Running" : "Compiling");
@@ -2083,9 +2092,29 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   function goToOutput() {
     if (L.narrow()) L.showView("output");
     L.showPanelTab("output");
-    if (!output.focus()) (L.narrow() ? L.viewTabs.output : L.panelTabs.output).focus();
+    // Nothing printed yet: the Output tab, or from 1100 px (no tabs there) the Input fold.
+    if (!output.focus()) (L.narrow() ? L.viewTabs.output : L.chartOnBoard() ? output.inputToggle : L.panelTabs.output).focus();
   }
   const focused = () => (document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null);
+
+  /** Focus code (1100 px and wider): Shift+Alt+Enter, the code board's head, the palette. */
+  function toggleFocusCode() {
+    if (!L.chartOnBoard()) return notice.show("Focus code needs a window 1100 pixels wide or wider.", { tone: "info" });
+    L.board.setFocusMode(!L.board.focusMode());
+  }
+  // The browser's own full screen (the palette's Full screen; only ever from that key or click, a
+  // user gesture). The whole page goes full screen, not #app: menus and dialogs live on
+  // document.body. Escape, or the browser's own control, leaves it; fullscreenchange follows both.
+  const fullScreenAvailable = () => document.fullscreenEnabled === true && typeof document.documentElement.requestFullscreen === "function";
+  function toggleFullScreen() {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void document.documentElement.requestFullscreen().catch((e: unknown) => notice.show(`Full screen didn't open: ${errorText(e)}`, { tone: "info" }));
+  }
+  document.addEventListener("fullscreenchange", () => {
+    const on = document.fullscreenElement !== null;
+    root.dataset.fullscreen = String(on);
+    announcer.say(on ? "Full screen. Press Escape to leave it." : "Full screen is off.");
+  });
 
   // ---------------------------------------------------------------- examples and the command palette
   // Both are lazy chunks (.claude/design/batch3/p.md): the shell keeps their entry points only.
@@ -2195,6 +2224,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     settings,
     notice,
     widthItems,
+    board: () => (L.chartOnBoard() ? { chartShown: !L.board.chartHidden() && !L.board.focusMode(), beside: L.board.besideShown(), focus: L.board.focusMode() } : null),
+    fullScreen: () => (fullScreenAvailable() ? { on: document.fullscreenElement !== null } : null),
     act: {
       run: () => void run(),
       stop: stopRun,
@@ -2241,7 +2272,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       problems: () => {
         if (L.narrow()) L.showView("problems");
         L.showPanelTab("problems");
-        (L.narrow() ? L.viewTabs.problems : L.panelTabs.problems).focus();
+        (L.narrow() ? L.viewTabs.problems : L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
       },
       settings: (opener) => openSettings(opener),
       shortcuts: (opener) => shortcuts.open(opener),
@@ -2250,6 +2281,14 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       syncWithMessage: (opener) => sync.syncWithMessage(opener),
       restartPython,
       clearOutput: () => output.clear(),
+      toggleChart: () => {
+        const shown = !L.board.chartHidden() && !L.board.focusMode();
+        L.board.setChartHidden(shown);
+        if (!shown && root.dataset.open !== "true") notice.show("Open a C, C++ or Python file to see its flowchart.", { tone: "info" });
+      },
+      toggleBeside: () => L.board.setBeside(!L.board.besideShown()),
+      toggleFocus: toggleFocusCode,
+      toggleFullScreen,
     },
   };
   /** Opens the palette on `mode`; focus goes back to what had it (or to the top bar's Search). */
@@ -2416,6 +2455,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (mod && !e.altKey && key === "Enter") {
       e.preventDefault();
       void run({ repeat: e.repeat, key: true });
+    } else if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && key === "Enter") {
+      // Focus code (Visual Studio's full-screen key). In the code too: CodeMirror binds no
+      // Shift-Alt-Enter, and the key never types (shortcuts.test.ts checks both).
+      e.preventDefault();
+      if (!e.repeat) toggleFocusCode();
     } else if (mod && !e.altKey && !e.shiftKey && key === "s") {
       e.preventDefault();
       void saveAndSync();

@@ -22,6 +22,8 @@ function api(over: Partial<Omit<PaletteApi, "act">> & { act?: Partial<PaletteApi
     settings: { get: () => ({ ...settings }), update: (p) => (settings = { ...settings, ...p }) },
     notice: { show: vi.fn() },
     widthItems: () => [],
+    board: () => null,
+    fullScreen: () => null,
     ...over,
     act,
   };
@@ -112,6 +114,31 @@ describe("the commands", () => {
     expect(running).toContain("stop");
     expect(running).not.toContain("run");
     expect(running).not.toContain("restart-python");
+  });
+
+  it("offers the boards' layout from 1100 px only, each named by what it will do, and Full screen where the browser can", () => {
+    const none = ids(buildCommands(api()));
+    for (const id of ["chart-board", "output-place", "focus-code", "full-screen"]) expect(none, id).not.toContain(id);
+    const label = (list: readonly PaletteCommand[], id: string) => list.find((c) => c.id === id)?.label;
+    const start = buildCommands(api({ board: () => ({ chartShown: true, beside: false, focus: false }), fullScreen: () => ({ on: false }) }));
+    expect([label(start, "chart-board"), label(start, "output-place"), label(start, "focus-code"), label(start, "full-screen")]).toEqual([
+      "Hide the flowchart", "Put the output beside the code", "Focus code", "Full screen",
+    ]);
+    const after = buildCommands(api({ board: () => ({ chartShown: false, beside: true, focus: true }), fullScreen: () => ({ on: true }) }));
+    expect([label(after, "chart-board"), label(after, "output-place"), label(after, "focus-code"), label(after, "full-screen")]).toEqual([
+      "Show the flowchart", "Put the output below the code", "Leave focus code", "Exit full screen",
+    ]);
+    // Focus code shows its key, the one the Shortcuts list names; each command runs its own action.
+    expect(start.find((c) => c.id === "focus-code")!.keys).toBe(shortcutKeys(false).focusCode);
+    const acts = { toggleChart: vi.fn(), toggleBeside: vi.fn(), toggleFocus: vi.fn(), toggleFullScreen: vi.fn() };
+    const list = buildCommands(api({ board: () => ({ chartShown: true, beside: false, focus: false }), fullScreen: () => ({ on: false }), act: acts }));
+    for (const id of ["chart-board", "output-place", "focus-code", "full-screen"]) list.find((c) => c.id === id)!.run(OPENER);
+    for (const f of Object.values(acts)) expect(f).toHaveBeenCalledTimes(1);
+    // Found by the words a student would type.
+    for (const [query, id] of [["full screen", "full-screen"], ["zen", "focus-code"], ["side by side", "output-place"], ["hide flowchart", "chart-board"]] as const) {
+      const first = results(`>${query}`, [], [], null, start).groups[0].options[0];
+      expect(first.kind === "command" && first.command.id, query).toBe(id);
+    }
   });
 
   it("offers Connect or Sync now by the connection, and the settings toggles name what they will do", () => {

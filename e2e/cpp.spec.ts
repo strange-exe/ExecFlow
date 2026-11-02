@@ -1,4 +1,4 @@
-import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showFiles, showView, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showFiles, showPanel, showView, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -65,7 +65,7 @@ test("multi-file C with a header, live scanf input, fopen of a data file, and th
   expect(broken.status).toBe("build-failed");
   await expect(page.locator("[data-announcer]")).toHaveText(/^Build failed: \d+ errors? in .*util\.h/);
   await expect(page.locator("#console .err").first()).toContainText("util.h:");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const problem = page.locator('.problem[data-path="util.h"]').first();
   await expect(problem).toBeVisible();
   await problem.click();

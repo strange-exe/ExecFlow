@@ -493,8 +493,12 @@ export const chartOnBoard = (page: Page) => (page.viewportSize()?.width ?? 1280)
  * Flowchart view.
  */
 export async function showChart(page: Page) {
-  if (chartOnBoard(page)) await expect(page.locator("#chart-board")).toBeVisible();
-  else await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
+  if (chartOnBoard(page)) {
+    // A hidden chart board (Hide flowchart, or focus code) comes back with the code board's Flowchart.
+    const toggle = page.locator("#chart-toggle");
+    if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+    await expect(page.locator("#chart-board")).toBeVisible();
+  } else await page.locator(isNarrow(page) ? "#view-flowchart" : "#ptab-flowchart").click();
 }
 
 /**
@@ -554,10 +558,27 @@ export async function showView(page: Page, view: "code" | "output" | "problems")
 
 /**
  * Shows Output or Problems: below 900 px with the view switch (the panel's own tabs give way to
- * it there), elsewhere with the panel's tab (which also opens a collapsed panel).
+ * it there), up to 1100 px with the panel's tab (which also opens a collapsed panel). From 1100 px
+ * the console has no tabs: the run strip's count opens the problems (a disclosure), and the head's
+ * Output button goes back (or, on Output already, the head's toggle opens a collapsed console).
  */
 export async function showPanel(page: Page, tab: "output" | "problems") {
-  await page.locator(isNarrow(page) ? `#view-${tab}` : `#ptab-${tab}`).click();
+  if (!chartOnBoard(page)) {
+    await page.locator(isNarrow(page) ? `#view-${tab}` : `#ptab-${tab}`).click();
+    return;
+  }
+  const panel = page.locator("#panel");
+  if (tab === "problems") {
+    const count = page.locator("#problems-count");
+    if ((await count.getAttribute("aria-expanded")) !== "true") await count.click();
+    await expect(count).toHaveAttribute("aria-expanded", "true");
+  } else if ((await panel.getAttribute("data-tab")) === "problems") {
+    await page.locator("#panel-back").click();
+  } else if ((await panel.getAttribute("data-collapsed")) === "true") {
+    await page.locator("#panel-toggle").click();
+  }
+  await expect(panel).toHaveAttribute("data-tab", tab);
+  await expect(panel).not.toHaveAttribute("data-collapsed", "true");
 }
 
 /** Opens the Input box (text given to the program first) from the panel bar's toggle. */

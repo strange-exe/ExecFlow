@@ -1,4 +1,4 @@
-import { expect, importFiles, openApp, openFromTree, run, setCode, showFiles, showView, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, run, setCode, showFiles, showPanel, showView, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -58,7 +58,7 @@ test("a traceback marks the right file and line, and Problems jumps there", asyn
 
   // Problems: a button per diagnostic, with the severity word and path:line.
   await expect(page.locator("#ptab-problems .count")).not.toHaveText("");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const problem = page.locator('.problem[data-path="calc.py"][data-line="2"]');
   await expect(problem).toContainText("Error");
   await expect(problem).toContainText("calc.py:2");
@@ -78,7 +78,7 @@ test("a problem with keyboard focus keeps it when a later check updates the Prob
   ]);
   await openFromTree(page, "main.py");
   expect((await run(page)).status).toBe("error");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const problem = page.locator('.problem[data-path="calc.py"][data-line="2"]');
   await problem.focus();
   await expect(problem).toBeFocused();

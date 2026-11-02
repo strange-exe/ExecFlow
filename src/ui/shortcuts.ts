@@ -44,6 +44,9 @@ export function shortcutKeys(mac = isMac()) {
     copy: `${mod} C`,
     selectAll: `${mod} A`,
     output: `${mod} \``,
+    // Visual Studio's full-screen key; no browser binds it on the page (Chrome, Firefox and Safari
+    // use Shift Enter variants only in their address bars) and CodeMirror leaves it free.
+    focusCode: "Shift Alt Enter",
     shortcuts: `${mod} /`,
   };
 }
@@ -126,6 +129,7 @@ export function shortcutGroups(mac = isMac()): { title: string; rows: [string, s
       title: "Panels",
       rows: [
         [k.output, "Go to the output (or the input field, while a program waits)"],
+        [k.focusCode, "Focus code: the code alone, without the flowchart and the output (again, or Esc outside the code, to come back; 1100 px and wider)"],
         [k.shortcuts, "Show these shortcuts (outside the code and text fields)"],
       ],
     },

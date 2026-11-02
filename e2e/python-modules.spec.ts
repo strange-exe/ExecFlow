@@ -1,6 +1,6 @@
 // Python modules, packages and written files as a student meets them (from the functional review, 2026-10-17).
 import type { Page } from "@playwright/test";
-import { clickTreeSpace, expect, importFiles, openApp, openFromTree, openInputBox, run, setCode, showFiles, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, openFromTree, openInputBox, run, setCode, showFiles, showPanel, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(150_000);
@@ -16,7 +16,7 @@ test("a syntax error in an imported module is marked in that module, on its line
   await openFromTree(page, "main.py");
   const r = await run(page, { timeout: 90_000 });
   expect(r.status).toBe("error");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const rows = await page.locator(".problem").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-path")}:${e.getAttribute("data-line")}`));
   expect(rows, JSON.stringify(rows)).toContain("helper.py:3");
   await page.locator('.problem[data-path="helper.py"]').first().click();
@@ -44,7 +44,7 @@ test("a runtime error inside a package in a sub-folder is marked there; the run'
   expect(r.status).toBe("error");
   expect(r.output).toContain("9");
   await expect(page.locator("#console .err").first()).toContainText("ValueError");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const rows = await page.locator(".problem").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-path")}:${e.getAttribute("data-line")}`));
   expect(rows, JSON.stringify(rows)).toContain("shapes/area.py:3");
 });

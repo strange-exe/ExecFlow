@@ -361,12 +361,15 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   stop = await focusStop(page);
   expect.soft(stop.id, "Ctrl+` focuses the output").toBe("console");
   log.output = stop;
-  await page.locator("#ptab-output").focus();
-  await page.keyboard.press("ArrowRight");
+  // From 1100 px the run strip's count is the way to the problems (the console has no tabs there):
+  // Enter on it shows the list and says so (aria-expanded).
+  await page.locator("#problems-count").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#problems-count")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-  // The panel bar's collapse toggle, Input, Restart Python, Clear, Maximise the panel, the Problems
-  // panel, then the first problem (layout v2 added the first two to the bar).
-  const panelPath = await tabPath(page, 7);
+  // The rest of the run strip, the console head's Output (back), Output beside, Maximise and
+  // collapse, the Problems panel, then the first problem.
+  const panelPath = await tabPath(page, 10);
   log.problemsPath = panelPath.map(label);
   const problem = panelPath.find((s) => s.cls.includes("problem"));
   expect.soft(problem, "Tab reaches a problem").toBeTruthy();

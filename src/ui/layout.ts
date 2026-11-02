@@ -23,8 +23,9 @@ import type { WsPath } from "../core/types";
 import { brandMarkSvg } from "../editor/brand-mark";
 import { ariaMod, h, isMac, srOnly } from "./dom";
 import { icon } from "./icons";
+import { BOARD_GAP, besideNow, chartDefault, chartMax, CHART_MIN, CONSOLE_GAP, consoleDefault, consoleMax, CONSOLE_MIN } from "./board-size";
 import { chartPanelSize } from "./panel-size";
-import { clamp, createSplitter, type Splitter } from "./splitter";
+import { clamp, createSplitter, readLayoutFlag, writeLayoutFlag, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
 /** From here the chart has a board of its own beside the code board (Flow Board, app.css). */
@@ -126,8 +127,30 @@ export interface Layout {
   noticeHost: HTMLElement;
   status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement };
   viewTabs: { code: HTMLButtonElement; output: HTMLButtonElement; problems: HTMLButtonElement; flowchart: HTMLButtonElement; count: HTMLElement };
-  /** The file list's width and the console's height (desktop): buttons resize them without dragging. */
-  splitters: { sidebar: Splitter; panel: Splitter };
+  /**
+   * The file list's width and the console's height (desktop): buttons resize them without dragging.
+   * From 1100 px also the chart board's width and the output's width beside the code.
+   */
+  splitters: { sidebar: Splitter; panel: Splitter; board: Splitter; console: Splitter };
+  /**
+   * The Flow Board's layout choices (1100 px and wider; owner's report on 0.26.0, 2026-11-02). Each
+   * is remembered on this device except focus, a mode.
+   */
+  board: {
+    /** Whether the chart board is hidden by choice (Hide flowchart; the code board's Flowchart brings it back). */
+    chartHidden(): boolean;
+    /** Hides or shows the chart board. Showing it also leaves focus code. */
+    setChartHidden(hide: boolean): void;
+    /** Whether the output is asked to stand beside the code, and whether it does now (room for it). */
+    besideWanted(): boolean;
+    besideShown(): boolean;
+    setBeside(on: boolean): void;
+    /** Focus code: the code board alone on the canvas, its console the run strip. */
+    focusMode(): boolean;
+    setFocusMode(on: boolean): void;
+  };
+  /** Words the layout wants said in the notice (why the output can't stand beside the code). */
+  onSay(listener: (words: string) => void): void;
   narrow(): boolean;
   /** Called after the layout crossed the 900 px line (and moved Run and the runtime state). */
   onNarrowChange(listener: (narrow: boolean) => void): void;
@@ -143,9 +166,10 @@ export interface Layout {
   view(): View;
   /**
    * Selects a panel tab and opens the panel if it is collapsed. The flowchart where it has a board
-   * of its own: nothing to select; `focus` takes focus to the board.
+   * of its own: nothing to select (a hidden board shows again); `focus` takes focus to the board.
+   * Either leaves focus code, unless `stay` (a run's start: the run strip reports it there).
    */
-  showPanelTab(tab: PanelTab, focus?: boolean): void;
+  showPanelTab(tab: PanelTab, focus?: boolean, stay?: boolean): void;
   panelTab(): PanelTab;
   /** The panel starts collapsed to its bar (desktop) until the first run or problem. */
   expandPanel(): void;
@@ -273,7 +297,20 @@ export function createLayout(root: HTMLElement): Layout {
   );
   // The editor head: the tabs on the left, the error jump on the right (phones have no head, and
   // keep Capture there out of sight: they reach it from the code menu).
-  const headTools = h("div", { class: "head-tools" }, errorJump);
+  // From 1100 px the head ends with the board's own tools: Flowchart (while the chart board is
+  // hidden, it brings it back) and Focus code (the code board alone; Shift Alt Enter, Visual
+  // Studio's full-screen key). Toggles named by what they do, their state in aria-pressed.
+  const chartToggle = h(
+    "button",
+    { type: "button", class: "board-tool chart-toggle", id: "chart-toggle", "aria-pressed": "false", "aria-controls": "chart-board", title: "Show the flowchart beside the code" },
+    icon("tree-structure"),
+    h("span", { class: "board-tool-label" }, "Flowchart"),
+  );
+  chartToggle.hidden = true;
+  const focusButton = h("button", {
+    type: "button", class: "board-tool focus-toggle", id: "focus-code", "aria-pressed": "false", "aria-label": "Focus code", "aria-keyshortcuts": "Shift+Alt+Enter",
+  });
+  const headTools = h("div", { class: "head-tools" }, errorJump, chartToggle, focusButton);
   const editorHead = h("div", { class: "editor-head" }, tabHost, headTools);
   const editorHost = h("div", { class: "editor-host", id: "editor-host" });
   const emptyHost = h("div", { class: "editor-empty", id: "editor-empty" });
@@ -312,8 +349,17 @@ export function createLayout(root: HTMLElement): Layout {
   const ptabProblems = h("button", { type: "button", role: "tab", id: "ptab-problems", "aria-controls": "panel-problems", "aria-selected": "false", tabindex: "-1" }, "Problems", count);
   const ptabFlowchart = h("button", { type: "button", role: "tab", id: "ptab-flowchart", "aria-controls": "panel-flowchart", "aria-selected": "false", tabindex: "-1" }, "Flowchart");
   const panelTabsEl = h("div", { class: "panel-tabs", role: "tablist", "aria-label": "Panel" }, ptabOutput, ptabProblems, ptabFlowchart);
+  // From 1100 px the tabs give way (the run strip's count is the one way to the problems: owner,
+  // 2026-11-02, "Problems shows twice"): the head names what the console shows, and while it shows
+  // Problems, Output goes back. Under 1100 px the tabs stay (app.css).
+  const panelTitle = h("h2", { class: "panel-title", id: "panel-title" }, "Output");
+  const panelBack = h("button", { type: "button", class: "btn ghost small panel-back", id: "panel-back", "aria-controls": "panel-output" }, icon("terminal-window"), "Output");
+  panelBack.hidden = true;
   const panelToggle = h("button", { type: "button", class: "icon-btn panel-toggle", id: "panel-toggle", "aria-label": "Output and problems", "aria-expanded": "false", "aria-controls": "panel-output panel-problems panel-flowchart" });
-  const panelHeadTools = h("div", { class: "panel-head-tools" });
+  // Output below or beside the code (1100 px and wider), before Maximise (workbench.ts adds it): named
+  // by the place it moves the output to (syncBoards).
+  const besideToggle = h("button", { type: "button", class: "icon-btn small panel-beside", id: "panel-beside" });
+  const panelHeadTools = h("div", { class: "panel-head-tools" }, besideToggle);
   const panelActions = h("div", { class: "panel-actions" });
   const outputPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-output", "aria-labelledby": "ptab-output" });
   const problemsPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-problems", "aria-labelledby": "ptab-problems", tabindex: "0" });
@@ -336,7 +382,7 @@ export function createLayout(root: HTMLElement): Layout {
     "section",
     { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output" },
     runStrip,
-    h("div", { class: "panel-bar" }, panelTabsEl, panelHeadTools, panelToggle),
+    h("div", { class: "panel-bar" }, panelTabsEl, panelTitle, panelBack, panelHeadTools, panelToggle),
     panelActions,
     outputPanel,
     problemsPanel,
@@ -351,6 +397,11 @@ export function createLayout(root: HTMLElement): Layout {
   // same word); app.css shows it while a file is open. Focusable from script only (the rail's
   // Flowchart takes focus there), never a Tab stop.
   const chartBoard = h("section", { class: "chart-board", id: "chart-board", "aria-label": "Flowchart", tabindex: "-1" });
+  // Hide flowchart: at the end of the chart's bar (over it: the bar is the lazy view's, and hides
+  // itself while nothing is drawn, so the board keeps this one in every state). First in the
+  // board's Tab order, as a region's own close is.
+  const chartHide = h("button", { type: "button", class: "icon-btn chart-hide", id: "chart-hide", "aria-label": "Hide flowchart", "aria-controls": "chart-board", title: "Hide the flowchart (the code takes its room)" }, icon("caret-line-right"));
+  chartBoard.append(chartHide);
 
   const center = h("div", { class: "center", "data-view": "code" }, editorArea);
   // The work column: the top bar over the two cards.
@@ -414,7 +465,60 @@ export function createLayout(root: HTMLElement): Layout {
       center.style.setProperty("--panel-rows", `${v}fr`);
     },
   });
-  center.append(panelSplit.element, panel, chartBoard);
+  // From 1100 px (owner's report on 0.26.0, 2026-11-02): the chart board's width beside the code
+  // board, and the output's width while it stands beside the code. Pixels, each the region after
+  // its bar (ArrowLeft grows it); the chart's default is the two equal boards, followed as the
+  // window changes until a size is chosen. Both clamp to what the window allows now (sizeModel).
+  // The choices they depend on (syncBoards applies them): the chart board hidden, the output asked
+  // beside the code (and whether there is room for it now), and focus code.
+  let chartHidden = readLayoutFlag("chartHidden") ?? false;
+  let besideWanted = readLayoutFlag("consoleBeside") ?? false;
+  let besideShown = false;
+  let focusMode = false;
+  /** The chart board takes its column: 1100 px and wider, a file open, not hidden, not focus code. */
+  const chartShownNow = () => wideQuery.matches && root.dataset.open === "true" && !chartHidden && !focusMode;
+  const boardsWidth = () => {
+    const cs = getComputedStyle(center);
+    return Math.max(0, center.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  };
+  let consoleSplit: Splitter | null = null;
+  const boardSplit = createSplitter({
+    orientation: "vertical",
+    label: "Resize the flowchart",
+    controls: "chart-board",
+    min: CHART_MIN,
+    max: () => chartMax(boardsWidth(), besideShown),
+    initial: () => chartDefault(boardsWidth()),
+    after: true,
+    step: 16,
+    unit: "pixels wide",
+    key: "chart",
+    fromPointer: (e) => chartBoard.getBoundingClientRect().right - e.clientX - BOARD_GAP / 2,
+    apply: (v) => {
+      // The default split is two equal fractions, so the boards stay equal to the pixel.
+      center.style.setProperty("--chart-w", v === chartDefault(boardsWidth()) ? "minmax(0, 1fr)" : `${v}px`);
+      consoleSplit?.refresh();
+    },
+  });
+  /** The code board's width: the boards' row less the chart board and the gap, while it shows. */
+  const codeBoardWidth = () => boardsWidth() - (chartShownNow() ? BOARD_GAP + boardSplit.value : 0);
+  consoleSplit = createSplitter({
+    orientation: "vertical",
+    label: "Resize the output panel",
+    controls: "panel",
+    min: CONSOLE_MIN,
+    max: () => consoleMax(codeBoardWidth()),
+    initial: () => consoleDefault(codeBoardWidth()),
+    after: true,
+    step: 16,
+    unit: "pixels wide",
+    key: "console",
+    fromPointer: (e) => panel.getBoundingClientRect().right - e.clientX - CONSOLE_GAP / 2,
+    apply: (v) => center.style.setProperty("--console-w", `${v}px`),
+  });
+  boardSplit.element.classList.add("board-split");
+  consoleSplit.element.classList.add("console-split");
+  center.append(panelSplit.element, consoleSplit.element, panel, boardSplit.element, chartBoard);
   main.append(sidebarSplit.element, work);
   root.replaceChildren(main, statusbar, viewBar, scrim);
   root.classList.add("workbench");
@@ -659,6 +763,8 @@ export function createLayout(root: HTMLElement): Layout {
   // opens to the remembered size. A hidden body is hidden; the run's result is still read out by the
   // workbench's announcer, never by a hidden role=log. Below 900 px Output and Problems fill the
   // screen from the view bar, so nothing is hidden there.
+  // Hidden to its head, the console docks under the code in either place: beside the code it
+  // stands as a column only while open (so before the first run the code has the whole board).
   let collapsed = true;
   const panelCollapsed = () => collapsed && !narrowQuery.matches;
   /** From 1100 px the chart has a board of its own, and the console's Flowchart tab is hidden. */
@@ -676,6 +782,13 @@ export function createLayout(root: HTMLElement): Layout {
     for (const t of panelTabs()) bodies[t].hidden = shut || t !== tab;
     // On its board the chart's body always shows (the board itself shows while a file is open).
     if (chartOnBoard()) flowchartPanel.hidden = false;
+    // From 1100 px: the head's name, Output (back from Problems), and the count's state.
+    const problemsOpen = chartOnBoard() && !shut && tab === "problems";
+    panelTitle.textContent = tab === "problems" ? "Problems" : "Output";
+    panelBack.hidden = !(chartOnBoard() && tab === "problems");
+    // From 1100 px the count is the one way to the list, so it says whether the list is showing.
+    if (chartOnBoard()) problemsButton.setAttribute("aria-expanded", String(problemsOpen));
+    else problemsButton.removeAttribute("aria-expanded");
     // The splitter's value is the size the console opens to; while it is its head, it says so.
     if (shut) panelSplit.element.setAttribute("aria-valuetext", `Collapsed; opens at ${panelSplit.value} percent of the height`);
     else panelSplit.refresh();
@@ -706,10 +819,13 @@ export function createLayout(root: HTMLElement): Layout {
   // ---------------------------------------------------------------- is the flowchart on screen?
   const chartListeners: ((visible: boolean) => void)[] = [];
   let chartWasVisible = false;
+  // Hidden by choice or by focus code, the board's chart is off screen: it draws nothing until it
+  // shows again (flowchart-view.ts setVisible), so typing never waits on it.
   const chartVisible = () =>
-    narrowQuery.matches ? center.dataset.view === "flowchart" : chartOnBoard() ? root.dataset.open === "true" : !panelCollapsed() && currentTab() === "flowchart";
-  // The board shows while a file is open (workbench.ts sets data-open): the chart is told at once.
-  new MutationObserver(() => tellChart()).observe(root, { attributes: true, attributeFilter: ["data-open"] });
+    narrowQuery.matches ? center.dataset.view === "flowchart" : chartOnBoard() ? chartShownNow() : !panelCollapsed() && currentTab() === "flowchart";
+  // The board shows while a file is open (workbench.ts sets data-open): the chart is told at once,
+  // and the boards are laid out again (the chart's column comes or goes).
+  new MutationObserver(() => syncBoards()).observe(root, { attributes: true, attributeFilter: ["data-open"] });
   function tellChart() {
     const visible = chartVisible();
     if (visible === chartWasVisible) return;
@@ -728,15 +844,16 @@ export function createLayout(root: HTMLElement): Layout {
     const next = chartPanelSize(panelSplit.value, rows, panelSplit.max());
     if (next !== null) panelSplit.set(next);
   }
+  // Through syncBoards: opening or hiding the console also moves it beside the code or under it.
   function expandPanel() {
     collapsed = false;
-    syncPanel();
+    syncBoards();
   }
   function collapsePanel() {
     const active = document.activeElement;
     const inBody = active instanceof Node && (outputPanel.contains(active) || problemsPanel.contains(active));
     collapsed = true;
-    syncPanel();
+    syncBoards();
     // Focus inside the body would go to the page: it stays on the control that collapsed it.
     if (inBody) panelToggle.focus();
   }
@@ -780,16 +897,24 @@ export function createLayout(root: HTMLElement): Layout {
     if (center.dataset.view !== "code") markView(tab);
     syncPanel();
   }
-  function showPanelTab(tab: PanelTab, focus = false) {
+  function showPanelTab(tab: PanelTab, focus = false, stay = false) {
     if (tab === "flowchart" && chartOnBoard()) {
+      if (chartHidden || focusMode) setChartHidden(false);
       if (focus) chartBoard.focus();
       return;
     }
+    if (!stay) setFocusMode(false);
     selectPanelTab(tab);
     expandPanel();
     if (focus) ptabs[tab].focus();
   }
   for (const t of PANEL_TABS) ptabs[t].addEventListener("click", () => showPanelTab(t));
+  // Output, back from Problems (1100 px and wider): it leaves the head, so focus goes to the count,
+  // the control that shows the problems again.
+  panelBack.addEventListener("click", () => {
+    showPanelTab("output");
+    problemsButton.focus();
+  });
   // APG tabs: arrows move round the tabs shown (wrapping), Home and End go to the ends; selection follows focus.
   panelTabsEl.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
@@ -802,6 +927,144 @@ export function createLayout(root: HTMLElement): Layout {
   });
   selectPanelTab("output");
   placeChart();
+
+  // ---------------------------------------------------------------- the boards (1100 px and wider)
+  // Owner's report on 0.26.0 (2026-11-02): no full-screen editor, no output beside the code, no way
+  // to size the boards or to hide the chart. app.css lays the boards out from three attributes on
+  // the centre, set here and nowhere else: data-chart (the chart board's column), data-console
+  // (the output below or beside the code) and data-focus (focus code: the code board alone, its
+  // console the run strip, the top row kept).
+  const sayListeners: ((words: string) => void)[] = [];
+  const BESIDE_ROOM = "There isn't room for the output beside the code: hide the flowchart or widen the window. It moves there once there is room.";
+  function syncBoards() {
+    const wide = wideQuery.matches;
+    if (!wide) focusMode = false;
+    const shown = chartShownNow();
+    const focused = document.activeElement;
+    besideShown = wide && !focusMode && !collapsed && besideNow(besideWanted, boardsWidth(), shown);
+    center.dataset.chart = shown ? "shown" : "hidden";
+    center.dataset.console = besideShown ? "beside" : "below";
+    center.dataset.focus = String(focusMode);
+    // Beside the output, the run strip is the code board's foot under both (moved, never copied).
+    if (besideShown && runStrip.parentElement !== center) center.insertBefore(runStrip, boardSplit.element);
+    else if (!besideShown && runStrip.parentElement !== panel) panel.prepend(runStrip);
+    // The head's Flowchart: shown while a file is open and its board is not on screen.
+    chartToggle.hidden = !wide || shown || root.dataset.open !== "true";
+    chartToggle.setAttribute("aria-pressed", String(shown));
+    focusButton.setAttribute("aria-pressed", String(focusMode));
+    focusButton.title = focusMode ? "Leave focus code (Esc or Shift+Alt+Enter)" : "Focus code: hide the flowchart and the output (Shift+Alt+Enter)";
+    focusButton.replaceChildren(icon(focusMode ? "arrows-in-simple" : "arrows-out-simple"));
+    besideToggle.setAttribute("aria-label", besideShown ? "Output below" : "Output beside");
+    besideToggle.title = besideShown
+      ? "Output below: put the output under the code"
+      : besideWanted
+        ? "Output beside: needs a wider window. Hide the flowchart or widen the window"
+        : "Output beside: put the output to the right of the code";
+    besideToggle.replaceChildren(icon(besideShown ? "square-split-vertical" : "square-split-horizontal"));
+    boardSplit.refresh();
+    consoleSplit!.refresh();
+    syncPanel();
+    // A moved element loses focus in some engines: it goes back to the control that had it.
+    if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected && focused.getClientRects().length) focused.focus({ preventScroll: true });
+  }
+
+  // The chart board's motion (design.md Motion): in, a 160 ms ease-out fade and an 8 px slide from
+  // the right; out, 120 ms ease-in, then its column goes. None under reduced motion.
+  let boardAnimation: Animation | null = null;
+  function animateBoard(show: boolean): Animation | null {
+    boardAnimation?.cancel();
+    boardAnimation = null;
+    // Asked afresh: Playwright's WebKit left a kept MediaQueryList's matches stale after the
+    // preference changed (2026-11-02), and a query per show or hide costs nothing.
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || typeof chartBoard.animate !== "function") return null;
+    const rest = { opacity: 1, transform: "translateX(0)" };
+    const away = { opacity: 0, transform: "translateX(8px)" };
+    boardAnimation = chartBoard.animate(
+      show ? [away, rest] : [rest, away],
+      show ? { duration: 160, easing: "cubic-bezier(0, 0, 0.2, 1)" } : { duration: 120, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" },
+    );
+    return boardAnimation;
+  }
+  /** The choice is remembered; the chart stops drawing at once, and its column goes after its exit. */
+  function setChartHidden(hide: boolean) {
+    const wasShown = chartShownNow();
+    if (!hide) focusMode = false;
+    chartHidden = hide;
+    writeLayoutFlag("chartHidden", hide);
+    // Focus inside the board would drop to the page: it goes to the Flowchart that brings it back.
+    const inside = chartBoard.contains(document.activeElement);
+    tellChart();
+    const apply = () => {
+      syncBoards();
+      if (inside && !chartShownNow()) chartToggle.focus();
+    };
+    const exit = hide && wasShown ? animateBoard(false) : null;
+    if (exit) {
+      // The board takes no pointer while it leaves (app.css); a show in the meantime cancels the exit.
+      chartBoard.dataset.state = "closing";
+      exit.finished.then(() => {
+        delete chartBoard.dataset.state;
+        if (chartHidden) apply();
+      }, () => delete chartBoard.dataset.state);
+      if (inside) {
+        chartToggle.hidden = false;
+        chartToggle.focus();
+      }
+      return;
+    }
+    apply();
+    if (!hide && !wasShown && chartShownNow()) animateBoard(true)?.finished.then(() => (boardAnimation = null), () => {});
+  }
+  function setBeside(on: boolean) {
+    besideWanted = on;
+    writeLayoutFlag("consoleBeside", on);
+    syncBoards();
+    if (on && !besideShown && wideQuery.matches) for (const listener of sayListeners) listener(BESIDE_ROOM);
+  }
+  /**
+   * Focus code is a layer over the choices, never a change to them: leaving it restores the layout
+   * exactly (the chart's choice, the output's place and size, the console open or not). Focus
+   * inside what it hides goes to Focus code.
+   */
+  function setFocusMode(on: boolean) {
+    if (on && !wideQuery.matches) return;
+    if (on === focusMode) return;
+    const hides = (el: Element | null) => el !== null && (chartBoard.contains(el) || (panel.contains(el) && !runStrip.contains(el)) || consoleSplit!.element === el || panelSplit.element === el);
+    const inside = on && hides(document.activeElement);
+    focusMode = on;
+    boardAnimation?.cancel();
+    boardAnimation = null;
+    tellChart();
+    syncBoards();
+    if (inside) focusButton.focus();
+    if (!on && chartShownNow()) animateBoard(true);
+  }
+  chartHide.addEventListener("click", () => setChartHidden(true));
+  chartToggle.addEventListener("click", () => setChartHidden(false));
+  focusButton.addEventListener("click", () => setFocusMode(!focusMode));
+  besideToggle.addEventListener("click", () => {
+    if (besideShown) return setBeside(false);
+    if (besideWanted) for (const listener of sayListeners) listener(BESIDE_ROOM);
+    else setBeside(true);
+  });
+  // Escape outside the code leaves focus code (in the code it keeps its own jobs: closing the
+  // suggestions, Escape then Tab). A menu, a dialog or the Files popover takes its Escape first.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !focusMode || e.defaultPrevented) return;
+    const from = e.target instanceof Element ? e.target : null;
+    if (from?.closest(".cm-editor, .menu, dialog") || document.querySelector("dialog[open], .menu") || drawerOpen()) return;
+    e.preventDefault();
+    setFocusMode(false);
+  });
+  // The window, the full screen or the boards' own content changing size: both sizes are fitted
+  // again (a stored size is clamped, never overwritten), and the output's place is judged again.
+  let boardsW = -1;
+  new ResizeObserver(() => {
+    const w = boardsWidth();
+    if (w === boardsW) return;
+    boardsW = w;
+    if (wideQuery.matches) syncBoards();
+  }).observe(center);
 
   // ---------------------------------------------------------------- crossing 900 px and 1100 px
   const narrowListeners: ((narrow: boolean) => void)[] = [];
@@ -848,7 +1111,9 @@ export function createLayout(root: HTMLElement): Layout {
     sidebar.inert = narrow && !drawerOpen();
     syncFilesButton();
     if (wideCrossed) placeChart();
-    syncPanel();
+    // The boards' choices apply from 1100 px only (under it focus code ends, and the strip and the
+    // console go back to their places); syncBoards lays the console out too (syncPanel).
+    syncBoards();
     if (refocus) drawerToggle.focus({ preventScroll: true });
     if (narrowCrossed) for (const listener of narrowListeners) listener(narrow);
     if (wideCrossed) for (const listener of wideListeners) listener(wide);
@@ -935,7 +1200,17 @@ export function createLayout(root: HTMLElement): Layout {
     noticeHost,
     status,
     viewTabs: { code: viewCode, output: viewOutput, problems: viewProblems, flowchart: viewFlowchart, count: viewCount },
-    splitters: { sidebar: sidebarSplit, panel: panelSplit },
+    splitters: { sidebar: sidebarSplit, panel: panelSplit, board: boardSplit, console: consoleSplit },
+    board: {
+      chartHidden: () => chartHidden,
+      setChartHidden,
+      besideWanted: () => besideWanted,
+      besideShown: () => besideShown,
+      setBeside,
+      focusMode: () => focusMode,
+      setFocusMode,
+    },
+    onSay: (listener) => void sayListeners.push(listener),
     narrow: () => narrowQuery.matches,
     onNarrowChange: (listener) => void narrowListeners.push(listener),
     openDrawer,

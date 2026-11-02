@@ -5,7 +5,7 @@
 // run clears both. Light and dark, desktop, three engines. The colours are sampled from screenshots,
 // because what matters is what a translucent band over a selection layer really paints.
 import type { Locator, Page } from "@playwright/test";
-import { expect, hierarchyShots, importFiles, openFromTree, openIn, run, setCode, test, waitReady } from "./helpers";
+import { expect, hierarchyShots, importFiles, openFromTree, openIn, run, setCode, showPanel, test, waitReady } from "./helpers";
 import { decodePng, distance, rgbOf, stack, type Pixels, type RGB } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
@@ -129,7 +129,7 @@ for (const scheme of ["light", "dark"] as const) {
     await hierarchyShots(page, `${name}-main`);
 
     // ---- calc.py, where it was raised: jump there from its Problems row (cursor on line 2).
-    await page.locator("#ptab-problems").click();
+    await showPanel(page, "problems");
     await page.locator('.problem[data-path="calc.py"]').first().click();
     await expect(page.locator('.tabs [role=tab][aria-selected="true"][title="calc.py"]')).toBeVisible();
     await expect(page.locator("#status-pos")).toHaveText(/^Ln 2,/);

@@ -6,7 +6,7 @@
 // go to each test's output folder.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, hierarchyShots, importFiles, isNarrow, openFromTree, openIn, run, test, waitReady } from "./helpers";
+import { expect, hierarchyShots, importFiles, isNarrow, openFromTree, openIn, run, showPanel, test, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -31,7 +31,7 @@ for (const vp of [
       await waitReady(page);
       await importFiles(page, [{ name: "calc.py", text: "import sys\nprint(sys.argv[1:])\n" }]);
       await openFromTree(page, "calc.py");
-      await page.locator(isNarrow(page) ? "#view-output" : "#ptab-output").click();
+      await showPanel(page, "output");
 
       // The keyboard path: the toggle opens the box with the caret in the Input text; Tab reaches the field.
       const toggle = page.locator("#input-toggle");

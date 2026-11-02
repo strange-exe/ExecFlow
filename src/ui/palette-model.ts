@@ -119,6 +119,13 @@ export interface PaletteApi {
   readonly notice: Pick<Notice, "show">;
   /** Wider and narrower file list, as the file menu offers them (desktop only). */
   widthItems(): MenuItem[];
+  /**
+   * The Flow Board's layout (1100 px and wider; null under it): the chart board on screen, the
+   * output standing beside the code, focus code.
+   */
+  board(): { chartShown: boolean; beside: boolean; focus: boolean } | null;
+  /** The browser's full screen: whether it is on (null: this browser can't, e.g. iPhone Safari). */
+  fullScreen(): { on: boolean } | null;
   readonly act: {
     run(): void;
     stop(): void;
@@ -152,6 +159,11 @@ export interface PaletteApi {
     syncWithMessage(opener: HTMLElement): void;
     restartPython(): void;
     clearOutput(): void;
+    /** Hides or shows the chart board; puts the output beside or below the code; focus code on or off. */
+    toggleChart(): void;
+    toggleBeside(): void;
+    toggleFocus(): void;
+    toggleFullScreen(): void;
   };
 }
 
@@ -285,6 +297,16 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
   // View.
   add("output", "View", "Go to the output", () => api.act.output(), k.output, "console terminal panel");
   add("problems", "View", "Show the problems", () => api.act.problems(), undefined, "errors warnings panel");
+  // The boards (1100 px and wider), each named by what it will do.
+  const board = api.board();
+  if (board) {
+    add("chart-board", "View", board.chartShown ? "Hide the flowchart" : "Show the flowchart", () => api.act.toggleChart(), undefined, "diagram board side");
+    add("output-place", "View", board.beside ? "Put the output below the code" : "Put the output beside the code", () => api.act.toggleBeside(), undefined, "console terminal side by side split layout");
+    add("focus-code", "View", board.focus ? "Leave focus code" : "Focus code", () => api.act.toggleFocus(), k.focusCode, "zen distraction free maximise editor hide");
+  }
+  // The browser's own full screen: another thing than focus code, and a command of its own.
+  const full = api.fullScreen();
+  if (full) add("full-screen", "View", full.on ? "Exit full screen" : "Full screen", () => api.act.toggleFullScreen(), undefined, "browser window fullscreen maximise");
 
   // Settings that are actions (Settings itself holds the rest).
   add("settings", "Settings", "Open Settings", (o) => api.act.settings(o), undefined, "preferences options");

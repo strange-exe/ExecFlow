@@ -434,7 +434,7 @@ function image(): Pair[] {
  * text-muted on surface-raised from the suggestion list; text-secondary on hover@surface for the
  * window bar), so 196 checks are unique; the `use` text records another place the pair is drawn.
  * The flowchart's rows and Flow Board's (S1: the chart board's ground, the linked code line) follow:
- * 235 rows in all, 226 unique.
+ * S2's run strip and the layout fix's splitter grips close it: 239 rows in all, 228 unique.
  */
 export const PAIRS: readonly Pair[] = [...ported(), ...added(), ...image(), ...chart(), ...board()];
 
@@ -483,6 +483,10 @@ function board(): Pair[] {
   // run-log header's pairs already).
   add("action", "runlog-bg", UI, "Run fill on the run strip");
   add("info", "runlog-bg", UI, "the runtime state's download icon on the run strip");
+  // The layout fix (2026-11-02): the splitters' grips, the board splitter's on the canvas (an alias
+  // of surface) and the output splitter's on the code board (an alias of bg).
+  add("border-strong", "surface", UI, "the board splitter's grip on the canvas, between the code and chart boards");
+  add("border-strong", "bg", UI, "the output splitter's grip on the code board, between the code and the output beside it");
   return list;
 }
 

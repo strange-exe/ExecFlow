@@ -7,15 +7,18 @@
 // no rail, Run on the run strip, Files a popover) is e2e/flow-board.spec.ts's; the rail is checked
 // under 1100 px here.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, reloadApp, run, test } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, reloadApp, run, showPanel, test } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
 
 const box = async (page: Page, sel: string) => (await page.locator(sel).boundingBox())!;
 const FAILS = [{ name: "main.py", text: "print(1)\nprint(1 / 0)\n" }];
-/** An x-axis splitter in the work area: Workbench Pro's, beside the code; Flow Board has none. */
-const xSplit = (page: Page) => page.locator('.center > [role=separator][aria-orientation="vertical"]');
+/**
+ * A shown x-axis splitter in the work area: Workbench Pro's was beside the code; from 1100 px the
+ * layout fix (2026-11-02) has the one between the boards (and the output's own, beside the code).
+ */
+const xSplit = (page: Page) => page.locator('.center > [role=separator][aria-orientation="vertical"]').filter({ visible: true });
 /** The console's y-axis splitter (under the code at every desktop width since Flow Board). */
 const ySplit = (page: Page) => page.locator('.center > [role=separator][aria-orientation="horizontal"]');
 
@@ -43,8 +46,10 @@ test.describe("desktop", () => {
 
   test("from 1100 px the code board (the code over its console) and the chart board stand side by side, equal; the console's y-axis splitter resizes it from the keyboard and remembers the size", async ({ page }) => {
     await withRun(page);
-    // Flow Board (redesign 7, S1): no x-axis splitter; the console docks under the code, as under 1100 px.
-    await expect(xSplit(page)).toHaveCount(0);
+    // Flow Board (redesign 7, S1): the console docks under the code, as under 1100 px; the one x-axis
+    // splitter is the boards' (the layout fix; e2e/board-layout.spec.ts).
+    await expect(xSplit(page)).toHaveCount(1);
+    await expect(xSplit(page)).toHaveAccessibleName("Resize the flowchart");
     const split = ySplit(page);
     await expect(split).toBeVisible();
     await expect(split).toHaveAttribute("aria-controls", "panel");
@@ -82,7 +87,7 @@ test.describe("desktop", () => {
     // The size is kept on this device.
     await reloadApp(page);
     await openFromTree(page, "main.py");
-    await page.locator("#ptab-output").click();
+    await showPanel(page, "output");
     await expect(ySplit(page)).toHaveAttribute("aria-valuenow", "40");
   });
 
@@ -155,7 +160,10 @@ test.describe("desktop", () => {
   });
 
   test("the panel tabs are a segmented control with full screen and hide at the head's end; Input, Restart and Clear show on Output only", async ({ page }) => {
+    // Under 1100 px: from there the console has no tabs (its head names what it shows, and the run
+    // strip's count opens the problems: e2e/board-layout.spec.ts).
     await withRun(page);
+    await page.setViewportSize({ width: 1000, height: 800 });
     const head = page.locator("#panel .panel-bar");
     await expect(head.locator('[role=tablist][aria-label="Panel"]')).toBeVisible();
     // Full screen, then hide, end the head.

@@ -5,7 +5,7 @@
 // shortcuts dialog's one grid. Every keyboard path these touch is driven with the keyboard.
 import type { Page } from "@playwright/test";
 import { BRAND_MARK, rampColor, tileColorAt } from "../src/editor/brand-mark";
-import { clickTreeSpace, expect, expectActive, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, setCode, showFiles, test, treeItem, waitReady } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, setCode, showFiles, showPanel, test, treeItem, waitReady } from "./helpers";
 import { decodeRgba, off } from "./snippet-helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -724,7 +724,7 @@ for (const how of ["collapsed", "problems", "phone-code"] as const) {
       await page.locator("#panel-toggle").click();
       await expect(page.locator("#panel-output")).toBeHidden();
     } else if (how === "problems") {
-      await page.locator("#ptab-problems").click();
+      await showPanel(page, "problems");
       await expect(page.locator("#panel-output")).toBeHidden();
     } else {
       await page.locator("#view-code").click();

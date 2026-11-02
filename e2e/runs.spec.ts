@@ -2,7 +2,7 @@
 // double-click on Run, Stop while waiting, output floods, files renamed or deleted mid-run, reloads.
 // Each test waits on data-* state attributes (data-runs, data-run, data-phase, data-status).
 import type { Page } from "@playwright/test";
-import { clickTreeSpace, expect, importFiles, openApp, openFromTree, reloadApp, run, showFiles, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, openFromTree, reloadApp, run, showFiles, showPanel, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -134,7 +134,7 @@ test("a program that interleaves stdout and stderr in a flood is stopped within 
   await expect(page.locator("#app"), "the run should end by the 15 s time limit or the output limit").toHaveAttribute("data-runs", "1", { timeout: 45_000 });
   expect(await page.locator("#receipt").getAttribute("data-status")).toMatch(/^(output-limit|timeout)$/);
   const t0 = Date.now();
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
   expect(Date.now() - t0, "switching panel tabs after the flood").toBeLessThan(2000);
 });
@@ -161,7 +161,7 @@ test("a module renamed while its program runs: the error is listed under the fil
   await page.locator("#live-input-field").press("Enter");
   await expect(page.locator("#app")).toHaveAttribute("data-runs", String(before + 1), { timeout: 30_000 });
   await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const listed = await page.locator(".problem[data-path]").evaluateAll((els) => els.map((e) => e.getAttribute("data-path")));
   const tree = await page.locator(".tree [role=treeitem]").evaluateAll((els) => els.map((e) => e.getAttribute("data-path")));
   // Every Problems row names a file that exists (clicking one must open something).
@@ -192,7 +192,7 @@ async function deleteModuleMidRun(page: Page) {
 
 test("a module deleted while its program runs leaves no Problems row", async ({ page }) => {
   await deleteModuleMidRun(page);
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   await expect(page.locator('.problem[data-path="calc.py"]'), "a Problems row for a deleted file").toHaveCount(0);
 });
 
