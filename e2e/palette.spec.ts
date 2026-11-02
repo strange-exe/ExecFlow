@@ -5,7 +5,7 @@
 // aria attributes, the active file, a focused element), never on wording or time.
 import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, expectActive, importFiles, openApp, openFromTree, setCode, test, waitReady } from "./helpers";
+import { expect, expectActive, importFiles, openApp, openFromTree, setCode, showFiles, test, waitReady } from "./helpers";
 import { contrast, decodePng } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
@@ -256,6 +256,7 @@ test("while Settings or a menu owns the keyboard, the palette's keys do nothing:
   await expect(palette(page)).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await expect(page.getByRole("menu", { name: "File actions" }).getByRole("menuitem").first()).toBeFocused();
   await page.keyboard.press(`${MOD}+P`);

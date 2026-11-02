@@ -9,7 +9,7 @@ import { deflateRawSync } from "node:zlib";
 import type { Page } from "@playwright/test";
 import { writeZip } from "../src/storage/zip";
 import type { WsPath } from "../src/core/types";
-import { expect, openApp, test, tolerating, treeItem, waitReady } from "./helpers";
+import { expect, openApp, showFiles, test, tolerating, treeItem, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -43,8 +43,9 @@ async function seedOldAddress(page: Page, dir: string) {
   await expect(page.locator(NOTICE)).toBeVisible();
 }
 
-/** Every file of FILES is in the tree (closed folders are opened first). */
+/** Every file of FILES is in the tree (the list shown and closed folders opened first). */
 async function expectFiles(page: Page) {
+  await showFiles(page);
   const closed = page.locator('.tree [role=treeitem][aria-expanded="false"]');
   await expect(treeItem(page, "proj")).toHaveCount(1);
   while ((await closed.count()) > 0) await closed.first().click();

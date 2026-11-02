@@ -7,7 +7,10 @@ import { expect, importFiles, openApp, openFromTree, setCode, showFiles, test, t
 // column only (breadcrumb from the workspace, "Search or run a command", the runtime state,
 // Capture, Run with its key), the code card and the console card, the language and Ln/Col in the
 // code card's foot. e2e/workbench-shell.spec.ts has the side-by-side console and the phone's view bar.
+// From 1100 px Flow Board S2 retires the rail and the sidebar column (Files is a popover, Run is on
+// the run strip): that shell is e2e/flow-board.spec.ts's, so this one is checked at 1000 x 800.
 test.use({ serviceWorkers: "block" });
+const H = 800;
 
 const box = async (page: Page, sel: string) => (await page.locator(sel).boundingBox())!;
 
@@ -40,16 +43,16 @@ async function withFiles(page: Page) {
 
 test.describe("desktop", () => {
   test.skip(({ viewport }) => (viewport?.width ?? 1280) < 900, "desktop layout");
-  test.beforeEach(({ page }) => page.setViewportSize({ width: 1440, height: 900 }));
+  test.beforeEach(({ page }) => page.setViewportSize({ width: 1000, height: H }));
 
   test("the rail and the sidebar run the window's full height: the rail's actions, then the workspace, the tree, and a foot with sync and About", async ({ page }) => {
     await withFiles(page);
     const rail = await box(page, ".rail");
     expect(Math.round(rail.y)).toBe(0);
-    expect(Math.round(rail.y + rail.height), "the rail ends at the window's foot").toBe(900);
+    expect(Math.round(rail.y + rail.height), "the rail ends at the window's foot").toBe(H);
     const side = await box(page, "#sidebar");
     expect(Math.round(side.y), "the sidebar starts at the top of the window").toBe(0);
-    expect(Math.round(side.y + side.height), "and ends at its foot").toBe(900);
+    expect(Math.round(side.y + side.height), "and ends at its foot").toBe(H);
     expect(side.x, "the sidebar is right of the rail").toBeGreaterThanOrEqual(rail.x + rail.width - 1);
     const sidebar = page.locator("#sidebar");
     // The workspace at the top: its name, and where it lives.
@@ -64,12 +67,12 @@ test.describe("desktop", () => {
     await expect(page.locator(".rail-foot #shortcuts-button")).toBeVisible();
     await expect(page.locator(".rail-foot #settings-button")).toBeVisible();
     const settings = await box(page, "#settings-button");
-    expect(900 - (settings.y + settings.height)).toBeLessThan(24);
+    expect(H - (settings.y + settings.height)).toBeLessThan(24);
     // The foot: the sync status and About, at the sidebar's bottom edge.
     await expect(sidebar.locator(".sidebar-foot #sync-status")).toBeVisible();
     await expect(sidebar.locator(".sidebar-foot a#about-link[href='/about']")).toBeVisible();
     const foot = await box(page, ".sidebar-foot");
-    expect(Math.round(foot.y + foot.height)).toBe(900);
+    expect(Math.round(foot.y + foot.height)).toBe(H);
     // The tree sits between the Files heading and the foot.
     const tree = await box(page, ".tree-host");
     expect(tree.y).toBeGreaterThan((await box(page, ".sidebar-head")).y);
@@ -130,23 +133,18 @@ test.describe("desktop", () => {
     expect(await run.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^(transparent|rgba\(0, 0, 0, 0\))$/);
   });
 
-  test("the rail's actions: Search opens the palette, Flowchart goes to the chart (its board from 1100 px, its tab under that), New file starts a name in the tree", async ({ page }) => {
+  test("the rail's actions: Search opens the palette, Flowchart opens the console's Flowchart tab, New file starts a name in the tree", async ({ page }) => {
     await withFiles(page);
     const quick = page.locator(".rail");
     await quick.getByRole("button", { name: /^Search/ }).click();
     await expect(page.locator("dialog#palette")).toBeVisible();
     await page.keyboard.press("Escape");
-    // 1440 px: the chart is on its own board; Flowchart takes the focus there.
-    await quick.getByRole("button", { name: /^Flowchart/ }).click();
-    await expect(page.getByRole("region", { name: "Flowchart" })).toBeFocused();
-    await expect(page.locator("#chart-board #panel-flowchart")).toBeVisible();
-    // Under 1100 px it opens the console's Flowchart tab, as before.
-    await page.setViewportSize({ width: 1000, height: 900 });
+    // Under 1100 px Flowchart opens the console's Flowchart tab (from 1100 px there is no rail: the
+    // chart is on its own board, flow-board.spec.ts).
     await expect(page.locator("#panel #panel-flowchart")).toBeAttached();
     await quick.getByRole("button", { name: /^Flowchart/ }).click();
     await expect(page.locator("#ptab-flowchart")).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#panel-flowchart")).toBeVisible();
-    await page.setViewportSize({ width: 1440, height: 900 });
     await quick.getByRole("button", { name: /^New file/ }).click();
     await expect(page.locator(".tree-input")).toBeFocused();
     await page.keyboard.press("Escape");

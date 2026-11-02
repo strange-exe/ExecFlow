@@ -1550,6 +1550,168 @@ input.switch {
   }
 }
 
+/* ------------------------------------------------------------------ Flow Board S2: run strip, files popover */
+/* From 1100 px (redesign 7, S2): the rail and the sidebar column retire. The top row floating on the
+   canvas holds the mark, the breadcrumb and the sync status, Search, then Capture, Shortcuts,
+   Settings and About (icons, named by their words). Files heads the code board and opens the file
+   list as a popover under it; the console's first row is the run strip: Run with its key, the run's
+   outcome, the runtime state and the problems count, then a notice on a line of its own. Under
+   1100 px none of this shows (layout.ts keeps the strip empty there). */
+.run-strip, .files-pop { display: none; }
+@media (min-width: 1100px) {
+  .workbench .main, .workbench[data-sidebar="hidden"] .main { grid-template-columns: minmax(0, 1fr); }
+  .main > .rail, .main > .splitter { display: none; }
+  .main > .work { grid-column: 1; }
+  .topbar { padding-left: var(--s4); }
+  .topbar-start { gap: var(--s2); }
+  .topbar-start > .crumb { padding-left: var(--s1); }
+  .topbar-start > .sync-slot { flex: 0 1 auto; }
+  .center { padding-left: var(--s4); }
+  /* Shortcuts, Settings and About: icon buttons, each named by its words (kept for the name). */
+  .topbar-end > .status-btn { justify-content: center; width: var(--tool); height: var(--tool); margin: 0; padding: 0; border-radius: var(--r-control); color: var(--text-muted); }
+  .topbar-end > .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
+  .topbar-end > .status-btn > .status-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* The code board's head shows with nothing open too: Files is the way to the files. */
+  .workbench[data-open="false"] .editor-head { display: flex; }
+  .workbench[data-open="false"] :is(.editor-panel, .editor-empty) { border-radius: 0; }
+  .editor-head { padding-left: var(--s2); }
+  /* Files: a quiet button, its icon and its word; open, lifted as the chosen tab is (a ring, never
+     the fill alone). */
+  .editor-head > .drawer-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    flex: none;
+    height: var(--tool);
+    padding: 0 var(--s3) 0 var(--s2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text-secondary);
+    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
+  }
+  .editor-head > .drawer-toggle > * { pointer-events: none; }
+  .editor-head > .drawer-toggle .icon { width: var(--icon-md); height: var(--icon-md); }
+  .editor-head > .drawer-toggle .rail-label { display: inline; }
+  .editor-head > .drawer-toggle:hover { background: var(--hover); color: var(--text); }
+  .editor-head > .drawer-toggle[aria-expanded="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+
+  /* The Files popover: on the raised ground with a hairline and the floating shadow (light themes),
+     under Files (layout.ts anchorPop); the tree scrolls inside it. Its motion is layout.ts's (160 ms
+     in, 120 ms out, none under reduced motion); while closing it takes no pointer. */
+  .editor-area { position: relative; }
+  .files-pop {
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    width: min(300px, calc(100% - var(--s4)));
+    max-height: min(560px, calc(100vh - 140px));
+    border: 1px solid var(--border);
+    border-radius: var(--r-sheet);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-pop);
+    overflow: hidden;
+  }
+  .files-pop[data-state="closing"] { pointer-events: none; }
+  .files-pop > .sidebar { flex: 1 1 auto; min-height: 0; background: transparent; }
+  .files-pop .ws-switcher { height: auto; padding: var(--s3) var(--s3) 0; }
+  .files-pop .sidebar-head { margin-top: var(--s1); }
+  /* 32 px of empty list under the last file: the place a click chooses nothing (New file then goes
+     to the top level), kept a real target however few files there are. */
+  .files-pop .tree-host { padding-bottom: var(--s6); }
+  .files-pop .sidebar-foot { display: none; }
+
+  /* The console: the run strip, then its bar, the Output tab's tool row and the tab's body. Hidden
+     to its head, the strip and the bar stay. */
+  .panel { grid-template-rows: auto var(--h-panel-bar) auto minmax(0, 1fr); }
+  .panel[data-collapsed="true"] { grid-template-rows: auto var(--h-panel-bar) auto; }
+  .panel > .run-strip { grid-row: 1; }
+  .panel > .panel-bar { grid-row: 2; }
+  .panel > .panel-actions { grid-row: 3; }
+  .panel > .panel-body { grid-row: 4; }
+  /* An empty workspace: the code board is the empty state over the strip alone (Run, disabled,
+     says why). */
+  .workbench[data-files="none"] .center { grid-template-rows: minmax(0, 1fr) 0 auto; }
+  .workbench[data-files="none"] .center > .panel { display: grid; grid-template-rows: auto; }
+  .workbench[data-files="none"] .center > .panel > :not(.run-strip) { display: none; }
+  .workbench[data-files="none"] .editor-area { margin-bottom: 0; }
+  .workbench[data-files="none"] :is(.editor-area, .editor-panel, .editor-empty) { border-radius: 0; }
+  .workbench[data-files="none"] .editor-area { border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
+
+  /* The strip, on the console's header ground, a 44 px bar like the heads: Run, the outcome (it
+     wraps first), the runtime state and the count at the end. */
+  .run-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--s3);
+    row-gap: var(--s1);
+    min-width: 0;
+    min-height: var(--h-panel-bar);
+    padding: var(--s1) var(--s3);
+    background: var(--runlog-bg);
+    box-shadow: inset 0 -1px 0 var(--divider);
+    color: var(--text);
+    font-size: var(--fs-2);
+    line-height: var(--lh-2);
+  }
+  .run-outcome { display: flex; flex: 1 1 0; min-width: 0; }
+  .run-outcome > .receipt { column-gap: var(--s2); }
+  .run-strip > .runtime { flex: 0 1 auto; }
+  .run-strip > .runtime > span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+  .workbench[data-open="false"] .run-strip > .runtime,
+  .workbench[data-open="false"] .problems-count[data-count="0"] { display: none; }
+  /* The count: words in the secondary tier, the danger colour while there are errors; a button
+     whose hover underlines its words (its ground stays the strip's). */
+  .problems-count {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    flex: none;
+    min-height: var(--tool);
+    margin-left: auto;
+    padding: 0 var(--s2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text-secondary);
+    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
+    white-space: nowrap;
+  }
+  .problems-count > * { pointer-events: none; }
+  .problems-count .icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-secondary); }
+  .problems-count[data-tone="error"], .problems-count[data-tone="error"] .icon { color: var(--danger); }
+  .problems-count[data-tone="warning"] .icon { color: var(--warning); }
+  .problems-count:hover .problems-words { text-decoration: underline; text-underline-offset: 3px; }
+  /* Notices float over the code board's foot, at its end (layout.ts): a raised card with a hairline
+     and the floating shadow, so one coming or going never moves the code. Empty, it takes no room
+     and no pointer, and stays a live region. */
+  .editor-area > .notice-host {
+    position: absolute;
+    z-index: 10;
+    right: var(--s3);
+    bottom: calc(var(--s6) + var(--s1));
+    width: min(420px, calc(100% - var(--s5)));
+    color: var(--text);
+    font-size: var(--fs-2);
+    line-height: var(--lh-2);
+    pointer-events: none;
+  }
+  .editor-area > .notice-host .notice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; column-gap: var(--s2); row-gap: var(--s1); }
+  .editor-area > .notice-host .notice:not([data-empty="true"]) { padding: var(--s2) var(--s1) var(--s2) var(--s3); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface-raised); box-shadow: var(--shadow-pop); pointer-events: auto; }
+  .editor-area > .notice-host .notice-icon { grid-area: 1 / 1; padding-top: 1px; }
+  .editor-area > .notice-host .notice-text { grid-area: 1 / 2; overflow-wrap: anywhere; }
+  .editor-area > .notice-host .notice > .icon-btn { grid-area: 1 / 3; margin: -3px 0; }
+  .editor-area > .notice-host .notice-action { grid-area: 2 / 2; justify-self: start; }
+}
+/* Under 1440 px the strip's runtime state is its icon, so the outcome keeps one line (its words
+   stay its text, read out, and its tooltip: workbench.ts). */
+@media (min-width: 1100px) and (max-width: 1439px) {
+  .run-strip > .runtime > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
 /* ------------------------------------------------------------------ touch */
 @media (pointer: coarse) {
   .menu-item, .theme-option, .problem { min-height: var(--h-row); }

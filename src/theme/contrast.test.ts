@@ -73,13 +73,14 @@ describe("contrast math", () => {
 });
 
 describe("the pairs the UI draws (contract v2)", () => {
-  it("has the 235 rows of the contract, 226 of them unique, every ground a known token or mix", () => {
+  it("has the 237 rows of the contract, 228 of them unique, every ground a known token or mix", () => {
     // 0.7.0 added one: location on surface-raised (the chosen tree row's edge). Then the flowchart's
     // eleven (text on each kind's tint, each kind's outline and the connectors on the chart's ground),
     // six of them new pairs. The logo's glyph-on-tile row left with --brand and --on-brand. Flow
     // Board (S1) added 24, all new: ten on the chart board's ground, fourteen on the linked code line.
-    expect(PAIRS.length).toBe(235);
-    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(226);
+    // S2 added two, both new: Run's fill and the runtime's download icon on the run strip.
+    expect(PAIRS.length).toBe(237);
+    expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(228);
     const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES), ...Object.keys(CHART_MIXES)];
     for (const p of PAIRS) for (const part of p.bg.split("@")) expect(known, `${p.bg}`).toContain(part);
     // Pinned rows: the first, the re-grounded panel-tab row, the last of v2 and the last.
@@ -94,10 +95,12 @@ describe("the pairs the UI draws (contract v2)", () => {
     expect(PAIRS[210]).toMatchObject({ fg: "danger", bg: "bg", min: 3 });
     // Flow Board's close the table: the chart board's ground, then every colour on the linked code line.
     expect(PAIRS.slice(211, 221).every((p) => p.bg === "ground@bg")).toBe(true);
-    expect(PAIRS.slice(221).filter((p) => p.min === 4.5).map((p) => p.fg).sort()).toEqual(
+    expect(PAIRS.slice(221, 235).filter((p) => p.min === 4.5).map((p) => p.fg).sort()).toEqual(
       ["gutter-text", "syn-comment", "syn-function", "syn-keyword", "syn-macro", "syn-number", "syn-operator", "syn-punctuation", "syn-string", "syn-type", "syn-variable", "text"],
     );
-    expect(PAIRS.at(-1)).toMatchObject({ fg: "focus", bg: "line-here@bg", min: 3 });
+    expect(PAIRS[234]).toMatchObject({ fg: "focus", bg: "line-here@bg", min: 3 });
+    // S2's run strip closes it: Run's fill and the download icon on the console's header ground.
+    expect(PAIRS.slice(235)).toMatchObject([{ fg: "action", bg: "runlog-bg", min: 3 }, { fg: "info", bg: "runlog-bg", min: 3 }]);
     // The dot grid is decoration: no row is drawn on or in it.
     expect(PAIRS.some((p) => p.bg.includes("dot"))).toBe(false);
     // The snippet image's highlighted lines: every colour drawn on the band, at the text minimum.
@@ -290,6 +293,18 @@ describe("tokens.css and the first paint", () => {
     expect(css).toContain("\n  --ring: 2px solid var(--focus);\n");
     expect(text).toContain("\n  --ring: 2px solid var(--focus);\n");
     expect(text).toContain("\n  --shadow-pop: none;\n");
+  });
+
+  it("keeps that dark console under 1100 px only: the Flow Board's console (S2) is Signal light's own light one", () => {
+    const at = css.indexOf(':root[data-palette="signal"]:not([data-theme="dark"]) .panel {');
+    const before = css.slice(0, at);
+    const media = before.lastIndexOf("@media (max-width: 1099px) {");
+    expect(media, "the wrapping media query").toBeGreaterThan(before.lastIndexOf("}\n"));
+    // The media block closes right after the rule's own closing brace.
+    expect(css.slice(css.indexOf("}", at), css.indexOf("}", at) + 4)).toBe("}\n}\n");
+    // The light console it gives way to is Signal light's own, checked like every other palette's.
+    expect(SIGNAL.light["terminal-bg"]).toBe("#f4f5f8");
+    expect(failures(SIGNAL.light)).toEqual([]);
   });
 
   it("e2e/signal.spec.ts checks Signal's own values (its copy, written out so the spec can fail on any build)", () => {

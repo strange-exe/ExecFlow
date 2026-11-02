@@ -5,7 +5,7 @@
 // below it, the editor head on --bg), with phones unchanged but for colours and fonts. Every themed
 // test emulates the scheme, reloads and proves the scheme and the palette are active first.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, openThemePicker, run, test, waitReady } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, openThemePicker, run, showFiles, test, waitReady } from "./helpers";
 import { rgbOf } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
@@ -221,9 +221,13 @@ for (const scheme of SCHEMES) {
     /** One soft shadow in light, none in dark (--shadow-board). */
     const expectShadow = (shadow: string) => (scheme === "dark" ? expect(shadow).toBe("none") : expect(shadow).toMatch(/ 0px 4px 16px 0px$|^.* 0px 4px 16px/));
 
-    // The empty workspace: the code board alone, the editor rounded all round inside its edge, no chart board.
+    // The empty workspace: the code board alone, no chart board. The editor rounds its top corners
+    // inside the edge; the run strip (Run, disabled) is the board's foot (Flow Board S2).
     expect(await codeBoard([...corners, ...sides, "background-color"])).toEqual(board);
-    expect(await styleOf(page, ".editor-area", [...corners, "border-top-width", "background-color"])).toEqual({ ...Object.fromEntries(corners.map((k) => [k, "15px"])), "border-top-width": "0px", "background-color": rgbOf(p.bg) });
+    expect(await styleOf(page, ".editor-area", [...corners, "border-top-width", "background-color"])).toEqual({
+      "border-top-left-radius": "15px", "border-top-right-radius": "15px", "border-bottom-left-radius": "0px", "border-bottom-right-radius": "0px", "border-top-width": "0px", "background-color": rgbOf(p.bg),
+    });
+    await expect(page.locator(".center > .panel > .run-strip")).toBeVisible();
     await expect(page.locator("#chart-board")).toBeHidden();
 
     await importFiles(page, [{ name: "main.py", text: MAIN }, { name: "calc.py", text: CALC }]);
@@ -232,10 +236,11 @@ for (const scheme of SCHEMES) {
     await openFromTree(page, "calc.py");
 
     // The canvas: the main area and the work column on --surface; the top bar floats on it (no
-    // ground, no line under it). There is no status bar on desktop.
+    // ground, no line under it). There is no status bar on desktop. With no rail and no file list
+    // column (Flow Board S2) the boards have 16 px of canvas on the left too.
     expect((await styleOf(page, ".main", ["background-color"]))["background-color"]).toBe(rgbOf(p.surface));
     expect(await styleOf(page, ".center", ["background-color", "padding-right", "padding-bottom", "padding-left", "padding-top", "column-gap"])).toEqual({
-      "background-color": rgbOf(p.surface), "padding-right": "16px", "padding-bottom": "16px", "padding-left": "0px", "padding-top": "0px", "column-gap": "16px",
+      "background-color": rgbOf(p.surface), "padding-right": "16px", "padding-bottom": "16px", "padding-left": "16px", "padding-top": "0px", "column-gap": "16px",
     });
     expect(await styleOf(page, ".topbar", ["border-bottom-width", "background-color"])).toEqual({ "border-bottom-width": "0px", "background-color": "rgba(0, 0, 0, 0)" });
     await expect(page.locator(".statusbar")).toBeHidden();
@@ -252,10 +257,13 @@ for (const scheme of SCHEMES) {
     expect(await styleOf(page, ".center > .panel", [...corners, "border-top-width"])).toEqual({
       "border-top-left-radius": "0px", "border-top-right-radius": "0px", "border-bottom-left-radius": "15px", "border-bottom-right-radius": "15px", "border-top-width": "0px",
     });
-    // The panel is the dark console in both schemes (Workbench Pro): its ground, the program's text
-    // and the browser's own controls and scrollbars in it, in the console's colours.
-    expect(await styleOf(page, ".center > .panel", ["background-color", "color-scheme"])).toEqual({ "background-color": rgbOf(c["terminal-bg"]), "color-scheme": "dark" });
-    expect((await styleOf(page, "#panel-output .console", ["color"])).color).toBe(rgbOf(c["terminal-fg"]));
+    // The panel's ground, the program's text and the browser's own controls and scrollbars in it, in
+    // the console's colours. From 1100 px (Flow Board S2) the console is the code board's foot, so in
+    // light it is Signal light's own light console, not Workbench Pro's dark card (still the
+    // console under 1100 px: CONSOLE.light, flow-board.spec.ts).
+    const wide = scheme === "light" ? { "terminal-bg": "#f4f5f8", "terminal-fg": "#16191d", "color-scheme": "light" } : { ...c, "color-scheme": "dark" };
+    expect(await styleOf(page, ".center > .panel", ["background-color", "color-scheme"])).toEqual({ "background-color": rgbOf(wide["terminal-bg"]), "color-scheme": wide["color-scheme"] });
+    expect((await styleOf(page, "#panel-output .console", ["color"])).color).toBe(rgbOf(wide["terminal-fg"]));
     // The chart's ground: its own tone with the static dot grid, on the stage only.
     const stage = await styleOf(page, "#chart-board .fc-stage", ["background-color", "background-image", "animation-name"]);
     expect(stage["background-color"]).not.toMatch(/^(transparent|rgba\(0, 0, 0, 0\))$/);
@@ -269,7 +277,7 @@ for (const scheme of SCHEMES) {
     expect(Math.round(center.bottom - chart.bottom)).toBe(16);
     expect(Math.round(center.bottom - panel.bottom)).toBe(17);
     expect(Math.round(chart.left - (area.right + 1))).toBe(16);
-    expect(Math.round(area.left - center.left)).toBe(1);
+    expect(Math.round(area.left - center.left), "16 px of canvas, then the board's 1 px edge").toBe(17);
     expect(Math.round(area.top - center.top)).toBe(1);
     expect(Math.round(chart.top - center.top)).toBe(0);
     expect(Math.round(panel.top - area.bottom), "the 8 px splitter between the code and its console").toBe(8);
@@ -278,8 +286,24 @@ for (const scheme of SCHEMES) {
     // The editor head sits on the code's ground with a --border line under it.
     expect(await styleOf(page, ".editor-head", ["background-color", "border-bottom"])).toEqual({ "background-color": rgbOf(p.bg), "border-bottom": edge });
 
-    // The file list | editor splitter shows no line, but stays a keyboard-operable separator with its focus ring.
+    // The console hidden to its head still docks at the code board's foot, the chart board beside it.
+    await page.locator(".panel-toggle").click();
+    await expect(page.locator(".center")).toHaveAttribute("data-panel", "collapsed");
+    expect(await styleOf(page, ".center > .panel", ["border-bottom-left-radius", "border-bottom-right-radius"])).toEqual({ "border-bottom-left-radius": "15px", "border-bottom-right-radius": "15px" });
+    const [collapsed, code, still] = [await boxOf(page, ".center > .panel"), await boxOf(page, ".editor-area"), await boxOf(page, "#chart-board")];
+    expect(Math.round(center.bottom - collapsed.bottom)).toBe(17);
+    expect(Math.round(collapsed.top - code.bottom), "the splitter's row above it").toBe(8);
+    expect(Math.round(code.right), "the code keeps its board's width").toBe(Math.round(area.right));
+    expect(Math.round(still.left)).toBe(Math.round(chart.left));
+
+    // The file list | editor splitter shows no line, but stays a keyboard-operable separator with
+    // its focus ring. It exists under 1100 px only (from 1100 px the file list is the Files popover).
+    await page.setViewportSize({ width: 1000, height: 800 });
     const splitter = page.getByRole("separator", { name: "Resize the file list" });
+    // The layout crosses 1100 px a frame after the resize in WebKit: wait for the column's splitter
+    // and for About in the sidebar's foot.
+    await expect(splitter).toBeVisible();
+    await expect(page.locator(".sidebar-foot #about-link")).toBeVisible();
     expect((await styleOf(page, ".main > .splitter", ["background-color"]))["background-color"]).toBe("rgba(0, 0, 0, 0)");
     // Reached with Tab, so every engine draws its keyboard focus (:focus-visible). The sidebar's foot
     // (sync, About) follows the tree; About is its last stop (Workbench Pro).
@@ -293,21 +317,13 @@ for (const scheme of SCHEMES) {
     expect((await styleOf(page, ".main > .splitter", ["background-color"]))["background-color"]).toBe(rgbOf(p.focus));
     await page.keyboard.press("ArrowLeft");
     await expect(splitter).toHaveAttribute("aria-valuenow", String(width));
-
-    // The console hidden to its head still docks at the code board's foot, the chart board beside it.
-    await page.locator(".panel-toggle").click();
-    await expect(page.locator(".center")).toHaveAttribute("data-panel", "collapsed");
-    expect(await styleOf(page, ".center > .panel", ["border-bottom-left-radius", "border-bottom-right-radius"])).toEqual({ "border-bottom-left-radius": "15px", "border-bottom-right-radius": "15px" });
-    const [collapsed, code, still] = [await boxOf(page, ".center > .panel"), await boxOf(page, ".editor-area"), await boxOf(page, "#chart-board")];
-    expect(Math.round(center.bottom - collapsed.bottom)).toBe(17);
-    expect(Math.round(collapsed.top - code.bottom), "the splitter's row above it").toBe(8);
-    expect(Math.round(code.right), "the code keeps its board's width").toBe(Math.round(area.right));
-    expect(Math.round(still.left)).toBe(Math.round(chart.left));
   });
 }
 
 test("desktop bars: top bar 56, editor head 44, Files head 36, console head 44, no status bar, rows 32, rail buttons 60 wide, Run 32; every target 24 or more", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // The rail and the file list column are under 1100 px only (Flow Board S2), so the bars are
+  // measured at 1000 px; the targets are checked there and at 1440 below.
+  await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   await importFiles(page, [{ name: "main.py", text: MAIN }, { name: "calc.py", text: CALC }]);
   await openFromTree(page, "main.py");
@@ -328,15 +344,27 @@ test("desktop bars: top bar 56, editor head 44, Files head 36, console head 44, 
   expect(Math.round(settings.width)).toBe(60);
   expect(Math.round(settings.height)).toBeGreaterThanOrEqual(48);
   // WCAG 2.2 SC 2.5.8: every visible control on the page is 24 x 24 CSS px or more.
-  const small = await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>("button, [role=tab], [role=separator], input, select, a[href]")]
-      .filter((el) => el.offsetParent !== null && !el.closest(".cm-editor, .visually-hidden, [hidden]") && el.getAttribute("type") !== "hidden")
-      .map((el) => ({ el, r: el.getBoundingClientRect() }))
-      // A splitter is a 1 px line whose grab area is its 11 px ::after (an exception audit.ts records).
-      .filter(({ el, r }) => r.width > 0 && r.height > 0 && (r.height < 24 || r.width < 24) && !el.matches(".splitter"))
-      .map(({ el, r }) => `${el.id || el.className || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`),
-  );
-  expect(small).toEqual([]);
+  const small = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>("button, [role=tab], [role=separator], input, select, a[href]")]
+        .filter((el) => el.offsetParent !== null && !el.closest(".cm-editor, .visually-hidden, [hidden]") && el.getAttribute("type") !== "hidden")
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        // A splitter is a 1 px line whose grab area is its 11 px ::after (an exception audit.ts records).
+        .filter(({ el, r }) => r.width > 0 && r.height > 0 && (r.height < 24 || r.width < 24) && !el.matches(".splitter"))
+        .map(({ el, r }) => `${el.id || el.className || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`),
+    );
+  expect(await small()).toEqual([]);
+  // From 1100 px: the same bars where they remain (Run on the run strip), and the targets again with
+  // the Files popover open.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  expect(await h(".topbar")).toBe(56);
+  expect(await h(".editor-head")).toBe(44);
+  expect(await h(".panel-bar")).toBe(44);
+  expect(await h(".run-strip > #run-button")).toBe(32);
+  expect(await small()).toEqual([]);
+  await showFiles(page);
+  expect(await h(".tree-row")).toBe(32);
+  expect(await small()).toEqual([]);
 });
 
 for (const scheme of SCHEMES) {

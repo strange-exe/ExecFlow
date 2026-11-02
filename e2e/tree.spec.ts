@@ -1,4 +1,4 @@
-import { expect, expectActive, importFiles, openApp, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, openApp, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -11,7 +11,7 @@ async function setUp(page: import("@playwright/test").Page) {
     { name: "beta.py", text: "print('beta')\n" },
     { name: "gamma.py", text: "print('gamma')\n" },
   ]);
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const name = page.getByRole("textbox", { name: /Name of the new file/ });
   await name.fill("lib/util.py");
@@ -23,7 +23,8 @@ async function setUp(page: import("@playwright/test").Page) {
   // question's close event keeps its focus".)
   await expectActive(page, "lib/util.py");
   await expect(page.locator(".cm-content")).toBeFocused();
-  // Collapse lib again and start from the list itself.
+  // Collapse lib again and start from the list itself (opening the new file closed the Files popover).
+  await showFiles(page);
   await treeItem(page, "lib").locator(":scope > .tree-row").click();
   await expect(treeItem(page, "lib")).toHaveAttribute("aria-expanded", "false");
 }
@@ -185,6 +186,7 @@ test("a read-only file from GitHub is marked and explained, and conflict copies 
   });
   await page.reload();
   await expect(page.locator("#app")).toHaveAttribute("data-state", "ready");
+  await showFiles(page);
   const logo = treeItem(page, "logo.png");
   await expect(logo).toHaveAttribute("data-opaque", "true");
   await expect(logo).toHaveAccessibleDescription(/read-only \(binary or special file\)/);
@@ -221,7 +223,7 @@ test("a new file: the field names the files that run, a name that won't run is s
   const field = () => page.getByRole("textbox", { name: /Name of the new file/ });
   const note = page.locator(".tree-new .tree-note");
   const newFile = async () => {
-    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+    await clickTreeSpace(page);
     await page.locator("#new-file").click();
     await expect(field()).toBeFocused();
   };

@@ -2,7 +2,7 @@
 // catch work, an uncaught exception is named as one, a quoted include's "../" goes up one folder, a
 // program with no main says so, and a browser without WebAssembly's exception
 // instructions is told to update instead of being offered a download it can't use.
-import { expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showView, test } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showView, test } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(240_000);
@@ -27,7 +27,7 @@ test("throw and catch work, and an exception nobody catches stops the program wi
 test('a header in a sub-folder that includes "../lib/twice.h" gets that file, not inc/lib/twice.h', async ({ page }) => {
   await openApp(page);
   const create = async (path: string, text: string) => {
-    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+    await clickTreeSpace(page);
     await page.locator("#new-file").click();
     const field = page.getByRole("textbox", { name: "Name of the new file at the top level" });
     await field.fill(path);
@@ -52,7 +52,7 @@ test('a header in a sub-folder that includes "../lib/twice.h" gets that file, no
 test('a header in "__proto__/remove/" builds like any other, and the next build still works', async ({ page }) => {
   await openApp(page);
   const create = async (path: string, text: string) => {
-    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+    await clickTreeSpace(page);
     await page.locator("#new-file").click();
     const field = page.getByRole("textbox", { name: "Name of the new file at the top level" });
     await field.fill(path);

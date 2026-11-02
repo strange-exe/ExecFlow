@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Page } from "@playwright/test";
-import { expect, expectActive, importFiles, openApp, openFromTree, setCode, test, treeItem, watchContext } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, openApp, openFromTree, setCode, showFiles, test, treeItem, watchContext } from "./helpers";
 import { readZip } from "./zip-read";
 
 test.use({ serviceWorkers: "block" });
@@ -37,6 +37,7 @@ function storedPaths(page: Page): Promise<string[]> {
 
 async function exportZip(page: Page): Promise<Buffer> {
   const download = page.waitForEvent("download");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Export workspace (.zip)" }).click();
   const file = await download;
@@ -61,6 +62,7 @@ async function importFolder(page: Page, dir: string) {
       );
   });
   const chooser = page.waitForEvent("filechooser");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import a folder" }).click();
   await (await chooser).setFiles(dir);
@@ -129,6 +131,7 @@ test("export, then import into a fresh browser: the same files with the same byt
   const crlf = "print(1)\r\nprint(2)\r\n";
   const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("x = 1\n")]);
   const chooser = page.waitForEvent("filechooser");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import files" }).click();
   await (await chooser).setFiles([
@@ -137,7 +140,7 @@ test("export, then import into a fresh browser: the same files with the same byt
   ]);
   await expect(treeItem(page, "bom.py")).toBeVisible();
   // A folder with a file, and an empty folder.
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const name = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await name.fill("sub/inner.c");
@@ -147,7 +150,7 @@ test("export, then import into a fresh browser: the same files with the same byt
   await expectActive(page, "sub/inner.c");
   await setCode(page, "int main(void) { return 0; }\n");
   await expect(page.locator('.tab[data-active="true"]')).toHaveAttribute("data-dirty", "false");
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-folder").click();
   const folder = page.getByRole("textbox", { name: "Name of the new folder at the top level" });
   await folder.fill("empty");
@@ -189,6 +192,7 @@ test("a file imported twice with different case is refused or merged, never two 
   await openApp(page);
   await importFiles(page, [{ name: "Main.py", text: "print('upper')\n" }]);
   const chooser = page.waitForEvent("filechooser");
+  await showFiles(page);
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Import files" }).click();
   await (await chooser).setFiles([{ name: "main.py", mimeType: "text/plain", buffer: Buffer.from("print('lower')\n") }]);

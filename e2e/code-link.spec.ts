@@ -37,8 +37,8 @@ test("a link opens a read-only preview; Add puts it in the files and opens it; n
   await expect(page.locator("#code-link-add")).toBeFocused();
   // The code has left the address bar: a reload or a bookmark doesn't carry it.
   expect(new URL(page.url()).hash).toBe("");
-  // Nothing is in the files until Add.
-  await showFiles(page);
+  // Nothing is in the files until Add (counted in the list as it is: from 1100 px Files is a
+  // popover, and its button sits behind the open dialog).
   await expect(treeItem(page, "hello.c")).toHaveCount(0);
   await page.locator("#code-link-add").click();
   await expect(dialog(page)).toHaveCount(0);
@@ -78,6 +78,7 @@ test("a name already in the files is added under a free name, never over the fil
   await page.locator("#code-link-add").click();
   await expectActive(page, "hello-2.c");
   await expect(treeItem(page, "hello.c")).toHaveCount(1);
+  await showFiles(page);
   await page.locator(`.tree [role=treeitem][data-path="hello.c"] > .tree-row`).click();
   await expect(page.locator(".cm-content")).toContainText("int mine;");
 });

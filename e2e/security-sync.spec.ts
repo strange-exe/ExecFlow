@@ -2,7 +2,7 @@
 // the GitHub token can be found after Connect, and whether "Sign out and clear this computer" really
 // deletes both databases.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, OWN_JSON_LD, openApp, test, treeItem, waitReady } from "./helpers";
+import { expect, importFiles, OWN_JSON_LD, openApp, showFiles, test, treeItem, waitReady } from "./helpers";
 import { answer, connectGitHub, fillConnect, githubNoise, openConnect, routeGitHub, saveKey, secrets, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -54,6 +54,7 @@ test("a hostile repository's names never reach the page: markup, direction and u
   const pageText = await page.evaluate(() => document.documentElement.outerHTML);
   expect(pageText).not.toContain(RLO);
   expect(pageText).not.toContain("onerror=alert");
+  await showFiles(page);
   await treeItem(page, odd).locator(":scope > .tree-row").click();
   await expect(page.locator(".cm-content")).toContainText(`print("${IMG}")`);
   expect(await injected(page)).toEqual([]);

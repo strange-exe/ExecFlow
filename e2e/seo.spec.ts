@@ -104,7 +104,10 @@ test.describe("search and sharing", () => {
       await expect(about).toBeVisible();
       await expect(about).toBeInViewport();
       await expect(about).toHaveAccessibleName("About ExecFlow");
-      await expect(page.locator(vp.width < 900 ? ".statusbar" : ".sidebar-foot").locator('a[href="/about"]')).toHaveCount(1);
+      // Phones: the status bar; under 1100 px: the sidebar's foot; from 1100 px (Flow Board S2, no
+      // sidebar column): the top bar's end.
+      const home = vp.width < 900 ? ".statusbar" : vp.width < 1100 ? ".sidebar-foot" : ".topbar .topbar-end";
+      await expect(page.locator(home).locator('a[href="/about"]')).toHaveCount(1);
       // A 24 px target at least, and a visible focus ring from the keyboard.
       const r = (await about.boundingBox())!;
       expect(Math.min(r.width, r.height)).toBeGreaterThanOrEqual(24);

@@ -5,7 +5,7 @@
 // that words them.
 import type { APIResponse, Page, Route } from "@playwright/test";
 import { formatArgs, parseArgs } from "../src/runner/run-args";
-import { afterFetch, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, test, tolerating, treeItem, unrouteAfterFetch } from "./helpers";
+import { afterFetch, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, showFiles, test, tolerating, treeItem, unrouteAfterFetch } from "./helpers";
 import { connectGitHub, routeGitHub, syncCount, syncNoise, syncStatus, waitSync } from "./sync-fake";
 
 test.use({ serviceWorkers: "block" });
@@ -289,6 +289,7 @@ test("the arguments belong to their file: switching shows each file's own, and t
   expect(await printedArgv(page)).toEqual([script("a.py"), "1", "a b"]);
 
   // Renamed: the text follows (and the label names the new file at once).
+  await showFiles(page);
   await treeItem(page, "a.py").focus();
   await page.keyboard.press("F2");
   const rename = page.getByRole("textbox", { name: "New name for a.py" });
@@ -303,6 +304,7 @@ test("the arguments belong to their file: switching shows each file's own, and t
   await expect(field(page)).toHaveValue('1 "a b"');
 
   // Deleted: they go; a new file with the same name starts empty.
+  await showFiles(page);
   await treeItem(page, "c.py").focus();
   await page.keyboard.press("Delete");
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();

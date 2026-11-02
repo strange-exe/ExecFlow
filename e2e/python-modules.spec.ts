@@ -1,6 +1,6 @@
 // Python modules, packages and written files as a student meets them (from the functional review, 2026-10-17).
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, openInputBox, run, setCode, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, openFromTree, openInputBox, run, setCode, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(150_000);
@@ -28,7 +28,7 @@ test("a syntax error in an imported module is marked in that module, on its line
 test("a runtime error inside a package in a sub-folder is marked there; the run's frames lead to it", async ({ page }) => {
   await openApp(page);
   const create = async (path: string, text: string) => {
-    await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+    await clickTreeSpace(page);
     await page.locator("#new-file").click();
     const field = page.getByRole("textbox", { name: /Name of the new file/ });
     await field.fill(path);
@@ -72,7 +72,7 @@ test("pandas downloads on first import and the status line names it", async ({ p
 
 test("a file written in the program's own folder is saved with its folder, and a changed copy replaces it without a question", async ({ page }) => {
   await openApp(page);
-  await page.locator(".tree-host").click({ position: { x: 20, y: 400 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const field = page.getByRole("textbox", { name: /Name of the new file/ });
   await field.fill("proj/main.py");
@@ -86,6 +86,7 @@ test("a file written in the program's own folder is saved with its folder, and a
   expect(r1.status, r1.output).toBe("ok");
   const saved = page.locator('#console [data-stream="note"]').filter({ hasText: "to your files" });
   await expect(saved).toContainText("Saved proj/data.txt to your files.");
+  await showFiles(page);
   await expect(treeItem(page, "proj/data.txt")).toBeVisible();
 
   // Same program, same text: nothing new to save, so no line about it.

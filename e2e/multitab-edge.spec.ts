@@ -1,6 +1,8 @@
 // Two tabs of the same workspace, as a student ends up with them (from the functional review,
 // 2026-10-17): handover right after typing, runs in the reader, deletes and renames in the writer.
-import { expect, openApp, reloadApp, run, test, treeItem } from "./helpers";
+// The starter's main.py is checked as present in the file list (attached): from 1100 px the list is
+// the Files popover, closed once the file opens, so it is shown before the tree is used.
+import { expect, openApp, reloadApp, run, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -8,7 +10,7 @@ test.setTimeout(90_000);
 test("Edit here right after typing in the other tab keeps what was typed (nothing waits for autosave)", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  await expect(treeItem(page, "main.py")).toBeAttached();
   const second = await context.newPage();
   await openApp(second);
   await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
@@ -36,7 +38,7 @@ test("Edit here right after typing in the other tab keeps what was typed (nothin
 test("a read-only tab coming into view leaves the writer's stashed typing for Edit here", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  await expect(treeItem(page, "main.py")).toBeAttached();
   const second = await context.newPage();
   await openApp(second);
   await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
@@ -72,7 +74,7 @@ test("a read-only tab coming into view leaves the writer's stashed typing for Ed
 test("a read-only tab can still run the code it shows, and doesn't offer to add written files", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  await expect(treeItem(page, "main.py")).toBeAttached();
   const second = await context.newPage();
   await openApp(second);
   await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
@@ -85,10 +87,11 @@ test("a read-only tab can still run the code it shows, and doesn't offer to add 
 test("a file deleted in the writer closes its tab in the reader", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  await expect(treeItem(page, "main.py")).toBeAttached();
   const second = await context.newPage();
   await openApp(second);
   await expect(second.locator('.tabs [role=tab][title="main.py"]')).toBeVisible();
+  await showFiles(page);
   await treeItem(page, "main.py").focus();
   await page.keyboard.press("Delete");
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
@@ -101,16 +104,17 @@ test("a file deleted in the writer closes its tab in the reader", async ({ page,
 test("a file renamed in the writer follows in the reader's open tab", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  await expect(treeItem(page, "main.py")).toBeAttached();
   const second = await context.newPage();
   await openApp(second);
   await expect(second.locator('.tabs [role=tab][title="main.py"]')).toBeVisible();
+  await showFiles(page);
   await treeItem(page, "main.py").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for main.py" });
   await field.fill("app.py");
   await field.press("Enter");
-  await expect(treeItem(second, "app.py")).toBeVisible({ timeout: 10_000 });
+  await expect(treeItem(second, "app.py")).toBeAttached({ timeout: 10_000 });
   // The reader's tab follows the file to its new name, and doesn't call it deleted.
   await expect(second.locator('.tabs [role=tab][title="app.py"]')).toBeVisible({ timeout: 10_000 });
   await expect(second.locator('.tabs [role=tab][title="main.py"]')).toHaveCount(0);
@@ -122,7 +126,7 @@ test("a file renamed in the writer follows in the reader's open tab", async ({ p
 test("the writer closes: the remaining read-only tab can take over with Edit here and save", async ({ page, context }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
-  await expect(treeItem(page, "main.py")).toBeVisible();
+  await expect(treeItem(page, "main.py")).toBeAttached();
   const second = await context.newPage();
   await openApp(second);
   await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");

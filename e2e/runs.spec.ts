@@ -2,7 +2,7 @@
 // double-click on Run, Stop while waiting, output floods, files renamed or deleted mid-run, reloads.
 // Each test waits on data-* state attributes (data-runs, data-run, data-phase, data-status).
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, reloadApp, run, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, openApp, openFromTree, reloadApp, run, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(120_000);
@@ -150,6 +150,7 @@ test("a module renamed while its program runs: the error is listed under the fil
   await page.locator("#run-button").click();
   await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 60_000 });
   // Rename calc.py (closed) while the program waits.
+  await showFiles(page);
   await treeItem(page, "calc.py").focus();
   await page.keyboard.press("F2");
   const field = page.getByRole("textbox", { name: "New name for calc.py" });
@@ -178,6 +179,7 @@ async function deleteModuleMidRun(page: Page) {
   const before = await runs(page);
   await page.locator("#run-button").click();
   await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 60_000 });
+  await showFiles(page);
   await treeItem(page, "calc.py").focus();
   await page.keyboard.press("Delete");
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
@@ -197,7 +199,7 @@ test("a module deleted while its program runs leaves no Problems row", async ({ 
 test("a module deleted while its program runs: a new file of that name starts without the old error", async ({ page }) => {
   await deleteModuleMidRun(page);
   // A new, empty calc.py is a different file: no error marker from the old one.
-  await page.locator(".tree-host").click({ position: { x: 20, y: 300 } });
+  await clickTreeSpace(page);
   await page.locator("#new-file").click();
   const name = page.getByRole("textbox", { name: "Name of the new file at the top level" });
   await name.fill("calc.py");

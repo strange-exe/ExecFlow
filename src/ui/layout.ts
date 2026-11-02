@@ -12,6 +12,11 @@
 // console's third tab, as before. Below 900 px the sidebar is a drawer, the top bar holds the mark,
 // the file's name, Search, the sync status, Run and Settings, a status bar the facts and notices,
 // and a bottom view bar Files, Code, Output, Problems and Flowchart.
+// Flow Board S2 (2026-11-02): from 1100 px the rail and the sidebar column retire. The file list
+// opens as a popover from Files in the code board's head; Run, the run's outcome, the runtime state
+// and the problems count form the run strip at the code board's foot (the console's first row);
+// the top bar holds the mark, the breadcrumb and the sync status, Search, then Capture, Shortcuts,
+// Settings and About.
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
@@ -103,6 +108,13 @@ export interface Layout {
   chartBoard: HTMLElement;
   /** Whether the chart has its own board at this width (1100 px and wider). */
   chartOnBoard(): boolean;
+  /** The run strip's slot for the run's outcome (#receipt moves here from 1100 px: workbench.ts). */
+  runOutcome: HTMLElement;
+  /** "No problems" or "2 problems, line 12" beside Run (1100 px and wider): opens Problems. */
+  problemsButton: HTMLButtonElement;
+  problemsWords: HTMLElement;
+  /** Called after the layout crossed the 1100 px line (the Flow Board shell). */
+  onWideChange(listener: (wide: boolean) => void): void;
   /**
    * Whether the flowchart is on screen: its board while a file is open (1100 px and wider), its
    * panel tab open (900 to 1099 px), its view (phones).
@@ -119,7 +131,10 @@ export interface Layout {
   narrow(): boolean;
   /** Called after the layout crossed the 900 px line (and moved Run and the runtime state). */
   onNarrowChange(listener: (narrow: boolean) => void): void;
-  /** Shows the file list: the drawer below 900 px (focus goes into it), the sidebar if hidden from 900 px. */
+  /**
+   * Shows the file list: the drawer below 900 px (focus goes into it), the sidebar if hidden from
+   * 900 px, the Files popover from 1100 px (focus goes into it).
+   */
   openDrawer(): void;
   closeDrawer(focusToggle?: boolean): void;
   drawerOpen(): boolean;
@@ -267,7 +282,12 @@ export function createLayout(root: HTMLElement): Layout {
   const editorPanel = h("div", { class: "editor-panel", id: "editor-panel", "data-empty": "true" }, editorHost, emptyHost);
   // The card's foot (900 px and wider): the file's language and Ln/Col (the status bar below).
   const editorFoot = h("div", { class: "editor-foot" });
-  const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, editorPanel, editorFoot);
+  // The Files popover (1100 px and wider): the sidebar moves into it (place()). A non-modal dialog
+  // named by the sidebar's own "Files" heading, right after the head that holds its button, so the
+  // Tab order meets it where it is seen.
+  const filesPop = h("div", { class: "files-pop", id: "files-popover", role: "dialog", "aria-labelledby": "files-title" });
+  filesPop.hidden = true;
+  const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, filesPop, editorPanel, editorFoot);
 
   // Phones: one switch for the four views, in the bottom view bar after Files; Problems carries its count.
   const viewCount = h("span", { class: "count", "data-count": "0" });
@@ -300,9 +320,22 @@ export function createLayout(root: HTMLElement): Layout {
   problemsPanel.hidden = true;
   const flowchartPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-flowchart", "aria-labelledby": "ptab-flowchart" });
   flowchartPanel.hidden = true;
+  // The run strip (1100 px and wider): the console's first row, at the code board's foot. Run (its
+  // key on it), the run's outcome (#receipt, workbench.ts), the runtime state and the problems
+  // count; a notice takes a line of its own under them. Empty and not shown under 1100 px (place()).
+  const runOutcome = h("div", { class: "run-outcome" });
+  const problemsWords = h("span", { class: "problems-words" }, "No problems");
+  const problemsButton = h(
+    "button",
+    { type: "button", class: "problems-count", id: "problems-count", "aria-controls": "panel-problems", "data-count": "0", title: "Show the problems list" },
+    icon("check-circle"),
+    problemsWords,
+  );
+  const runStrip = h("div", { class: "run-strip" });
   const panel = h(
     "section",
     { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output" },
+    runStrip,
     h("div", { class: "panel-bar" }, panelTabsEl, panelHeadTools, panelToggle),
     panelActions,
     outputPanel,
@@ -424,15 +457,32 @@ export function createLayout(root: HTMLElement): Layout {
   // the sync status and About. Below 900 px (no editor head, the sidebar a drawer): the top bar holds
   // the mark, Search, the sync status, Run and Settings; the status bar the facts, the runtime state,
   // the notices, Shortcuts and About; the view bar Files before the four views.
+  // From 1100 px (Flow Board S2): the top bar's start holds the mark, the breadcrumb and the sync
+  // status; its end Capture, Shortcuts, Settings and About; Files heads the code board; the run strip
+  // holds Run, the run's outcome, the runtime state and the problems count; notices float over the
+  // code board's foot; the sidebar is the popover's.
   function place(narrow: boolean) {
     const focused = document.activeElement;
+    const wide = !narrow && wideQuery.matches;
+    if (!wide && filesPop.contains(sidebar)) main.insertBefore(sidebar, sidebarSplit.element);
     if (narrow) {
       topStart.prepend(mark);
       topEnd.append(paletteButton, syncSlot, runButton, settingsButton);
       statusbar.append(status.lang, status.pos, status.runtime, noticeHost, status.shortcuts, aboutLink);
       headTools.append(snippetButton);
       viewBar.prepend(drawerToggle);
+    } else if (wide) {
+      topStart.replaceChildren(mark, crumb, syncSlot);
+      topbar.insertBefore(paletteButton, topEnd);
+      topEnd.append(snippetButton, status.shortcuts, settingsButton, aboutLink);
+      editorHead.prepend(drawerToggle);
+      runStrip.append(runButton, runOutcome, status.runtime, problemsButton);
+      editorFoot.append(status.lang, status.pos);
+      // Notices float over the code board's foot (app.css), so one coming or going never moves the code.
+      editorArea.append(noticeHost);
+      filesPop.append(sidebar);
     } else {
+      topStart.replaceChildren(crumb);
       railMark.append(mark);
       railMark.after(drawerToggle);
       topbar.insertBefore(paletteButton, topEnd);
@@ -452,16 +502,76 @@ export function createLayout(root: HTMLElement): Layout {
   // Escape or a tap on the scrim close it too. From 900 px Files hides and shows the sidebar.
   const behind = () => [center, statusbar, viewSwitch];
   let sidebarShown = true;
+  /** The Files popover's place: 1100 px and wider (the layout's side of the line, not the window's). */
+  const popMode = () => filesPop.contains(sidebar);
   function syncFilesButton() {
-    const open = narrowQuery.matches ? drawerOpen() : sidebarShown;
+    const pop = popMode();
+    const open = narrowQuery.matches || pop ? drawerOpen() : sidebarShown;
     drawerToggle.setAttribute("aria-expanded", String(open));
+    drawerToggle.setAttribute("aria-controls", pop ? "files-popover" : "sidebar");
+    if (pop) drawerToggle.setAttribute("aria-haspopup", "dialog");
+    else drawerToggle.removeAttribute("aria-haspopup");
     if (sidebarShown) delete root.dataset.sidebar;
     else root.dataset.sidebar = "hidden";
   }
   function drawerOpen() {
-    return root.dataset.drawer === "open";
+    return popMode() ? !filesPop.hidden && filesPop.dataset.state !== "closing" : root.dataset.drawer === "open";
+  }
+  // The popover's motion (Flow Board, design.md Motion): in, a 160 ms ease-out fade and a 4 px rise;
+  // out, 120 ms ease-in. None under reduced motion. Closing, it stops taking pointers and focus at
+  // once, and is hidden when its exit ends.
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  let popAnimation: Animation | null = null;
+  function animatePop(open: boolean) {
+    popAnimation?.cancel();
+    popAnimation = null;
+    if (reduceMotion.matches || typeof filesPop.animate !== "function") return null;
+    const rest = { opacity: 1, transform: "translateY(0)" };
+    const away = { opacity: 0, transform: "translateY(4px)" };
+    popAnimation = filesPop.animate(open ? [away, rest] : [rest, away], open ? { duration: 160, easing: "cubic-bezier(0, 0, 0.2, 1)" } : { duration: 120, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+    return popAnimation;
+  }
+  /** Places the popover under its button (the head may sit under the read-only banner). */
+  function anchorPop() {
+    filesPop.style.top = `${drawerToggle.offsetTop + drawerToggle.offsetHeight + 4}px`;
+    filesPop.style.left = `${Math.max(8, drawerToggle.offsetLeft)}px`;
+  }
+  function openPop() {
+    if (drawerOpen()) return;
+    delete filesPop.dataset.state;
+    filesPop.inert = false;
+    filesPop.hidden = false;
+    anchorPop();
+    syncFilesButton();
+    animatePop(true);
+    void getComputedStyle(filesPop).visibility;
+    (sidebar.querySelector<HTMLElement>("[role=treeitem][tabindex='0']") ?? sidebar.querySelector<HTMLElement>("button"))?.focus();
+  }
+  /**
+   * `focusToggle`: Files takes the focus (Escape, the button itself). Otherwise focus inside the
+   * popover goes back to Files too, unless `pointer` (a press outside: focus goes where it pressed).
+   */
+  function closePop(focusToggle: boolean, pointer = false) {
+    if (!drawerOpen()) return;
+    const hadFocus = !pointer && filesPop.contains(document.activeElement);
+    filesPop.dataset.state = "closing";
+    filesPop.inert = true;
+    syncFilesButton();
+    const done = () => {
+      if (filesPop.dataset.state !== "closing") return;
+      delete filesPop.dataset.state;
+      filesPop.hidden = true;
+      popAnimation?.cancel();
+      popAnimation = null;
+    };
+    const exit = animatePop(false);
+    if (exit) exit.finished.then(done, () => {});
+    else done();
+    // Focus inside it would drop to the page: it goes back to Files.
+    if (focusToggle || hadFocus) drawerToggle.focus();
   }
   function openDrawer() {
+    if (popMode()) return openPop();
     if (!narrowQuery.matches) {
       sidebarShown = true;
       syncFilesButton();
@@ -481,6 +591,7 @@ export function createLayout(root: HTMLElement): Layout {
     (sidebar.querySelector<HTMLElement>("[role=treeitem][tabindex='0']") ?? sidebar.querySelector<HTMLElement>("button"))?.focus();
   }
   function closeDrawer(focusToggle = true) {
+    if (popMode()) return closePop(focusToggle);
     if (!drawerOpen()) return;
     delete root.dataset.drawer;
     syncFilesButton();
@@ -490,7 +601,7 @@ export function createLayout(root: HTMLElement): Layout {
     if (focusToggle) drawerToggle.focus();
   }
   drawerToggle.addEventListener("click", () => {
-    if (narrowQuery.matches) return drawerOpen() ? closeDrawer() : openDrawer();
+    if (narrowQuery.matches || popMode()) return drawerOpen() ? closeDrawer() : openDrawer();
     // The focus stays on Files (it was pressed), so hiding the list never drops it to the page.
     sidebarShown = !sidebarShown;
     syncFilesButton();
@@ -498,10 +609,28 @@ export function createLayout(root: HTMLElement): Layout {
   });
   scrim.addEventListener("click", () => closeDrawer());
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && drawerOpen() && !e.defaultPrevented && !document.querySelector("dialog[open], .menu")) {
+    // A menu's or a dialog's own Escape closes only that (the menu is gone by the time this runs,
+    // but the key came from inside it).
+    const from = e.target instanceof Element ? e.target : null;
+    if (e.key === "Escape" && drawerOpen() && !e.defaultPrevented && !from?.closest(".menu, dialog") && !document.querySelector("dialog[open], .menu")) {
       e.preventDefault();
       closeDrawer();
     }
+  });
+  // The popover is light: a press anywhere else closes it (not on Files, which toggles it, nor in a
+  // menu or dialog it opened), and so does focus moving on to another part of the page.
+  const ownsPop = (node: EventTarget | null) =>
+    node instanceof Node && (filesPop.contains(node) || drawerToggle.contains(node) || (node instanceof Element && node.closest(".menu, dialog") !== null));
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (popMode() && drawerOpen() && !ownsPop(e.target)) closePop(false, true);
+    },
+    true,
+  );
+  filesPop.addEventListener("focusout", (e) => {
+    const next = e.relatedTarget;
+    if (popMode() && drawerOpen() && next instanceof Element && !ownsPop(next)) closePop(false, true);
   });
   // ---------------------------------------------------------------- short windows
   // At 420 px tall or less the page scrolls as a whole (app.css). A text field that takes focus is
@@ -676,23 +805,58 @@ export function createLayout(root: HTMLElement): Layout {
 
   // ---------------------------------------------------------------- crossing 900 px and 1100 px
   const narrowListeners: ((narrow: boolean) => void)[] = [];
-  const syncNarrow = () => {
+  const wideListeners: ((wide: boolean) => void)[] = [];
+  /**
+   * Crossing a line closes the file list's drawer and popover first (at once, no motion): the list
+   * moves to its place at the new width. Focus inside it goes to Files.
+   */
+  function shutFiles() {
+    const inside = sidebar.contains(document.activeElement);
+    if (root.dataset.drawer === "open") {
+      delete root.dataset.drawer;
+      for (const el of behind()) el.inert = false;
+    }
+    popAnimation?.cancel();
+    popAnimation = null;
+    delete filesPop.dataset.state;
+    filesPop.hidden = true;
+    filesPop.inert = false;
+    return inside;
+  }
+  /**
+   * Both lines are handled here, from what the queries say now (a jump across both runs once). At
+   * 1100 px the chart moves between its board and the console's third tab, and the shell between
+   * the rail and sidebar and the Flow Board's top bar, popover and run strip. Printing is no change
+   * of the window: Chromium lays the page out at the paper's width (the queries cross a line, and
+   * cross back once printing is over), so while the print layout is in the page (data-printing,
+   * print-view.ts) nothing moves, and the list is as it was, open or not, when focus goes back into
+   * it. The width is read again once printing is over (after print-view's own afterprint).
+   */
+  let placed: { narrow: boolean; wide: boolean } | null = null;
+  const syncWidth = () => {
+    if (document.documentElement.dataset.printing === "true") return;
     const narrow = narrowQuery.matches;
+    const wide = wideQuery.matches;
+    if (placed && placed.narrow === narrow && placed.wide === wide) return;
+    const narrowCrossed = !placed || placed.narrow !== narrow;
+    const wideCrossed = placed !== null && placed.wide !== wide;
+    placed = { narrow, wide };
     root.dataset.narrow = String(narrow);
+    const refocus = narrow ? false : shutFiles();
     place(narrow);
     if (!narrow) closeDrawer(false);
     sidebar.inert = narrow && !drawerOpen();
     syncFilesButton();
+    if (wideCrossed) placeChart();
     syncPanel();
-    for (const listener of narrowListeners) listener(narrow);
+    if (refocus) drawerToggle.focus({ preventScroll: true });
+    if (narrowCrossed) for (const listener of narrowListeners) listener(narrow);
+    if (wideCrossed) for (const listener of wideListeners) listener(wide);
   };
-  narrowQuery.addEventListener("change", syncNarrow);
-  syncNarrow();
-  // At 1100 px the chart moves between its board and the console's third tab.
-  wideQuery.addEventListener("change", () => {
-    placeChart();
-    syncPanel();
-  });
+  narrowQuery.addEventListener("change", syncWidth);
+  wideQuery.addEventListener("change", syncWidth);
+  addEventListener("afterprint", () => setTimeout(syncWidth));
+  syncWidth();
 
   // ---------------------------------------------------------------- breadcrumb
   // What the crumb shows now: a call that changes nothing keeps its nodes (a change of width calls it
@@ -762,6 +926,10 @@ export function createLayout(root: HTMLElement): Layout {
     flowchartPanel,
     chartBoard,
     chartOnBoard,
+    runOutcome,
+    problemsButton,
+    problemsWords,
+    onWideChange: (listener) => void wideListeners.push(listener),
     chartVisible,
     onChartVisibleChange: (listener) => void chartListeners.push(listener),
     noticeHost,
