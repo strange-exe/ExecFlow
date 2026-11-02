@@ -5,7 +5,7 @@
 // and the failure paths with a Retry that recovers. The service worker is blocked so every request
 // reaches the routes below.
 import type { Page, Route } from "@playwright/test";
-import { afterFetch, chartOnBoard, expect, importFiles, isNarrow, openApp, openFromTree, setCode, showChart, test, tolerating } from "./helpers";
+import { afterFetch, chartOnBoard, expect, importFiles, isNarrow, openApp, openFromTree, setCode, showChart, showPanel, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -122,25 +122,17 @@ test.describe("the Flowchart tab", () => {
       return;
     }
     if (chartOnBoard(page)) {
-      // The chart is a region of its own beside the code; the console keeps Output and Problems,
-      // and its arrows go round those two.
+      // The chart is a region of its own beside the code; the console shows Output or Problems with
+      // no tabs (the layout fix: the run strip's count opens the problems, the head names what shows).
       await expect(page.getByRole("region", { name: "Flowchart" })).toBeVisible();
       await expect(page.locator("#chart-board #panel-flowchart .fc-view")).toBeVisible();
-      await expect(page.locator(".panel-tabs [role=tab]:visible")).toHaveText(["Output", "Problems"]);
+      await expect(page.locator(".panel-tabs [role=tab]:visible")).toHaveCount(0);
       await expect(page.locator("#ptab-flowchart")).toBeHidden();
-      const output = page.locator("#ptab-output");
-      await output.click();
-      await output.focus();
-      await page.keyboard.press("ArrowRight");
-      await expect(page.locator("#ptab-problems")).toBeFocused();
-      await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-      await page.keyboard.press("ArrowRight");
-      await expect(output).toBeFocused();
-      await page.keyboard.press("End");
-      await expect(page.locator("#ptab-problems")).toBeFocused();
-      await page.keyboard.press("Home");
-      await expect(output).toHaveAttribute("aria-selected", "true");
-      // The chart stays on its board whichever tab the console shows.
+      await showPanel(page, "problems");
+      await expect(page.locator("#panel-title")).toHaveText("Problems");
+      await showPanel(page, "output");
+      await expect(page.locator("#panel-title")).toHaveText("Output");
+      // The chart stays on its board whichever the console shows.
       await expect(page.locator("#panel-flowchart")).toBeVisible();
       return;
     }

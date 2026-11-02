@@ -2,7 +2,7 @@
 // pack is served by the local preview server; every test gets a fresh browser profile, so each
 // downloads it.
 import type { Page } from "@playwright/test";
-import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showFiles, showView, test, tolerating, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, reloadApp, run, setCode, showFiles, showPanel, showView, test, tolerating, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(240_000);
@@ -240,7 +240,7 @@ test("an error in a header in a sub-folder, included by two files, is listed onc
   await installCpp(page);
   const r = await run(page, { timeout: 150_000 });
   expect(r.status).toBe("build-failed");
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const rows = await page.locator(".problem").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-path")}:${e.getAttribute("data-line")} ${e.querySelector(".problem-message")?.textContent}`));
   test.info().annotations.push({ type: "problems", description: JSON.stringify(rows) });
   expect(rows.some((row) => row.startsWith("lib/util.h:3 ")), JSON.stringify(rows)).toBe(true);
@@ -274,7 +274,7 @@ test("a header renamed while the build runs: every Problems row names a file tha
   await page.locator("#live-input-field").fill("4");
   await page.locator("#live-input-field").press("Enter");
   await expect(page.locator("#app")).toHaveAttribute("data-runs", String(before + 1), { timeout: 60_000 });
-  await page.locator("#ptab-problems").click();
+  await showPanel(page, "problems");
   const listed = await page.locator(".problem[data-path]").evaluateAll((els) => els.map((e) => e.getAttribute("data-path")));
   const tree = await page.locator(".tree [role=treeitem]").evaluateAll((els) => els.map((e) => e.getAttribute("data-path")));
   test.info().annotations.push({ type: "problems", description: JSON.stringify(listed) });

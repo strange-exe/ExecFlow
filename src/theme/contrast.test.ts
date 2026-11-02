@@ -78,8 +78,9 @@ describe("the pairs the UI draws (contract v2)", () => {
     // eleven (text on each kind's tint, each kind's outline and the connectors on the chart's ground),
     // six of them new pairs. The logo's glyph-on-tile row left with --brand and --on-brand. Flow
     // Board (S1) added 24, all new: ten on the chart board's ground, fourteen on the linked code line.
-    // S2 added two, both new: Run's fill and the runtime's download icon on the run strip.
-    expect(PAIRS.length).toBe(237);
+    // S2 added two, both new: Run's fill and the runtime's download icon on the run strip. The board
+    // layout fix (2026-11-02) added two repeats: the splitter grips on the canvas and on the board.
+    expect(PAIRS.length).toBe(239);
     expect(new Set(PAIRS.map((p) => `${p.fg}|${p.bg}|${p.min}`)).size).toBe(228);
     const known: readonly string[] = [...COLOR_VARS, ...Object.keys(UI_MIXES), ...Object.keys(IMAGE_MIXES), ...Object.keys(CHART_MIXES)];
     for (const p of PAIRS) for (const part of p.bg.split("@")) expect(known, `${p.bg}`).toContain(part);
@@ -100,7 +101,9 @@ describe("the pairs the UI draws (contract v2)", () => {
     );
     expect(PAIRS[234]).toMatchObject({ fg: "focus", bg: "line-here@bg", min: 3 });
     // S2's run strip closes it: Run's fill and the download icon on the console's header ground.
-    expect(PAIRS.slice(235)).toMatchObject([{ fg: "action", bg: "runlog-bg", min: 3 }, { fg: "info", bg: "runlog-bg", min: 3 }]);
+    expect(PAIRS.slice(235, 237)).toMatchObject([{ fg: "action", bg: "runlog-bg", min: 3 }, { fg: "info", bg: "runlog-bg", min: 3 }]);
+    // The board and output splitters' 2 px grips, a meaningful graphic at 3:1 on their grounds.
+    expect(PAIRS.slice(237)).toMatchObject([{ fg: "border-strong", bg: "surface", min: 3 }, { fg: "border-strong", bg: "bg", min: 3 }]);
     // The dot grid is decoration: no row is drawn on or in it.
     expect(PAIRS.some((p) => p.bg.includes("dot"))).toBe(false);
     // The snippet image's highlighted lines: every colour drawn on the band, at the text minimum.

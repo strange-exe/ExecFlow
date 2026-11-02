@@ -3,8 +3,11 @@
 // markup is ever parsed and no icon font or runtime request is needed.
 import arrowClockwise from "@phosphor-icons/core/assets/regular/arrow-clockwise.svg?raw";
 import arrowRight from "@phosphor-icons/core/assets/regular/arrow-right.svg?raw";
+import arrowsInSimple from "@phosphor-icons/core/assets/regular/arrows-in-simple.svg?raw";
+import arrowsOutSimple from "@phosphor-icons/core/assets/regular/arrows-out-simple.svg?raw";
 import caretDown from "@phosphor-icons/core/assets/regular/caret-down.svg?raw";
 import caretRight from "@phosphor-icons/core/assets/regular/caret-right.svg?raw";
+import caretLineRight from "@phosphor-icons/core/assets/regular/caret-line-right.svg?raw";
 import caretUp from "@phosphor-icons/core/assets/regular/caret-up.svg?raw";
 import checkCircle from "@phosphor-icons/core/assets/regular/check-circle.svg?raw";
 import cloudArrowUp from "@phosphor-icons/core/assets/regular/cloud-arrow-up.svg?raw";
@@ -44,6 +47,8 @@ import scissors from "@phosphor-icons/core/assets/regular/scissors.svg?raw";
 import selectionAll from "@phosphor-icons/core/assets/regular/selection-all.svg?raw";
 import shieldCheck from "@phosphor-icons/core/assets/regular/shield-check.svg?raw";
 import sidebarSimple from "@phosphor-icons/core/assets/regular/sidebar-simple.svg?raw";
+import squareSplitHorizontal from "@phosphor-icons/core/assets/regular/square-split-horizontal.svg?raw";
+import squareSplitVertical from "@phosphor-icons/core/assets/regular/square-split-vertical.svg?raw";
 import tabs from "@phosphor-icons/core/assets/regular/tabs.svg?raw";
 import terminalWindow from "@phosphor-icons/core/assets/regular/terminal-window.svg?raw";
 import trash from "@phosphor-icons/core/assets/regular/trash.svg?raw";
@@ -58,14 +63,16 @@ import stopFill from "@phosphor-icons/core/assets/fill/stop-fill.svg?raw";
 import { svg } from "./dom";
 
 const SOURCES = {
-  "arrow-clockwise": arrowClockwise, "arrow-right": arrowRight, "caret-down": caretDown, "caret-right": caretRight,
+  "arrow-clockwise": arrowClockwise, "arrow-right": arrowRight, "arrows-in-simple": arrowsInSimple, "arrows-out-simple": arrowsOutSimple,
+  "caret-down": caretDown, "caret-line-right": caretLineRight, "caret-right": caretRight,
   "caret-up": caretUp, "check-circle": checkCircle,
   "cloud-arrow-up": cloudArrowUp, "cloud-check": cloudCheck, "cloud-slash": cloudSlash, "code-simple": codeSimple,
   copy, "corners-in": cornersIn, "corners-out": cornersOut,
   "dots-three": dotsThree, "download-simple": downloadSimple, eraser, file, "file-c": fileC, "file-cpp": fileCpp,
   "file-plus": filePlus, "file-py": filePy, "file-text": fileText, folder, "folder-open": folderOpen,
   "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, "link-simple": linkSimple, "list-checks": listChecks, lock, "magnifying-glass": magnifyingGlass, minus, "paper-plane-right": paperPlaneRight,
-  "pencil-simple": pencilSimple, plus, printer, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple, tabs,
+  "pencil-simple": pencilSimple, plus, printer, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple,
+  "square-split-horizontal": squareSplitHorizontal, "square-split-vertical": squareSplitVertical, tabs,
   "terminal-window": terminalWindow, trash, "tree-structure": treeStructure, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,
   x, "x-circle": xCircle, "play-fill": playFill, "stop-fill": stopFill,
 } as const;

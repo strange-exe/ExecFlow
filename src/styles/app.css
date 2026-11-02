@@ -1718,6 +1718,133 @@ input.switch {
   .run-strip > .runtime > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
+/* ------------------------------------------------------------------ Flow Board: sizes, hiding, beside, focus */
+/* From 1100 px (owner's report on 0.26.0, 2026-11-02; layout.ts syncBoards sets the attributes):
+   the canvas between the boards is the board splitter (16 px, its 2 px grip in the control edge's
+   colour, a 24 px target); the chart board hides (data-chart) and the head's Flowchart brings it
+   back; the output stands beside the code inside the code board (data-console), with its own 8 px
+   splitter, the run strip the board's foot under both; focus code (data-focus) leaves the code
+   board alone on the canvas, its console the run strip. Under 1100 px none of this shows. */
+.board-tool, .center > .board-split, .center > .console-split, .chart-hide, .panel-beside, .panel-title, .panel-back { display: none; }
+@media (min-width: 1100px) {
+  /* The rows' areas: the code over its console (the default), and the chart board beside them. */
+  /* The splitters' columns are the gaps (16 px between the boards, 8 px beside the code): no column-gap. */
+  .workbench[data-open="true"] .center {
+    column-gap: 0;
+    grid-template-columns: minmax(0, 1fr) var(--s4) var(--chart-w, minmax(0, 1fr));
+    grid-template-areas: "code bsplit chart" "hsplit bsplit chart" "panel bsplit chart";
+  }
+  .workbench[data-open="true"] .center > .editor-area { grid-area: code; }
+  .workbench[data-open="true"] .center > .splitter.horizontal { grid-area: hsplit; }
+  .workbench[data-open="true"] .center > .panel { grid-area: panel; }
+  .workbench[data-open="true"] .center::before { grid-area: 1 / 1 / -1 / 2; }
+  .workbench[data-open="true"] .chart-board { grid-area: chart; position: relative; }
+  .workbench[data-open="true"] .center > .board-split { display: block; grid-area: bsplit; }
+  /* The chart board hidden (by choice, or focus code): the code board takes the row. */
+  .workbench[data-open="true"] .center[data-chart="hidden"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "code" "hsplit" "panel"; }
+  .workbench[data-open="true"] .center[data-chart="hidden"] > :is(.chart-board, .board-split) { display: none; }
+  .chart-board[data-state="closing"] { pointer-events: none; }
+
+  /* The output beside the code: the code, the 8 px splitter and the console in a row, the run strip
+     under the three, inside the one board edge. */
+  .workbench[data-open="true"] .center[data-console="beside"] {
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) var(--s2) var(--console-w) var(--s4) var(--chart-w, minmax(0, 1fr));
+    grid-template-areas: "code csplit panel bsplit chart" "strip strip strip bsplit chart";
+  }
+  .workbench[data-open="true"] .center[data-console="beside"][data-chart="hidden"] {
+    grid-template-columns: minmax(0, 1fr) var(--s2) var(--console-w);
+    grid-template-areas: "code csplit panel" "strip strip strip";
+  }
+  .workbench[data-open="true"] .center[data-console="beside"]::before { grid-area: 1 / 1 / -1 / 4; }
+  .center[data-console="beside"] > .splitter.horizontal { display: none; }
+  .workbench[data-open="true"] .center[data-console="beside"] > .console-split { display: block; grid-area: csplit; }
+  .center[data-console="beside"] > .editor-area { margin: 1px 0 0 1px; border-radius: calc(var(--r-board) - 1px) 0 0 0; }
+  .center[data-console="beside"] > .editor-area > .editor-head { border-radius: calc(var(--r-board) - 1px) 0 0 0; }
+  .center[data-console="beside"] > .panel { margin: 1px 1px 0 0; border-radius: 0 calc(var(--r-board) - 1px) 0 0; grid-template-rows: var(--h-panel-bar) auto minmax(0, 1fr); }
+  .center[data-console="beside"] > .panel > .panel-bar { grid-row: 1; }
+  .center[data-console="beside"] > .panel > .panel-actions { grid-row: 2; }
+  .center[data-console="beside"] > .panel > .panel-body { grid-row: 3; }
+  .center[data-console="beside"] > .run-strip {
+    grid-area: strip;
+    margin: 0 1px 1px;
+    border-radius: 0 0 calc(var(--r-board) - 1px) calc(var(--r-board) - 1px);
+    box-shadow: inset 0 1px 0 var(--divider);
+  }
+  /* Beside, Maximise (a height) has nothing to size; Hide docks the console's head under the code. */
+  .center[data-console="beside"] .panel-max { display: none; }
+
+  /* Focus code: the code board alone (the chart's column is gone, data-chart="hidden"), its console
+     the run strip; the top row stays. */
+  .workbench[data-open="true"] .center[data-focus="true"] { grid-template-rows: minmax(0, 1fr) 0 auto; }
+  .center[data-focus="true"] > .splitter.horizontal { display: none; }
+  .center[data-focus="true"] > .panel { grid-template-rows: auto; }
+  .center[data-focus="true"] > .panel > :not(.run-strip) { display: none; }
+
+  /* The splitters between the boards and between the code and the output: the gap is the target
+     (24 px with the reach either side), the grip a 2 px line in the control edge's colour (3:1 on
+     the canvas and on the board: contrast.ts), the focus colour while dragged or focused. */
+  .center > .splitter:is(.board-split, .console-split) { width: auto; background: transparent; }
+  .center > :is(.board-split, .console-split)::after { inset: 0 calc((var(--target) - 100%) / -2); }
+  .center > :is(.board-split, .console-split)::before { background: var(--border-strong); }
+  .center > :is(.board-split, .console-split):is(:hover, [data-dragging])::before { background: var(--text-secondary); }
+
+  /* The head's tools: Flowchart (its icon and word) and Focus code (its icon), quiet like Files. */
+  .board-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s2);
+    flex: none;
+    min-width: var(--tool);
+    height: var(--tool);
+    padding: 0 var(--s2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text-secondary);
+    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
+  }
+  .board-tool[hidden] { display: none; }
+  .board-tool > * { pointer-events: none; }
+  .board-tool .icon { width: var(--icon-md); height: var(--icon-md); }
+  .board-tool:hover { background: var(--hover); color: var(--text); }
+  .board-tool[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .chart-toggle { padding-right: var(--s3); }
+  /* Output below or beside: an icon button before Maximise. */
+  .panel-beside { display: inline-grid; }
+  /* Hide flowchart: at the end of the chart's bar, over it (the bar keeps the room). */
+  .chart-hide { display: inline-grid; position: absolute; z-index: 2; top: var(--s1); right: var(--s2); }
+  .chart-board .fc-toolbar { padding-right: calc(var(--tool) + var(--s3)); min-height: calc(var(--tool) + var(--s2)); }
+
+  /* One way to the problems: the run strip's count. The console's tabs give way to a heading that
+     names what it shows, and, over the list, an Output button back (the tabs stay in the DOM). */
+  .panel-bar > .panel-tabs { display: none; }
+  .panel-title { display: block; margin: 0; padding: 0 var(--s1); color: var(--text); font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui); white-space: nowrap; }
+  .panel-back { display: inline-flex; }
+  .panel-back[hidden] { display: none; }
+
+  /* Thin scrollbars on the boards' scrollers (the code, the chart, the output and the problems), so
+     two system bars don't meet at the seam: the thumb in the control edge's colour (3:1 on the board
+     and on the console: contrast.ts), the track the board itself. Browsers without scrollbar-color
+     take the WebKit pseudo-elements; one that has it ignores them, so they are only a fallback. */
+  .editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  @supports not (scrollbar-color: auto) {
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar { width: 10px; height: 10px; }
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar-track,
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar-corner { background: transparent; }
+    :is(.editor-area .cm-scroller, .chart-board .fc-stage, .panel .console-scroll, .panel .problems-view)::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: var(--r-key);
+      background-color: var(--border-strong);
+      background-clip: padding-box;
+    }
+  }
+}
+
 /* ------------------------------------------------------------------ touch */
 @media (pointer: coarse) {
   .menu-item, .theme-option, .problem { min-height: var(--h-row); }

@@ -234,6 +234,15 @@ describe("the Shortcuts list and the editor's keymaps (CodeMirror's installed bi
     expect(problems).toEqual([]);
   });
 
+  it.each([false, true])("Focus code's Shift Alt Enter is free in the editor's keymaps, and listed (mac: %s)", (mac) => {
+    // workbench.ts takes the key on the window, so no binding of the editor may answer it first.
+    const focus = fromCodeMirror("Shift-Alt-Enter", mac);
+    expect(editorBindings(mac).filter((b) => fromCodeMirror(b.key, mac) === focus)).toEqual([]);
+    expect(shortcutKeys(mac).focusCode).toBe("Shift Alt Enter");
+    const row = shortcutGroups(mac).flatMap((g) => g.rows).find(([, what]) => what.startsWith("Focus code"));
+    expect(row && rowCombos(row[0])).toEqual([focus]);
+  });
+
   it("names the keys the palette shows in a row of their own", () => {
     for (const mac of [false, true]) {
       const k = shortcutKeys(mac);

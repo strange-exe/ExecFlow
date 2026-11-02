@@ -620,11 +620,12 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await expect(side).toHaveAttribute("aria-valuenow", "200");
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(side).toBeHidden();
-  // One splitter sizes the console, the y-axis one: it sits under the code at every width (Flow
-  // Board: from 1100 px the chart's board, not the console, is beside the code).
+  // One splitter sizes the console, the y-axis one: it sits under the code by default at every width
+  // (Flow Board: from 1100 px the chart's board, not the console, is beside the code; the x-axis one
+  // shows only with the output put beside the code, e2e/board-layout.spec.ts).
   const rows = page.locator('[role=separator][aria-orientation="horizontal"]');
   const cols = page.locator('[role=separator][aria-orientation="vertical"][aria-controls="panel"]');
-  await expect(cols).toHaveCount(0);
+  await expect(cols).toBeHidden();
   await expect(rows).toHaveAccessibleName("Resize the output panel");
   await rows.focus();
   // Nothing has run, so the console is its head: the first key only opens it, to the size the

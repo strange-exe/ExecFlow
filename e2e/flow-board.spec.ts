@@ -93,27 +93,35 @@ test.describe("from 1100 px", () => {
     expect(await count.evaluate((el) => getComputedStyle(el).color)).toBe(await token(page, "danger"));
     // The line marks stay in the editor.
     await expect(page.locator(".cm-lintRange-error, .cm-lint-marker-error").first()).toBeVisible();
-    // With another file active, the editor head's stops, in order: Files, the open file's tab, then
-    // the error jump (shown only while the error is in a file other than the active one).
+    // With another file active, the editor head's stops, in order: Files, the open file's tab, the
+    // error jump (shown only while the error is in a file other than the active one), then Focus
+    // code (the layout fix; the Flowchart toggle shows only while the chart board is hidden).
     await openFromTree(page, "main.py");
     await expect(page.locator("#error-jump")).toBeVisible();
     const stops = await page.locator(".editor-head").evaluate((head) =>
       [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => (el.matches(".drawer-toggle") ? "files" : el.id)),
     );
-    expect(stops).toHaveLength(3);
+    expect(stops).toHaveLength(4);
     expect(stops[0]).toBe("files");
     expect(stops[1]).toMatch(/^tab-/);
     expect(stops[2]).toBe("error-jump");
+    expect(stops[3]).toBe("focus-code");
+    // The count discloses the list (the console has no tabs from 1100 px): pressed, the Problems
+    // panel shows, the count says so and keeps the focus.
+    await expect(count).toHaveAttribute("aria-expanded", "false");
     await count.click();
     await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator("#ptab-problems")).toBeFocused();
+    await expect(count).toHaveAttribute("aria-expanded", "true");
+    await expect(count).toBeFocused();
     await expect(page.locator("#panel-problems")).toBeVisible();
-    // Back to Output, then the keyboard: Enter on the count.
-    await page.locator("#ptab-output").click();
-    await count.focus();
+    // Back to Output with the head's Output, then the keyboard: Enter on the count.
+    await page.locator("#panel-back").click();
+    await expect(page.locator("#panel-output")).toBeVisible();
+    await expect(count).toHaveAttribute("aria-expanded", "false");
+    await expect(count).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator("#ptab-problems")).toBeFocused();
+    await expect(count).toBeFocused();
     expect(await axe(page), "axe after a failed run").toEqual([]);
   });
 

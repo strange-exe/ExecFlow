@@ -237,11 +237,14 @@ for (const scheme of SCHEMES) {
 
     // The canvas: the main area and the work column on --surface; the top bar floats on it (no
     // ground, no line under it). There is no status bar on desktop. With no rail and no file list
-    // column (Flow Board S2) the boards have 16 px of canvas on the left too.
+    // column (Flow Board S2) the boards have 16 px of canvas on the left too. The 16 px between the
+    // boards is the board splitter's own column (the layout fix), so the grid has no column gap.
     expect((await styleOf(page, ".main", ["background-color"]))["background-color"]).toBe(rgbOf(p.surface));
     expect(await styleOf(page, ".center", ["background-color", "padding-right", "padding-bottom", "padding-left", "padding-top", "column-gap"])).toEqual({
-      "background-color": rgbOf(p.surface), "padding-right": "16px", "padding-bottom": "16px", "padding-left": "16px", "padding-top": "0px", "column-gap": "16px",
+      "background-color": rgbOf(p.surface), "padding-right": "16px", "padding-bottom": "16px", "padding-left": "16px", "padding-top": "0px", "column-gap": "0px",
     });
+    const [codeBox, chartBox] = [(await page.locator("#editor-area").boundingBox())!, (await page.locator("#chart-board").boundingBox())!];
+    expect(Math.round(chartBox.x - (codeBox.x + codeBox.width + 1)), "16 px of canvas between the boards").toBe(16);
     expect(await styleOf(page, ".topbar", ["border-bottom-width", "background-color"])).toEqual({ "border-bottom-width": "0px", "background-color": "rgba(0, 0, 0, 0)" });
     await expect(page.locator(".statusbar")).toBeHidden();
 

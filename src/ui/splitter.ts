@@ -15,7 +15,12 @@ export interface SplitterOptions {
   controls: string;
   min: number;
   max: () => number;
-  initial: number;
+  /**
+   * The default size. A function is a default that follows the window (the boards' equal split):
+   * until the user picks a size, and again after Enter or a double-click, nothing is stored and the
+   * size follows it.
+   */
+  initial: number | (() => number);
   /**
    * The region the value sizes lies after the bar (right of a vertical one, below a horizontal one),
    * so the arrow that moves the bar towards it makes it bigger: ArrowLeft for a vertical bar,
@@ -43,12 +48,29 @@ function readLayout(): Record<string, number> {
   }
 }
 
-function writeLayout(key: string, value: number): void {
+/** Stores a size (a number), or forgets it (null: the default applies again). */
+function writeLayout(key: string, value: number | null): void {
   try {
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...readLayout(), [key]: Math.round(value) }));
+    const next: Record<string, number> = { ...readLayout() };
+    if (value === null) delete next[key];
+    else next[key] = Math.round(value);
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(next));
   } catch {
     // storage blocked: the size lasts for this visit
   }
+}
+
+/**
+ * A remembered on/off choice of the layout (the chart board hidden, the output beside the code),
+ * kept with the sizes as 1 or 0. Null: never chosen on this device.
+ */
+export function readLayoutFlag(key: string): boolean | null {
+  const v = readLayout()[key];
+  return v === 1 ? true : v === 0 ? false : null;
+}
+
+export function writeLayoutFlag(key: string, on: boolean): void {
+  writeLayout(key, on ? 1 : 0);
 }
 
 export interface Splitter {
@@ -69,20 +91,31 @@ export interface Splitter {
  * phone-wide window used to overwrite a 248 px file list with its 200 px for good). A user's
  * choice (a key, a drag, a button) becomes the wanted size as far as the window allows it then.
  */
-export function sizeModel(o: { min: number; max: () => number; wanted: number }) {
+export function sizeModel(o: { min: number; max: () => number; wanted: number | (() => number) }) {
   const fit = (v: number) => clamp(Math.round(v), o.min, Math.max(o.min, o.max()));
-  let wanted = Math.round(o.wanted);
+  const start = o.wanted;
+  // Null: no size chosen, so the default (a function of the window) is wanted.
+  let chosen: number | null = typeof start === "number" ? Math.round(start) : null;
+  const wanted = () => chosen ?? Math.round((start as () => number)());
   return {
     get wanted() {
-      return wanted;
+      return wanted();
+    },
+    /** Whether the size follows a default that is a function (nothing chosen). */
+    get following() {
+      return chosen === null;
     },
     /** The size to apply now. */
     get value() {
-      return fit(wanted);
+      return fit(wanted());
     },
     set(next: number): number {
-      wanted = fit(next);
-      return wanted;
+      chosen = fit(next);
+      return chosen;
+    },
+    /** Back to the default: a following default follows again. */
+    reset(): void {
+      chosen = typeof start === "number" ? Math.round(start) : null;
     },
   };
 }
@@ -99,6 +132,7 @@ export function createSplitter(o: SplitterOptions): Splitter {
   });
   const saved = readLayout()[o.key];
   const size = sizeModel({ min: o.min, max: o.max, wanted: typeof saved === "number" && Number.isFinite(saved) ? saved : o.initial });
+  const initial = () => Math.round(typeof o.initial === "function" ? o.initial() : o.initial);
   let value = size.value;
 
   /** Applies the wanted size as far as the window allows it now. */
@@ -116,6 +150,14 @@ export function createSplitter(o: SplitterOptions): Splitter {
     if (save) writeLayout(o.key, size.wanted);
   }
 
+  /** Enter and a double-click: the default size (one that follows the window is not stored). */
+  function restore() {
+    if (typeof o.initial !== "function") return set(o.initial);
+    size.reset();
+    show();
+    writeLayout(o.key, null);
+  }
+
   element.addEventListener("keydown", (e) => {
     const big = e.shiftKey ? 4 : 1;
     // A horizontal bar has always sized the region below it (the panel): ArrowUp grows it.
@@ -128,7 +170,7 @@ export function createSplitter(o: SplitterOptions): Splitter {
     else if (e.key === fwd) set(value + o.step * big);
     else if (e.key === "Home") set(o.min);
     else if (e.key === "End") set(o.max());
-    else if (e.key === "Enter") set(o.initial);
+    else if (e.key === "Enter") restore();
     else return;
     e.preventDefault();
   });
@@ -151,7 +193,7 @@ export function createSplitter(o: SplitterOptions): Splitter {
     element.addEventListener("pointerup", up);
     element.addEventListener("pointercancel", up);
   });
-  element.addEventListener("dblclick", () => set(o.initial));
+  element.addEventListener("dblclick", restore);
 
   return {
     element,
@@ -160,7 +202,9 @@ export function createSplitter(o: SplitterOptions): Splitter {
     },
     min: o.min,
     max: o.max,
-    initial: o.initial,
+    get initial() {
+      return initial();
+    },
     set: (v) => set(v),
     /** Applies the wanted size again after the window or the surrounding region changed size. */
     refresh: show,
