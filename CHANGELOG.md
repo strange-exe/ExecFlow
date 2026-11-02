@@ -6,19 +6,29 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
-## [0.27.0] - 2026-11-02
+## [0.27.0] - 2026-11-03
 
-The flowchart shows the path your Python program took
+Your Python program's path in the flowchart, and a layout you can arrange
 
 ### Added
 
 - After a Python run, the flowchart shows the way the program went: each Yes and No, and each loop, is drawn thicker the more often it ran, with a count such as 5x beside it.
 - The chart says what the last run did in words too (for screen readers), and Steps as text lists the same counts.
 - An exported SVG or PNG of the chart keeps the path of the last run.
+- On wide screens, drag the bar between your code and the flowchart (or use the arrow keys) to give either one more room. ExecFlow remembers the size.
+- Hide the flowchart with the button at the end of its bar, and bring it back with Flowchart above your code.
+- Put the output beside your code instead of under it with the new button in the output's header, and size it with its own bar.
+- Focus code (Shift+Alt+Enter) gives your code the whole window, and Esc puts everything back as it was. Full screen is in the command search.
 
 ### Changed
 
 - Editing the code clears the path, since it no longer matches the program. C and C++ programs show no path yet.
+- On wide screens the problems count under your code is the one place to open the problems list, and Output takes you back.
+- On wide screens the output stays folded away until your first run, even when ExecFlow spots a problem as you type.
+
+### Fixed
+
+- Scrollbars are thinner and match the theme, so two scrollbars no longer meet between the code and the flowchart.
 
 ## [0.26.0] - 2026-11-02
 

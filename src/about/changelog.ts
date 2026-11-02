@@ -21,13 +21,20 @@ export interface Release {
 export const CHANGELOG: readonly Release[] = [
   {
     version: "0.27.0",
-    date: "2026-11-02",
-    title: "The flowchart shows the path your Python program took",
+    date: "2026-11-03",
+    title: "Your Python program's path in the flowchart, and a layout you can arrange",
     items: [
       { kind: "added", text: "After a Python run, the flowchart shows the way the program went: each Yes and No, and each loop, is drawn thicker the more often it ran, with a count such as 5x beside it." },
       { kind: "added", text: "The chart says what the last run did in words too (for screen readers), and Steps as text lists the same counts." },
       { kind: "added", text: "An exported SVG or PNG of the chart keeps the path of the last run." },
       { kind: "changed", text: "Editing the code clears the path, since it no longer matches the program. C and C++ programs show no path yet." },
+      { kind: "added", text: "On wide screens, drag the bar between your code and the flowchart (or use the arrow keys) to give either one more room. ExecFlow remembers the size." },
+      { kind: "added", text: "Hide the flowchart with the button at the end of its bar, and bring it back with Flowchart above your code." },
+      { kind: "added", text: "Put the output beside your code instead of under it with the new button in the output's header, and size it with its own bar." },
+      { kind: "added", text: "Focus code (Shift+Alt+Enter) gives your code the whole window, and Esc puts everything back as it was. Full screen is in the command search." },
+      { kind: "changed", text: "On wide screens the problems count under your code is the one place to open the problems list, and Output takes you back." },
+      { kind: "changed", text: "On wide screens the output stays folded away until your first run, even when ExecFlow spots a problem as you type." },
+      { kind: "fixed", text: "Scrollbars are thinner and match the theme, so two scrollbars no longer meet between the code and the flowchart." },
     ],
   },
   {
