@@ -16,7 +16,9 @@ async function setUp(page: import("@playwright/test").Page) {
   const name = page.getByRole("textbox", { name: /Name of the new file/ });
   await name.fill("lib/util.py");
   await name.press("Enter");
-  await expect(treeItem(page, "lib/util.py")).toBeVisible();
+  // Created: opening it closes the Files popover at once, so its row may already be out of sight
+  // (Firefox, full run 2026-11-03).
+  await expect(treeItem(page, "lib/util.py")).toHaveCount(1);
   // The new file opens a moment later and takes the focus (workbench createEntry). Wait for that
   // before a test moves the focus in the tree. (The Shift+F10 that opened no menu in full runs on
   // 2026-10-21 was the delete question's late close event: see "a menu opened before the delete
@@ -276,5 +278,6 @@ test("a new file: the field names the files that run, a name that won't run is s
   await field().press("Enter");
   await expect(page.locator(".tree-new")).toHaveAttribute("data-confirm", "Makefile");
   await field().press("Enter");
-  await expect(treeItem(page, "Makefile")).toBeVisible();
+  await expect(treeItem(page, "Makefile")).toHaveCount(1); // created (its opening closes the Files popover)
+  await expectActive(page, "Makefile");
 });
