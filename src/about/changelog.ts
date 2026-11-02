@@ -20,8 +20,20 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.26.0",
+    date: "2026-11-02",
+    title: "Code and its flowchart side by side",
+    items: [
+      { kind: "added", text: "On wide screens (1100 px and up) the flowchart has a board of its own beside your code, on a dotted ground, and follows your code as you type." },
+      { kind: "changed", text: "Run, the result of the last run and the problems count now sit at the foot of the code, above the output. The count opens the Problems list." },
+      { kind: "changed", text: "On wide screens the file list opens from the Files button above the code, and closes when you open a file or press Escape." },
+      { kind: "changed", text: "On wide screens the output is light in the light theme, and always sits under the code; its height can still be changed." },
+      { kind: "changed", text: "After a run fails, Run keeps a dark outline so it is easy to find, while Go to error leads." },
+    ],
+  },
+  {
     version: "0.25.0",
-    date: "2026-11-01",
+    date: "2026-11-02",
     title: "Three new flowchart guides",
     items: [
       { kind: "added", text: "Flowchart examples: eight classic exercises, from the largest of three numbers to simple interest, each in C and Python with its flowchart, a real run and a common mistake." },

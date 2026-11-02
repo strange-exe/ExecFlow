@@ -1659,6 +1659,12 @@ input.switch {
   }
   .run-outcome { display: flex; flex: 1 1 0; min-width: 0; }
   .run-outcome > .receipt { column-gap: var(--s2); }
+  /* After a failed run, Run's outline and icon are in the text colour here: on the strip's ground the
+     secondary edge measured level with Capture in the top bar (owner, 2026-11-02: "Darker outline").
+     Its word keeps the fill's weight. The error jump keeps the lead: it is the one danger-coloured
+     control. */
+  .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) { border-color: var(--text); font-weight: var(--w-strong); }
+  .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) .run-icon { color: var(--text); }
   .run-strip > .runtime { flex: 0 1 auto; }
   .run-strip > .runtime > span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
   .workbench[data-open="false"] .run-strip > .runtime,

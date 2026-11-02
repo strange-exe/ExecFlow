@@ -1331,15 +1331,17 @@ for (const scheme of ["light", "dark"] as const) {
       expect(after[kind]["#run-button"]).toBeGreaterThan(after[kind]["#snippet-button"]);
     }
     if (scheme === "light") await hierarchyShots(page, test.info().outputPath("head-after"));
-    // From 1100 px: before a run Run (the strip's one fill) far outweighs Capture, and after a failure
-    // the error jump still leads Capture. The stepped-back Run (an outline, as everywhere) on the
-    // strip's ground measures about level with Capture there, so it is recorded, not asserted.
+    // From 1100 px: after a failure the error jump still leads Capture, and the stepped-back Run (an
+    // outline in the text colour on the strip's ground) outweighs Capture too.
     await page.setViewportSize({ width: 1440, height: 900 });
     await expect(page.locator(".run-strip > #run-button")).toBeVisible();
     await expect(page.locator("#error-jump")).toBeVisible();
     const wide = await headSalience(page);
     info.annotations.push({ type: `24 after, 1440 (${scheme})`, description: JSON.stringify(wide) });
-    for (const kind of ["gray", "blur"]) expect(wide[kind]["#error-jump"]).toBeGreaterThan(wide[kind]["#snippet-button"]);
+    for (const kind of ["gray", "blur"]) {
+      expect(wide[kind]["#error-jump"]).toBeGreaterThan(wide[kind]["#snippet-button"]);
+      expect(wide[kind]["#run-button"], `${kind}: Run against Capture at 1440`).toBeGreaterThan(wide[kind]["#snippet-button"]);
+    }
   });
 }
 
