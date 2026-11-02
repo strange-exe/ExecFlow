@@ -381,10 +381,13 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   function applyZoom(anchor?: { x: number; y: number }) {
     if (!svgEl || !layout) return;
     const before = svgEl.getBoundingClientRect().width || layout.width;
-    svgEl.setAttribute("width", String(Math.round(layout.width * zoom)));
-    svgEl.setAttribute("height", String(Math.round(layout.height * zoom)));
-    // The run trace's chips stay their own size below 100 % (flowchart.css): an 11 px count.
-    svgEl.style.setProperty("--fc-chip-k", String(zoom < 1 ? 1 / zoom : 1));
+    const [w, h] = [Math.round(layout.width * zoom), Math.round(layout.height * zoom)];
+    svgEl.setAttribute("width", String(w));
+    svgEl.setAttribute("height", String(h));
+    // The run trace's chips stay their own size below 100 % (flowchart.css): an 11 px count. By the
+    // scale the chart is really drawn at (its rounded size against its viewBox), so never 10.99 px.
+    const drawn = Math.min(w / layout.width, h / layout.height);
+    svgEl.style.setProperty("--fc-chip-k", String(drawn < 1 ? 1 / drawn : 1));
     if (anchor) {
       // Keep the point under the pointer where it was.
       const ratio = (layout.width * zoom) / before;

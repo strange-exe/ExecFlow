@@ -260,10 +260,13 @@ test.describe("run trace", () => {
     const sizes = () =>
       stage(page).evaluate((svg) => {
         const zoom = svg.getBoundingClientRect().width / Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+        const k = Number(getComputedStyle(svg).getPropertyValue("--fc-chip-k") || 1);
         const chips = [...svg.querySelectorAll('[data-part="count"]')].map((g) => ({
           text: g.querySelector("text")!.getBoundingClientRect().height,
           rect: g.querySelector("rect")!.getBoundingClientRect().height,
           font: Number.parseFloat(getComputedStyle(g.querySelector("text")!).fontSize),
+          // The count's size on screen: its 11 px font at the drawn scale, times the chip's own scale.
+          screenFont: Number.parseFloat(getComputedStyle(g.querySelector("text")!).fontSize) * zoom * k,
         }));
         // A box's words, for comparison: drawn at the chart's zoom.
         const word = svg.querySelector(".fc-node text")!.getBoundingClientRect().height;
@@ -273,6 +276,7 @@ test.describe("run trace", () => {
     expect(fitted.zoom, "the fit draws this chart below 100 %").toBeLessThan(0.95);
     for (const c of fitted.chips) {
       expect(c.font).toBe(11);
+      expect(c.screenFont, JSON.stringify(c)).toBeGreaterThanOrEqual(11 - 1e-9);
       // The count's glyph box at an 11 px font (about 1.2 em), and the chip's 16 px height, on screen.
       expect(c.text, JSON.stringify(c)).toBeGreaterThanOrEqual(11);
       expect(c.rect, JSON.stringify(c)).toBeGreaterThanOrEqual(15.5);
