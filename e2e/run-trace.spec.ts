@@ -28,7 +28,26 @@ const MARKS = [
   'print("Best:", best)',
   "",
 ].join("\n");
-const SUMMARY = "Path of the last run: the loop i < n ran 5 times; marks[i] > best was Yes 2 times, No 3 times.";
+// Nested ifs, elif, continue and break: a chart the fit draws below 100 % at 1440 x 900.
+const GRADES = [
+  "scores = [55, 91, 78, 0, 64, 88, 102]",
+  "passed = 0",
+  "for s in scores:",
+  "    if s == 0:",
+  "        continue",
+  "    if s > 100:",
+  "        break",
+  "    if s >= 90:",
+  '        print("A")',
+  "    elif s >= 75:",
+  '        print("B")',
+  "    else:",
+  '        print("C")',
+  "    passed += 1",
+  "print(passed)",
+  "",
+].join("\n");
+const SUMMARY ="Path of the last run: the loop i < n ran 5 times; marks[i] > best was Yes 2 times, No 3 times.";
 
 const view = (page: Page) => page.locator(".fc-view").first();
 const stage = (page: Page) => page.locator(".fc-stage svg");
@@ -73,7 +92,8 @@ async function download(page: Page, name: "Download PNG" | "Download SVG"): Prom
 test.describe("run trace", () => {
   test("a Python run thickens the connectors by count, chips each branch and loop-back, and says the path", async ({ page }) => {
     await tracedMarks(page);
-    await expect(caption(page)).toHaveText("Path of the last run");
+    await expect(caption(page)).toHaveText("Last run");
+    await expect(caption(page)).toHaveAttribute("title", "Path of the last run");
     await expect(caption(page)).toBeVisible();
     // Branches and loop-backs: the loop's Yes 5 and No 1, the test's Yes 2 and No 3, the loop-back 5.
     await expect(chips(page)).toHaveCount(5);
@@ -202,7 +222,8 @@ test.describe("run trace", () => {
     await expect(chips(page).filter({ hasText: "3x" })).toHaveCount(2); // the loop's Yes and its loop-back
     await page.locator("#fc-picker").selectOption({ label: "evens" });
     await expect(view(page)).toHaveAttribute("data-trace", "none");
-    await expect(caption(page)).toHaveText("Ran; generators aren't traced");
+    await expect(caption(page)).toHaveText("Not traced");
+    await expect(caption(page)).toHaveAttribute("title", "Ran in the last run; generators aren't traced");
     await expect(caption(page)).toBeVisible();
     await expect(said(page)).toHaveText("evens ran in the last run; generators and coroutines aren't traced.");
     await expect(traced(page)).toHaveCount(0);
@@ -229,6 +250,74 @@ test.describe("run trace", () => {
     expect(await traced(page).first().evaluate((p) => getComputedStyle(p).strokeDashoffset)).toMatch(/^0(px)?$/);
   });
 
+  test("at 1440 the fitted chart is below 100 %, and its chips keep an 11 px count; zooming in leaves them as drawn", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openChart(page, "grades.py", GRADES);
+    const r = await run(page, { timeout: 120_000 });
+    expect(r.status, r.output).toBe("ok");
+    await expect(view(page)).toHaveAttribute("data-trace", "shown");
+    await expect(chips(page)).toHaveCount(10);
+    const sizes = () =>
+      stage(page).evaluate((svg) => {
+        const zoom = svg.getBoundingClientRect().width / Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+        const chips = [...svg.querySelectorAll('[data-part="count"]')].map((g) => ({
+          text: g.querySelector("text")!.getBoundingClientRect().height,
+          rect: g.querySelector("rect")!.getBoundingClientRect().height,
+          font: Number.parseFloat(getComputedStyle(g.querySelector("text")!).fontSize),
+        }));
+        // A box's words, for comparison: drawn at the chart's zoom.
+        const word = svg.querySelector(".fc-node text")!.getBoundingClientRect().height;
+        return { zoom, chips, word };
+      });
+    const fitted = await sizes();
+    expect(fitted.zoom, "the fit draws this chart below 100 %").toBeLessThan(0.95);
+    for (const c of fitted.chips) {
+      expect(c.font).toBe(11);
+      // The count's glyph box at an 11 px font (about 1.2 em), and the chip's 16 px height, on screen.
+      expect(c.text, JSON.stringify(c)).toBeGreaterThanOrEqual(11);
+      expect(c.rect, JSON.stringify(c)).toBeGreaterThanOrEqual(15.5);
+    }
+    // Without the counter-scale they would shrink with the boxes' words.
+    expect(fitted.chips[0].text).toBeGreaterThan(fitted.word * (11 / 13) * 1.05);
+    // Zoomed in past 100 %, the chips grow with the chart as everything else does.
+    for (let i = 0; i < 3; i++) await page.locator("#fc-zoom-in").click();
+    const zoomed = await sizes();
+    expect(zoomed.zoom).toBeGreaterThan(1);
+    // 16 px at the zoom (Firefox's box also holds the 1 px border's outer half).
+    expect(Math.abs(zoomed.chips[0].rect - 16 * zoomed.zoom), JSON.stringify(zoomed.chips[0])).toBeLessThanOrEqual(1.5 * zoomed.zoom);
+  });
+
+  for (const width of [1100, 1440]) {
+    test(`at ${width} px the chart bar stays one row with the trace's caption`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openChart(page, "marks.py", MARKS);
+      const bar = page.locator(".fc-view .fc-toolbar").first();
+      const row = () =>
+        bar.evaluate((b) => {
+          const shown = [...b.children].filter((c) => (c as HTMLElement).offsetParent !== null).map((c) => c.getBoundingClientRect());
+          // One row: some horizontal line crosses every shown item (a wrapped item starts below another's foot).
+          return { height: b.getBoundingClientRect().height, oneRow: Math.max(...shown.map((r) => r.top)) < Math.min(...shown.map((r) => r.bottom)) };
+        });
+      const before = await row();
+      const r = await run(page, { timeout: 120_000 });
+      expect(r.status, r.output).toBe("ok");
+      await expect(view(page)).toHaveAttribute("data-trace", "shown");
+      const after = await row();
+      expect(after.height, `bar height ${before.height} before the run, ${after.height} after`).toBe(before.height);
+      expect(before.oneRow, "one row before the run").toBe(true);
+      expect(after.oneRow, "one row after the run").toBe(true);
+      const shown = await caption(page).isVisible();
+      if (shown) {
+        // Between Fit and Steps as text, inside its room; the whole sentence in its title.
+        await expect(caption(page)).toHaveAttribute("title", "Path of the last run");
+        const [cap, fitB, end] = await Promise.all([caption(page), page.locator("#fc-fit"), page.locator(".fc-view .fc-end").first()].map(async (l) => (await l.boundingBox())!));
+        expect(cap.x, "after Fit").toBeGreaterThanOrEqual(fitB.x + fitB.width - 1);
+        expect(cap.x + cap.width, "before Steps as text").toBeLessThanOrEqual(end.x + 1);
+      }
+      test.info().annotations.push({ type: `${width} px`, description: `bar ${after.height} px; caption ${shown ? "shown" : "hidden (a narrow board)"}` });
+    });
+  }
+
   test("the trace stays through a theme switch, in the new theme's colours", async ({ page }) => {
     await tracedMarks(page);
     const before = await chips(page).first().locator("rect").evaluate((r) => getComputedStyle(r).fill);
@@ -242,7 +331,7 @@ test.describe("run trace", () => {
     await expect(view(page)).toHaveAttribute("data-trace", "shown");
     await expect(chips(page)).toHaveCount(5);
     expect(await edgeCounts(page)).toContain("5:4px");
-    await expect(caption(page)).toHaveText("Path of the last run");
+    await expect(caption(page)).toHaveText("Last run");
     await expect.poll(() => chips(page).first().locator("rect").evaluate((r) => getComputedStyle(r).fill)).not.toBe(before);
   });
 });

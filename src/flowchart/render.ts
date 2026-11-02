@@ -112,8 +112,12 @@ export interface TraceMark {
   step: number;
   /** The connector's width (traceWidth). */
   width: number;
-  /** The chip with the count, on a branch (a labelled edge), a loop's way back, or a break or continue. */
-  chip: { x: number; y: number; w: number; h: number; text: string } | null;
+  /**
+   * The chip with the count, on a branch (a labelled edge), a loop's way back, or a break or
+   * continue. (ox, oy): the point it stays on when the view scales it up to stay legible (the
+   * edge of the chip next to its label, or its middle on the line).
+   */
+  chip: { x: number; y: number; w: number; h: number; text: string; ox: number; oy: number } | null;
 }
 
 /**
@@ -139,8 +143,10 @@ export function traceMarks(chart: FlowChart, layout: Layout, ct: ChartTrace): (T
       // Centred on the label's x-height, on the label's far side from its box: just after a label
       // that starts at the corner ("Yes 5x"), just before one that ends at it ("5x Yes", left of a
       // decision's left corner), so the chip never runs into the diamond.
-      const x = e.labelAt.anchor === "end" ? r.x0 - CHIP.gap - w : r.x1 + CHIP.gap;
-      mark.chip = { x, y: Math.round(e.labelAt.y - 4 - h / 2), w, h, text };
+      const end = e.labelAt.anchor === "end";
+      const x = end ? r.x0 - CHIP.gap - w : r.x1 + CHIP.gap;
+      const y = Math.round(e.labelAt.y - 4 - h / 2);
+      mark.chip = { x, y, w, h, text, ox: end ? x + w : x, oy: y + h / 2 };
       return mark;
     }
     let best = { len: -1, mid: e.points[0] };
@@ -149,7 +155,8 @@ export function traceMarks(chart: FlowChart, layout: Layout, ct: ChartTrace): (T
       const len = Math.hypot(q.x - p.x, q.y - p.y);
       if (len > best.len) best = { len, mid: { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 } };
     }
-    mark.chip = { x: Math.round(best.mid.x - w / 2), y: Math.round(best.mid.y - h / 2), w, h, text };
+    const [x, y] = [Math.round(best.mid.x - w / 2), Math.round(best.mid.y - h / 2)];
+    mark.chip = { x, y, w, h, text, ox: x + w / 2, oy: y + h / 2 };
     return mark;
   });
 }
@@ -157,7 +164,9 @@ export function traceMarks(chart: FlowChart, layout: Layout, ct: ChartTrace): (T
 /** The chip as SVG: a rounded rect and its count. */
 function chip(doc: SvgDocument, m: TraceMark, STYLE: Styles, live: boolean): SVGGElement {
   const c = m.chip!;
-  const g = el(doc, "g", live ? { "data-part": "count", "data-count": m.count, style: `--fc-i:${m.step}` } : {});
+  // In the view, flowchart.css scales the chip by --fc-chip-k (the view's 1 / zoom below 100 %)
+  // about (ox, oy), so its 11 px count stays 11 px on screen; the export draws it as laid out.
+  const g = el(doc, "g", live ? { "data-part": "count", "data-count": m.count, style: `--fc-i:${m.step};transform-origin:${c.ox}px ${c.oy}px` } : {});
   g.appendChild(el(doc, "rect", { x: c.x, y: c.y, width: c.w, height: c.h, rx: CHIP.rx, style: STYLE.chip }));
   const t = el(doc, "text", { x: c.x + c.w / 2, y: c.y + c.h / 2 + CHIP.fontSize * 0.35, "text-anchor": "middle", style: STYLE.chipText });
   t.textContent = c.text;

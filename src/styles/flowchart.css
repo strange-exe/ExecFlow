@@ -128,13 +128,20 @@
   animation: fc-chip-in 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   animation-delay: calc(var(--fc-i, 0) * 50ms + 480ms);
 }
+/* The chips keep their 11 px count on screen when the chart is drawn below 100 % (fitted or zoomed
+   out): flowchart-view.ts sets --fc-chip-k to 1 / zoom there, and each chip grows about the point
+   render.ts gives it (its edge by the label, or its middle on the line). Exports draw them as laid out. */
+[data-part="count"] { transform: scale(var(--fc-chip-k, 1)); transform-box: view-box; }
 @keyframes fc-trace-draw { from { stroke-dashoffset: 1.01; } to { stroke-dashoffset: 0; } }
 @keyframes fc-chip-in { from { opacity: 0; } to { opacity: 1; } }
 /* An edit makes the trace stale: it goes at once (the redraw then drops it). */
 .fc-view[data-trace="stale"] :is([data-part="trace"], [data-part="counts"], .fc-legend [data-trace]) { display: none; }
 .fc-view[data-trace="stale"] .fc-trace-caption { visibility: hidden; }
 /* Says what the lines and chips are: quiet tier, beside the function picker. */
-.fc-trace-caption { margin: 0; color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); white-space: nowrap; }
+/* It takes only the room the bar has left (no basis of its own, so it never wraps the bar: one row
+   from 1100 px, as before a run) and cuts short with an ellipsis; its title has the whole sentence.
+   The negative margin gives back the bar's column gap it brings, and the indent puts it back inside. */
+.fc-trace-caption { flex: 1 1 0; min-width: 0; margin: 0 0 0 calc(-1 * var(--s3)); text-indent: var(--s3); overflow: hidden; color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); white-space: nowrap; text-overflow: ellipsis; }
 .fc-trace-caption[hidden] { display: none; }
 @container fc-view (max-width: 599px) {
   .fc-trace-caption { display: none; }

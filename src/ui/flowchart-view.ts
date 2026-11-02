@@ -104,15 +104,16 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   // On the chart board (Flow Board, 1100 px and wider) the bar starts with the board's name, where
   // the console's tab named it before; elsewhere a tab or the dialog names the view (flowchart.css).
   // Shown with a run trace (Flow Board): what the thick lines and chips are.
-  const traceCaption = h("p", { class: "fc-trace-caption", id: "fc-trace-caption" }, "Path of the last run");
+  const traceCaption = h("p", { class: "fc-trace-caption", id: "fc-trace-caption" }, "Last run");
   traceCaption.hidden = true;
   const toolbar = h(
     "div",
     { class: "fc-toolbar" },
     h("h2", { class: "fc-title" }, "Flowchart"),
     h("div", { class: "fc-group fc-pick" }, pickerLabel, picker),
-    traceCaption,
     h("div", { class: "fc-group", role: "group", "aria-label": "Zoom" }, zoomOut, zoomIn, fitButton),
+    // In the room the bar has left (flowchart.css): it never wraps the bar, and cuts short instead.
+    traceCaption,
     // At the bar's end; on a very narrow bar (a 320 px phone) these three wrap together to a second row.
     h("div", { class: "fc-group fc-end" }, stepsToggle, exportButton, fullButton),
   );
@@ -332,7 +333,14 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     // A generator or coroutine ran, but its lines aren't recorded (the Python helper skips them).
     const untraced = !traced && run !== null && ranUntraced(result, run.trace, program);
     traceCaption.hidden = !run;
-    traceCaption.textContent = traced ? "Path of the last run" : untraced ? "Ran; generators aren't traced" : "Not called in the last run";
+    // A short word in the bar; the whole sentence in its title (and the live region says it).
+    const [short, whole] = traced
+      ? ["Last run", "Path of the last run"]
+      : untraced
+        ? ["Not traced", "Ran in the last run; generators aren't traced"]
+        : ["Not called", "Not called in the last run"];
+    traceCaption.textContent = short;
+    traceCaption.title = whole;
     steps.replaceChildren(...stepList(result, traced).map((s) => h("li", null, s.text)));
     const kinds = new Set(result.nodes.map((n) => n.kind));
     legend.replaceChildren(
@@ -375,6 +383,8 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     const before = svgEl.getBoundingClientRect().width || layout.width;
     svgEl.setAttribute("width", String(Math.round(layout.width * zoom)));
     svgEl.setAttribute("height", String(Math.round(layout.height * zoom)));
+    // The run trace's chips stay their own size below 100 % (flowchart.css): an 11 px count.
+    svgEl.style.setProperty("--fc-chip-k", String(zoom < 1 ? 1 / zoom : 1));
     if (anchor) {
       // Keep the point under the pointer where it was.
       const ratio = (layout.width * zoom) / before;

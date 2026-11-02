@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { labelRect, layoutChart, type LaidEdge } from "./layout";
 import type { FlowChart, FlowNode } from "./model";
-import { arrowCorners, arrowLength, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList, TRACE_LEGEND, traceSwatch } from "./render";
+import { arrowCorners, arrowLength, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList, TRACE_LEGEND, traceMarks, traceSwatch } from "./render";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 import { MARKS, MARKS_LINES, moduleTrace } from "./fixtures/trace-runs";
@@ -353,26 +353,34 @@ describe("the run trace on the chart", () => {
     const svg = renderChart(chart, layout, fakeDocument as unknown as Document, undefined, trace) as unknown as FakeElement;
     const chips = svg.all().filter((e) => e.getAttribute("data-part") === "count");
     expect(chips.map((c) => c.textContent).sort()).toEqual(["1x", "1x", "1x", "2x", "2x", "4x", "5x", "5x", "6x", "7x"]);
-    const rects = chips.map((c) => {
-      const r = c.children[0] as FakeElement;
-      const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => Number(r.getAttribute(k)));
-      return { text: c.textContent, x, y, w, h };
-    });
+    // Each chip as laid out (k 1), and as the view draws it at its smallest fit (FIT_FLOOR, 75 %):
+    // scaled by 1 / zoom about its transform-origin, so its count stays 11 px on screen.
+    // The view's smallest fit (ui/flowchart-view.ts, which needs a page to load: read as text).
+    const FIT_FLOOR = 0.75;
+    expect(readFileSync("src/ui/flowchart-view.ts", "utf8")).toContain(`FIT_FLOOR = ${FIT_FLOOR};`);
+    const marks = traceMarks(chart, layout, trace).filter((m) => m?.chip);
+    for (const m of marks) expect(chips.some((c) => (c.getAttribute("style") ?? "").includes(`transform-origin:${m!.chip!.ox}px ${m!.chip!.oy}px`))).toBe(true);
     const inBox = (b: (typeof layout.boxes)[number], px: number, py: number) =>
       b.kind === "decision"
         ? Math.abs(px - (b.x + b.w / 2)) / (b.w / 2) + Math.abs(py - (b.y + b.h / 2)) / (b.h / 2) < 1
         : px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h;
     const problems: string[] = [];
-    for (const [i, c] of rects.entries()) {
+    for (const k of [1, 1 / FIT_FLOOR]) {
+      const rects = marks.map((m) => {
+        const c = m!.chip!;
+        return { text: `${c.text} (scale ${k.toFixed(2)})`, x: c.ox + (c.x - c.ox) * k, y: c.oy + (c.y - c.oy) * k, w: c.w * k, h: c.h * k };
+      });
+      for (const [i, c] of rects.entries()) {
       // Every point of the chip, a pixel apart, against every box's own shape.
-      for (const b of layout.boxes) {
-        let hit = false;
-        for (let px = c.x; px <= c.x + c.w && !hit; px++) for (let py = c.y; py <= c.y + c.h && !hit; py++) hit = inBox(b, px, py);
-        if (hit) problems.push(`chip ${c.text} over box ${chart.nodes[b.id].text}`);
+        for (const b of layout.boxes) {
+          let hit = false;
+          for (let px = c.x; px <= c.x + c.w && !hit; px++) for (let py = c.y; py <= c.y + c.h && !hit; py++) hit = inBox(b, px, py);
+          if (hit) problems.push(`chip ${c.text} over box ${chart.nodes[b.id].text}`);
+        }
+        const apart = (a: { x0: number; y0: number; x1: number; y1: number }) => c.x + c.w <= a.x0 || c.x >= a.x1 || c.y + c.h <= a.y0 || c.y >= a.y1;
+        for (const e of layout.edges) if (e.label !== undefined && e.labelAt && !apart(labelRect(e.labelAt, e.label))) problems.push(`chip ${c.text} over label ${e.label}`);
+        for (const d of rects.slice(i + 1)) if (!apart({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h })) problems.push(`chip ${c.text} over chip ${d.text}`);
       }
-      const apart = (a: { x0: number; y0: number; x1: number; y1: number }) => c.x + c.w <= a.x0 || c.x >= a.x1 || c.y + c.h <= a.y0 || c.y >= a.y1;
-      for (const e of layout.edges) if (e.label !== undefined && e.labelAt && !apart(labelRect(e.labelAt, e.label))) problems.push(`chip ${c.text} over label ${e.label}`);
-      for (const d of rects.slice(i + 1)) if (!apart({ x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h })) problems.push(`chip ${c.text} over chip ${d.text}`);
     }
     expect(problems).toEqual([]);
   });
