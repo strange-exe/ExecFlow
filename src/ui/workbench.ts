@@ -970,7 +970,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       const { count, skipped, name, zip } = await downloadPicked(store, ws, picks, record.name, shown);
       const leftOut = skipped.length ? ` Left out ${listNames(skipped.map(nameOf))}: read-only files from GitHub are only stored there.` : "";
       if (!count) notice.show(skipped.length ? `Nothing to download.${leftOut}` : "Nothing to download: there are no files in it.", { tone: "info" });
-      else notice.show(`Saved ${zip ? `${plural(count, "file")} as ${name}` : name}.${leftOut}`, { tone: "success" });
+      else notice.show(`Saved ${zip ? `${plural(count, "file")} as ${name}` : name}.${leftOut}`, { tone: "success", brief: !leftOut });
     } catch (e) {
       notice.show(`The download didn't work: ${errorText(e)}`);
     }
@@ -1002,7 +1002,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     await saves.flushAll();
     try {
       const { count, skipped } = await exportZip(store, ws, record.name);
-      notice.show(`Saved ${plural(count, "file")} as a .zip.${skipped.length ? ` Left out ${listNames(skipped.map(nameOf))}: read-only files from GitHub are only stored there.` : ""}`, { tone: "success" });
+      notice.show(`Saved ${plural(count, "file")} as a .zip.${skipped.length ? ` Left out ${listNames(skipped.map(nameOf))}: read-only files from GitHub are only stored there.` : ""}`, { tone: "success", brief: !skipped.length });
     } catch (e) {
       notice.show(`The export didn't work: ${errorText(e)}`);
     }

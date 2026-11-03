@@ -313,15 +313,15 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
   add("theme", "Settings", "Change the colour theme...", (o) => api.act.settings(o), undefined, "color dark light mode appearance");
   add("wrap", "Settings", toggle("line wrapping", s.lineWrapping), () => {
     const on = api.settings.update({ lineWrapping: !api.settings.get().lineWrapping }).lineWrapping;
-    api.notice.show(`Line wrapping is ${on ? "on" : "off"}.`, { tone: "info" });
+    api.notice.show(`Line wrapping is ${on ? "on" : "off"}.`, { tone: "info", brief: true });
   }, undefined, "wrap long lines");
   add("suggest", "Settings", toggle("suggestions while typing", s.suggestOnTyping), () => {
     const on = api.settings.update({ suggestOnTyping: !api.settings.get().suggestOnTyping }).suggestOnTyping;
-    api.notice.show(`Suggestions while typing are ${on ? "on" : "off"}.`, { tone: "info" });
+    api.notice.show(`Suggestions while typing are ${on ? "on" : "off"}.`, { tone: "info", brief: true });
   }, undefined, "autocomplete completion");
   const size = (by: number) => () => {
     const px = api.settings.update({ codeSize: api.settings.get().codeSize + by }).codeSize;
-    api.notice.show(`The code text is ${px} px.`, { tone: "info" });
+    api.notice.show(`The code text is ${px} px.`, { tone: "info", brief: true });
   };
   add("text-larger", "Settings", "Make the code text larger", size(1), undefined, "font size zoom bigger");
   add("text-smaller", "Settings", "Make the code text smaller", size(-1), undefined, "font size zoom");
@@ -332,7 +332,7 @@ export function buildCommands(api: PaletteApi): PaletteCommand[] {
     add("sync-message", "GitHub", "Sync now with a message...", (o) => api.act.syncWithMessage(o), undefined, "commit describe push upload");
     add("auto-sync", "GitHub", toggle("automatic sync", s.autoSync), () => {
       const on = api.settings.update({ autoSync: !api.settings.get().autoSync }).autoSync;
-      api.notice.show(`Automatic sync is ${on ? "on" : "off"}.`, { tone: "info" });
+      api.notice.show(`Automatic sync is ${on ? "on" : "off"}.`, { tone: "info", brief: true });
     }, undefined, "auto");
   } else add("connect", "GitHub", "Connect GitHub...", () => api.act.connect(), undefined, "repository sync login");
 

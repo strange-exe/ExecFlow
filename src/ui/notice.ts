@@ -20,7 +20,18 @@ export interface NoticeOptions {
    * new pinned notice replaces the last.
    */
   pin?: { key: string; onDismiss?: () => void };
+  /**
+   * A confirmation of what the user just did ("Line wrapping is on."): it goes by itself after
+   * BRIEF_MS, counted only while the page is in front and the notice isn't pointed at or focused.
+   * Ignored with an action, a link or a pin: those wait for the user.
+   */
+  brief?: boolean;
 }
+
+/** How long a brief notice stays: counted while it can be read, never while it is held. */
+export const BRIEF_MS = 6000;
+/** After a hold (pointer, focus, the tab in the background), what is left is at least this. */
+const RESUME_MS = 2000;
 
 /** An absolute http(s) URL as written, else null (never javascript:, data: or a relative path). */
 function linkHref(href: string): string | null {
@@ -59,6 +70,48 @@ export function createNotice(options: { returnFocus?: () => HTMLElement | null }
   /** The notice that stays until acted on, and whether it is the one on the line now. */
   let pinned: { text: string; options: NoticeOptions } | null = null;
   let showingPinned = false;
+  /** A brief notice's time still to run, and its timer while it runs (none while it is held). */
+  let brief: { left: number; since: number; timer?: ReturnType<typeof setTimeout> } | null = null;
+  let motion: Animation | null = null;
+  const held = () => document.hidden || element.matches(":hover") || element.contains(document.activeElement);
+  function stopBrief() {
+    if (brief?.timer !== undefined) clearTimeout(brief.timer);
+    brief = null;
+  }
+  function holdBrief() {
+    if (brief?.timer === undefined) return;
+    clearTimeout(brief.timer);
+    brief.timer = undefined;
+    brief.left -= Date.now() - brief.since;
+  }
+  function runBrief() {
+    if (!brief || brief.timer !== undefined || held()) return;
+    brief.since = Date.now();
+    brief.timer = setTimeout(() => {
+      brief = null;
+      clear();
+    }, Math.max(brief.left, RESUME_MS));
+  }
+  element.addEventListener("pointerenter", holdBrief);
+  element.addEventListener("pointerleave", () => setTimeout(runBrief));
+  element.addEventListener("focusin", holdBrief);
+  element.addEventListener("focusout", () => setTimeout(runBrief));
+  document.addEventListener("visibilitychange", () => (document.hidden ? holdBrief() : runBrief()));
+  /**
+   * Where the notice is a card (the code board's foot, the file list's foot) its CSS sets
+   * --notice-rise, and each new notice rises into place by it: moved only, never faded, so its text
+   * keeps full contrast from the first frame. In the status bar's line it just appears. Which one
+   * it did is data-enter ("rise" or "none").
+   */
+  function enter() {
+    motion?.cancel();
+    motion = null;
+    const rise = getComputedStyle(element).getPropertyValue("--notice-rise").trim();
+    const still = !rise || typeof element.animate !== "function" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.dataset.enter = still ? "none" : "rise";
+    if (still) return;
+    motion = element.animate([{ transform: `translateY(${rise})` }, { transform: "none" }], { duration: 160, easing: "cubic-bezier(0, 0, 0.2, 1)" });
+  }
   const refocus = () => {
     if (element.contains(document.activeElement)) options.returnFocus?.()?.focus({ preventScroll: true });
   };
@@ -95,9 +148,16 @@ export function createNotice(options: { returnFocus?: () => HTMLElement | null }
     action.hidden = !safe || !options.action;
     action.textContent = safe ? shown(options.action?.label ?? "") : "";
     dismiss.hidden = !safe;
+    if (safe) enter();
+    else {
+      motion?.cancel();
+      motion = null;
+      delete element.dataset.enter;
+    }
   }
 
   function show(message: string, options: NoticeOptions = {}): void {
+    stopBrief();
     if (options.pin && message) pinned = { text: message, options };
     // An empty message is a clear: the pinned notice (if any) is what the line shows then.
     if (!message && pinned) {
@@ -109,6 +169,10 @@ export function createNotice(options: { returnFocus?: () => HTMLElement | null }
     }
     showingPinned = Boolean(options.pin && message);
     draw(message, options);
+    if (options.brief && message && !options.action && !options.link && !options.pin) {
+      brief = { left: BRIEF_MS, since: 0 };
+      runBrief();
+    }
   }
 
   function clear(): void {
@@ -120,6 +184,7 @@ export function createNotice(options: { returnFocus?: () => HTMLElement | null }
     pinned = null;
     if (showingPinned) {
       showingPinned = false;
+      stopBrief();
       draw("", {});
     }
   }

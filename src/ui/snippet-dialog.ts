@@ -505,7 +505,8 @@ export function openSnippetDialog(args: SnippetDialogArgs): void {
         setTimeout(() => {
           const { text, tone } = captureMessage(m, { ...at, open: false });
           const action = result.kind === "denied" ? { label: "Download instead", run: () => downloadBlob(result.file, result.blob, { keepMs: KEEP_MS }) } : undefined;
-          notice.show(text, { tone, action });
+          // A done copy or download is a confirmation; a refusal or a denied copy waits to be read.
+          notice.show(text, { tone, action, brief: tone === "success" });
           mark(capture, reason);
         }, 50);
       };

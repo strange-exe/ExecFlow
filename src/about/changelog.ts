@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.28.0",
+    date: "2026-11-03",
+    title: "Notices that know when to go",
+    items: [
+      { kind: "changed", text: "A notice that only confirms what you just did, such as Line wrapping is on or a saved download, goes by itself after 6 seconds. It waits while you point at it or a button in it has the focus." },
+      { kind: "changed", text: "Errors, warnings and notices with a button stay until you deal with them, as before." },
+      { kind: "changed", text: "On wider screens a new notice rises into place, so a message that comes again is easy to spot. With reduced motion on, it just appears." },
+    ],
+  },
+  {
     version: "0.27.0",
     date: "2026-11-03",
     title: "Your Python program's path in the flowchart, and a layout you can arrange",

@@ -154,7 +154,8 @@ describe("the commands", () => {
     wrap().run(OPENER);
     expect(a.settings.get().lineWrapping).toBe(true);
     expect(wrap().label).toBe("Turn line wrapping off");
-    expect(a.notice.show).toHaveBeenCalledWith("Line wrapping is on.", { tone: "info" });
+    // A confirmation: brief, so it goes by itself (notice.ts).
+    expect(a.notice.show).toHaveBeenCalledWith("Line wrapping is on.", { tone: "info", brief: true });
   });
 
   it("a read-only tab explains instead of changing the text, as the menus do", () => {
