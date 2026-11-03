@@ -6,6 +6,25 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.29.0] - 2026-11-03
+
+A phone layout built for thumbs, and clearer menus
+
+### Added
+
+- On phones, a Code and Flowchart switch at the top shows one or the other, full size.
+- On phones, Run sits in a dock at the bottom, in reach of your thumb, with the run's status and its last three lines of output. All output opens the whole console, and your code stays on screen after a run.
+- On phones, a bar above the on-screen keyboard keeps Run and Hide keyboard in reach while you type.
+
+### Changed
+
+- On phones, long lines wrap, and a wrapped line keeps its indent, so the shape of your code stays clear.
+- On wider screens, the code menu and File actions put their items in named groups, and the item you're on is marked with a bar. Shortcuts are shown quietly beside each item.
+- An item you can't use right now stays in the menu and says why when you choose it.
+- Capture has a camera icon, and from 1280 px wide the toolbar buttons show their names.
+- Each file in the list and in the tabs has a new badge: a short word for its language in that language's colour, with a bar beside it.
+- Tabs show whole file names where they fit. When there are more tabs than room, the row scrolls and says how many more there are.
+
 ## [0.28.3] - 2026-11-03
 
 Pause means pause

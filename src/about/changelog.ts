@@ -20,6 +20,22 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.29.0",
+    date: "2026-11-03",
+    title: "A phone layout built for thumbs, and clearer menus",
+    items: [
+      { kind: "added", text: "On phones, a Code and Flowchart switch at the top shows one or the other, full size." },
+      { kind: "added", text: "On phones, Run sits in a dock at the bottom, in reach of your thumb, with the run's status and its last three lines of output. All output opens the whole console, and your code stays on screen after a run." },
+      { kind: "added", text: "On phones, a bar above the on-screen keyboard keeps Run and Hide keyboard in reach while you type." },
+      { kind: "changed", text: "On phones, long lines wrap, and a wrapped line keeps its indent, so the shape of your code stays clear." },
+      { kind: "changed", text: "On wider screens, the code menu and File actions put their items in named groups, and the item you're on is marked with a bar. Shortcuts are shown quietly beside each item." },
+      { kind: "changed", text: "An item you can't use right now stays in the menu and says why when you choose it." },
+      { kind: "changed", text: "Capture has a camera icon, and from 1280 px wide the toolbar buttons show their names." },
+      { kind: "changed", text: "Each file in the list and in the tabs has a new badge: a short word for its language in that language's colour, with a bar beside it." },
+      { kind: "changed", text: "Tabs show whole file names where they fit. When there are more tabs than room, the row scrolls and says how many more there are." },
+    ],
+  },
+  {
     version: "0.28.3",
     date: "2026-11-03",
     title: "Pause means pause",
