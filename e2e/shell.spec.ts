@@ -248,11 +248,13 @@ test.describe("phones and zoom", () => {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, `no horizontal scroll at ${size.width} x ${size.height}`).toBeLessThanOrEqual(0);
       await expect(page.locator("#run-button")).toBeInViewport();
-      await expect(page.locator(".view-bar .drawer-toggle")).toBeVisible();
+      // Files is the file's name in the top bar; the segment and the dock are on screen (option A).
+      await expect(page.locator(".topbar .drawer-toggle")).toBeVisible();
       await expect(page.locator(".view-bar")).toBeInViewport();
+      await expect(page.locator("#dock-toggle")).toBeInViewport();
       await showFiles(page);
-      // The drawer has the workspace and the tree with its actions (the rail's are in the top bar,
-      // the view bar and the tree's head here).
+      // The drawer has the workspace and the tree with its actions (the rail's are in the top bar
+      // and the tree's head here).
       await expect(page.locator("#sidebar .ws-switcher")).toBeInViewport();
       await expect(page.locator("#sidebar #new-file")).toBeInViewport();
       await page.locator(".drawer-toggle").click();

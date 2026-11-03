@@ -45,6 +45,14 @@ const WEBKIT_RECOVERED_WORKER_BLOCK = [
 const FIREFOX_CANCELLED_FONT = /^\[JavaScript Error: "downloadable font: download failed \(.*\): status=2152398850 source: \S+\.woff2"\]$/;
 
 /**
+ * WebKit doesn't know the viewport meta's interactive-widget key (index.html asks Chromium to shrink
+ * the page for the on-screen keyboard) and logs it as a console error on every load (measured
+ * 2026-11-03). It ignores the key, as the message says, and the phone layout reads the keyboard
+ * from the visual viewport there (src/ui/keyboard.ts). This exact key only.
+ */
+const WEBKIT_UNKNOWN_VIEWPORT_KEY = /^Viewport argument key "interactive-widget" not recognized and ignored\.$/;
+
+/**
  * Linux WebKit's network process can fail one of the app's own fonts from the local server with
  * this, and the page falls back to the next font in its stack (CI on a86b85e, 2026-10-31,
  * short-links.spec; never seen locally in 150 runs). Excused in WebKit only, for a hashed .woff2
@@ -198,6 +206,7 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
   const tolerated = (text: string) =>
     tolerate.some((re) => re.test(text)) ||
     (engine === "webkit" && WEBKIT_RECOVERED_WORKER_BLOCK.some((re) => re.test(text))) ||
+    (engine === "webkit" && WEBKIT_UNKNOWN_VIEWPORT_KEY.test(text)) ||
     (engine === "firefox" && FIREFOX_CANCELLED_FONT.test(text));
   /** Messages a navigation can explain: checked against the navigations once the test ends. */
   const ifNavigated: { text: string; at: number }[] = [];
@@ -550,21 +559,40 @@ export async function run(page: Page, opts: { timeout?: number; input?: string[]
   };
 }
 
-/** On narrow screens, picks Code, Output or Problems in the switch (no-op where all show). */
+/**
+ * On narrow screens: Code is the segment's Code over the dock's peek; Output and Problems are the
+ * dock opened (All output) on that tab. A no-op where all show.
+ */
 export async function showView(page: Page, view: "code" | "output" | "problems") {
-  const tab = page.locator(`#view-${view}`);
+  if (!isNarrow(page)) return;
+  if (view !== "code") return showPanel(page, view);
+  const dock = page.locator("#dock-toggle");
+  if ((await dock.getAttribute("aria-expanded")) === "true") await dock.click();
+  const tab = page.locator("#view-code");
   if (await tab.isVisible()) await tab.click();
 }
 
 /**
- * Shows Output or Problems: below 900 px with the view switch (the panel's own tabs give way to
- * it there), up to 1100 px with the panel's tab (which also opens a collapsed panel). From 1100 px
+ * Shows Output or Problems: below 900 px with the panel's tab once All output has opened the dock,
+ * up to 1100 px with the panel's tab (which also opens a collapsed panel). From 1100 px
  * the console has no tabs: the run strip's count opens the problems (a disclosure), and the head's
  * Output button goes back (or, on Output already, the head's toggle opens a collapsed console).
  */
 export async function showPanel(page: Page, tab: "output" | "problems") {
+  if (isNarrow(page)) {
+    // Phones: All output opens the whole console, whose tabs then show. Under the chart the dock is
+    // its strip alone, so Code comes first.
+    const dock = page.locator("#dock-toggle");
+    if ((await dock.getAttribute("aria-expanded")) !== "true") {
+      if ((await page.locator("#view-flowchart").getAttribute("aria-selected")) === "true") await page.locator("#view-code").click();
+      await dock.click();
+    }
+    await expect(dock).toHaveAttribute("aria-expanded", "true");
+    await page.locator(`#ptab-${tab}`).click();
+    return;
+  }
   if (!chartOnBoard(page)) {
-    await page.locator(isNarrow(page) ? `#view-${tab}` : `#ptab-${tab}`).click();
+    await page.locator(`#ptab-${tab}`).click();
     return;
   }
   const panel = page.locator("#panel");

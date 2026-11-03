@@ -100,11 +100,17 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const runtimes = new Runtimes();
   const output = new OutputView();
   L.outputPanel.append(output.element);
-  // The run's outcome ("Finished, exit code 0, ran in 41 ms"): in the run strip from 1100 px, in
-  // the run-log header under that.
-  const placeOutcome = () => output.placeReceipt(L.chartOnBoard() ? L.runOutcome : null);
+  // The run's outcome ("Finished, exit code 0, ran in 41 ms"): in the run strip from 1100 px and in
+  // the phone's dock, in the run-log header from 900 to 1099 px.
+  const placeOutcome = () => output.placeReceipt(L.chartOnBoard() || L.narrow() ? L.runOutcome : null);
   placeOutcome();
   L.onWideChange(placeOutcome);
+  L.onNarrowChange(placeOutcome);
+  // Phones: the dock's foot counts the output's lines, and its peek shows the last of them.
+  output.onLines = (lines) => L.setDockLines(lines);
+  L.onDockChange((dock) => {
+    if (dock === "peek") output.toEnd();
+  });
   // Why the output can't stand beside the code (the layout's words), said in the notice.
   L.onSay((words) => notice.show(words, { tone: "info" }));
   const problemsView = new ProblemsView();
@@ -201,12 +207,18 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let loadingEditor: Promise<EditorManager> | null = null;
   /** The Flowchart view, a lazy chunk loaded when its tab or phone view first opens (see chartHost). */
   let chartView: FlowchartView | null = null;
+  /**
+   * Long lines wrap when Settings says so, and always below 900 px (option A, 2026-11-03): a phone's
+   * code never scrolls sideways. The setting itself is kept as chosen.
+   */
+  const wrapsLines = () => settings.get().lineWrapping || L.narrow();
+  L.onNarrowChange(() => editors.setPrefs({ lineWrapping: wrapsLines() }));
   function loadEditor(): Promise<EditorManager> {
     loadingEditor ??= import("../editor/editor-manager").then(
       ({ EditorManager }) => {
         manager ??= new EditorManager({
           parent: L.editorHost,
-          prefs: { lineWrapping: settings.get().lineWrapping, suggestOnTyping: settings.get().suggestOnTyping, enterAcceptsTop: settings.get().enterAcceptsTop },
+          prefs: { lineWrapping: wrapsLines(), suggestOnTyping: settings.get().suggestOnTyping, enterAcceptsTop: settings.get().enterAcceptsTop },
           readOnly: idle.readOnly,
           // Read at each suggestion request: import and #include names, and the -std settings
           // that decide which library names fit.
@@ -1062,7 +1074,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         renderTabs();
       }
       const counts = countProblems(list);
-      for (const [tab, count] of [[L.panelTabs.problems, L.panelTabs.count], [L.viewTabs.problems, L.viewTabs.count]] as const) {
+      {
+        const { problems: tab, count } = L.panelTabs;
         count.textContent = counts.total ? String(counts.total) : "";
         count.dataset.count = String(counts.total);
         count.dataset.errors = String(counts.errors);
@@ -1112,8 +1125,15 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   // The count discloses the list (aria-expanded, layout.ts): pressed again, the console goes back to
   // Output. The focus stays on it, set here because WebKit doesn't focus a clicked button (from
   // 1100 px the console's tabs give way to it; under it the Problems tab takes the focus, as before).
+  // On phones it sits at the dock's foot: it opens the list over the code, and closes it to the peek.
   L.problemsButton.addEventListener("click", () => {
     const open = L.problemsButton.getAttribute("aria-expanded") === "true";
+    if (L.narrow()) {
+      if (open) L.setDock("peek");
+      else L.showView("problems");
+      L.problemsButton.focus();
+      return;
+    }
     L.showPanelTab(open ? "output" : "problems");
     (L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
   });
@@ -1436,9 +1456,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     // Ready before the run can fail, so its help shows with the error (a failed load says nothing).
     loadHelp().catch(() => {});
     // The panel opens on Run (to its remembered height) and shows Output. In focus code it stays the
-    // run strip, which reports the run (a program waiting for input shows its console).
+    // run strip, which reports the run (a program waiting for input shows its console). On phones the
+    // code stays on screen: the dock's peek shows the run (option A, 2026-11-03).
     L.showPanelTab("output", false, true);
-    if (L.narrow()) L.showView("output");
     setRunning("running");
     output.setPhase(lang === "python" ? "running" : "compiling", lang === "python" ? "Running" : "Compiling");
     announcer.say(`Running ${nameOf(file.path)}.`);
@@ -2102,7 +2122,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (L.narrow()) L.showView("output");
     L.showPanelTab("output");
     // Nothing printed yet: the Output tab, or from 1100 px (no tabs there) the Input fold.
-    if (!output.focus()) (L.narrow() ? L.viewTabs.output : L.chartOnBoard() ? output.inputToggle : L.panelTabs.output).focus();
+    if (!output.focus()) (L.narrow() ? L.dockToggle : L.chartOnBoard() ? output.inputToggle : L.panelTabs.output).focus();
   }
   const focused = () => (document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null);
 
@@ -2281,7 +2301,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       problems: () => {
         if (L.narrow()) L.showView("problems");
         L.showPanelTab("problems");
-        (L.narrow() ? L.viewTabs.problems : L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
+        (L.narrow() ? L.panelTabs.problems : L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
       },
       settings: (opener) => openSettings(opener),
       shortcuts: (opener) => shortcuts.open(opener),
@@ -2336,7 +2356,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   }, { capture: true });
   settings.onChange((now, before) => {
     if (now.codeSize !== before.codeSize) root.style.setProperty("--code-size", `${now.codeSize}px`);
-    if (now.lineWrapping !== before.lineWrapping) editors.setPrefs({ lineWrapping: now.lineWrapping });
+    if (now.lineWrapping !== before.lineWrapping) editors.setPrefs({ lineWrapping: wrapsLines() });
     if (now.suggestOnTyping !== before.suggestOnTyping) editors.setPrefs({ suggestOnTyping: now.suggestOnTyping });
     if (now.enterAcceptsTop !== before.enterAcceptsTop) editors.setPrefs({ enterAcceptsTop: now.enterAcceptsTop });
   });

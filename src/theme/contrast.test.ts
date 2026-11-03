@@ -298,10 +298,10 @@ describe("tokens.css and the first paint", () => {
     expect(text).toContain("\n  --shadow-pop: none;\n");
   });
 
-  it("keeps that dark console under 1100 px only: the Flow Board's console (S2) is Signal light's own light one", () => {
+  it("keeps that dark console from 900 to 1099 px only: the Flow Board's console (S2) and the phone's dock are Signal light's own light one", () => {
     const at = css.indexOf(':root[data-palette="signal"]:not([data-theme="dark"]) .panel {');
     const before = css.slice(0, at);
-    const media = before.lastIndexOf("@media (max-width: 1099px) {");
+    const media = before.lastIndexOf("@media (min-width: 900px) and (max-width: 1099px) {");
     expect(media, "the wrapping media query").toBeGreaterThan(before.lastIndexOf("}\n"));
     // The media block closes right after the rule's own closing brace.
     expect(css.slice(css.indexOf("}", at), css.indexOf("}", at) + 4)).toBe("}\n}\n");

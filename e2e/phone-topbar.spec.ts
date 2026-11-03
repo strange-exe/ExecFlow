@@ -16,10 +16,11 @@ for (const width of [320, 360, 390, 430]) {
     await importFiles(page, [ASKS, LONG]);
     for (const name of [ASKS.name, LONG.name]) {
       await openFromTree(page, name);
-      const file = page.locator(".topbar .crumb-file");
+      // Files is the file's name on phones (option A, phone dock).
+      const file = page.locator(".topbar .drawer-toggle .files-name");
       await expect(file).toHaveText(name);
       const shown = await file.evaluate((li) => {
-        const text = li.querySelector<HTMLElement>(".crumb-text")!;
+        const text = li as HTMLElement;
         const ext = li.querySelector<HTMLElement>(".crumb-ext");
         const t = text.getBoundingClientRect();
         const e = ext?.getBoundingClientRect();
@@ -33,8 +34,8 @@ for (const width of [320, 360, 390, 430]) {
       // No control lies over another (at 320 px with a long name, the 44 px sync button spilled 18 px
       // under Run, because its slot could shrink to nothing: the lead's screenshot review, 2026-10-25).
       const overlaps = await page.evaluate(() => {
-        // Workbench Pro: the mark leads the bar; Files moved to the bottom view bar.
-        const ids = [".topbar .brand-mark", ".topbar .crumb-file", "#palette-button", "#sync-status", "#run-button", "#settings-button"];
+        // The mark leads the bar, then Files (the file's name); Run is in the dock (option A).
+        const ids = [".topbar .brand-mark", ".topbar .drawer-toggle", "#palette-button", "#sync-status", "#settings-button"];
         const boxes = ids.map((s) => [s, document.querySelector(s)?.getBoundingClientRect()] as const).filter(([, r]) => r && r.width > 0);
         const out: string[] = [];
         for (let i = 0; i < boxes.length; i++)
@@ -47,13 +48,10 @@ for (const width of [320, 360, 390, 430]) {
       });
       expect(overlaps, `${name} at ${width} px: controls on top of each other`).toEqual([]);
     }
-    // The short name fits whole from 360 px (at 320 five 44 px controls and Run leave it about 58 px,
-    // one short of main.py: it is cut there, keeping its extension, as checked above).
+    // The short name fits whole at every width (Run left the top bar for the dock, option A).
     await openFromTree(page, ASKS.name);
-    if (width >= 360) {
-      const stemCut = await page.locator(".topbar .crumb-file .crumb-stem").evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-      expect(stemCut, "main.py is shown whole").toBe(false);
-    }
+    const stemCut = await page.locator(".topbar .drawer-toggle .crumb-stem").evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(stemCut, "main.py is shown whole").toBe(false);
 
     // The sync status: the icon only (no word cut in the middle), a 44 px target, and its words
     // are still its accessible name and tooltip.

@@ -2016,111 +2016,227 @@ input.switch {
   .text-btn { min-height: var(--tool); }
 }
 
-/* ------------------------------------------------------------------ narrow screens: drawer, bottom view bar */
-/* Below 900 px: the sidebar is a drawer; the top bar holds the mark, the file's name, Search, the
-   sync status, Run (44 px) and Settings (48 px tall); a bottom view bar holds Files and the Code /
-   Output / Problems / Flowchart switch (52 px items, the console's tabs give way to it); there is
-   no editor head (no tab strip: files switch in the drawer, which marks open files), so the code
-   starts under the top bar. */
+/* ------------------------------------------------------------------ phones: the segment and the dock */
+/* Below 900 px (option A "Segment and dock", the owner's pick, 2026-11-03:
+   .claude/design/redesign8/phone/options.html): the sidebar is a drawer; the top bar (48 px) holds
+   the mark, Files as the open file's name, the sync status, Search and Settings; the Code |
+   Flowchart segment sits under it (44 px tabs); the console is the dock at the foot: the run strip
+   (Run, 104 x 48, in the thumb zone; the run's outcome; the runtime state), the last 3 lines of the
+   log (6 from 600 px), then the problems count and All output, which opens the whole console in the
+   board's place. One fill: Run. There is no editor head (no tab strip: files switch in the drawer,
+   which marks open files), so the code starts under the segment. Motion: entrances ease out, exits
+   ease in, the segment's pick and the caret a spring with a slight overshoot; none under reduced
+   motion (tokens.css). */
 .drawer-scrim { display: none; }
+.files-name, .files-caret, .hide-keyboard, .dock-foot { display: none; }
+@keyframes seg-pick { from { clip-path: inset(3px round var(--r-control)); } to { clip-path: inset(0 round var(--r-control)); } }
 @media (max-width: 899px) {
   .rail { display: none; }
   .topbar-start > .brand-mark { margin-left: var(--s2); }
-  .view-bar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
-    gap: 2px;
-    padding: var(--s1) var(--s2) var(--s2);
-    background: var(--surface);
-    box-shadow: inset 0 1px 0 var(--divider);
-  }
-  .workbench[data-files="none"] .view-switch { visibility: hidden; }
-  .view-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
-  .view-bar .drawer-toggle, .view-switch [role="tab"] {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    min-width: 0;
-    height: 52px;
-    padding: 0 2px;
-    border: 0;
-    border-radius: var(--r-control);
-    background: none;
-    color: var(--text-muted);
-    font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui);
-  }
-  .view-bar .drawer-toggle > *, .view-switch [role="tab"] > * { pointer-events: none; }
-  .view-bar .icon { width: var(--icon-xl); height: var(--icon-xl); }
-  .view-bar .rail-label, .view-label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* The chosen view and an open drawer: lifted on the raised ground with a hairline ring. */
-  .view-switch [role="tab"][aria-selected="true"], .view-bar .drawer-toggle[aria-expanded="true"] { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border), var(--shadow-pop); }
-  .view-bar :focus-visible { outline-offset: -2px; }
-  /* Problems' count sits on the icon's corner. */
-  .view-switch .count { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 16px; padding: 0 3px; background: var(--surface); }
+  /* The work column: the top bar, the segment, then the board over the dock. */
+  .work { grid-template-rows: var(--h-topbar) auto minmax(0, 1fr); }
+  .work > .center { grid-row: 3; }
+  .view-bar { display: block; padding: 0 var(--s3) var(--s2); background: var(--surface); }
+  .workbench[data-files="none"] .view-bar { display: none; }
+  /* The segment: a track with the control edge; the chosen tab is the ink (--text) with the ground's
+     colour for its words (the pair text on bg, reversed). It is picked with a small spring. */
+  .view-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s1); padding: var(--s1); border-radius: var(--r-sheet); background: var(--bg); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .view-switch [role="tab"] { min-width: 0; height: var(--tool); padding: 0 var(--s2); border-radius: var(--r-control); font-family: var(--font-ui); line-height: var(--lh-2); }
+  .view-switch [role="tab"] > * { pointer-events: none; }
+  .view-switch .icon { width: var(--icon-md); height: var(--icon-md); flex: none; }
+  .view-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The ink and its words change together, at once; the spring is a clip that opens round them,
+     so the tab's own box (the hit area, and what layout and tests measure) never moves. */
+  .view-switch [role="tab"][aria-selected="true"] { background: var(--text); color: var(--bg); animation: seg-pick 260ms cubic-bezier(0.34, 1.36, 0.64, 1); }
+  /* The ring sits outside the ink, on the track's ground (focus on bg, a checked pair). */
+  .view-switch [role="tab"]:focus-visible { outline-offset: 2px; }
   .topbar { gap: var(--s1); padding: 0 var(--s1); }
-  .topbar-start { flex: 1 1 auto; gap: var(--s1); }
+  .topbar-start { flex: 1 1 auto; gap: var(--s1); min-width: 0; }
   .topbar-end { flex: none; gap: var(--s1); min-width: 0; }
+  /* Files: the open file's name in the name font and a caret (the list icon and "Files" with none
+     open). The stem gives way first, so the extension stays. */
+  .topbar .drawer-toggle { display: inline-flex; align-items: center; gap: var(--s1); min-width: 0; height: var(--tool); padding: 0 var(--s2); border: 0; border-radius: var(--r-control); background: none; color: var(--text); font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-name); white-space: nowrap; }
+  .topbar .drawer-toggle > * { pointer-events: none; }
+  .topbar .drawer-toggle .icon { width: var(--icon-md); height: var(--icon-md); flex: none; }
+  .topbar .drawer-toggle:hover { background: var(--hover); }
+  .topbar .drawer-toggle[aria-expanded="true"] { background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border); }
+  .topbar .drawer-toggle .rail-label { display: inline; font-family: var(--font-ui); }
+  .topbar .drawer-toggle[data-file="true"] > :is(.icon:first-child, .rail-label) { display: none; }
+  .topbar .drawer-toggle[data-file="true"] > .files-name { display: flex; min-width: 0; }
+  .topbar .drawer-toggle > .files-caret { display: block; width: var(--icon-sm); height: var(--icon-sm); color: var(--text-secondary); }
+  /* The caret turns inside its box (its path rotates, the icon's box keeps its 16 px). */
+  .topbar .drawer-toggle > .files-caret > path { transform-box: fill-box; transform-origin: center; transition: transform 260ms cubic-bezier(0.34, 1.36, 0.64, 1); }
+  .topbar .drawer-toggle[aria-expanded="true"] > .files-caret > path { transform: rotate(180deg); }
+  /* Unsaved typing shows as a tab shows it: italics and a dot after the name. */
+  .files-name[data-dirty="true"] { font-style: italic; }
+  .files-name[data-dirty="true"] .dirty-dot { display: block; flex: none; align-self: center; margin-left: var(--s1); }
   /* The drawer has no foot here: its notices, sync status and Settings are in the top bar and the
      status bar. */
   .sidebar-foot { display: none; }
   /* Edge-docked controls draw their focus ring inside, so no side is cut off by the window edge. */
-  .topbar :focus-visible, .view-switch :focus-visible { outline-offset: -2px; }
-  /* Run's fill would touch its inset ring (brass on the spruce fill: 1.6:1 light, 1.16:1 dark): a
-     2 px band of the bar's own ground lies between them, as the desktop ring's 2 px offset leaves,
-     so the ring meets the bar's ground on both sides (focus on surface, a checked pair in every
-     theme). Stop and the stepped-back Run have no fill: the band is the ground they already show. */
-  .topbar .btn.primary:focus-visible { box-shadow: inset 0 0 0 3px var(--surface); }
+  .topbar :focus-visible { outline-offset: -2px; }
   /* Capture lives in the editor head here, moved by layout.ts at the next frame: hidden in the top bar
      at once, so a dialog closing as the window narrows never gives focus back to it there. */
   .topbar-end > .capture-btn { display: none; }
   .palette-btn { padding: 0; }
   .palette-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
   .palette-btn-label { display: none; }
-  .crumb { padding: 0 0 0 var(--s1); flex: 0 1 auto; }
-  .crumb > .crumb-dir, .crumb > .crumb-root, .crumb-file > .crumb-sep { display: none; }
-  /* No file open: the workspace's name stands alone. */
-  .crumb > .crumb-root:only-child { display: flex; }
-  .crumb > .crumb-file { min-width: 52px; }
-  /* No tab strip here: the file name shows unsaved typing as a tab does, a dot and italics. The dot
-     sits in the gap after the name (the bar's gaps and the next control's padding leave 12 px or
-     more), so the top bar never reflows while typing toggles it. */
-  .crumb > .crumb-file { position: relative; }
-  .crumb-file[data-dirty="true"] .crumb-text { font-style: italic; }
-  .crumb-file[data-dirty="true"] .dirty-dot { display: block; position: absolute; left: calc(100% + var(--s1)); top: calc(50% - var(--s1)); pointer-events: none; }
   .main { grid-template-columns: minmax(0, 1fr); }
   .main > .splitter, .center > .splitter { display: none; }
+  /* The drawer hangs from the top bar to the window's foot (over the dock and the status bar, which
+     are inert while it is open). */
   .sidebar {
     position: fixed;
     z-index: 30;
     top: var(--h-topbar);
-    bottom: var(--h-viewbar);
+    bottom: 0;
     left: 0;
     width: min(320px, 86vw);
     border-right: 1px solid var(--divider);
     transform: translateX(-100%);
     visibility: hidden;
-    transition: transform var(--dur), visibility 0s linear var(--dur);
+    /* Out: ease-in, then hidden; in: ease-out. */
+    transition: transform 160ms cubic-bezier(0.4, 0, 1, 1), visibility 0s 160ms;
   }
-  .workbench[data-drawer="open"] .sidebar { transform: none; visibility: visible; transition: transform var(--dur); }
-  .workbench[data-drawer="open"] .drawer-scrim { display: block; position: fixed; inset: var(--h-topbar) 0 var(--h-viewbar); z-index: 29; background: var(--scrim); }
-  /* One view fills the work area: the code card, or the console card. */
-  .center, .center[data-panel="collapsed"] { grid-template-rows: minmax(0, 1fr); }
-  .center[data-view="code"] > .panel { display: none; }
-  .center:not([data-view="code"]) > .editor-area { display: none; }
-  .center > .panel { grid-row: 1; }
+  .workbench[data-drawer="open"] .sidebar { transform: none; visibility: visible; transition: transform 200ms cubic-bezier(0, 0, 0.2, 1); }
+  .workbench[data-drawer="open"] .drawer-scrim { display: block; position: fixed; inset: var(--h-topbar) 0 0; z-index: 29; background: var(--scrim); }
+
+  /* The board (the code, or the chart on its board) over the dock; All output puts the console in
+     the board's place. */
+  .center, .center[data-panel="collapsed"] { grid-template-rows: minmax(0, 1fr) auto; }
+  .center > :is(.editor-area, .chart-board) { grid-row: 1; grid-column: 1; }
+  .center > .panel { grid-row: 2; grid-column: 1; }
+  .center[data-view="flowchart"] > .editor-area { display: none; }
+  .center[data-view="flowchart"]:not([data-dock="all"]) > .chart-board { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
+  .chart-board > .panel-body { flex: 1 1 0; }
+  .center[data-dock="all"] { grid-template-rows: minmax(0, 1fr); }
+  .center[data-dock="all"] > .editor-area { display: none; }
+  .center[data-dock="all"] > .panel { grid-row: 1; }
   .editor-head { display: none; }
-  /* The console's own head (tabs, full screen, hide) gives way to the view bar; its tools row stays
-     (Output only). */
-  .panel, .panel[data-collapsed="true"] { grid-template-rows: auto minmax(0, 1fr); }
-  .panel > .panel-actions { grid-row: 1; }
-  .panel > .panel-body { grid-row: 2; }
-  .panel-bar { display: none; }
-  .panel:not([data-tab="output"]) { grid-template-rows: minmax(0, 1fr); }
-  .panel:not([data-tab="output"]) > .panel-body { grid-row: 1; }
+  /* Long lines always wrap here (workbench.ts), with a hanging indent (hanging-indent.ts): a
+     line's later rows start 2 columns past its own indent; its first row stays put (the 8 px is
+     the editor theme's line padding, highlight.ts). */
+  .cm-content.cm-lineWrapping > .cm-line.cm-hang { padding-left: calc(8px + var(--hang)); text-indent: calc(var(--hang) * -1); }
+  /* No files: the empty state over the strip alone (Run, disabled, says why). */
+  .workbench[data-files="none"] .center { grid-template-rows: minmax(0, 1fr) auto; }
+  .workbench[data-files="none"] .center > .panel { display: grid; }
+  .workbench[data-files="none"] .center > .panel > :not(.run-strip) { display: none; }
+
+  /* The dock: the strip, the console's head and tools (All output only), the body, the foot. A
+     hairline where it meets the board. */
+  .panel, .panel[data-collapsed="true"] { grid-template-rows: auto auto auto minmax(0, 1fr) auto; box-shadow: inset 0 1px 0 var(--border); --peek-lines: 3; }
+  .panel > .run-strip { grid-row: 1; }
+  .panel > .panel-bar { grid-row: 2; }
+  .panel > .panel-actions { grid-row: 3; }
+  .panel > .panel-body { grid-row: 4; }
+  .panel > .dock-foot { grid-row: 5; }
+  .center:not([data-dock="all"]) > .panel > :is(.panel-bar, .panel-actions) { display: none; }
+  /* All output: the console's head and tools on top, the log, then the strip and the foot, so Run
+     and All output stay where the thumb found them in the peek. */
+  .center[data-dock="all"] > .panel { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+  .center[data-dock="all"] > .panel > .panel-bar { grid-row: 1; }
+  .center[data-dock="all"] > .panel > .panel-actions { grid-row: 2; }
+  .center[data-dock="all"] > .panel > .panel-body { grid-row: 3; }
+  .center[data-dock="all"] > .panel > .run-strip { grid-row: 4; box-shadow: inset 0 1px 0 var(--divider); }
+  /* Under the chart the dock is its strip alone (Run and the run's outcome, as in the mock-up's
+     Flowchart frame): the chart keeps the room. The whole console is a step away: Code, then All
+     output (or Ctrl+`, which opens it from anywhere). */
+  .center[data-view="flowchart"]:not([data-dock="all"]) > .panel > :not(.run-strip) { display: none; }
+  /* All output: the console's tabs (Output, Problems: the chart has its board) at 44 px; its size
+     and Hide tools are the desktop's. */
+  .panel-bar { min-height: 56px; padding: 0 var(--s3); box-shadow: inset 0 1px 0 var(--border); }
+  .panel-bar > :is(.panel-head-tools, .panel-toggle) { display: none; }
+  .panel-tabs [role="tab"] { height: var(--tool); }
   .panel-actions { padding: 0 var(--s1); min-height: var(--h-panel-bar); }
+  .panel-actions .btn { min-height: var(--tool); }
+
+  /* The strip: the run's outcome (or the runtime state), then Run at the end, 104 x 48. One row:
+     the outcome's words wrap beside Run (at 320 px Run on a row of its own cost the code a line). */
+  .run-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    column-gap: var(--s2);
+    row-gap: var(--s1);
+    min-width: 0;
+    padding: var(--s2) var(--s3);
+    background: var(--terminal-bg);
+    color: var(--text);
+    font-size: var(--fs-2);
+    line-height: var(--lh-2);
+  }
+  .run-strip > .run-outcome { display: flex; flex: 0 1 auto; min-width: 0; }
+  .run-outcome > .receipt { column-gap: var(--s2); }
+  .run-strip > .runtime { flex: 0 1 auto; min-width: 0; }
+  .run-strip > .runtime > span { overflow: hidden; text-overflow: ellipsis; }
+  /* After a run its outcome says it all: the runtime's "ready" steps aside (a failure or a download
+     still shows). Not on the keyboard's bar, which hides the outcome and shows the state. */
+  .workbench:not([data-keyboard="open"]) .run-strip:has(> .run-outcome > .receipt:not([hidden])) > .runtime:is([data-state="ready"], [data-state="idle"]) { display: none; }
+  .workbench[data-open="false"] .run-strip > .runtime { display: none; }
+  .run-strip > .btn.run { flex: none; min-width: 104px; height: 48px; min-height: 48px; margin-left: auto; }
+  /* After a failed run Run steps back to its outline, here in the text colour (as on the desktop's
+     strip): the error button leads. */
+  .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) { border-color: var(--text); font-weight: var(--w-strong); }
+  .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) .run-icon { color: var(--text); }
+
+  /* The peek: the log's last lines (3, or 6 from 600 px), the same #console clamped from the top;
+     the error button over them after a failure. Nothing else of the console shows. */
+  .center:not([data-dock="all"]) .console-scroll { flex: none; max-height: calc(var(--peek-lines) * 1.5 * var(--code-size) + var(--s1)); overflow: hidden; }
+  .center:not([data-dock="all"]) .console { padding-block: var(--s1); }
+  .center:not([data-dock="all"]) :is(.stdin-box, .pack-offer, .console-hint, .live-input) { display: none; }
+  .center:not([data-dock="all"]) .console-scroll:not(:has(> .console[tabindex])) { display: none; }
+  .center:not([data-dock="all"]) .runlog > :not(.exc, .run-status, .end-input) { display: none; }
+  .center:not([data-dock="all"]) .runlog:not(:has(> .exc, > .run-status:not([data-phase="idle"]))) { display: none; }
+  .center:not([data-dock="all"]) .runlog { min-height: 0; padding-block: 0 var(--s2); box-shadow: none; }
+
+  /* The foot: the problems count, then All output at the end (also the way to Input before a first
+     run). Not while no file is open. */
+  .dock-foot { display: flex; align-items: center; gap: var(--s2); min-width: 0; padding: var(--s1) var(--s3) var(--s2) var(--s1); background: var(--terminal-bg); }
+  .workbench[data-open="false"] .dock-foot { display: none; }
+  .center[data-dock="all"] .dock-foot { box-shadow: inset 0 1px 0 var(--divider); padding-top: var(--s2); }
+  .dock-toggle { margin-left: auto; }
+  .dock-toggle > * { pointer-events: none; }
+  /* The caret turns inside its box (its path rotates, the icon's box keeps its 16 px). */
+  .dock-caret { width: var(--icon-sm); height: var(--icon-sm); }
+  .dock-caret > path { transform-box: fill-box; transform-origin: center; transition: transform 260ms cubic-bezier(0.34, 1.36, 0.64, 1); }
+  .dock-toggle[aria-expanded="true"] .dock-caret > path { transform: rotate(180deg); }
+  .problems-count {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    flex: 0 1 auto;
+    min-width: 0;
+    min-height: var(--tool);
+    padding: 0 var(--s2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text-secondary);
+    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
+    white-space: nowrap;
+  }
+  .problems-count > * { pointer-events: none; }
+  .problems-words { overflow: hidden; text-overflow: ellipsis; }
+  .problems-count .icon { flex: none; width: var(--icon-md); height: var(--icon-md); color: var(--text-secondary); }
+  .problems-count[data-tone="error"], .problems-count[data-tone="error"] .icon { color: var(--danger); }
+  .problems-count[data-tone="warning"] .icon { color: var(--warning); }
+  .problems-count:hover .problems-words { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* The on-screen keyboard open (layout.ts, keyboard.ts): the page is the height above it, the
+     segment and the status bar fold away, and the dock is its strip alone, a 56 px accessory bar on
+     the keyboard's edge: Hide keyboard, the runtime state, Run. */
+  .workbench[data-keyboard="open"] { height: var(--vv-h, 100dvh); min-height: 0; grid-template-rows: minmax(0, 1fr) auto auto; }
+  .workbench[data-keyboard="open"] :is(.view-bar, .statusbar) { display: none; }
+  .workbench[data-keyboard="open"] .center > .panel > :not(.run-strip) { display: none; }
+  .workbench[data-keyboard="open"] .run-strip { flex-wrap: nowrap; height: 56px; padding: 0 var(--s3) 0 var(--s1); }
+  .workbench[data-keyboard="open"] .run-strip > .run-outcome { display: none; }
+  .workbench[data-keyboard="open"] .run-strip > .runtime { display: inline-flex; }
+  .workbench[data-keyboard="open"] .hide-keyboard { display: inline-flex; flex-direction: column; gap: 0; color: var(--text-secondary); }
+  .hide-keyboard > * { pointer-events: none; }
+  .hide-keyboard .icon { width: var(--icon-md); height: var(--icon-md); }
+  .hide-keyboard .hide-keyboard-caret { width: var(--icon-sm); height: var(--icon-sm); margin-top: -2px; }
+  .hide-keyboard:hover { color: var(--text); }
+
   .label-wide { display: none; }
   .live-hint { display: none; }
   .runlog { padding: var(--s2) var(--s3); }
@@ -2137,6 +2253,10 @@ input.switch {
   .status-btn-label, #status-pos { display: none; }
   .editor-empty { padding: var(--s5) var(--s4); }
   .statusbar { flex-wrap: wrap; gap: var(--s1) var(--s3); }
+}
+/* A tablet held upright (600 to 899 px): the same dock with a 6-line peek. */
+@media (min-width: 600px) and (max-width: 899px) {
+  .center > .panel { --peek-lines: 6; }
 }
 /* Phones: the sync status is its icon (its name and tooltip keep the sentence, sync.css keeps it a
    44 px target), so the file name keeps its room: at 390 px the words got 57 of the 86 px they
@@ -2180,6 +2300,17 @@ input.switch {
   .workbench .sidebar { bottom: 0; }
   .workbench[data-drawer="open"] .drawer-scrim { bottom: 0; }
   .sidebar > .tree-host { flex: none; min-height: auto; overflow: visible; contain: none; }
+  /* The on-screen keyboard leaves a short window too, but then the page is the height above the
+     keyboard (the accessory bar on its edge), not a page that scrolls. */
+  body:has(.workbench[data-keyboard="open"]) { overflow: hidden; }
+  .workbench[data-keyboard="open"] .main { height: auto; min-height: 0; }
+}
+/* A short phone window (sideways, or 400% zoom): the segment and the dock's strip, tools and foot
+   take about 280 px, so the page gets that much more room to scroll through, and All output keeps
+   room for the run header and a waiting program's field. */
+@media (max-height: 420px) and (max-width: 899px) {
+  .main { height: max(100dvh, calc(var(--h-topbar) + 640px)); }
+  .workbench[data-keyboard="open"] .main { height: auto; }
 }
 
 /* ------------------------------------------------------------------ forced colours */
@@ -2195,7 +2326,7 @@ input.switch {
   /* The chosen editor tab, panel tab and view, and Files while the list shows: their lifted chip
      (a fill and an inset ring) becomes an outline; the segmented track keeps its edge as a border. */
   .tab[data-active="true"], .panel-tabs [role="tab"][aria-selected="true"], .view-switch [role="tab"][aria-selected="true"],
-  .rail .rail-btn[aria-expanded="true"], .view-bar .drawer-toggle[aria-expanded="true"] { outline: 2px solid var(--location); outline-offset: -2px; }
+  .rail .rail-btn[aria-expanded="true"], .view-bar .drawer-toggle[aria-expanded="true"], .topbar .drawer-toggle[aria-expanded="true"] { outline: 2px solid var(--location); outline-offset: -2px; }
   /* The open tab's join to the code is a fill over the head's rule, and fills turn into Canvas here:
      the tabs keep off the rule, so it stays whole under them and the outline above is the mark. */
   .editor-head > .tab-host { margin-bottom: 0; }

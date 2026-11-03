@@ -308,21 +308,27 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   // The sync status is in the sidebar's foot now; the breadcrumb gives way to the command field.
   expect(crumbBox.x + crumbBox.width, "the breadcrumb ends before the command field").toBeLessThanOrEqual((await box(page, "#palette-button")).x);
 
-  // A phone shows the file's name only, after the app's mark. The change of width redraws nothing in the
+  // A phone shows the file's name only, after the app's mark: Files is the name there (option A,
+  // phone dock), and the breadcrumb leaves the top bar. The change of width redraws nothing in the
   // crumb when its path is the same: a rebuild between two reads left this test on a removed node
-  // (Linux WebKit, CI 2026-10-23). The same node, marked before, is still there after.
+  // (Linux WebKit, CI 2026-10-23). The same node, marked before, is still there after the round trip.
   await crumb.locator(".crumb-file").evaluate((el) => el.setAttribute("data-probe", "kept"));
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".view-bar .drawer-toggle")).toBeVisible();
-  await page.waitForTimeout(500);
-  await expect(crumb.locator(".crumb-file"), "the crumb kept its nodes").toHaveAttribute("data-probe", "kept");
-  await expect(crumb.locator(".crumb-file")).toBeVisible();
-  await expect(crumb.locator(".crumb-dir")).toHaveCount(folders.length);
-  for (const dir of await crumb.locator(".crumb-dir").all()) await expect(dir).toBeHidden();
-  await expect(crumb.locator(".crumb-root")).toBeHidden();
+  const files = page.locator(".topbar .drawer-toggle");
+  await expect(files).toBeVisible();
+  await expect(page.locator(".topbar .crumb")).toHaveCount(0);
+  await expect(files.locator(".files-name")).toHaveText(file);
+  await expect(files).toHaveAccessibleName(`Files: ${file}`);
+  const phoneExt = await box(page, ".topbar .drawer-toggle .crumb-ext");
+  const filesBox = await box(page, ".topbar .drawer-toggle");
+  expect(phoneExt.width, "the extension is shown").toBeGreaterThan(0);
+  expect(phoneExt.x + phoneExt.width, "the extension is whole").toBeLessThanOrEqual(filesBox.x + filesBox.width + 1);
   const markBox = await box(page, ".topbar .brand-mark");
-  expect((await box(page, ".topbar .crumb-file")).x).toBeGreaterThanOrEqual(markBox.x + markBox.width);
+  expect(filesBox.x).toBeGreaterThanOrEqual(markBox.x + markBox.width);
   expect(await noOverflow(page)).toBe(true);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await expect(crumb.locator(".crumb-file")).toBeVisible();
+  await expect(crumb.locator(".crumb-file"), "the crumb kept its nodes").toHaveAttribute("data-probe", "kept");
 });
 
 for (const scheme of ["light", "dark"] as const) {
@@ -519,21 +525,25 @@ test.describe("phones", () => {
     }
   });
 
-  test("no tab strip: the drawer marks open files, Alt+W and the file menu's Close tab close them, and one switch moves between Code, Output, Problems and Flowchart", async ({ page }) => {
+  test("no tab strip: the drawer marks open files, Alt+W and the file menu's Close tab close them, and the segment moves between Code and Flowchart", async ({ page }) => {
     await openApp(page);
     await importFiles(page, FILES);
     await openFromTree(page, "main.py");
     await openFromTree(page, "calc.py");
-    // No tab list of files on screen; the top bar has the app's mark and the file's name at its
-    // start, and Search, sync, Run and Settings at its end (Workbench Pro: Files is in the view bar).
+    // No tab list of files on screen; the top bar has the app's mark and Files (the file's name) at
+    // its start, and sync, Search and Settings at its end; Run is in the dock (option A, phone dock).
     await expect(page.getByRole("tablist", { name: "Open files" })).toBeHidden();
     await expect(page.locator(".topbar .topbar-start > svg.brand-mark")).toBeVisible();
-    await expect(page.locator(".topbar .drawer-toggle")).toHaveCount(0);
-    await expect(page.locator(".topbar .crumb-file")).toHaveText("calc.py");
+    await expect(page.locator(".topbar .topbar-start > svg.brand-mark + .drawer-toggle .files-name")).toHaveText("calc.py");
     const ends = await page.locator(".topbar .topbar-end").evaluate((el) => [...el.children].filter((c) => c.getClientRects().length > 0).map((c) => c.id || c.className));
-    expect(ends).toEqual(["palette-button", "sync-slot", "run-button", "settings-button"]);
-    await expect(page.locator(".topbar #run-button")).toBeVisible();
-    expect(Math.round((await box(page, "#editor-panel")).y), "chrome above the code: the top bar only").toBe(48);
+    expect(ends).toEqual(["sync-slot", "palette-button", "settings-button"]);
+    await expect(page.locator(".topbar #run-button")).toHaveCount(0);
+    await expect(page.locator("#panel .run-strip #run-button")).toBeVisible();
+    // Chrome above the code: the top bar and the segment.
+    expect(Math.round((await box(page, ".topbar")).height)).toBe(48);
+    const seg = await box(page, ".view-bar");
+    expect(Math.round(seg.y)).toBe(48);
+    expect(Math.round((await box(page, "#editor-panel")).y), "the code starts under the segment").toBe(Math.round(seg.y + seg.height));
 
     // The drawer marks every file open in a tab, with an icon and a description. Its head carries
     // the workspace (the app's mark is in the top bar).
@@ -565,21 +575,23 @@ test.describe("phones", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".drawer-toggle")).toHaveAttribute("aria-expanded", "false");
 
-    // The view switch: one tab list, arrows (wrapping), Home and End.
+    // The segment: one tab list of Code and Flowchart, arrows (wrapping), Home and End; the dock
+    // stays under either board.
     const switcher = page.getByRole("tablist", { name: "View" });
-    await expect(switcher.getByRole("tab")).toHaveText(["Code", "Output", "Problems", "Flowchart"]);
+    await expect(switcher.getByRole("tab")).toHaveText(["Code", "Flowchart"]);
     const selected = switcher.locator('[role=tab][aria-selected="true"]');
     await page.locator("#view-code").focus();
-    for (const [key, id] of [["ArrowRight", "view-output"], ["ArrowRight", "view-problems"], ["ArrowRight", "view-flowchart"], ["ArrowRight", "view-code"], ["End", "view-flowchart"], ["Home", "view-code"], ["ArrowLeft", "view-flowchart"], ["ArrowLeft", "view-problems"]] as const) {
+    for (const [key, id] of [["ArrowRight", "view-flowchart"], ["ArrowRight", "view-code"], ["End", "view-flowchart"], ["Home", "view-code"], ["ArrowLeft", "view-flowchart"]] as const) {
       await page.keyboard.press(key);
       await expect(selected, key).toHaveAttribute("id", id);
       await expect(page.locator(`#${id}`)).toBeFocused();
     }
-    await expect(page.locator("#panel-problems")).toBeVisible();
-    await expect(page.locator(".problems-view")).toBeVisible();
+    await expect(page.locator("#chart-board")).toBeVisible();
+    await expect(page.locator("#editor-area")).toBeHidden();
+    await expect(page.locator("#panel .run-strip")).toBeVisible();
     await page.keyboard.press("Home");
     await expect(page.locator("#editor-area")).toBeVisible();
-    await expect(page.locator("#panel")).toBeHidden();
+    await expect(page.locator("#panel .run-strip")).toBeVisible();
   });
 
   test("live input sits on the prompt's line, named by the prompt; End input is in the header, 44 px; the exception opens the Code view at its line", async ({ page }) => {
@@ -588,7 +600,9 @@ test.describe("phones", () => {
     await openFromTree(page, "main.py");
     await page.locator("#run-button").click();
     await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 45_000 });
-    await expect(page.locator("#view-output")).toHaveAttribute("aria-selected", "true");
+    // A program waiting for input opens All output on its Output tab (option A, phone dock).
+    await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#ptab-output")).toHaveAttribute("aria-selected", "true");
     const field = page.locator("#live-input-field");
     await expect(field).toBeFocused();
     // Its name holds the visible prompt (first) and what the field is for (WCAG 2.5.3).
@@ -612,16 +626,16 @@ test.describe("phones", () => {
     await expect(page.locator("#receipt")).toHaveAttribute("data-status", "error", { timeout: 30_000 });
     // The prompt is back in the log, with the answer after it.
     expect(await page.locator("#console").evaluate((el) => (el as HTMLElement).innerText)).toContain("Name: Ada\nHello, Ada");
-    // Problems carries its count in the switch.
-    await expect(page.locator("#view-problems .count")).toHaveText("2");
-    await expect(page.locator("#view-problems")).toHaveAccessibleName("Problems, 1 error, 1 note");
-    // The Problems view is one ground: the list fills it to its foot (review D: it ended at its
-    // last row, with the panel's own ground below).
-    await page.locator("#view-problems").click();
+    // Problems carries its count in the console's tab (All output is open).
+    await expect(page.locator("#ptab-problems .count")).toHaveText("2");
+    await expect(page.locator("#ptab-problems")).toHaveAccessibleName("Problems, 1 error, 1 note");
+    // The Problems view is one ground: the list fills its body to the foot (review D: it ended at
+    // its last row, with the panel's own ground below); the dock's foot follows it.
+    await page.locator("#ptab-problems").click();
     await expect(page.locator(".problem").first()).toBeVisible();
-    const [list, view] = [await box(page, ".problems-view"), await box(page, "#panel")];
+    const [list, view] = [await box(page, ".problems-view"), await box(page, "#panel-problems")];
     expect(Math.round(list.y + list.height), "the list reaches the foot of the view").toBe(Math.round(view.y + view.height));
-    await page.locator("#view-output").click();
+    await page.locator("#ptab-output").click();
     // The lifted exception: a full-width 44 px button that opens the Code view at calc.py line 2.
     const exception = page.locator("#run-exception");
     const [excBox, header] = [await box(page, "#run-exception"), await box(page, "#runlog")];
@@ -639,29 +653,31 @@ test.describe("phones", () => {
     await importFiles(page, FILES);
     await openFromTree(page, "main.py");
     // Autosave runs 400 ms after typing stops: record the name the moment it changed.
+    // Files is the file's name on phones (option A, phone dock).
     await page.evaluate(() => {
       const seen: Record<string, string>[] = [];
       (window as unknown as { crumbSeen: typeof seen }).crumbSeen = seen;
-      const crumb = document.querySelector(".topbar .crumb")!;
+      const files = document.querySelector<HTMLElement>(".topbar .drawer-toggle")!;
       new MutationObserver(() => {
-        const file = crumb.querySelector<HTMLElement>('.crumb-file[data-dirty="true"]');
-        if (!file || seen.length) return;
+        const name = files.querySelector<HTMLElement>('.files-name[data-dirty="true"]');
+        if (!name || seen.length) return;
         seen.push({
-          text: file.textContent ?? "",
-          italic: getComputedStyle(file.querySelector(".crumb-text")!).fontStyle,
-          dot: getComputedStyle(file.querySelector(".dirty-dot")!).display === "none" ? "hidden" : "shown",
+          label: files.getAttribute("aria-label") ?? "",
+          italic: getComputedStyle(name).fontStyle,
+          dot: getComputedStyle(name.querySelector(".dirty-dot")!).display === "none" ? "hidden" : "shown",
         });
-      }).observe(crumb, { subtree: true, childList: true, attributes: true });
+      }).observe(files, { subtree: true, childList: true, attributes: true });
     });
     await page.locator(".cm-content").click();
     await page.keyboard.press("End");
     await page.keyboard.type("  # edited");
     const seen = () => page.evaluate(() => (window as unknown as { crumbSeen: Record<string, string>[] }).crumbSeen[0] ?? null);
     await expect.poll(seen).not.toBeNull();
-    expect(await seen()).toEqual({ text: "main.py, unsaved", italic: "italic", dot: "shown" });
+    expect(await seen()).toEqual({ label: "Files: main.py, unsaved", italic: "italic", dot: "shown" });
     // Autosave clears it, and the name is the file's name again.
-    await expect(page.locator('.topbar .crumb-file[data-dirty="true"]')).toHaveCount(0);
-    await expect(page.locator(".topbar .crumb-file")).toHaveText("main.py");
+    await expect(page.locator('.topbar .files-name[data-dirty="true"]')).toHaveCount(0);
+    await expect(page.locator(".topbar .files-name")).toHaveText("main.py");
+    await expect(page.locator(".topbar .drawer-toggle")).toHaveAccessibleName("Files: main.py");
   });
 });
 
@@ -729,8 +745,10 @@ for (const how of ["collapsed", "problems", "phone-code"] as const) {
       await showPanel(page, "problems");
       await expect(page.locator("#panel-output")).toBeHidden();
     } else {
+      // The run opened nothing over the code: the dock is its peek (option A, phone dock).
       await page.locator("#view-code").click();
-      await expect(page.locator("#panel")).toBeHidden();
+      await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "false");
+      await expect(page.locator(".cm-content")).toBeVisible();
     }
     // The output went out of view while the program was still busy (before it asked).
     await expect(page.locator("#app")).toHaveAttribute("data-run", "running");

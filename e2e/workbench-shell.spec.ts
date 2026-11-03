@@ -243,29 +243,36 @@ test.describe("an empty workspace", () => {
 test.describe("phones", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("a bottom view bar: Files, Code, Output, Problems with its count, Flowchart; 52 px items; Run is 44 px", async ({ page }) => {
+  test("the segment (Code, Flowchart) under the top bar, the dock (Run 48 px, the problems count, All output) at the foot, Files the file's name", async ({ page }) => {
     await withRun(page);
     const bar = page.getByRole("navigation", { name: "Views" });
     await expect(bar).toBeVisible();
-    const b = await box(page, ".view-bar");
-    expect(Math.round(b.y + b.height), "the bar ends the screen").toBe(844);
+    const [top, b] = [await box(page, ".topbar"), await box(page, ".view-bar")];
+    expect(Math.round(b.y), "the segment is under the top bar").toBe(Math.round(top.y + top.height));
     const items = bar.locator("button");
-    await expect(items).toHaveText(["Files", "Code", "Output", /^Problems\s*1$/, "Flowchart"]);
-    for (const el of await items.all()) expect(Math.round((await el.boundingBox())!.height)).toBeGreaterThanOrEqual(52);
-    expect(Math.round((await box(page, "#run-button")).height)).toBe(44);
-    // The views are tabs, moved with the arrow keys; Files opens the drawer and closes it again.
-    const output = page.locator("#view-output");
-    await output.click();
-    await expect(output).toHaveAttribute("aria-selected", "true");
+    await expect(items).toHaveText(["Code", "Flowchart"]);
+    for (const el of await items.all()) expect(Math.round((await el.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
+    expect(Math.round((await box(page, "#run-button")).height)).toBe(48);
+    // The dock's foot: the problems count and All output (a disclosure of the whole console).
+    await expect(page.locator("#panel .dock-foot #problems-count")).toBeVisible();
+    const all = page.locator("#dock-toggle");
+    await all.click();
+    await expect(all).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator("#console")).toBeVisible();
+    // The console's own tabs then show, moved with the arrow keys.
+    await page.locator("#ptab-output").focus();
     await page.keyboard.press("ArrowRight");
-    await expect(page.locator("#view-problems")).toBeFocused();
-    await expect(page.locator("#view-problems")).toHaveAttribute("aria-selected", "true");
-    const files = bar.getByRole("button", { name: "Files" });
+    await expect(page.locator("#ptab-problems")).toBeFocused();
+    await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
+    await all.click();
+    await expect(all).toHaveAttribute("aria-expanded", "false");
+    // Files (the file's name in the top bar) opens the drawer and closes it again.
+    const files = page.locator(".topbar .drawer-toggle");
+    await expect(files).toHaveAccessibleName(/^Files: /);
     await files.click();
     await expect(files).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator("#sidebar")).toBeInViewport();
-    // The bar stays above the drawer: Files closes it.
+    // The top bar stays above the drawer: Files closes it.
     await files.click();
     await expect(files).toHaveAttribute("aria-expanded", "false");
     // The About link is in the status bar here.

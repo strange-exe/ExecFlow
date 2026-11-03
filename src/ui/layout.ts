@@ -9,9 +9,16 @@
 // code and its console form the code board, and the flowchart leaves the console for a chart board
 // of its own beside it, shown while a file is open (the console's Flowchart tab is hidden there; the
 // chart's body, #panel-flowchart, moves between the two). Under 1100 px the chart stays the
-// console's third tab, as before. Below 900 px the sidebar is a drawer, the top bar holds the mark,
-// the file's name, Search, the sync status, Run and Settings, a status bar the facts and notices,
-// and a bottom view bar Files, Code, Output, Problems and Flowchart.
+// console's third tab, as before. Below 900 px the sidebar is a drawer, and a status bar holds the
+// facts and notices (the phone layout below).
+// Phone layout, option A "Segment and dock" (owner's pick, 2026-11-03:
+// .claude/design/redesign8/phone/options.html): below 900 px the top bar holds the mark, the file's
+// name (it opens Files), the sync status, Search and Settings; a Code | Flowchart segment sits under
+// it; the console is one dock at the foot: the run strip (Run in the thumb zone, the run's outcome,
+// the runtime state), the last lines of the same #console, and the problems count with "All output,
+// N lines", which opens the whole console over the board. With the on-screen keyboard open the dock
+// is its strip alone, a 56 px accessory bar (Hide keyboard, the state, Run). The chart's body lives on
+// the chart board here too (the board shows while the segment says Flowchart).
 // Flow Board S2 (2026-11-02): from 1100 px the rail and the sidebar column retire. The file list
 // opens as a popover from Files in the code board's head; Run, the run's outcome, the runtime state
 // and the problems count form the run strip at the code board's foot (the console's first row);
@@ -25,6 +32,7 @@ import { ariaMod, h, isMac, srOnly } from "./dom";
 import { icon } from "./icons";
 import { BOARD_GAP, besideNow, chartDefault, chartMax, CHART_MIN, CONSOLE_GAP, consoleDefault, consoleMax, CONSOLE_MIN } from "./board-size";
 import { chartPanelSize } from "./panel-size";
+import { KeyboardWatch } from "./keyboard";
 import { clamp, createSplitter, readLayoutFlag, writeLayoutFlag, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
@@ -38,8 +46,13 @@ export const PANEL = { min: 15, max: 80, initial: 35 };
 const RAIL_W = 64;
 const WORK_KEEP = 560;
 
-/** What fills the screen below 900 px. */
+/**
+ * What fills the screen below 900 px: the segment's Code or Flowchart over the dock's peek, or
+ * Output or Problems, the dock opened over the board (phone layout, option A).
+ */
 export type View = "code" | "output" | "problems" | "flowchart";
+/** Phones: the dock's last lines of output under the board, or the whole console in its place. */
+export type Dock = "peek" | "all";
 export type PanelTab = "output" | "problems" | "flowchart";
 const PANEL_TABS: readonly PanelTab[] = ["output", "problems", "flowchart"];
 
@@ -126,7 +139,21 @@ export interface Layout {
   /** The notice slot: in the sidebar's foot from 900 px, in the status bar below. */
   noticeHost: HTMLElement;
   status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement };
-  viewTabs: { code: HTMLButtonElement; output: HTMLButtonElement; problems: HTMLButtonElement; flowchart: HTMLButtonElement; count: HTMLElement };
+  /** Phones: the Code | Flowchart segment under the top bar. */
+  viewTabs: { code: HTMLButtonElement; flowchart: HTMLButtonElement };
+  /**
+   * Phones: "All output, 8 lines" at the dock's foot, a disclosure (aria-expanded): the dock shows
+   * the last lines of the output (peek), or the whole console over the code (all).
+   */
+  dockToggle: HTMLButtonElement;
+  /** Phones, the on-screen keyboard open: the accessory bar's Hide keyboard (the code lets go of the focus). */
+  hideKeyboard: HTMLButtonElement;
+  /** Phones: how many lines the output has, for the dock's foot ("All output, 8 lines"). */
+  setDockLines(lines: number): void;
+  dock(): Dock;
+  /** Phones: the dock's peek or the whole console. Peek also shows the code (or the chart) again. */
+  setDock(dock: Dock): void;
+  onDockChange(listener: (dock: Dock) => void): void;
   /**
    * The file list's width and the console's height (desktop): buttons resize them without dragging.
    * From 1100 px also the chart board's width and the output's width beside the code.
@@ -231,13 +258,17 @@ export function createLayout(root: HTMLElement): Layout {
   const topbar = h("header", { class: "topbar" }, topStart, paletteButton, topEnd);
 
   // ---------------------------------------------------------------- rail
-  // Files shows and hides the file list (from 900 px; below that it opens the drawer, from the view
-  // bar). Its word is its name.
+  // Files shows and hides the file list (from 900 px; below that it opens the drawer). Its word is
+  // its name. On phones it is the open file's name in the top bar, with a caret (app.css shows one
+  // or the other): named "Files: main.py" there, so the name it shows is in the name it has.
+  const filesName = h("span", { class: "files-name" });
   const drawerToggle = h(
     "button",
     { type: "button", class: "rail-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "true", "aria-controls": "sidebar", title: "Files" },
     icon("sidebar-simple"),
     h("span", { class: "rail-label" }, "Files"),
+    filesName,
+    icon("caret-down", "files-caret"),
   );
   // The rail's actions, each its icon over its word; Search keeps its real key in aria-keyshortcuts.
   const railButton = (id: string, iconName: Parameters<typeof icon>[0], label: string, keys?: string) =>
@@ -326,21 +357,17 @@ export function createLayout(root: HTMLElement): Layout {
   filesPop.hidden = true;
   const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, filesPop, editorPanel, editorFoot);
 
-  // Phones: one switch for the four views, in the bottom view bar after Files; Problems carries its count.
-  const viewCount = h("span", { class: "count", "data-count": "0" });
-  const viewTab = (id: string, controls: string, iconName: Parameters<typeof icon>[0], label: string, selected: boolean, extra?: HTMLElement) =>
+  // Phones: the Code | Flowchart segment under the top bar (the dock below shows the output).
+  const viewTab = (id: string, controls: string, iconName: Parameters<typeof icon>[0], label: string, selected: boolean) =>
     h(
       "button",
       { type: "button", role: "tab", id, "aria-controls": controls, "aria-selected": String(selected), ...(selected ? {} : { tabindex: "-1" }) },
       icon(iconName),
       h("span", { class: "view-label" }, label),
-      extra ?? null,
     );
   const viewCode = viewTab("view-code", "editor-area", "code-simple", "Code", true);
-  const viewOutput = viewTab("view-output", "panel", "terminal-window", "Output", false);
-  const viewProblems = viewTab("view-problems", "panel", "warning-circle", "Problems", false, viewCount);
-  const viewFlowchart = viewTab("view-flowchart", "panel", "tree-structure", "Flowchart", false);
-  const viewSwitch = h("div", { class: "view-switch", role: "tablist", "aria-label": "View" }, viewCode, viewOutput, viewProblems, viewFlowchart);
+  const viewFlowchart = viewTab("view-flowchart", "chart-board", "tree-structure", "Flowchart", false);
+  const viewSwitch = h("div", { class: "view-switch", role: "tablist", "aria-label": "View" }, viewCode, viewFlowchart);
   const viewBar = h("nav", { class: "view-bar", "aria-label": "Views" }, viewSwitch);
 
   // ---------------------------------------------------------------- the console card
@@ -378,15 +405,34 @@ export function createLayout(root: HTMLElement): Layout {
     problemsWords,
   );
   const runStrip = h("div", { class: "run-strip" });
+  // Phones: the dock's foot, the problems count and All output (a disclosure of the whole console:
+  // its name keeps its words, aria-expanded says which way it is open; the caret turns).
+  const dockWords = h("span", { class: "dock-words" }, "All output");
+  const dockToggle = h(
+    "button",
+    { type: "button", class: "btn dock-toggle", id: "dock-toggle", "aria-expanded": "false", "aria-controls": "panel" },
+    dockWords,
+    icon("caret-up", "dock-caret"),
+  );
+  const dockFoot = h("div", { class: "dock-foot" });
+  // Phones, the on-screen keyboard open: the accessory bar's first control. It takes no focus on a
+  // press (layout.ts below), so the code keeps the caret until it lets go of it.
+  const hideKeyboard = h(
+    "button",
+    { type: "button", class: "icon-btn hide-keyboard", id: "hide-keyboard", "aria-label": "Hide keyboard", title: "Hide keyboard" },
+    icon("keyboard"),
+    icon("caret-down", "hide-keyboard-caret"),
+  );
   const panel = h(
     "section",
-    { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output" },
+    { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output", "data-dock": "peek" },
     runStrip,
     h("div", { class: "panel-bar" }, panelTabsEl, panelTitle, panelBack, panelHeadTools, panelToggle),
     panelActions,
     outputPanel,
     problemsPanel,
     flowchartPanel,
+    dockFoot,
   );
   const ptabs: Record<PanelTab, HTMLButtonElement> = { output: ptabOutput, problems: ptabProblems, flowchart: ptabFlowchart };
   const bodies: Record<PanelTab, HTMLElement> = { output: outputPanel, problems: problemsPanel, flowchart: flowchartPanel };
@@ -403,7 +449,7 @@ export function createLayout(root: HTMLElement): Layout {
   const chartHide = h("button", { type: "button", class: "icon-btn chart-hide", id: "chart-hide", "aria-label": "Hide flowchart", "aria-controls": "chart-board", title: "Hide the flowchart (the code takes its room)" }, icon("caret-line-right"));
   chartBoard.append(chartHide);
 
-  const center = h("div", { class: "center", "data-view": "code" }, editorArea);
+  const center = h("div", { class: "center", "data-view": "code", "data-dock": "peek" }, editorArea);
   // The work column: the top bar over the two cards.
   // Why a disabled Run does nothing (its aria-describedby while no file is open: workbench.ts).
   const runWhy = h("span", { class: "visually-hidden", id: "run-why" }, "Open or create a file to run it.");
@@ -559,8 +605,9 @@ export function createLayout(root: HTMLElement): Layout {
   // Desktop: the rail's foot holds Shortcuts and Settings; the top bar's end the runtime state,
   // Capture and Run; the code card's foot the language and Ln/Col; the sidebar's foot the notices,
   // the sync status and About. Below 900 px (no editor head, the sidebar a drawer): the top bar holds
-  // the mark, Search, the sync status, Run and Settings; the status bar the facts, the runtime state,
-  // the notices, Shortcuts and About; the view bar Files before the four views.
+  // the mark, Files (the file's name), the sync status, Search and Settings; the segment comes under
+  // it; the dock's strip holds Run, the run's outcome and the runtime state, its foot the problems
+  // count and All output; the status bar the facts, the notices, Shortcuts and About.
   // From 1100 px (Flow Board S2): the top bar's start holds the mark, the breadcrumb and the sync
   // status; its end Capture, Shortcuts, Settings and About; Files heads the code board; the run strip
   // holds Run, the run's outcome, the runtime state and the problems count; notices float over the
@@ -570,12 +617,18 @@ export function createLayout(root: HTMLElement): Layout {
     const wide = !narrow && wideQuery.matches;
     if (!wide && filesPop.contains(sidebar)) main.insertBefore(sidebar, sidebarSplit.element);
     if (narrow) {
-      topStart.prepend(mark);
-      topEnd.append(paletteButton, syncSlot, runButton, settingsButton);
-      statusbar.append(status.lang, status.pos, status.runtime, noticeHost, status.shortcuts, aboutLink);
+      // The top bar: the mark, the file's name (Files), then the sync status, Search and Settings.
+      topStart.replaceChildren(mark, drawerToggle);
+      topEnd.append(syncSlot, paletteButton, settingsButton);
+      // The segment under the top bar; the dock: the strip, the console, then its foot.
+      work.insertBefore(viewBar, center);
+      runStrip.append(hideKeyboard, runOutcome, status.runtime, runButton);
+      dockFoot.append(problemsButton, dockToggle);
+      statusbar.append(status.lang, status.pos, noticeHost, status.shortcuts, aboutLink);
       headTools.append(snippetButton);
-      viewBar.prepend(drawerToggle);
     } else if (wide) {
+      root.insertBefore(viewBar, scrim);
+      hideKeyboard.remove();
       topStart.replaceChildren(mark, crumb, syncSlot);
       topbar.insertBefore(paletteButton, topEnd);
       topEnd.append(snippetButton, status.shortcuts, settingsButton, aboutLink);
@@ -586,6 +639,11 @@ export function createLayout(root: HTMLElement): Layout {
       editorArea.append(noticeHost);
       filesPop.append(sidebar);
     } else {
+      // The phone's segment and Hide keyboard leave with the phone layout; the strip keeps the run's
+      // outcome and the problems count, as before the dock (it is not shown here).
+      root.insertBefore(viewBar, scrim);
+      hideKeyboard.remove();
+      runStrip.append(runOutcome, problemsButton);
       topStart.replaceChildren(crumb);
       railMark.append(mark);
       railMark.after(drawerToggle);
@@ -767,10 +825,16 @@ export function createLayout(root: HTMLElement): Layout {
   // stands as a column only while open (so before the first run the code has the whole board).
   let collapsed = true;
   const panelCollapsed = () => collapsed && !narrowQuery.matches;
+  /** Phones: the dock's peek, or the whole console over the board. */
+  let dockNow: Dock = "peek";
+  /** The open file's name and unsaved state (setCrumb), which Files shows on phones. */
+  let crumbFile: { name: string; dirty: boolean } | null = null;
   /** From 1100 px the chart has a board of its own, and the console's Flowchart tab is hidden. */
   const chartOnBoard = () => wideQuery.matches;
+  /** Where the chart's body lives on the chart board: 1100 px and wider, and phones (the segment's Flowchart). */
+  const chartBoardHolds = () => wideQuery.matches || narrowQuery.matches;
   /** The console's tabs at this width. */
-  const panelTabs = (): readonly PanelTab[] => (chartOnBoard() ? PANEL_TABS.filter((t) => t !== "flowchart") : PANEL_TABS);
+  const panelTabs = (): readonly PanelTab[] => (chartBoardHolds() ? PANEL_TABS.filter((t) => t !== "flowchart") : PANEL_TABS);
   function syncPanel() {
     const shut = panelCollapsed();
     panel.dataset.collapsed = String(shut);
@@ -780,14 +844,17 @@ export function createLayout(root: HTMLElement): Layout {
     panelToggle.replaceChildren(icon(shut ? "caret-up" : "caret-down"));
     const tab = currentTab();
     for (const t of panelTabs()) bodies[t].hidden = shut || t !== tab;
-    // On its board the chart's body always shows (the board itself shows while a file is open).
-    if (chartOnBoard()) flowchartPanel.hidden = false;
+    // On its board the chart's body always shows (the board itself shows while a file is open, or on
+    // phones while the segment says Flowchart).
+    if (chartBoardHolds()) flowchartPanel.hidden = false;
     // From 1100 px: the head's name, Output (back from Problems), and the count's state.
     const problemsOpen = chartOnBoard() && !shut && tab === "problems";
     panelTitle.textContent = tab === "problems" ? "Problems" : "Output";
     panelBack.hidden = !(chartOnBoard() && tab === "problems");
-    // From 1100 px the count is the one way to the list, so it says whether the list is showing.
+    // From 1100 px the count is the one way to the list, so it says whether the list is showing; on
+    // phones it opens the list in the dock, and says so too.
     if (chartOnBoard()) problemsButton.setAttribute("aria-expanded", String(problemsOpen));
+    else if (narrowQuery.matches) problemsButton.setAttribute("aria-expanded", String(dockNow === "all" && tab === "problems"));
     else problemsButton.removeAttribute("aria-expanded");
     // The splitter's value is the size the console opens to; while it is its head, it says so.
     if (shut) panelSplit.element.setAttribute("aria-valuetext", `Collapsed; opens at ${panelSplit.value} percent of the height`);
@@ -795,20 +862,21 @@ export function createLayout(root: HTMLElement): Layout {
     tellChart();
   }
   /**
-   * Moves the chart's body to where it lives at this width: its board from 1100 px (a plain part of
-   * the "Flowchart" region there), the console's third tab panel under that. The element moves, so
-   * the view inside it (and its full-screen dialog's way back) keeps working; focus inside it stays.
+   * Moves the chart's body to where it lives at this width: its board from 1100 px and on phones (a
+   * plain part of the "Flowchart" region there), the console's third tab panel from 900 to 1099 px.
+   * The element moves, so the view inside it (and its full-screen dialog's way back) keeps working;
+   * focus inside it stays.
    */
   function placeChart() {
     const focused = document.activeElement;
-    const onBoard = chartOnBoard();
+    const onBoard = chartBoardHolds();
     if (onBoard && currentTab() === "flowchart") selectPanelTab("output");
     if (onBoard) {
       chartBoard.append(flowchartPanel);
       flowchartPanel.removeAttribute("role");
       flowchartPanel.removeAttribute("aria-labelledby");
     } else {
-      panel.append(flowchartPanel);
+      panel.insertBefore(flowchartPanel, dockFoot);
       flowchartPanel.setAttribute("role", "tabpanel");
       flowchartPanel.setAttribute("aria-labelledby", "ptab-flowchart");
     }
@@ -822,7 +890,7 @@ export function createLayout(root: HTMLElement): Layout {
   // Hidden by choice or by focus code, the board's chart is off screen: it draws nothing until it
   // shows again (flowchart-view.ts setVisible), so typing never waits on it.
   const chartVisible = () =>
-    narrowQuery.matches ? center.dataset.view === "flowchart" : chartOnBoard() ? chartShownNow() : !panelCollapsed() && currentTab() === "flowchart";
+    narrowQuery.matches ? center.dataset.view === "flowchart" && dockNow === "peek" : chartOnBoard() ? chartShownNow() : !panelCollapsed() && currentTab() === "flowchart";
   // The board shows while a file is open (workbench.ts sets data-open): the chart is told at once,
   // and the boards are laid out again (the chart's column comes or goes).
   new MutationObserver(() => syncBoards()).observe(root, { attributes: true, attributeFilter: ["data-open"] });
@@ -859,19 +927,49 @@ export function createLayout(root: HTMLElement): Layout {
   }
   panelToggle.addEventListener("click", () => (panelToggle.getAttribute("aria-expanded") === "true" ? collapsePanel() : expandPanel()));
 
-  // ---------------------------------------------------------------- Code / Output / Problems switch
-  const switchTabs: [HTMLButtonElement, View][] = [[viewCode, "code"], [viewOutput, "output"], [viewProblems, "problems"], [viewFlowchart, "flowchart"]];
-  function markView(view: View) {
-    center.dataset.view = view;
+  // ---------------------------------------------------------------- phones: the segment and the dock
+  // The segment picks the board (Code or Flowchart, center[data-view]); the dock (panel[data-dock])
+  // shows the output's last lines under it, or the whole console in its place. Output and Problems
+  // are the dock opened.
+  type Seg = "code" | "flowchart";
+  const switchTabs: [HTMLButtonElement, Seg][] = [[viewCode, "code"], [viewFlowchart, "flowchart"]];
+  const segNow = (): Seg => (center.dataset.view === "flowchart" ? "flowchart" : "code");
+  function markView(seg: Seg) {
+    center.dataset.view = seg;
     for (const [tab, v] of switchTabs) {
-      tab.setAttribute("aria-selected", String(v === view));
-      tab.tabIndex = v === view ? 0 : -1;
+      tab.setAttribute("aria-selected", String(v === seg));
+      tab.tabIndex = v === seg ? 0 : -1;
     }
     tellChart();
   }
+  const dockListeners: ((dock: Dock) => void)[] = [];
+  function setDock(dock: Dock) {
+    if (dock === dockNow) return;
+    const active = document.activeElement;
+    dockNow = dock;
+    panel.dataset.dock = dock;
+    center.dataset.dock = dock;
+    dockToggle.setAttribute("aria-expanded", String(dock === "all"));
+    // Back to the peek, the dock shows the output's last lines again (not the problems list).
+    if (dock === "peek" && currentTab() !== "output") selectPanelTab("output");
+    else syncPanel();
+    // Focus in what went out of sight (the code under the whole console, the console's tools under
+    // the peek) would drop to the page: it goes to All output, which stays.
+    if (narrowQuery.matches && active instanceof HTMLElement && active !== document.body && active.getClientRects().length === 0) dockToggle.focus({ preventScroll: true });
+    for (const listener of dockListeners) listener(dock);
+  }
   function showView(view: View) {
-    markView(view);
-    if (view !== "code") selectPanelTab(view);
+    if (view === "code" || view === "flowchart") {
+      markView(view);
+      if (narrowQuery.matches) setDock("peek");
+      return;
+    }
+    selectPanelTab(view);
+    if (narrowQuery.matches) setDock("all");
+  }
+  dockToggle.addEventListener("click", () => setDock(dockNow === "all" ? "peek" : "all"));
+  function setDockLines(lines: number) {
+    dockWords.textContent = lines ? `All output, ${lines} ${lines === 1 ? "line" : "lines"}` : "All output";
   }
   for (const [tab, v] of switchTabs) tab.addEventListener("click", () => showView(v));
   viewSwitch.addEventListener("keydown", (e) => {
@@ -887,17 +985,21 @@ export function createLayout(root: HTMLElement): Layout {
   // ---------------------------------------------------------------- panel tabs
   function selectPanelTab(tab: PanelTab) {
     // The chart on its board is no tab of the console's.
-    if (tab === "flowchart" && chartOnBoard()) tab = "output";
+    if (tab === "flowchart" && chartBoardHolds()) tab = "output";
     for (const t of PANEL_TABS) {
       ptabs[t].setAttribute("aria-selected", String(t === tab));
       ptabs[t].tabIndex = t === tab ? 0 : -1;
     }
     panel.dataset.tab = tab;
-    // Phones: the switch shows the same panel tab the panel does.
-    if (center.dataset.view !== "code") markView(tab);
     syncPanel();
   }
+  /** Phones: selects the tab and leaves the dock as it is (Output and Problems open it: showView). */
   function showPanelTab(tab: PanelTab, focus = false, stay = false) {
+    if (tab === "flowchart" && narrowQuery.matches) {
+      showView("flowchart");
+      if (focus) viewFlowchart.focus();
+      return;
+    }
     if (tab === "flowchart" && chartOnBoard()) {
       if (chartHidden || focusMode) setChartHidden(false);
       if (focus) chartBoard.focus();
@@ -1075,6 +1177,59 @@ export function createLayout(root: HTMLElement): Layout {
     });
   }).observe(center);
 
+  // ---------------------------------------------------------------- phones: the on-screen keyboard
+  // While the code has the focus and the window (or its visual viewport) is well short of its full
+  // height (keyboard.ts), the keyboard is open: the segment and the status bar fold away and the
+  // dock is its strip alone, on the keyboard's edge (app.css, data-keyboard). --vv-h is the height
+  // left above the keyboard, for a browser that only shrinks the visual viewport (Safari).
+  const keyboard = new KeyboardWatch();
+  const vv = window.visualViewport;
+  let keyboardQueued = false;
+  function syncKeyboard() {
+    keyboardQueued = false;
+    const typing = narrowQuery.matches && editorHost.contains(document.activeElement);
+    // A pinch zoom shrinks the visual viewport too: its height times its scale is what the keyboard
+    // leaves (the scale stays 1 when only the keyboard opens).
+    const visualHeight = vv ? vv.height * vv.scale : undefined;
+    const inset = keyboard.inset({ width: innerWidth, height: innerHeight, visualHeight }, typing);
+    if (inset > 0) {
+      root.dataset.keyboard = "open";
+      root.style.setProperty("--vv-h", `${Math.round(Math.min(innerHeight, visualHeight ?? innerHeight))}px`);
+    } else if (root.dataset.keyboard) {
+      delete root.dataset.keyboard;
+      root.style.removeProperty("--vv-h");
+    }
+  }
+  const queueKeyboard = () => {
+    if (keyboardQueued) return;
+    keyboardQueued = true;
+    requestAnimationFrame(syncKeyboard);
+  };
+  addEventListener("resize", queueKeyboard);
+  vv?.addEventListener("resize", queueKeyboard);
+  document.addEventListener("focusin", queueKeyboard);
+  document.addEventListener("focusout", queueKeyboard);
+  /** The code lets go of the focus (so the keyboard goes); Run takes it, the control that stays. */
+  function endTyping() {
+    if (!editorHost.contains(document.activeElement)) return;
+    runButton.focus({ preventScroll: true });
+    if (editorHost.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+    syncKeyboard();
+  }
+  // A press on the bar's controls never takes the focus from the code first (that would close the
+  // keyboard under the finger and move the bar before the click lands).
+  for (const el of [hideKeyboard, runButton]) el.addEventListener("pointerdown", (e) => {
+    if (root.dataset.keyboard === "open" && e.button === 0) e.preventDefault();
+  });
+  hideKeyboard.addEventListener("click", endTyping);
+  // Run with the keyboard open ends the typing too, and the result shows in the peek.
+  runButton.addEventListener("click", () => {
+    if (root.dataset.keyboard !== "open") return;
+    endTyping();
+    setDock("peek");
+  });
+  syncKeyboard();
+
   // ---------------------------------------------------------------- crossing 900 px and 1100 px
   const narrowListeners: ((narrow: boolean) => void)[] = [];
   const wideListeners: ((wide: boolean) => void)[] = [];
@@ -1119,7 +1274,13 @@ export function createLayout(root: HTMLElement): Layout {
     if (!narrow) closeDrawer(false);
     sidebar.inert = narrow && !drawerOpen();
     syncFilesButton();
-    if (wideCrossed) placeChart();
+    if (wideCrossed || narrowCrossed) placeChart();
+    if (narrowCrossed) {
+      syncFilesName();
+      // The peek shows the output's last lines, never the problems list.
+      if (narrow && dockNow === "peek" && currentTab() !== "output") selectPanelTab("output");
+      syncKeyboard();
+    }
     // The boards' choices apply from 1100 px only (under it focus code ends, and the strip and the
     // console go back to their places); syncBoards lays the console out too (syncPanel).
     syncBoards();
@@ -1136,10 +1297,29 @@ export function createLayout(root: HTMLElement): Layout {
   // What the crumb shows now: a call that changes nothing keeps its nodes (a change of width calls it
   // through renderTabs, and a rebuild between two reads left a test, or a pointer, on a removed node).
   let shown: string | undefined;
+  /** Phones: Files is the open file's name (unsaved typing shown as the crumb shows it). */
+  function syncFilesName() {
+    const narrow = narrowQuery.matches;
+    const file = narrow ? crumbFile : null;
+    drawerToggle.dataset.file = String(file !== null);
+    if (!file) {
+      filesName.replaceChildren();
+      delete filesName.dataset.dirty;
+      drawerToggle.setAttribute("aria-label", "Files");
+      drawerToggle.title = "Files";
+      return;
+    }
+    filesName.replaceChildren(...nameParts(file.name), h("span", { class: "dirty-dot", "aria-hidden": "true" }));
+    filesName.dataset.dirty = String(file.dirty);
+    drawerToggle.setAttribute("aria-label", `Files: ${file.name}${file.dirty ? ", unsaved" : ""}`);
+    drawerToggle.title = `Files (${file.name} is open)`;
+  }
   function setCrumb(path: WsPath | null, dirty = false) {
     const key = `${path ?? ""}\n${dirty}`;
     if (key === shown) return;
     shown = key;
+    crumbFile = path ? { name: path.slice(path.lastIndexOf("/") + 1), dirty } : null;
+    syncFilesName();
     const parts = path ? path.split("/") : [];
     crumb.title = path ?? "";
     const last = parts.length - 1;
@@ -1208,7 +1388,13 @@ export function createLayout(root: HTMLElement): Layout {
     onChartVisibleChange: (listener) => void chartListeners.push(listener),
     noticeHost,
     status,
-    viewTabs: { code: viewCode, output: viewOutput, problems: viewProblems, flowchart: viewFlowchart, count: viewCount },
+    viewTabs: { code: viewCode, flowchart: viewFlowchart },
+    dockToggle,
+    hideKeyboard,
+    setDockLines,
+    dock: () => dockNow,
+    setDock,
+    onDockChange: (listener) => void dockListeners.push(listener),
     splitters: { sidebar: sidebarSplit, panel: panelSplit, board: boardSplit, console: consoleSplit },
     board: {
       chartHidden: () => chartHidden,
@@ -1226,7 +1412,7 @@ export function createLayout(root: HTMLElement): Layout {
     closeDrawer,
     drawerOpen,
     showView,
-    view: () => (["output", "problems", "flowchart"].includes(center.dataset.view ?? "") ? (center.dataset.view as View) : "code"),
+    view: () => (narrowQuery.matches && dockNow === "all" ? currentTab() : segNow()),
     showPanelTab,
     panelTab: currentTab,
     expandPanel,
