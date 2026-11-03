@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.28.1] - 2026-11-03
+
+No repeat downloads after a damaged one
+
+### Fixed
+
+- When Python's one-time download arrived damaged, ExecFlow downloaded it twice more by itself, each time the whole file. It now stops at once and waits for you to press Run, as its message says.
+
 ## [0.28.0] - 2026-11-03
 
 Notices that know when to go

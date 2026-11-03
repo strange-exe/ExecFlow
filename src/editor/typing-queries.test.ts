@@ -7,7 +7,6 @@
 // autocompletion() returns, with its timers, queries and accept step) on each update: Vitest has no
 // DOM here, and this keeps the real state machine instead of a model of it.
 import { autocompletion, closeCompletion, CompletionContext, completionStatus, currentCompletions } from "@codemirror/autocomplete";
-import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, StateField, type Extension, type TransactionSpec } from "@codemirror/state";
 import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from "@codemirror/view";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -16,7 +15,7 @@ import { loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
 import { unless } from "./keyword-completion";
 import { loadLibrary } from "./library-data";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);
@@ -79,8 +78,7 @@ function open(path: string, doc: string): StandIn {
       libraryContext.of({ files: () => [path], standards: () => ({ c: "gnu11", cpp: "c++17" }) }),
     ],
   });
-  ensureSyntaxTree(state, state.doc.length, 5000);
-  const view = new StandIn(state);
+  const view = new StandIn(parsed(state));
   views.push(view);
   return view;
 }

@@ -146,10 +146,12 @@ test.describe("B9: Python's first start", () => {
     await importFiles(page, [{ name: "main.py", text: 'print("hello")\n' }]);
     await openFromTree(page, "main.py");
     await expect(runtime(page)).toHaveAttribute("data-state", "failed", { timeout: 60_000 });
+    // Starting again by itself would download the same file again on the student's data: a damaged
+    // download waits for Run, as the message says.
+    expect(damaged, "the damaged copy was what the worker got, once").toBe(1);
     const r = await run(page, { timeout: 60_000 });
     expect(r.status).toBe("unavailable");
     expect(r.output).toContain("Python couldn't start: its one-time download was damaged (pyodide.asm.wasm didn't match). Press Run to try again.");
-    expect(damaged, "the damaged copy was what the worker got").toBeGreaterThan(0);
     const kept = await page.evaluate(async () => (await (await caches.open("codeeditor-python-runtime")).keys()).map((k) => new URL(k.url).pathname.split("/").pop()));
     expect(kept).not.toContain("pyodide.asm.wasm");
     await page.unroute(wasm);

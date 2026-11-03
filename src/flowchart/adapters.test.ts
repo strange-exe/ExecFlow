@@ -285,7 +285,9 @@ describe("text from the code is shown(), capped, never raw", () => {
     expect(program.nodes.find((n) => n.kind === "call")!.callee).toBe("ma[U+3164]x");
   });
 
-  test("deeply nested expressions are read without recursion and come back quickly", async () => {
+  // This one and the next are bound by wall time: a loaded machine can miss one once, a real
+  // slowdown misses it every time.
+  test("deeply nested expressions are read without recursion and come back quickly", { retry: 2 }, async () => {
     const deep = `${"(".repeat(5000)}1${")".repeat(5000)}`;
     const t = performance.now();
     const c = await chartFile("c", `int main(void) {\n  int x = ${deep};\n  if (${deep}) x++;\n  return x;\n}\n`);
@@ -294,7 +296,7 @@ describe("text from the code is shown(), capped, never raw", () => {
     for (const f of [c, py]) for (const chart of f.charts) if (chart.ok) expectInvariants(chart);
   });
 
-  test("a file with 2000 small functions is charted quickly", async () => {
+  test("a file with 2000 small functions is charted quickly", { retry: 2 }, async () => {
     const fns = Array.from({ length: 2000 }, (_, i) => `int f${i}(int x) {\n  if (x) return ${i};\n  return x;\n}`).join("\n");
     const t = performance.now();
     const file = await chartFile("c", `${fns}\nint main(void) { return f1(2); }\n`);

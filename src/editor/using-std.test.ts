@@ -6,14 +6,13 @@
 // the file's is the global namespace's, and a block is a compound statement ([basic.scope.block]/1).
 // "|" in each sample marks the cursor. Options are read from every source the file has there.
 import { CompletionContext, type Completion, type CompletionResult, type CompletionSource } from "@codemirror/autocomplete";
-import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { beforeAll, describe, expect, it } from "vitest";
 import { libraryContext } from "./completion-context";
 import { loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
 import { loadLibrary } from "./library-data";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);
@@ -25,12 +24,13 @@ async function optionsAt(sample: string, { path = "main.cpp", cpp = "c++17", exp
   const pos = sample.indexOf("|");
   if (pos < 0 || sample.indexOf("|", pos + 1) >= 0) throw new Error("one | marks the cursor");
   const doc = sample.slice(0, pos) + sample.slice(pos + 1);
-  const state = EditorState.create({
-    doc,
-    selection: { anchor: pos },
-    extensions: [fileConf.of(fileExtensions(path)), libraryContext.of({ files: () => [path], standards: () => ({ c: "gnu11", cpp }) })],
-  });
-  ensureSyntaxTree(state, state.doc.length, 5000);
+  const state = parsed(
+    EditorState.create({
+      doc,
+      selection: { anchor: pos },
+      extensions: [fileConf.of(fileExtensions(path)), libraryContext.of({ files: () => [path], standards: () => ({ c: "gnu11", cpp }) })],
+    }),
+  );
   const sources = state.languageDataAt<CompletionSource>("autocomplete", pos);
   const results = await Promise.all(sources.map((source) => source(new CompletionContext(state, pos, explicit))));
   return results.filter((r): r is CompletionResult => r != null).flatMap((r) => r.options);

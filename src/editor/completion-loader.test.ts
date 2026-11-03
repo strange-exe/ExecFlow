@@ -6,13 +6,12 @@
 // and is tried again later. This file's fresh module has not loaded the code.
 // The view is a stand-in, as in late-data.test.ts: a state with autocompletion, focus and dispatch.
 import { autocompletion, CompletionContext, completionStatus, type CompletionResult, type CompletionSource } from "@codemirror/autocomplete";
-import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, type TransactionSpec } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { CODE_RETRY_MS, completionCode, loadCompletionCode } from "./completion-loader";
 import { fileConf, fileExtensions } from "./extensions";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 const tick = () => new Promise((done) => setTimeout(done, 0));
 
@@ -23,8 +22,7 @@ async function until(check: () => boolean, what: string) {
 }
 
 function setup(path: string, doc: string) {
-  const state = EditorState.create({ doc, selection: { anchor: doc.length }, extensions: [autocompletion(), fileConf.of(fileExtensions(path))] });
-  ensureSyntaxTree(state, state.doc.length, 5000);
+  const state = parsed(EditorState.create({ doc, selection: { anchor: doc.length }, extensions: [autocompletion(), fileConf.of(fileExtensions(path))] }));
   const view = {
     state,
     hasFocus: true,
@@ -80,8 +78,7 @@ describe("the first query, before the code is there", () => {
     await Promise.all([languages.loadLanguage("c"), languages.loadLanguage("python")]);
     expect(loader.completionCode()).toBeNull();
     const make = (path: string, doc: string) => {
-      const state = EditorState.create({ doc, selection: { anchor: doc.length }, extensions: [autocompletion(), extensions.fileConf.of(extensions.fileExtensions(path))] });
-      ensureSyntaxTree(state, state.doc.length, 5000);
+      const state = parsed(EditorState.create({ doc, selection: { anchor: doc.length }, extensions: [autocompletion(), extensions.fileConf.of(extensions.fileExtensions(path))] }));
       const view = {
         state,
         hasFocus: true,

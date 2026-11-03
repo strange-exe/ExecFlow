@@ -3,7 +3,7 @@
 // Options are read straight from every source the file has at the position (Ctrl-Space or typing),
 // before CodeMirror's matcher filters them.
 import { CompletionContext, type Completion, type CompletionResult, type CompletionSection, type CompletionSource } from "@codemirror/autocomplete";
-import { ensureSyntaxTree, indentUnit } from "@codemirror/language";
+import { indentUnit } from "@codemirror/language";
 import { EditorState, type Extension, type Transaction } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -13,7 +13,7 @@ import { fileConf, fileExtensions } from "./extensions";
 import { C_SNIPPETS, CPP_SNIPPETS, pythonImportContext } from "./keyword-completion";
 import { pythonImports, workspaceHeaders, workspaceModules } from "./library-completion";
 import { library, libraryStatus, loadLibrary } from "./library-data";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 // The completion code (completion-code.ts) as the app has it once a file has been shown; loading
 // it doesn't load the library data, which the first describe below checks the absence of.
@@ -31,12 +31,12 @@ interface Setup {
 
 function stateFor(path: string, doc: string, setup: Setup = {}): EditorState {
   const context: LibraryContext = { files: () => setup.files ?? [], standards: () => ({ c: setup.c ?? "gnu11", cpp: setup.cpp ?? "c++17" }) };
-  const state = EditorState.create({
-    doc,
-    extensions: [fileConf.of(fileExtensions(path)), libraryContext.of(context), setup.readOnly ? EditorState.readOnly.of(true) : [], setup.extra ?? []],
-  });
-  ensureSyntaxTree(state, state.doc.length, 5000);
-  return state;
+  return parsed(
+    EditorState.create({
+      doc,
+      extensions: [fileConf.of(fileExtensions(path)), libraryContext.of(context), setup.readOnly ? EditorState.readOnly.of(true) : [], setup.extra ?? []],
+    }),
+  );
 }
 
 /**

@@ -1,5 +1,5 @@
 import { CompletionContext, type Completion, type CompletionResult, type CompletionSource } from "@codemirror/autocomplete";
-import { ensureSyntaxTree, foldable, getIndentation, indentUnit, language } from "@codemirror/language";
+import { ensureSyntaxTree, foldable, getIndentation, indentUnit, language, syntaxTree } from "@codemirror/language";
 import { EditorState, type Extension, type Transaction } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -8,7 +8,7 @@ import { fileConf, fileExtensions } from "./extensions";
 import { C_KEYWORDS, CPP_KEYWORDS, PYTHON_KEYWORDS, PYTHON_WORDS } from "./keyword-completion";
 import { languageForPath, languageSupport } from "./language-support";
 import { loadLibrary } from "./library-data";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 // With the completion code and the library data loaded, as in the app once a file has been shown:
 // the header names on #include lines and the library functions are there too
@@ -20,10 +20,19 @@ beforeAll(async () => {
 });
 
 function stateFor(path: string, doc: string, extra: Extension = []): EditorState {
-  const state = EditorState.create({ doc, extensions: [fileConf.of(fileExtensions(path)), extra] });
-  ensureSyntaxTree(state, state.doc.length, 5000);
-  return state;
+  return parsed(EditorState.create({ doc, extensions: [fileConf.of(fileExtensions(path)), extra] }));
 }
+
+// The test helper every editor test builds its state with (test-languages.ts).
+describe("parsed(state)", () => {
+  it("gives syntaxTree the whole file, which ensureSyntaxTree alone doesn't", () => {
+    const doc = "int x = 0;\n".repeat(400); // 4400 characters: past a new state's first 3000
+    const state = EditorState.create({ doc, extensions: [fileConf.of(fileExtensions("main.c"))] });
+    expect(ensureSyntaxTree(state, doc.length, 5000)?.length).toBe(doc.length);
+    expect(syntaxTree(state).length).toBeLessThan(doc.length);
+    expect(syntaxTree(parsed(state)).length).toBe(doc.length);
+  });
+});
 
 /** Everything every completion source offers at `pos` (explicit completion, as Ctrl-Space asks). */
 async function optionsAt(state: EditorState, pos: number): Promise<Completion[]> {

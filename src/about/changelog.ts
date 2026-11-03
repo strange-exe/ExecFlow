@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.28.1",
+    date: "2026-11-03",
+    title: "No repeat downloads after a damaged one",
+    items: [
+      { kind: "fixed", text: "When Python's one-time download arrived damaged, ExecFlow downloaded it twice more by itself, each time the whole file. It now stops at once and waits for you to press Run, as its message says." },
+    ],
+  },
+  {
     version: "0.28.0",
     date: "2026-11-03",
     title: "Notices that know when to go",

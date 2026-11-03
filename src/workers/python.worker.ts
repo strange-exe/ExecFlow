@@ -448,7 +448,10 @@ self.addEventListener("message", async ({ data }: MessageEvent<ToPython>) => {
       // again won't help until the device is online.
       if (e instanceof DownloadError && e.offline) return post({ type: "boot-failed", error: e.message, retry: false, offline: true, kept: e.kept });
       const error = e instanceof DownloadError ? failureWords(e) : e instanceof Error ? e.message : String(e);
-      post({ type: "boot-failed", error, retry: !(e instanceof PackageError) });
+      // A damaged file would most likely come back the same way, and each try is the whole file on
+      // the student's data: it waits for Run, as its words say.
+      const damaged = e instanceof DownloadError && e.kind === "damaged";
+      post({ type: "boot-failed", error, retry: !(e instanceof PackageError) && !damaged });
     }
     return;
   }

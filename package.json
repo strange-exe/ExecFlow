@@ -1,7 +1,7 @@
 {
   "name": "code-editor",
   "private": true,
-  "version": "0.28.0",
+  "version": "0.28.1",
   "type": "module",
   "scripts": {
     "predev": "node scripts/copy-pyodide.mjs && node scripts/fetch-pyodide-packages.mjs && node scripts/fetch-clang.mjs && node scripts/fetch-flowchart-grammars.mjs",
@@ -50,5 +50,8 @@
     "vitest": "5.0.3",
     "workbox-window": "7.4.1",
     "wrangler": "4.149.0"
+  },
+  "overrides": {
+    "undici": "7.30.1"
   }
 }

@@ -5,7 +5,6 @@
 // finding RB-1, 2026-10-19: "helpers." stayed empty, and "hel" kept a list without helper).
 // The view is a stand-in: a state with autocompletion, focus, and dispatch.
 import { autocompletion, CompletionContext, completionStatus, type CompletionResult, type CompletionSource } from "@codemirror/autocomplete";
-import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, type TransactionSpec } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
@@ -16,7 +15,7 @@ import { cLibrarySource, pythonMemberSource } from "./library-completion";
 import { libraryStatus } from "./library-data";
 import { cOwnSource } from "./own-completion";
 import { indexIn, type Scheduler } from "./workspace-index";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 const soon: Scheduler = (slice) => void setTimeout(() => slice(() => true), 0);
 
@@ -33,17 +32,18 @@ async function until(check: () => boolean, what: string) {
 function setup(files: Record<string, string>, path: string, doc: string) {
   const slot = new IndexSlot({ read: (p) => (Object.hasOwn(files, p) ? Promise.resolve(files[p]) : Promise.reject(new Error("missing"))) }, soon);
   const index = indexIn(slot);
-  const state = EditorState.create({
-    doc,
-    selection: { anchor: doc.length },
-    extensions: [
-      autocompletion(),
-      fileConf.of(fileExtensions(path)),
-      libraryContext.of({ files: () => Object.keys(files), standards: () => ({ c: "gnu11", cpp: "c++17" }) }),
-      workspaceIndex.of(slot),
-    ],
-  });
-  ensureSyntaxTree(state, state.doc.length, 5000);
+  const state = parsed(
+    EditorState.create({
+      doc,
+      selection: { anchor: doc.length },
+      extensions: [
+        autocompletion(),
+        fileConf.of(fileExtensions(path)),
+        libraryContext.of({ files: () => Object.keys(files), standards: () => ({ c: "gnu11", cpp: "c++17" }) }),
+        workspaceIndex.of(slot),
+      ],
+    }),
+  );
   const view = {
     state,
     hasFocus: true,

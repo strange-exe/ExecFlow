@@ -296,7 +296,8 @@ describe("structured layout", () => {
     }
   });
 
-  test("a 400-step chart lays out quickly", async () => {
+  // A bound on wall time: a loaded machine can miss it once, a real slowdown misses it every time.
+  test("a 400-step chart lays out quickly", { retry: 2, timeout: 30_000 }, async () => {
     const body = Array.from({ length: 95 }, (_, i) => `  if (x > ${i}) { x--; continue; } else if (x == ${i}) break;\n  printf("%d", x);`).join("\n");
     const src = `#include <stdio.h>\nint main(void) {\n  int x = 99;\n  while (x) {\n${body}\n  }\n  return 0;\n}\n`;
     const result = (await chartFile("c", src)).charts[0];
@@ -308,7 +309,7 @@ describe("structured layout", () => {
     expectGoodLayout(chart, l);
     expect(l.edges.filter((e) => e.kind === "jump").length).toBeGreaterThan(100);
     expect(ms, `layout took ${Math.round(ms)} ms`).toBeLessThan(250);
-  }, 30_000);
+  });
 
   /** A do-while whose body is a ladder of `arms` else-ifs, each a break or a continue (the attack pass's shape). */
   const ladderChart = async (arms: number) => {

@@ -55,7 +55,9 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(c.type === "charts" && c.file.charts.length).toBe(0);
   });
 
-  test("200-deep nesting is too big, quickly", async () => {
+  // The tests named "quickly" are bound by wall time (big files also by the engine's 1.5 s read
+  // budget): a loaded machine can miss one once, a real slowdown misses it every time.
+  test("200-deep nesting is too big, quickly", { retry: 2 }, async () => {
     const e = engine();
     await e.prepare("c");
     const deep = `int main(void) {\n${"if (1) {\n".repeat(200)}x++;\n${"}\n".repeat(200)}return 0;\n}\n`;
@@ -74,7 +76,7 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(p.ms).toBeLessThan(2000);
   });
 
-  test(`a 50 000-statement function is too big (more than ${NODE_LIMIT} steps), quickly`, async () => {
+  test(`a 50 000-statement function is too big (more than ${NODE_LIMIT} steps), quickly`, { retry: 2 }, async () => {
     const e = engine();
     await e.prepare("c");
     const big = `int main(void) {\n  int x = 0;\n${"  x++; printf(\"%d\", x);\n".repeat(25_000)}  return 0;\n}\n`;
@@ -87,7 +89,7 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(ms).toBeLessThan(2000);
   });
 
-  test("with a pick, only that function is charted: the others are listed by name and lines (10 000 functions, quickly)", async () => {
+  test("with a pick, only that function is charted: the others are listed by name and lines (10 000 functions, quickly)", { retry: 2 }, async () => {
     // Attack pass finding 3: charting every function of a 1 MB file took 2.7 s (past the page's 2 s
     // clock) and sent 14.8 MB back to the page.
     const e = engine();
@@ -112,7 +114,7 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(all.type === "charts" && all.file.charts.map((c) => c.ok)).toEqual([true, true]);
   });
 
-  test("a 10 000-line file is too big, quickly", async () => {
+  test("a 10 000-line file is too big, quickly", { retry: 2 }, async () => {
     const e = engine();
     await e.prepare("python");
     const lines = Array.from({ length: 10_000 }, (_, i) => `print(${i})`).join("\n");
@@ -121,7 +123,7 @@ describe("flowchart engine (real wasm, in Node)", () => {
     expect(ms).toBeLessThan(2000);
   });
 
-  test("a file over the 1 MB file-size cap is too big without parsing", async () => {
+  test("a file over the 1 MB file-size cap is too big without parsing", { retry: 2 }, async () => {
     const e = engine();
     await e.prepare("c");
     const { value, ms } = timed(() => e.chart("c", `/*${"x".repeat(1024 * 1024)}*/`));

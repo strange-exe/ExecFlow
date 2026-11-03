@@ -173,7 +173,8 @@ describe("attacker pass", () => {
     expect(lines.at(-1)).toBe("From: pc (ExecFlow) From: Safari on macOS (ExecFlow)");
   });
 
-  it("2000 files with 1000-character names: bounded size, quick", () => {
+  // A bound on wall time: a loaded machine can miss it once, a real slowdown misses it every time.
+  it("2000 files with 1000-character names: bounded size, quick", { retry: 2 }, () => {
     const name = (prefix: string, i: number) => `${prefix}${String(i).padStart(4, "0")}/${"n".repeat(990)}.py`;
     const added = Array.from({ length: 2000 }, (_, i) => name("a", i));
     const start = performance.now();

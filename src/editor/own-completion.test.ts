@@ -3,7 +3,6 @@
 // index), and a Python workspace module's members after `import helpers` / `helpers.`. Options are
 // read straight from every source the file has at the position, before CodeMirror filters them.
 import { CompletionContext, type Completion, type CompletionResult, type CompletionSource } from "@codemirror/autocomplete";
-import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { beforeAll, describe, expect, it } from "vitest";
 import { IndexSlot, libraryContext, workspaceIndex } from "./completion-context";
@@ -12,7 +11,7 @@ import { fileConf, fileExtensions } from "./extensions";
 import { loadLibrary } from "./library-data";
 import { headerClosure, namesReady } from "./own-completion";
 import { indexIn, type Scheduler } from "./workspace-index";
-import "./test-languages";
+import { parsed } from "./test-languages";
 
 beforeAll(async () => {
   expect(await loadCompletionCode()).toBe(true);
@@ -50,8 +49,7 @@ function workspace(files: Record<string, string>) {
           options.readOnly ? EditorState.readOnly.of(true) : [],
         ],
       });
-      ensureSyntaxTree(state, state.doc.length, 5000);
-      return state;
+      return parsed(state);
     },
     async settled() {
       for (let i = 0; i < 1000 && index.busy; i++) await new Promise((r) => setTimeout(r, 0));
@@ -225,8 +223,7 @@ describe("C and C++: names from headers included with quotes", () => {
     let own = labels(ownOf(await after(state, "  he")));
     expect(own).toEqual(["main", "helper", "helper2"]); // deep.h is no longer included
     // A new include typed in the open file is followed at once (its syntax tree), its names once read.
-    state = state.update({ changes: { from: 0, insert: '#include "other.h"\n' } }).state;
-    ensureSyntaxTree(state, state.doc.length, 5000);
+    state = parsed(state.update({ changes: { from: 0, insert: '#include "other.h"\n' } }).state);
     expect(namesReady(state, "c")).toBe(false);
     await ws.settled();
     own = labels(ownOf(await after(state, "  he")));

@@ -307,7 +307,8 @@ describe("races and failures", () => {
     expect(error).toMatchObject({ kind: "rate-limit", retryAfterMs: 42_000 });
   });
 
-  it("a repository larger than a workspace is refused before any download", async () => {
+  // 2001 files through the fake GitHub: no bound on time is meant, only Vitest's 5 s default.
+  it("a repository larger than a workspace is refused before any download", { timeout: 30_000 }, async () => {
     const { gh, client } = setup();
     const many: Record<string, string> = {};
     for (let i = 0; i <= 2000; i++) many[`f${i}.txt`] = `${i}\n`;
