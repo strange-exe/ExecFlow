@@ -517,6 +517,11 @@
   --field-h: 32px;
   --dur: 120ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Redesign 8 (menus, option C): entrances ease out, exits ease in, a pressed control springs back
+     with a slight overshoot. Nothing linear; reduced motion makes them all instant (below). */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Touch screens and narrow windows: primary actions 44 px tall, every other target 44 px where it fits. */

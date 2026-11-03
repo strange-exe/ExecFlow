@@ -5,6 +5,7 @@ import arrowClockwise from "@phosphor-icons/core/assets/regular/arrow-clockwise.
 import arrowRight from "@phosphor-icons/core/assets/regular/arrow-right.svg?raw";
 import arrowsInSimple from "@phosphor-icons/core/assets/regular/arrows-in-simple.svg?raw";
 import arrowsOutSimple from "@phosphor-icons/core/assets/regular/arrows-out-simple.svg?raw";
+import camera from "@phosphor-icons/core/assets/regular/camera.svg?raw";
 import caretDown from "@phosphor-icons/core/assets/regular/caret-down.svg?raw";
 import caretRight from "@phosphor-icons/core/assets/regular/caret-right.svg?raw";
 import caretLineRight from "@phosphor-icons/core/assets/regular/caret-line-right.svg?raw";
@@ -64,7 +65,7 @@ import { svg } from "./dom";
 
 const SOURCES = {
   "arrow-clockwise": arrowClockwise, "arrow-right": arrowRight, "arrows-in-simple": arrowsInSimple, "arrows-out-simple": arrowsOutSimple,
-  "caret-down": caretDown, "caret-line-right": caretLineRight, "caret-right": caretRight,
+  camera, "caret-down": caretDown, "caret-line-right": caretLineRight, "caret-right": caretRight,
   "caret-up": caretUp, "check-circle": checkCircle,
   "cloud-arrow-up": cloudArrowUp, "cloud-check": cloudCheck, "cloud-slash": cloudSlash, "code-simple": codeSimple,
   copy, "corners-in": cornersIn, "corners-out": cornersOut,

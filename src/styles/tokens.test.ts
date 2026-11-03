@@ -25,6 +25,7 @@ const RUNTIME = new Set([
   "--level", // src/ui/tree.ts, a tree row's depth
   "--tail", // src/ui/tree.ts, a conflict copy name's uncut end, in ch
   "--row-h", // app.css, declared on .tree-row
+  "--bs", // app.css, a file badge's height, declared on .file-badge
   "--kind", // about.css, a What's new change tag's hue, declared on each kind's rule
   "--fc-i", // src/flowchart/render.ts, a traced connector's place in the run trace's draw-in
   "--fc-chip-k", // src/ui/flowchart-view.ts, the chips' scale against the chart's zoom

@@ -135,12 +135,15 @@ test("C1: a right-click inside the selection opens the code menu: its items, key
   const menu = codeMenu(page);
   await expect(menu).toBeVisible();
   await expect(page.getByRole("menu", { name: "Actions for the selected code" })).toBeVisible();
-  expect(await labels(page)).toEqual(["Capture snippet of lines 2 to 3...", "Cut", "Copy", "Select all"]);
+  // Flow rail (redesign 8): Capture's row shows its words, its lines are in the Selection caption
+  // (menus-rail.spec R1); its name keeps them all.
+  expect(await labels(page)).toEqual(["Capture snippet...", "Cut", "Copy", "Select all"]);
+  await expect(menu.getByRole("menuitem").first()).toHaveAccessibleName("Capture snippet of lines 2 to 3...");
   await expect(menu.getByRole("menuitem").first()).toBeFocused();
   await expect(menu.getByRole("separator")).toHaveCount(1);
   const mod = mac ? "Cmd" : "Ctrl";
-  expect(await menu.locator(".keycap").allTextContents()).toEqual([`${mod} X`, `${mod} C`, `${mod} A`]);
-  await expect(menu.locator(".menu-hint")).toHaveText("Shift+right-click for the browser's menu");
+  expect(await menu.locator(".menu-key").allTextContents()).toEqual([`${mod}+X`, `${mod}+C`, `${mod}+A`]);
+  await expect(menu.locator(".menu-hint")).toHaveText("Browser menu: Shift+right-click");
   await expect(page.locator("#app")).toHaveAttribute("data-code-menu", "app");
   expect((await menus(page)).map((m) => m.prevented)).toEqual([true]);
   await page.keyboard.press("Escape");
@@ -239,7 +242,8 @@ test("C4: several ranges: any selected range opens the menu, Capture spans them,
   await clearRecords(page);
   await rightClick(page, at);
   await expect(codeMenu(page)).toBeVisible();
-  expect((await labels(page))[0]).toBe("Capture snippet of lines 2 to 5...");
+  await expect(codeMenu(page).getByRole("menuitem").first()).toHaveAccessibleName("Capture snippet of lines 2 to 5...");
+  await expect(codeMenu(page).locator(".menu-cap-detail").first()).toHaveText("lines 2 to 5");
   const results = await counter(page, "codeMenuResults");
   await codeMenu(page).getByRole("menuitem", { name: /^Copy/ }).click();
   await expect(page.locator("#app")).toHaveAttribute("data-code-menu-results", String(results + 1));
@@ -340,7 +344,7 @@ test("C8: Shift+F10 with a selection opens the menu at the head, with the keyboa
   expect(below || above, `menu at ${JSON.stringify(m)}, caret ${JSON.stringify(c)}`).toBe(true);
   expect(Math.abs(m.x - c.x)).toBeLessThanOrEqual(2);
   if (mac) await expect(menu.locator(".menu-hint")).toHaveCount(0);
-  else await expect(menu.locator(".menu-hint")).toHaveText("Press Shift+F10 again for the browser's menu");
+  else await expect(menu.locator(".menu-hint")).toHaveText("Browser menu: Shift+F10 again");
   if (browserName === "chromium") expect(await menus(page), "the keydown was cancelled: no contextmenu").toEqual([]);
   await page.keyboard.press("Escape");
   await selectionIntact(page);
@@ -718,20 +722,24 @@ for (const vp of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone"
       expect(pairs.filter((p) => p.ratio < p.min).map((p) => `${p.sel} ${p.text} ${p.ratio}`)).toEqual([]);
       const min = vp.width < 900 ? 44 : 24;
       for (const item of await menu.getByRole("menuitem").all()) expect((await box(item)).height).toBeGreaterThanOrEqual(min);
-      await expect(menu).toHaveAccessibleDescription("Shift+right-click for the browser's menu");
+      await expect(menu).toHaveAccessibleDescription("Browser menu: Shift+right-click");
       await expect(menu.locator(".menu-hint")).toHaveAttribute("aria-hidden", "true");
+      // It lines up with the labels on a phone, and with the group captions from 900 px (Flow rail).
       const shown = await menu.evaluate((m) => {
         const hint = m.querySelector<HTMLElement>(".menu-hint")!;
-        const label = m.querySelector(".menu-label")!;
+        const cap = m.querySelector<HTMLElement>(".menu-cap");
+        const line = cap && getComputedStyle(cap).display !== "none" ? cap : m.querySelector(".menu-label")!;
+        const left = (el: Element) => el.getBoundingClientRect().left + (el === cap ? parseFloat(getComputedStyle(cap).paddingLeft) : 0);
         const textLeft = hint.getBoundingClientRect().left + parseFloat(getComputedStyle(hint).paddingLeft);
         const width = m.getBoundingClientRect().width;
         hint.style.display = "none";
         const without = m.getBoundingClientRect().width;
         hint.style.display = "";
-        return { width, without, textLeft, labelLeft: label.getBoundingClientRect().left };
+        return { width, without, textLeft, lineLeft: left(line), lines: line === cap ? "captions" : "labels" };
       });
+      expect(shown.lines).toBe(vp.width < 900 ? "labels" : "captions");
       expect(Math.abs(shown.width - shown.without), "the hint never widens the menu").toBeLessThanOrEqual(1);
-      expect(Math.abs(shown.textLeft - shown.labelLeft), "the hint's text lines up with the labels").toBeLessThanOrEqual(1);
+      expect(Math.abs(shown.textLeft - shown.lineLeft), `the hint's text lines up with the ${shown.lines}`).toBeLessThanOrEqual(1);
     });
   }
 }

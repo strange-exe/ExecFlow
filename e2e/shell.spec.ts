@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { BADGE_LOOK, badgeWord } from "../src/core/file-badge";
 import { expect, importFiles, openApp, openFromTree, setCode, showFiles, test, treeItem } from "./helpers";
 
 // The Workbench Pro shell (S2, .claude/design/redesign5/a/design.md; built on 0.7.0's direction B):
@@ -171,12 +172,12 @@ test.describe("desktop", () => {
 
   test("tree rows are 32 px, and each file's type is a text badge, not a colour", async ({ page }) => {
     await withFiles(page);
-    const badge = (path: string) => treeItem(page, path).locator(":scope > .tree-row .tree-type");
-    await expect(badge("main.c")).toHaveText("C");
-    await expect(badge("util.cpp")).toHaveText("C++");
-    await expect(badge("calc.py")).toHaveText("Py");
-    await expect(badge("list.h")).toHaveText("H");
-    await expect(badge("notes.txt")).toHaveText("Txt");
+    // The words are the chosen look's (src/core/file-badge.ts BADGE_LOOK).
+    const badge = (path: string) => treeItem(page, path).locator(":scope > .tree-row .file-badge");
+    for (const path of ["main.c", "util.cpp", "calc.py", "list.h", "notes.txt"]) {
+      await expect(badge(path)).toHaveText(badgeWord(path));
+      await expect(badge(path)).toHaveAttribute("data-look", BADGE_LOOK);
+    }
     // The badge is decoration beside a name that already says the extension.
     await expect(badge("main.c")).toHaveAttribute("aria-hidden", "true");
     const row = await box(page, '.tree [data-path="main.c"] > .tree-row');

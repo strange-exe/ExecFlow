@@ -102,6 +102,12 @@ export const MENU_NAME_UNITS = 24;
  * The file menu's item (with the file's name) and the code menu's (`name` null): "Capture snippet
  * of main.py, lines 4 to 12...". Built from the plan, so the whole-line rule shows before the click.
  */
+/** The lines a menu's Capture item will draw, for its group's caption ("lines 4 to 12"), or null when it can't say. */
+export function menuLines(plan: LinePlan): string | null {
+  if (!plan.ok && plan.reason !== "cap") return null;
+  return lineWords(plan.first, plan.last);
+}
+
 export function menuLabel(plan: LinePlan, name: string | null): string {
   if (!plan.ok && plan.reason !== "cap") return "Capture snippet of the selected lines...";
   const lines = lineWords(plan.first, plan.last);

@@ -7,6 +7,7 @@
 import { detectLanguage, isHeader } from "../core/languages";
 import type { EntryMeta, WsPath } from "../core/types";
 import { h, shown } from "./dom";
+import { fileBadge } from "./file-badge";
 import { icon, type IconName } from "./icons";
 import { ancestors, buildTree, checkName, conflictNameParts, newFileNote, targetFolder, typeAhead, visibleRows, type NewFileNote, type TreeNode } from "./tree-model";
 import { createAnnouncer } from "./notice";
@@ -23,20 +24,6 @@ export interface TreeActions {
   menu(node: TreeNode | null, at: HTMLElement | { x: number; y: number }): void;
   expandedChanged(expanded: WsPath[]): void;
   selectionChanged?(node: TreeNode | null): void;
-}
-
-/**
- * A file's type as a short word in a quiet badge (C, C++, Py, H, Txt), shown beside the name: text,
- * so it never rests on colour or an icon's detail. Decoration (aria-hidden): the name already ends
- * with the extension. Files of no known type get no badge, only their spacing.
- */
-export function fileType(path: string): string {
-  const lang = detectLanguage(path)?.id;
-  if (lang === "python") return "Py";
-  if (lang === "c") return "C";
-  if (lang === "cpp") return "C++";
-  if (isHeader(path)) return "H";
-  return /\.(txt|md|csv|json|in|out|dat)$/i.test(path) ? "Txt" : "";
 }
 
 export function fileIcon(path: string): IconName {
@@ -246,7 +233,8 @@ export class FileTree {
           "div",
           { class: "tree-row", style: `--level: ${n.level - 1}` },
           h("span", { class: "twisty" }, isDir ? icon(open ? "caret-down" : "caret-right") : null),
-          isDir ? icon(open ? "folder-open" : "folder", "tree-icon") : h("span", { class: "tree-type", "aria-hidden": "true", "data-type": fileType(n.path) || null }, fileType(n.path)),
+          // A file's type: its badge (file-badge.ts), decoration beside a name that says the extension.
+          isDir ? icon(open ? "folder-open" : "folder", "tree-icon") : fileBadge(n.path, "tree-type"),
           treeName(n, nameId),
           errorBadge,
           openBadge,

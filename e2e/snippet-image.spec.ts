@@ -518,7 +518,7 @@ for (const key of ["Enter", "Space"] as const) {
       await page.keyboard.press("c");
       if (((await page.evaluate(() => document.activeElement?.querySelector(".menu-label")?.textContent)) ?? "").startsWith("Capture snippet")) break;
     }
-    expect(await page.evaluate(() => document.activeElement?.querySelector(".menu-label")?.textContent)).toBe("Capture snippet of main.py, lines 2 to 3...");
+    expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Capture snippet of main.py, lines 2 to 3...");
     await page.keyboard.press(key);
     await previewReady(page);
     const primary = (await canCopy(page)) ? copyButton(page) : downloadButton(page);

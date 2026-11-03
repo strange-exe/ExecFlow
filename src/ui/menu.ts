@@ -6,20 +6,47 @@
 // and the editor's code menu (code-menu.ts). Every menu flips above or left of its anchor near a
 // window edge, ignores a context menu asked for inside it, and moves focus to the item under the
 // pointer, so one row looks chosen and Enter acts on it, as native menus do.
+// Flow rail (redesign 8, .claude/design/redesign8/menus/options.html option C): a group can be named
+// (role="group" labelled by its caption and a mono detail, "Selection lines 2 to 3"); the chosen row
+// carries a 3 px bar (app.css); an unavailable item stays in the arrow order, says why on a line of
+// its own (its description) and explains on a click instead of acting.
 import { h } from "./dom";
 import { icon, type IconName } from "./icons";
 import { placeMenu, pointAnchor, type AnchorRect } from "./menu-place";
 
+export interface MenuGroup {
+  /** The group's caption ("Selection", "Clipboard"). */
+  caption: string;
+  /** A technical fact after it, in mono ("lines 2 to 3", "main.py"). */
+  detail?: string;
+}
+
 export interface MenuItem {
+  /** The item's name; also its words on the row unless `short` is given. */
   label: string;
+  /** The row's words when the name says more (the rest is in the caption or the sub-line). */
+  short?: string;
+  /** A quiet second line under the words (decoration: the name already says it). */
+  sub?: string;
   icon?: IconName;
-  /** Shown on the right, e.g. "F2". */
+  /** Shown on the right as quiet words, in the notices' notation ("F2", "Ctrl+Enter"). */
   shortcut?: string;
   danger?: boolean;
+  /** The menu's main item: its icon in the location colour, its words at the label weight. */
+  lead?: boolean;
   /** Starts a new group: a separator line above it (none above the first item). */
   separatorBefore?: boolean;
+  /** Starts a new named group (a separator above it too). */
+  group?: MenuGroup;
   /** One of a choice (role menuitemradio): true marks the chosen one with a check and aria-checked. */
   checked?: boolean;
+  /**
+   * Why the item can't act now ("Read-only in this tab"): aria-disabled, still focusable and in the
+   * arrow order, the reason on its sub-line and as its description. Choosing it keeps the menu open
+   * and calls `explain` instead of `run`.
+   */
+  unavailable?: string;
+  explain?(): void;
   run(): void;
 }
 
@@ -61,29 +88,71 @@ export interface MenuOptions {
 /** Where a menu opens: below an element (4 px gap), at a point (a right-click, no gap), or below a box such as the caret's line (4 px gap). */
 export type MenuAnchor = HTMLElement | { x: number; y: number } | AnchorRect;
 
-let hints = 0;
+let menus = 0;
+
+/** The hint's words, its key in mono after a colon ("Browser menu: Shift+right-click"). */
+function hintParts(hint: string): (HTMLElement | string)[] {
+  const at = hint.indexOf(": ");
+  return at < 0 ? [hint] : [hint.slice(0, at + 2), h("span", { class: "menu-hint-key" }, hint.slice(at + 2))];
+}
 
 /** Opens a menu below `anchor`, or above or left of it where there is no room (menu-place.ts). */
 export function openMenu(items: readonly MenuItem[], anchor: MenuAnchor, options: MenuOptions): void {
   closeMenus();
   if (!items.length) return;
-  const buttons = items.map((item) =>
-    h(
+  const key = options.id ?? `menu-${++menus}`;
+  const buttons = items.map((item, i) => {
+    const subId = item.unavailable ? `${key}-why-${i}` : null;
+    const kind = item.checked === undefined ? "menuitem" : "menuitemradio";
+    return h(
       "button",
-      item.checked === undefined
-        ? { type: "button", role: "menuitem", tabindex: "-1", class: `menu-item${item.danger ? " danger" : ""}` }
-        : { type: "button", role: "menuitemradio", "aria-checked": String(item.checked), tabindex: "-1", class: "menu-item" },
+      {
+        type: "button",
+        role: kind,
+        "aria-checked": kind === "menuitemradio" ? String(item.checked) : null,
+        tabindex: "-1",
+        class: `menu-item${item.danger ? " danger" : ""}${item.lead ? " lead" : ""}`,
+        // Named by the full words where the row shows fewer, or a reason under them (its description).
+        "aria-label": item.short || item.unavailable || item.sub ? item.label : null,
+        "aria-disabled": item.unavailable ? "true" : null,
+        "aria-describedby": subId,
+      },
       item.checked ? icon("check-circle") : item.icon ? icon(item.icon) : h("span", { class: "icon" }),
-      h("span", { class: "menu-label" }, item.label),
-      item.shortcut ? h("kbd", { class: "keycap" }, item.shortcut) : null,
-    ),
-  );
-  const hintId = options.hint ? `${options.id ?? `menu-${++hints}`}-hint` : null;
+      h(
+        "span",
+        { class: "menu-text" },
+        h("span", { class: "menu-label" }, item.short ?? item.label),
+        item.unavailable ? h("span", { class: "menu-sub", id: subId }, item.unavailable) : item.sub ? h("span", { class: "menu-sub" }, item.sub) : null,
+      ),
+      item.shortcut ? h("span", { class: "menu-key" }, item.shortcut) : null,
+    );
+  });
+  // Sections: a new one at every group or separator; a named one is a role="group" with its caption.
+  const sections: { group?: MenuGroup; rows: HTMLElement[] }[] = [];
+  items.forEach((item, i) => {
+    if (i === 0 || item.group || item.separatorBefore) sections.push({ group: item.group, rows: [] });
+    sections[sections.length - 1].rows.push(buttons[i]);
+  });
+  const body = sections.flatMap((s, k) => {
+    const sep = k > 0 ? [h("div", { class: "menu-sep", role: "separator" })] : [];
+    if (!s.group) return [...sep, ...s.rows];
+    const capId = `${key}-g${k}`;
+    const detailId = s.group.detail ? `${capId}-d` : null;
+    // The caption is heard as the group's name (aria-labelledby), not as text inside the menu.
+    const caption = h(
+      "div",
+      { class: "menu-cap", "aria-hidden": "true" },
+      h("span", { class: "menu-cap-name", id: capId }, s.group.caption),
+      detailId ? h("span", { class: "menu-cap-detail", id: detailId }, s.group.detail!) : null,
+    );
+    return [...sep, h("div", { class: "menu-group", role: "group", "aria-labelledby": detailId ? `${capId} ${detailId}` : capId }, caption, ...s.rows)];
+  });
+  const hintId = options.hint ? `${key}-hint` : null;
   const menu = h(
     "div",
     { class: "menu", role: "menu", "aria-label": options.label, id: options.id, "aria-describedby": hintId },
-    ...buttons.flatMap((b, i) => (i > 0 && items[i].separatorBefore ? [h("div", { class: "menu-sep", role: "separator" }), b] : [b])),
-    hintId ? h("div", { class: "menu-hint", id: hintId, "aria-hidden": "true" }, options.hint) : null,
+    ...body,
+    hintId ? h("div", { class: "menu-hint", id: hintId, "aria-hidden": "true" }, ...hintParts(options.hint!)) : null,
   );
   // Inside an open modal dialog the page behind is inert: a menu opened from it lives in the dialog.
   ((anchor instanceof Element && anchor.closest("dialog[open]")) || document.body).append(menu);
@@ -119,6 +188,12 @@ export function openMenu(items: readonly MenuItem[], anchor: MenuAnchor, options
 
   buttons.forEach((b, i) => {
     b.addEventListener("click", () => {
+      // Unavailable: the menu stays, focus stays on the row, and the item says why instead of acting.
+      if (items[i].unavailable) {
+        if (document.activeElement !== b) b.focus({ preventScroll: true });
+        items[i].explain?.();
+        return;
+      }
       close(true);
       items[i].run();
     });
@@ -173,6 +248,12 @@ export function openMenu(items: readonly MenuItem[], anchor: MenuAnchor, options
     }
     e.preventDefault();
     e.stopPropagation();
+  });
+  // Roving tabindex (APG): the focused row is the menu's one tab stop, so a menu that scrolls inside a
+  // short window still holds keyboard-reachable content (axe scrollable-region-focusable). Tab closes
+  // the menu either way (above).
+  menu.addEventListener("focusin", (e) => {
+    for (const b of buttons) b.tabIndex = b === e.target ? 0 : -1;
   });
   menu.addEventListener("focusout", (e) => {
     if (!menu.contains(e.relatedTarget as Node | null) && e.relatedTarget !== null) close(false);

@@ -292,7 +292,7 @@ export function createLayout(root: HTMLElement): Layout {
   const snippetButton = h(
     "button",
     { type: "button", class: "btn ghost capture-btn", id: "snippet-button", "aria-label": "Capture snippet of the selected lines", title: "Capture snippet of the selected lines" },
-    icon("image"),
+    icon("camera"),
     h("span", { class: "capture-label" }, "Capture"),
   );
   // The editor head: the tabs on the left, the error jump on the right (phones have no head, and

@@ -424,9 +424,10 @@ test("the file menu is grouped by separators that are not focusable and that the
   await page.locator("#file-actions").click();
   const menu = page.getByRole("menu", { name: "File actions" });
   await expect(menu.getByRole("menuitem").first()).toBeFocused();
-  // Open, run and close | new, rename, delete | import and export | Capture snippet | the file list's width.
+  // Flow rail's named groups: File | New | Change | Workspace | Selection | File list.
   const separators = menu.getByRole("separator");
-  await expect(separators).toHaveCount(4);
+  await expect(separators).toHaveCount(5);
+  await expect(menu.getByRole("group")).toHaveCount(6);
   for (const sep of await separators.all()) {
     expect(await sep.evaluate((el) => {
       (el as HTMLElement).focus();
@@ -435,7 +436,8 @@ test("the file menu is grouped by separators that are not focusable and that the
   }
   const labels = await menu.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector(".menu-label")!.textContent));
   // Nothing is selected in main.py: the Capture snippet item names no lines (it explains on click).
-  expect(labels).toEqual(["Open", "Run", "Close tab", "Share link...", "Download", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Choose files to download or share...", "Save as PDF...", "Capture snippet of the selected lines...", "Wider file list", "Narrower file list"]);
+  expect(labels).toEqual(["Open", "Run", "Close tab", "Share link...", "Download", "New file", "New folder", "New from example...", "Rename", "Delete", "Import files", "Import a folder", "Export workspace (.zip)", "Choose files to download or share...", "Save as PDF...", "Capture snippet...", "Wider file list", "Narrower file list"]);
+  await expect(menu.getByRole("menuitem", { name: "Capture snippet of the selected lines..." })).toHaveCount(1);
   // Down walks every item in order, never a separator, and wraps; Up comes back over them.
   const seen: string[] = [];
   for (let i = 0; i < labels.length; i++) {

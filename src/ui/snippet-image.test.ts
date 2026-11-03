@@ -228,7 +228,10 @@ describe("createSnippetCapture.menuItems (2.1)", () => {
     const s = setup();
     const items = s.capture.menuItems();
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ label: "Capture snippet of main.py, lines 2 to 3...", icon: "image", separatorBefore: true });
+    expect(items[0]).toMatchObject({
+      label: "Capture snippet of main.py, lines 2 to 3...", short: "Capture snippet...", sub: "lines 2 to 3", icon: "camera", separatorBefore: true,
+      group: { caption: "Selection", detail: "main.py" },
+    });
     items[0].run();
     expect(s.load).toHaveBeenCalledTimes(1);
     s.finishImport();

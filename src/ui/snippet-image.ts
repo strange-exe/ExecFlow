@@ -7,7 +7,7 @@
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { nameOf } from "../core/paths";
-import { canCopyImages, menuLabel, pickLines, refusalMessage, type Entry, type LinePlan, type ShellMessage } from "../core/snippet";
+import { canCopyImages, menuLabel, menuLines, pickLines, refusalMessage, type Entry, type LinePlan, type ShellMessage } from "../core/snippet";
 import type { MenuItem } from "./menu";
 import type { Notice } from "./notice";
 import type { SnippetDialogArgs } from "./snippet-dialog";
@@ -160,11 +160,18 @@ export function createSnippetCapture(deps: CaptureDeps): SnippetCapture {
     menuItems(): MenuItem[] {
       const file = active();
       if (!file) return [];
+      const plan = pickLines(file.state);
+      // Flow rail: its own group captioned with the file, the lines on the row's second line; the
+      // name keeps all of it ("Capture snippet of main.py, lines 2 to 3...").
+      const lines = menuLines(plan);
       return [
         {
-          label: menuLabel(pickLines(file.state), nameOf(file.path)),
-          icon: "image",
+          label: menuLabel(plan, nameOf(file.path)),
+          short: "Capture snippet...",
+          ...(lines ? { sub: lines } : {}),
+          icon: "camera",
           separatorBefore: true,
+          group: { caption: "Selection", detail: nameOf(file.path) },
           run: () => open(deps.fileActions, "menu"),
         },
       ];

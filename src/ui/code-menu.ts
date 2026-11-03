@@ -10,7 +10,7 @@ import {
   actionGate, clearsPressRecord, codeMenuHint, codeMenuItems, codeMenuMessage, coversLine, insideAny, isMenuKey, isSecondaryPress, menuDecision,
   type CodeMenuItem, type CodeMenuKind, type CodeMenuResult, type MenuPlace, type MenuVia, type OpenedRecord,
 } from "../core/code-menu";
-import { menuLabel, pickLines } from "../core/snippet";
+import { menuLabel, menuLines, pickLines } from "../core/snippet";
 import { closeMenus, openMenu, type MenuAnchor, type MenuItem } from "./menu";
 import type { AnchorRect } from "./menu-place";
 import type { Notice } from "./notice";
@@ -150,10 +150,12 @@ export function attachCodeMenu(host: HTMLElement, deps: CodeMenuDeps): void {
   function toMenuItem(item: CodeMenuItem, record: OpenedRecord): MenuItem {
     return {
       label: item.label,
+      short: item.short,
       // clipboard-text belongs to the Paste variant, which is not built (the user left Paste out), so icons.ts doesn't carry it.
       icon: item.icon === "clipboard-text" ? undefined : item.icon,
       shortcut: item.keycap,
-      separatorBefore: item.separatorBefore,
+      group: item.group,
+      lead: item.lead,
       run: () => act(item.kind, record),
     };
   }
@@ -164,7 +166,8 @@ export function attachCodeMenu(host: HTMLElement, deps: CodeMenuDeps): void {
       scroll: { top: v.scrollDOM.scrollTop, left: v.scrollDOM.scrollLeft },
     };
     opened = record;
-    const items = codeMenuItems({ mac: deps.mac, label: menuLabel(pickLines(v.state), null), paste: false }).map((item) => toMenuItem(item, record));
+    const plan = pickLines(v.state);
+    const items = codeMenuItems({ mac: deps.mac, label: menuLabel(plan, null), lines: menuLines(plan), paste: false }).map((item) => toMenuItem(item, record));
     openMenu(items, anchor, {
       id: MENU_ID, label: LABEL, returnFocus: v.contentDOM,
       // Never a raw focus() on the code: WebKit scrolls to the selection on that (view.focus() saves the scroll).

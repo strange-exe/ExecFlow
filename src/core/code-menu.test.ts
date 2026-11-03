@@ -94,30 +94,38 @@ describe("event tests", () => {
 });
 
 describe("codeMenuItems", () => {
-  it.each([false, true])("labels, icons, order, one separator, keycaps, nothing disabled (mac: %s)", (mac) => {
-    const items = codeMenuItems({ mac, label: "Capture snippet of lines 2 to 3...", paste: false });
+  it.each([false, true])("labels, icons, order, two named groups, keycaps, nothing disabled (mac: %s)", (mac) => {
+    const items = codeMenuItems({ mac, label: "Capture snippet of lines 2 to 3...", lines: "lines 2 to 3", paste: false });
     const mod = mac ? "Cmd" : "Ctrl";
-    expect(items.map((i) => [i.kind, i.label, i.icon, i.keycap ?? null])).toEqual([
-      ["capture", "Capture snippet of lines 2 to 3...", "image", null],
-      ["cut", "Cut", "scissors", `${mod} X`],
-      ["copy", "Copy", "copy", `${mod} C`],
-      ["select-all", "Select all", "selection-all", `${mod} A`],
+    expect(items.map((i) => [i.kind, i.label, i.short ?? null, i.icon, i.keycap ?? null])).toEqual([
+      ["capture", "Capture snippet of lines 2 to 3...", "Capture snippet...", "camera", null],
+      ["cut", "Cut", null, "scissors", `${mod}+X`],
+      ["copy", "Copy", null, "copy", `${mod}+C`],
+      ["select-all", "Select all", null, "selection-all", `${mod}+A`],
     ]);
-    expect(items.filter((i) => i.separatorBefore).map((i) => i.kind)).toEqual(["cut"]);
+    expect(items.filter((i) => i.group).map((i) => [i.kind, i.group])).toEqual([
+      ["capture", { caption: "Selection", detail: "lines 2 to 3" }],
+      ["cut", { caption: "Clipboard" }],
+    ]);
+    expect(items.filter((i) => i.lead).map((i) => i.kind)).toEqual(["capture"]);
     for (const item of items) expect(item).not.toHaveProperty("disabled");
   });
 
+  it("a selection with no whole lines to draw: the caption has no detail", () => {
+    expect(codeMenuItems({ mac: false, label: "Capture snippet of the selected lines...", lines: null, paste: false })[0].group).toEqual({ caption: "Selection" });
+  });
+
   it("with Paste kept: between Copy and Select all", () => {
-    const items = codeMenuItems({ mac: false, label: "Capture snippet of line 7...", paste: true });
+    const items = codeMenuItems({ mac: false, label: "Capture snippet of line 7...", lines: "line 7", paste: true });
     expect(items.map((i) => i.kind)).toEqual(["capture", "cut", "copy", "paste", "select-all"]);
-    expect(items[3]).toMatchObject({ label: "Paste", icon: "clipboard-text", keycap: "Ctrl V" });
+    expect(items[3]).toMatchObject({ label: "Paste", icon: "clipboard-text", keycap: "Ctrl+V" });
   });
 });
 
 describe("codeMenuHint", () => {
   it("teaches the way back to the browser's menu", () => {
-    for (const mac of [false, true]) expect(codeMenuHint("pointer", mac)).toBe("Shift+right-click for the browser's menu");
-    expect(codeMenuHint("keyboard", false)).toBe("Press Shift+F10 again for the browser's menu");
+    for (const mac of [false, true]) expect(codeMenuHint("pointer", mac)).toBe("Browser menu: Shift+right-click");
+    expect(codeMenuHint("keyboard", false)).toBe("Browser menu: Shift+F10 again");
     expect(codeMenuHint("keyboard", true)).toBeNull();
   });
 });

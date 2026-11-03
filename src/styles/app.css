@@ -446,20 +446,55 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 /* A folder's icon takes the badge's width, so folder and file names start on one line. */
 .tree-icon { color: var(--text-secondary); width: var(--icon-md); height: var(--icon-md); }
 .tree-row > .tree-icon { margin-inline-end: calc(var(--badge-w) - var(--icon-md)); }
-/* A file's type as a word (tree.ts fileType): mono, in the secondary tier, in a hairline box. */
-.tree-type {
+/* A file's type (file-badge.ts, in the file list and the tabs): one element, its look chosen in
+   core/file-badge.ts BADGE_LOOK and drawn here by data-look. The three looks the owner chooses from
+   (.claude/design/redesign8/menus/badges.html, script-checked in the six built-in themes: every word
+   4.5:1 and every shape 3:1 on the board, the tray, the chrome, the raised surface and a hovered or
+   chosen row). --bs is the badge's height (16 px; the page's box is 1.75 times as wide). An unknown
+   type keeps the room, empty. */
+.file-badge {
+  --bs: 16px;
+  position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: var(--badge-w);
-  height: 16px;
-  border-radius: var(--r-badge);
-  box-shadow: inset 0 0 0 1px var(--border);
+  height: var(--bs);
+  min-width: calc(var(--bs) * 1.75);
   color: var(--text-secondary);
-  font: var(--w-strong) var(--fs-hint)/16px var(--font-code);
-  letter-spacing: -0.04em;
+  font: var(--w-strong) calc(var(--bs) * 0.6875)/var(--bs) var(--font-code);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
-.tree-type:empty { box-shadow: none; }
+.file-badge:empty { visibility: hidden; }
+/* A. Sheet: a folded page in the muted tier, the extension in the secondary tier, clear of the fold
+   (the right padding is the fold's width). The page is a border filling the box under a mask: a
+   border takes a system colour in forced colours, where a fill turns into Canvas. */
+.file-badge[data-look="sheet"] { width: calc(var(--bs) * 1.75); padding: 0 calc(var(--bs) * 0.34) 0 calc(var(--bs) * 0.06); letter-spacing: -0.04em; }
+.file-badge[data-look="sheet"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: solid var(--text-muted);
+  border-width: calc(var(--bs) / 2);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 16'%3E%3Cpath d='M3 .5h19.5l5 5V13a2.5 2.5 0 0 1-2.5 2.5H3A2.5 2.5 0 0 1 .5 13V3A2.5 2.5 0 0 1 3 .5zM22.5 .5v5h5' fill='none' stroke='%23000' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 16'%3E%3Cpath d='M3 .5h19.5l5 5V13a2.5 2.5 0 0 1-2.5 2.5H3A2.5 2.5 0 0 1 .5 13V3A2.5 2.5 0 0 1 3 .5zM22.5 .5v5h5' fill='none' stroke='%23000' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+.file-badge[data-look="sheet"]:empty::before { content: none; }
+/* Three letters one step smaller, inside the page's edge (10 px at 16). */
+.file-badge[data-look="sheet"]:is([data-kind="cpp"], [data-kind="text"]) { font-size: calc(var(--bs) * 0.625); letter-spacing: -0.06em; }
+/* B. Hue key: the word in its language's syntax colour, a 2 px key bar before it. */
+.file-badge[data-look="hue"] { justify-content: start; padding-left: calc(var(--bs) * 0.3); }
+.file-badge[data-look="hue"]::before { content: ""; position: absolute; left: 0; top: 18%; bottom: 18%; border-left: 2px solid currentColor; border-radius: 1px; }
+.file-badge[data-look="hue"][data-kind="python"] { color: var(--syn-function); }
+.file-badge[data-look="hue"][data-kind="c"] { color: var(--syn-type); }
+.file-badge[data-look="hue"][data-kind="cpp"] { color: var(--syn-keyword); }
+.file-badge[data-look="hue"][data-kind="header"] { color: var(--syn-macro); }
+.file-badge[data-look="hue"][data-kind="text"] { color: var(--text-muted); }
+/* C. Tile: a solid chip, the board's colour on the secondary tier; Python round, the C family
+   square-cornered, plain text an outline. */
+.file-badge[data-look="tile"] { padding: 0 calc(var(--bs) * 0.25); border-radius: calc(var(--bs) * 0.15); background: var(--text-secondary); color: var(--board); }
+.file-badge[data-look="tile"][data-kind="python"] { border-radius: calc(var(--bs) / 2); }
+.file-badge[data-look="tile"]:is([data-kind="text"], :empty) { background: none; color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--text-muted); }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--fs-2)/var(--lh-2) var(--font-name); }
 [data-opaque="true"] > .tree-row .tree-name { color: var(--text-muted); }
 .tree-badge { display: inline-grid; color: var(--text-muted); }
@@ -596,9 +631,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .tab-flag { display: inline-grid; color: var(--text-muted); }
 .tab-flag .icon { width: var(--icon-md); height: var(--icon-md); }
 .tab-flag.error { color: var(--danger); }
-.tab[data-dirty="true"] .tab-name { font-style: italic; }
 .dirty-dot { display: none; width: var(--s2); height: var(--s2); border-radius: 50%; background: currentColor; }
-.tab[data-dirty="true"] .dirty-dot { display: inline-block; }
 .tab-close {
   display: inline-grid;
   place-items: center;
@@ -613,6 +646,71 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 }
 .tab-close:hover { background: var(--hover); color: var(--text); }
 .tab-close .icon { width: var(--icon-sm); height: var(--icon-sm); }
+.tab-close > * { pointer-events: none; }
+.tabs-more { display: none; }
+
+/* Flow rail tabs (redesign 8, option C), from 900 px (the strip shows only there): the open files
+   in a tray on the board's ground under a hairline; the open file a sheet joined to the code below
+   (the code's ground, side edges in --border, its top edge 2 px in the location colour, 3:1 on it),
+   its name in --text at the label weight. Each tab leads with its file-type badge; a long name loses
+   the end of its stem (".py" stays); an unsaved file shows a dot where the close x sits (the x comes
+   back under the pointer or the keyboard), its name upright; a clean, inactive tab shows no x at
+   rest. Tabs that don't fit fade at the strip's edge, and "N more" lists them (tabs.ts). */
+@media (min-width: 900px) {
+  .editor-head > .tab-host { margin-bottom: -1px; }
+  .tabstrip { display: flex; align-items: flex-end; gap: var(--s1); overflow: visible; }
+  .tabs {
+    flex: 0 1 auto;
+    align-items: flex-end;
+    min-width: 0;
+    height: calc(100% - var(--s1));
+    padding: var(--s1) var(--s1) 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    border-radius: var(--r-control) var(--r-control) 0 0;
+    background: var(--ground);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  /* Masks use only alpha: black is "shown", whatever the theme. */
+  .tabs[data-overflow="end"] { -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent); mask-image: linear-gradient(to right, black calc(100% - 40px), transparent); }
+  .tabs[data-overflow="start"] { -webkit-mask-image: linear-gradient(to left, black calc(100% - 40px), transparent); mask-image: linear-gradient(to left, black calc(100% - 40px), transparent); }
+  .tabs[data-overflow="both"] { -webkit-mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent); }
+  /* Tabs keep their own width (a short name is never cut); only a name past 200 px ellipsizes its
+     stem, and a full tray scrolls, with the edge fades and the "N more" button. */
+  .tab { flex: none; max-width: 200px; height: 100%; border-radius: var(--r-control) var(--r-control) 0 0; }
+  .tab[data-active="true"] { background: var(--board); box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border); }
+  .tab[data-active="true"]::before { content: ""; position: absolute; inset: 0 0 auto; border: 0 solid var(--location); border-top-width: 2px; border-radius: var(--r-control) var(--r-control) 0 0; pointer-events: none; }
+  .tab-button { flex: 1 1 auto; min-width: 0; gap: 6px; padding: 0 var(--s1) 0 10px; border-radius: var(--r-control) var(--r-control) 0 0; }
+  .tab-name { display: flex; min-width: 0; }
+  .tab-stem { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab-ext { flex: none; }
+  .tab-folder, .tab-flag { flex: none; }
+  .tab-close { flex: none; width: var(--target); height: var(--target); margin-right: 3px; transition: opacity var(--dur) var(--ease-out); }
+  .tab[data-active="false"][data-dirty="false"]:not(:hover, :focus-within) .tab-close { opacity: 0; }
+  .tab[data-dirty="true"]:not(:hover, :focus-within) .tab-close .dirty-dot { display: block; }
+  .tab[data-dirty="true"]:not(:hover, :focus-within) .tab-close .icon { display: none; }
+  .tabs-more {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s1);
+    flex: none;
+    align-self: center;
+    height: var(--tool);
+    padding: 0 var(--s2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text-secondary);
+    font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-ui);
+    white-space: nowrap;
+  }
+  .tabs-more[hidden] { display: none; }
+  .tabs-more > * { pointer-events: none; }
+  .tabs-more .icon { width: var(--icon-sm); height: var(--icon-sm); }
+  .tabs-more:hover, .tabs-more[aria-expanded="true"] { background: var(--hover); color: var(--text); }
+}
 
 .editor-panel { position: relative; min-height: 0; min-width: 0; }
 .editor-host { position: absolute; inset: 0; }
@@ -1059,7 +1157,25 @@ a.status-btn { text-decoration: none; }
 .menu-item:focus-visible { outline-offset: -2px; }
 .menu-item .icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-muted); }
 .menu-item.danger, .menu-item.danger .icon { color: var(--danger); }
-.menu-label { flex: 1; }
+/* The words, and a quiet line under them (an unavailable item's reason, Capture's lines). */
+.menu-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.menu-label { overflow-wrap: anywhere; }
+.menu-sub { font: var(--fs-hint)/var(--lh-hint) var(--font-ui); color: var(--text-muted); }
+/* Unavailable (menu.ts): still a focus stop with its reason; quiet, and it never looks like danger. */
+.menu-item[aria-disabled="true"], .menu-item[aria-disabled="true"] .icon { color: var(--text-muted); cursor: not-allowed; }
+/* Shortcuts: a keycap under 900 px (the phone's look), quiet mono words from 900 px (Flow rail). */
+.menu-key {
+  flex: none;
+  margin-left: var(--s2);
+  padding: 0 var(--s1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-key);
+  font: var(--w-label) var(--fs-hint)/var(--lh-hint) var(--font-code);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* A group's caption names it for screen readers (aria-labelledby) at every width; it shows from 900 px. */
+.menu-cap { display: none; }
 /* Between groups (open and close; new, rename, delete; import and export; Capture snippet; the file list's width). */
 /* A border, not a fill: forced colours paint every author background as Canvas, while a border takes a system colour. */
 .menu-sep { height: 0; margin: var(--s1) 0; border-top: 1px solid var(--border); }
@@ -1076,6 +1192,30 @@ a.status-btn { text-decoration: none; }
   color: var(--text-muted);
   /* Two lines of even length, never one word left alone on the second. */
   text-wrap: balance;
+}
+
+/* Flow rail (redesign 8, .claude/design/redesign8/menus/options.html option C), from 900 px (phones
+   keep the look above): the menu reads like a short program. Rows edge to edge in named groups; the
+   chosen row (focus, which follows a pointer that moves: menu.ts) is filled and carries a 3 px bar in
+   the focus colour, the one mark for the pointer and the keyboard alike (no ring box beside it);
+   hairline depth only (the 1 px control edge, 3:1, carries the boundary in every theme); captions in
+   the hint tier with their technical detail in mono; shortcuts as quiet mono words; the hint on one
+   line, lined up with the captions. */
+@media (min-width: 900px) {
+  .menu { min-width: 264px; padding: var(--s1) 0; box-shadow: none; }
+  .menu-item { position: relative; padding: 6px var(--s3) 6px 14px; border-radius: 0; }
+  .menu-item::before { content: ""; position: absolute; left: 0; top: var(--s1); bottom: var(--s1); border-left: 3px solid transparent; border-radius: 0 2px 2px 0; pointer-events: none; }
+  .menu-item:focus-visible { outline: none; }
+  .menu-item:focus::before { border-left-color: var(--focus); }
+  .menu-item.lead .icon { color: var(--location); }
+  .menu-item.lead .menu-label { font-weight: var(--w-label); }
+  .menu-key { margin-left: var(--s4); padding: 0; border: 0; font-weight: 400; }
+  .menu-cap { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); padding: 6px var(--s3) 2px 14px; font: var(--fs-hint)/var(--lh-hint) var(--font-ui); color: var(--text-muted); }
+  .menu-cap-name { flex: none; }
+  .menu-cap-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-code); color: var(--text-secondary); }
+  .menu-sep { margin: var(--s1) 0 2px; }
+  .menu-hint { margin-top: 2px; padding: 6px var(--s3) var(--s1) 14px; border-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .menu-hint-key { font-family: var(--font-code); }
 }
 
 /* ------------------------------------------------------------------ dialogs */
@@ -1571,7 +1711,29 @@ input.switch {
   .topbar-end > .status-btn { justify-content: center; width: var(--tool); height: var(--tool); margin: 0; padding: 0; border-radius: var(--r-control); color: var(--text-muted); }
   .topbar-end > .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
   .topbar-end > .status-btn > .status-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-
+  /* Pressed: the tool sinks 1 px and springs back with a slight overshoot (none under reduced motion). */
+  .topbar-end > :is(.status-btn, .icon-btn, .capture-btn) { transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), transform 280ms var(--spring); }
+  .topbar-end > :is(.status-btn, .icon-btn, .capture-btn):active { transform: translateY(1px) scale(0.97); transition-duration: var(--dur), var(--dur), 80ms; transition-timing-function: var(--ease), var(--ease), var(--ease-out); }
+}
+/* Flow rail (redesign 8): from 1280 px Shortcuts and Settings show their words beside their icons,
+   as Capture does (13 px, the secondary tier, the text colour on hover); About stays its icon. Under
+   1280 they are icons named by their words. */
+@media (min-width: 1280px) {
+  .topbar-end > #shortcuts-button, .topbar-end > #settings-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    padding: 0 10px 0 var(--s2);
+    color: var(--text-secondary);
+    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
+  }
+  .topbar-end > #shortcuts-button > .status-btn-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .topbar-end > #settings-button > .rail-label { display: inline; }
+  .topbar-end > #settings-button > * { pointer-events: none; }
+  .topbar-end > :is(#shortcuts-button, #settings-button):hover { color: var(--text); }
+}
+@media (min-width: 1100px) {
   /* The code board's head shows with nothing open too: Files is the way to the files. */
   .workbench[data-open="false"] .editor-head { display: flex; }
   .workbench[data-open="false"] :is(.editor-panel, .editor-empty) { border-radius: 0; }
@@ -2034,6 +2196,12 @@ input.switch {
      (a fill and an inset ring) becomes an outline; the segmented track keeps its edge as a border. */
   .tab[data-active="true"], .panel-tabs [role="tab"][aria-selected="true"], .view-switch [role="tab"][aria-selected="true"],
   .rail .rail-btn[aria-expanded="true"], .view-bar .drawer-toggle[aria-expanded="true"] { outline: 2px solid var(--location); outline-offset: -2px; }
+  /* The open tab's join to the code is a fill over the head's rule, and fills turn into Canvas here:
+     the tabs keep off the rule, so it stays whole under them and the outline above is the mark. */
+  .editor-head > .tab-host { margin-bottom: 0; }
+  /* The tray's own foot line is a shadow: forced colours drop it in Chromium, while WebKit only
+     matches the media query and kept it under every tab. Off in every engine, the head's rule is the line. */
+  .tabs { box-shadow: none; }
   .panel-tabs { border: 1px solid var(--border-strong); }
   .palette-btn, .capture-btn { border: 1px solid var(--border-strong); }
   .tree-row { position: relative; }

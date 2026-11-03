@@ -87,32 +87,41 @@ export function coversLine(line: { readonly from: number; readonly to: number },
 // ---------------------------------------------------------------- items
 
 export type CodeMenuKind = "capture" | "cut" | "copy" | "paste" | "select-all";
-export type CodeMenuIcon = "image" | "scissors" | "copy" | "clipboard-text" | "selection-all";
+export type CodeMenuIcon = "camera" | "scissors" | "copy" | "clipboard-text" | "selection-all";
 export interface CodeMenuItem {
   readonly kind: CodeMenuKind;
+  /** The item's name (Capture's says the lines). */
   readonly label: string;
+  /** The words on the row when shorter than the name: Capture's lines are in its group's caption. */
+  readonly short?: string;
   readonly icon: CodeMenuIcon;
-  /** Shown on the right, like the app's other menus ("Ctrl X"). */
+  /** Shown on the right as quiet words, in the notices' notation ("Ctrl+X"). */
   readonly keycap?: string;
-  readonly separatorBefore?: boolean;
+  /** Starts a named group: its caption, and a detail in mono (the lines). */
+  readonly group?: { readonly caption: string; readonly detail?: string };
+  /** The menu's reason to exist (Capture): its icon in the location colour, its words at the label weight. */
+  readonly lead?: boolean;
 }
 
-/** Capture snippet first (the reason the menu exists), then the clipboard group. Every item enabled: each explains on click. */
-export function codeMenuItems(o: { mac: boolean; label: string; paste: boolean }): CodeMenuItem[] {
+/**
+ * Capture snippet first (the reason the menu exists), in the Selection group captioned with its
+ * lines, then the Clipboard group (Flow rail, redesign 8). Every item enabled: each explains on click.
+ */
+export function codeMenuItems(o: { mac: boolean; label: string; lines: string | null; paste: boolean }): CodeMenuItem[] {
   const mod = o.mac ? "Cmd" : "Ctrl";
   return [
-    { kind: "capture", label: o.label, icon: "image" },
-    { kind: "cut", label: "Cut", icon: "scissors", keycap: `${mod} X`, separatorBefore: true },
-    { kind: "copy", label: "Copy", icon: "copy", keycap: `${mod} C` },
-    ...(o.paste ? [{ kind: "paste", label: "Paste", icon: "clipboard-text", keycap: `${mod} V` } as const] : []),
-    { kind: "select-all", label: "Select all", icon: "selection-all", keycap: `${mod} A` },
+    { kind: "capture", label: o.label, short: "Capture snippet...", icon: "camera", lead: true, group: { caption: "Selection", ...(o.lines ? { detail: o.lines } : {}) } },
+    { kind: "cut", label: "Cut", icon: "scissors", keycap: `${mod}+X`, group: { caption: "Clipboard" } },
+    { kind: "copy", label: "Copy", icon: "copy", keycap: `${mod}+C` },
+    ...(o.paste ? [{ kind: "paste", label: "Paste", icon: "clipboard-text", keycap: `${mod}+V` } as const] : []),
+    { kind: "select-all", label: "Select all", icon: "selection-all", keycap: `${mod}+A` },
   ];
 }
 
 /** The menu's last line: how to reach the browser's own menu (none for the keyboard on macOS, which has no such menu). */
 export function codeMenuHint(via: MenuVia, mac: boolean): string | null {
-  if (via === "pointer") return "Shift+right-click for the browser's menu";
-  return mac ? null : "Press Shift+F10 again for the browser's menu";
+  if (via === "pointer") return "Browser menu: Shift+right-click";
+  return mac ? null : "Browser menu: Shift+F10 again";
 }
 
 // ---------------------------------------------------------------- results (final-v3 6.3 and 2.3.10)

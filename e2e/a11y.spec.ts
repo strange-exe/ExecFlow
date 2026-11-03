@@ -798,9 +798,10 @@ test("in forced colours the menus' separators still show", async ({ page, browse
     const r = e.getBoundingClientRect();
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   }));
-  // Three rules between the menu's groups, and a fourth before the file list's width steps, which
-  // are offered under 1100 px only (from 1100 px the list is the fixed-width Files popover).
-  expect(seps, "the file menu's separators").toHaveLength((page.viewportSize()?.width ?? 1280) >= 1100 ? 3 : 4);
+  // Four rules between the menu's named groups (File, New, Change, Workspace, Selection), and a fifth
+  // before the file list's width steps, which are offered under 1100 px only (from 1100 px the list
+  // is the fixed-width Files popover).
+  expect(seps, "the file menu's separators").toHaveLength((page.viewportSize()?.width ?? 1280) >= 1100 ? 4 : 5);
   const shown = seps.map((s) => {
     const ref = px.at(Math.ceil(s.x + 4), Math.floor(s.y) - 2);
     let best = 1;

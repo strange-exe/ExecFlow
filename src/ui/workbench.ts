@@ -336,10 +336,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (e.detail > 1) return;
     snippet.open(L.snippetButton, e.detail > 0 ? "head-pointer" : "head-key");
   });
-  // Grouped by separators: the file's own actions (open, run, close, share); new, rename, delete; import and export; Capture snippet; the file list's width.
+  // Named groups: File (open, run, close, share, download), New, Change (rename, delete), Workspace (import and export), Selection (Capture snippet), File list (its width).
   menuButton(moreButton, "File actions", () => [
     ...menuFor(tree.selectedNode()),
-    { label: "Import files", icon: "upload-simple", separatorBefore: true, run: () => void importFrom(false, targetDir()) },
+    { label: "Import files", icon: "upload-simple", group: { caption: "Workspace" }, run: () => void importFrom(false, targetDir()) },
     { label: "Import a folder", icon: "folder-plus", run: () => void importFrom(true, targetDir()) },
     { label: "Export workspace (.zip)", icon: "download-simple", run: () => void exportWorkspace() },
     { label: "Choose files to download or share...", icon: "list-checks", run: () => void chooseFiles(moreButton) },
@@ -367,30 +367,35 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     tree.startCreate(kind, dir);
   }
 
+  // Flow rail (redesign 8): named groups, the item's own first: File (or Folder) with its name, New,
+  // Change, then the More actions list's Workspace, Selection and File list. Shortcuts in the
+  // notices' notation. In a read-only tab Rename and Delete stay, unavailable, with the reason.
   function menuFor(node: TreeNode | null): MenuItem[] {
     const dir = node ? (node.kind === "dir" ? node.path : parentOf(node.path)) : "";
     const items: MenuItem[] = [];
     if (node?.kind === "file" && !node.opaque) {
       items.push({ label: "Open", icon: "file", run: () => void openFile(node.path, { focus: true }) });
-      if (detectLanguage(node.path)) items.push({ label: "Run", icon: "play-fill", shortcut: isMac() ? "Cmd Enter" : "Ctrl Enter", run: () => void openFile(node.path, { focus: false }).then(() => run()) });
+      if (detectLanguage(node.path)) items.push({ label: "Run", icon: "play-fill", shortcut: isMac() ? "Cmd+Enter" : "Ctrl+Enter", run: () => void openFile(node.path, { focus: false }).then(() => run()) });
       // Closing without a keyboard, for screen readers on touch (the tab's own x is mouse-only).
       const openTab = open.find((f) => f.path === node.path);
-      if (openTab) items.push({ label: "Close tab", icon: "x", shortcut: "Alt W", run: () => void closeFile(openTab.id) });
+      if (openTab) items.push({ label: "Close tab", icon: "x", shortcut: "Alt+W", run: () => void closeFile(openTab.id) });
     }
     // Share link (.claude/design/batch5/share-link.md): any file, a read-only one too (the repository link works for it).
     if (node?.kind === "file") items.push({ label: "Share link...", icon: "link-simple", run: () => sync.share(node.path, focused()) });
     // Download (0.18.0): a file as itself, a folder as a .zip; a read-only GitHub file has no bytes here.
     if (node?.kind === "file" && !node.opaque) items.push({ label: "Download", icon: "download-simple", run: () => void downloadPaths([node.path]) });
     if (node?.kind === "dir") items.push({ label: "Download as .zip", icon: "download-simple", run: () => void downloadPaths([node.path]) });
+    if (node && items.length) items[0].group = { caption: node.kind === "dir" ? "Folder" : "File", detail: node.name };
     items.push(
-      { label: "New file", icon: "file-plus", separatorBefore: true, run: () => startCreate("file", dir) },
+      { label: "New file", icon: "file-plus", group: { caption: "New" }, run: () => startCreate("file", dir) },
       { label: "New folder", icon: "folder-plus", run: () => startCreate("dir", dir) },
       { label: "New from example...", icon: "code-simple", run: () => openExamples() },
     );
     if (node) {
+      const why = canWrite() ? {} : { unavailable: "Read-only in this tab", explain: () => void explainReadOnly() };
       items.push(
-        { label: "Rename", icon: "pencil-simple", shortcut: "F2", run: () => (explainReadOnly() ? undefined : tree.startRename(node.path)) },
-        { label: "Delete", icon: "trash", shortcut: "Delete", danger: true, run: () => void removeEntry(node) },
+        { label: "Rename", icon: "pencil-simple", shortcut: "F2", group: { caption: "Change" }, ...why, run: () => (explainReadOnly() ? undefined : tree.startRename(node.path)) },
+        { label: "Delete", icon: "trash", shortcut: "Delete", danger: true, ...why, run: () => void removeEntry(node) },
       );
     }
     return items;
@@ -1765,7 +1770,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const items: MenuItem[] = [];
     if (side.value < side.max()) items.push({ label: "Wider file list", icon: "corners-out", run: () => side.set(side.value + WIDTH_STEP) });
     if (side.value > side.min) items.push({ label: "Narrower file list", icon: "corners-in", run: () => side.set(side.value - WIDTH_STEP) });
-    if (items.length) items[0].separatorBefore = true;
+    if (items.length) items[0].group = { caption: "File list" };
     return items;
   }
 

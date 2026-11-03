@@ -1,3 +1,4 @@
+import { badgeWord } from "../src/core/file-badge";
 import { expect, importFiles, openApp, openFromTree, reloadApp, showFiles, test, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
@@ -55,7 +56,7 @@ test("editor tabs follow the APG tabs pattern and close from the keyboard", asyn
   await expect(page.locator('[data-empty="no-file"]')).toBeVisible();
 });
 
-test("an unsaved file says so in its name and with a dot and italics, then autosaves", async ({ page }) => {
+test("an unsaved file says so in its name and with a dot in the close button's place, then autosaves", async ({ page }) => {
   await threeOpen(page);
   // Autosave runs 400 ms after typing stops, so record what the unsaved tab looked like the moment it
   // appeared instead of racing the save.
@@ -79,8 +80,10 @@ test("an unsaved file says so in its name and with a dot and italics, then autos
   await page.keyboard.type("  # edited");
   const seen = () => page.evaluate(() => (window as unknown as { dirtySeen: Record<string, string>[] }).dirtySeen[0] ?? null);
   await expect.poll(seen).not.toBeNull();
-  // While unsaved: the name says so to screen readers, and shows a dot and italics (not colour alone).
-  expect(await seen()).toEqual({ text: "c.py, unsaved", label: "", italic: "italic", dot: "shown" });
+  // While unsaved: the name says so to screen readers, and a dot shows where the close x sits (not
+  // colour alone); the name stays upright (Flow rail, redesign 8: no italics).
+  // (The text starts with the file-type badge's word: decoration, aria-hidden.)
+  expect(await seen()).toEqual({ text: `${badgeWord("c.py")}c.py, unsaved`, label: "c.py, unsaved", italic: "normal", dot: "shown" });
   // Autosave clears it within moments; the accessible name is back to the plain file name.
   await expect(page.locator('.tab[data-dirty="true"]')).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "c.py", exact: true })).toBeVisible();
