@@ -9,7 +9,7 @@ import { detectLanguage, isHeader } from "./languages";
 export type BadgeLook = "sheet" | "hue" | "tile";
 
 /** The look the app shows (the owner's pick goes here). */
-export const BADGE_LOOK: BadgeLook = "sheet";
+export const BADGE_LOOK: BadgeLook = "hue";
 
 export type BadgeKind = "python" | "c" | "cpp" | "header" | "text";
 
