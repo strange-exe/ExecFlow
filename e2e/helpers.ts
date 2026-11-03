@@ -447,8 +447,9 @@ export async function showFiles(page: Page) {
   // The same for 1100 px: Files names the popover from there, the sidebar under it.
   await expect(toggle).toHaveAttribute("aria-controls", (page.viewportSize()?.width ?? 1280) >= 1100 ? "files-popover" : "sidebar");
   // Right after a reload the toggle is drawn a moment after #app's attributes (isVisible doesn't
-  // wait): wait for it, or for the list already showing, before deciding to click.
-  await expect(toggle.or(page.locator("#file-actions")).first()).toBeVisible();
+  // wait): wait for it, or for the list already showing, before deciding to click. Whichever is
+  // visible: first() alone takes document order, and on a phone that is the shut drawer's button.
+  await expect(page.locator(".drawer-toggle:visible, #file-actions:visible").first()).toBeVisible();
   if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();
     await expect(page.locator("#sidebar")).toBeInViewport();
