@@ -462,6 +462,31 @@ test.describe("the About page", () => {
     for (const path of [await video.getAttribute("poster"), file]) expect((await request.get(path!)).status(), path!).toBe(200);
   });
 
+  test("a repeated playing event leaves the button and the stage untouched", async ({ page }) => {
+    // "playing" comes again after every stall (a slow decoder). Each one rewrote the label, and a
+    // label rewritten between press and release drops the click: Pause did nothing (WebKit 3 in 10
+    // locally; likely CI Firefox, run 41608296840).
+    await page.goto("/about");
+    const stage = page.locator("#launch-video .about-stage");
+    await stage.scrollIntoViewIfNeeded();
+    test.skip(!(await stage.locator("video").evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.640028"') !== "")), "this browser can't decode the file");
+    await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
+    const changes = await stage.evaluate(async (el) => {
+      const seen: string[] = [];
+      const watch = new MutationObserver((records) => seen.push(...records.map((r) => `${r.type} ${r.attributeName ?? ""}`)));
+      watch.observe(el, { attributes: true, childList: true, characterData: true, subtree: true });
+      const v = el.querySelector("video")!;
+      // Only while it plays: a real pause would be a real change.
+      if (v.paused) return null;
+      for (let i = 0; i < 20; i++) v.dispatchEvent(new Event("playing"));
+      await new Promise((r) => setTimeout(r, 50));
+      watch.disconnect();
+      return seen;
+    });
+    test.skip(changes === null, "the video paused by itself before the check");
+    expect(changes).toEqual([]);
+  });
+
   test("clicked while the file is still loading, the button pauses the video (its label said Pause), and the pause holds", async ({ page }) => {
     // The file is held back, as on a slow connection: play() has started, no frame has come yet.
     let release = () => {};

@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.28.2",
+    date: "2026-11-03",
+    title: "The video's Pause button always answers",
+    items: [
+      { kind: "fixed", text: "On the About page, a press of the launch video's Pause button could do nothing while the video caught up after a stall. Every press now lands." },
+    ],
+  },
+  {
     version: "0.28.1",
     date: "2026-11-03",
     title: "No repeat downloads after a damaged one",

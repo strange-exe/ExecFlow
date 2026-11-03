@@ -329,9 +329,13 @@ function video(): void {
   const button = stage?.querySelector<HTMLButtonElement>(".about-play");
   if (!stage || !player || !button) return;
   const state = (s: string) => {
+    // Only on a change: "playing" comes again after every stall, and a label rewritten between
+    // press and release drops the click (WebKit, 3 in 10), so Pause did nothing.
+    if (stage.dataset.video === s) return;
     stage.dataset.video = s;
     // From play() on, not from the first frame: a click while the file loads pauses it, so say so.
-    button.textContent = s === "playing" || s === "loading" ? "Pause video" : "Play video";
+    const label = s === "playing" || s === "loading" ? "Pause video" : "Play video";
+    if (button.textContent !== label) button.textContent = label;
     button.hidden = s === "unplayable";
   };
   let held = false;

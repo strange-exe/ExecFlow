@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.28.2] - 2026-11-03
+
+The video's Pause button always answers
+
+### Fixed
+
+- On the About page, a press of the launch video's Pause button could do nothing while the video caught up after a stall. Every press now lands.
+
 ## [0.28.1] - 2026-11-03
 
 No repeat downloads after a damaged one
