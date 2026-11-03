@@ -89,6 +89,36 @@ async function explained(page: Page, check: () => Promise<unknown>) {
   }
 }
 
+// Safari opens a file picker only while the click's user activation lasts, so Import must ask for the
+// picker inside the click itself, before it reads anything from the workspace (an IndexedDB read can
+// outlast the activation, and the picker then never opens: Import does nothing). The item is clicked
+// from the page, which runs its handler synchronously: the picker counts only if it was asked for
+// before the handler returned.
+test("Import files and Import a folder ask for the picker inside the click, before any workspace read", async ({ page }) => {
+  await openApp(page);
+  await showFiles(page);
+  for (const name of ["Import files", "Import a folder"]) {
+    await page.locator("#file-actions").click();
+    const item = page.getByRole("menuitem", { name });
+    await expect(item).toBeVisible();
+    const asked = await item.evaluate((el) => {
+      const real = HTMLInputElement.prototype.click;
+      let picker = false;
+      HTMLInputElement.prototype.click = function (this: HTMLInputElement) {
+        if (this.type === "file") picker = true;
+        else real.call(this);
+      };
+      try {
+        (el as HTMLElement).click();
+      } finally {
+        HTMLInputElement.prototype.click = real;
+      }
+      return picker;
+    });
+    expect(asked, `${name}: the picker is asked for during the click`).toBe(true);
+  }
+});
+
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
 
 test("importing a cloned project folder: every file that was left out is named, not hidden behind .git noise", async ({ page }, testInfo) => {

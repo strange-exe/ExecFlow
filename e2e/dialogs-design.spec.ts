@@ -49,6 +49,9 @@ const hex = (c: number[]) => `#${c.map((v) => Math.round(v).toString(16).padStar
 
 /** Every visible icon whose box is not a square on the 12 to 20 px scale. */
 async function offScale(page: Page, view: string) {
+  // Sizes at rest: a toolbar button just clicked (Settings, Shortcuts) springs back from its pressed
+  // scale for 280 ms, its icon drawn smaller meanwhile.
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => null))));
   const sizes = await page.evaluate(() =>
     [...document.querySelectorAll<SVGElement>("svg.icon, svg.brand-mark")]
       .filter((e) => e.getClientRects().length > 0)

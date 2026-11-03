@@ -33,6 +33,7 @@ export const CHANGELOG: readonly Release[] = [
       { kind: "changed", text: "Capture has a camera icon, and from 1280 px wide the toolbar buttons show their names." },
       { kind: "changed", text: "Each file in the list and in the tabs has a new badge: a short word for its language in that language's colour, with a bar beside it." },
       { kind: "changed", text: "Tabs show whole file names where they fit. When there are more tabs than room, the row scrolls and says how many more there are." },
+      { kind: "fixed", text: "In Safari, Import files and Import a folder could do nothing when the workspace was slow to answer. The file picker now opens straight away." },
     ],
   },
   {

@@ -25,6 +25,10 @@ A phone layout built for thumbs, and clearer menus
 - Each file in the list and in the tabs has a new badge: a short word for its language in that language's colour, with a bar beside it.
 - Tabs show whole file names where they fit. When there are more tabs than room, the row scrolls and says how many more there are.
 
+### Fixed
+
+- In Safari, Import files and Import a folder could do nothing when the workspace was slow to answer. The file picker now opens straight away.
+
 ## [0.28.3] - 2026-11-03
 
 Pause means pause

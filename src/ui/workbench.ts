@@ -933,16 +933,22 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   async function importFrom(folder: boolean, dir: WsPath) {
     if (explainReadOnly()) return;
     const target = (name: string) => (dir ? `${dir}/${name}` : name);
-    let existing = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
-    const stats = await store.workspaceStats(ws).catch(() => null);
-    const budget = stats && {
-      files: stats.limits.maxFiles - stats.files,
-      bytes: stats.limits.maxBytes - stats.bytes,
-      isNew: (name: string) => existing.get(foldKey(target(name)))?.kind !== "file",
-    };
-    const picked = await pickFiles(folder, budget ?? undefined);
+    // The picker opens first, inside the click (Safari's user activation would not outlast the reads);
+    // the room left is read meanwhile and is waited for only once files are chosen.
+    const budget = (async () => {
+      const before = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
+      const stats = await store.workspaceStats(ws).catch(() => null);
+      return stats
+        ? {
+            files: stats.limits.maxFiles - stats.files,
+            bytes: stats.limits.maxBytes - stats.bytes,
+            isNew: (name: string) => before.get(foldKey(target(name)))?.kind !== "file",
+          }
+        : undefined;
+    })().catch(() => undefined); // storage checks the exact limits again on import
+    const picked = await pickFiles(folder, budget);
     if (!picked) return;
-    existing = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
+    const existing = new Map((await store.loadTree(ws)).map((e) => [foldKey(e.path), e]));
     const targets = picked.files.map((f) => target(f.name));
     const clashes = targets.filter((p) => existing.get(foldKey(p))?.kind === "file");
     const clashKeys = new Set(clashes.map(foldKey));

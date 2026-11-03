@@ -31,8 +31,12 @@ export interface ImportBudget {
   isNew(name: string): boolean;
 }
 
-/** Opens the system file picker; resolves null if nothing was chosen. */
-export function pickFiles(folder: boolean, budget?: ImportBudget): Promise<PickedFiles | null> {
+/**
+ * Opens the system file picker; resolves null if nothing was chosen. Call it inside the click, before
+ * any await: Safari opens a picker only while the click's user activation lasts. So the budget may
+ * still be on its way (a promise): it is needed only once files are chosen.
+ */
+export function pickFiles(folder: boolean, budget?: ImportBudget | PromiseLike<ImportBudget | undefined>): Promise<PickedFiles | null> {
   return new Promise((resolve) => {
     const input = h("input", { type: "file", multiple: true, hidden: true });
     if (folder) input.setAttribute("webkitdirectory", "");
@@ -46,7 +50,7 @@ export function pickFiles(folder: boolean, budget?: ImportBudget): Promise<Picke
     input.addEventListener("change", async () => {
       const list = [...(input.files ?? [])];
       if (!list.length) return done(null);
-      done(await readPicked(list, folder, budget));
+      done(await readPicked(list, folder, await budget));
     });
     input.addEventListener("cancel", () => done(null));
     document.body.append(input);
