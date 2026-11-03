@@ -28,6 +28,9 @@ const RUNTIME = new Set([
   "--kind", // about.css, a What's new change tag's hue, declared on each kind's rule
   "--fc-i", // src/flowchart/render.ts, a traced connector's place in the run trace's draw-in
   "--fc-chip-k", // src/ui/flowchart-view.ts, the chips' scale against the chart's zoom
+  "--peek-lines", // app.css, declared on the phone's dock (.panel below 900 px): the lines its peek shows
+  "--vv-h", // src/ui/layout.ts, the height above the on-screen keyboard (phones)
+  "--hang", // src/editor/hanging-indent.ts, a wrapped line's hanging indent (phones)
 ]);
 /** The theme picker's preview tiles set their own colours as --tile-* on each tile. */
 const RUNTIME_PREFIX = "--tile-";
@@ -82,7 +85,7 @@ describe("every var() names a real token", () => {
   });
 
   it("every run-time name on the list is really set by the app", () => {
-    const app = readFileSync(`${DIR}/app.css`, "utf8") + readFileSync(`${DIR}/about.css`, "utf8") + readFileSync("src/ui/layout.ts", "utf8") + readFileSync("src/ui/tree.ts", "utf8") + readFileSync("src/flowchart/render.ts", "utf8") + readFileSync("src/ui/flowchart-view.ts", "utf8");
+    const app = readFileSync(`${DIR}/app.css`, "utf8") + readFileSync(`${DIR}/about.css`, "utf8") + readFileSync("src/ui/layout.ts", "utf8") + readFileSync("src/ui/tree.ts", "utf8") + readFileSync("src/flowchart/render.ts", "utf8") + readFileSync("src/ui/flowchart-view.ts", "utf8") + readFileSync("src/editor/hanging-indent.ts", "utf8");
     for (const name of RUNTIME) expect(app, name).toMatch(new RegExp(`["\`\\s{;]${name}[:"]|${name}: `));
   });
 });
@@ -121,8 +124,9 @@ describe("type, shape and desktop heights (redesign 2, option a)", () => {
       "--h-topbar": "56px", "--h-head": "44px", "--h-panel-bar": "44px", "--h-row": "32px", "--h-status": "28px", "--tool": "30px", "--primary-h": "32px",
     });
     expect(block("@media (pointer: coarse), (max-width: 899px) {\n  :root {")).toMatchObject({ "--h-row": "44px", "--tool": "44px", "--primary-h": "44px" });
-    // The rail (900 px and wider), and the phone's bottom view bar: 52 px items in 4 + 8 px of padding.
-    expect({ rail: root["--rail-w"], viewbar: root["--h-viewbar"] }).toEqual({ rail: "64px", viewbar: "64px" });
+    // The rail (900 px and wider). The phone's bottom view bar left with the dock (0.29.0), and its height token with it.
+    expect(root["--rail-w"]).toBe("64px");
+    expect(root["--h-viewbar"]).toBeUndefined();
   });
 });
 

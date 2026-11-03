@@ -384,11 +384,14 @@ for (const scheme of SCHEMES) {
     expect(await styleOf(page, ".center", ["padding-right", "padding-bottom", "background-color"])).toEqual({ "padding-right": "0px", "padding-bottom": "0px", "background-color": rgbOf(p.bg) });
     const h = async (sel: string) => Math.round((await boxOf(page, sel)).height);
     expect(await h(".topbar")).toBe(48);
-    expect(await h("#run-button")).toBe(44);
-    // The bottom view bar: 52 px items in 4 + 8 px of padding, ending the screen (Workbench Pro).
+    // Run in the dock, 48 px (option A, phone dock).
+    expect(await h("#run-button")).toBe(48);
+    // The segment under the top bar: 44 px tabs in a 4 px track, then 8 px to the code; the status
+    // bar ends the screen.
     expect(await h(".view-switch")).toBe(52);
-    expect(await h(".view-bar")).toBe(64);
-    expect(Math.round((await boxOf(page, ".view-bar")).bottom)).toBe(844);
+    expect(await h(".view-bar")).toBe(60);
+    expect(Math.round((await boxOf(page, ".view-bar")).top)).toBe(48);
+    expect(Math.round((await boxOf(page, ".statusbar")).bottom)).toBe(844);
     // The status bar's top edge: light draws a 2 px rule in the location blue, dark the 1 px divider.
     expect((await styleOf(page, ".statusbar", ["box-shadow"]))["box-shadow"]).toBe(scheme === "light" ? `${rgbOf(p.location)} 0px 2px 0px 0px inset` : `${rgbOf(p.divider)} 0px 1px 0px 0px inset`);
     expect(await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?Geist"?,/);

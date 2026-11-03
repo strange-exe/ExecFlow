@@ -246,8 +246,9 @@
    from colours on :root (--hover, --ring) are declared again here, or they would keep light ink.
    Under 1100 px only: from there (Flow Board S2) the console is the code board's foot, on Signal
    light's own light console ground (--terminal-bg, tokens.md "console"), so it no longer outweighs
-   the code; Signal dark is unchanged. */
-@media (max-width: 1099px) {
+   the code; Signal dark is unchanged. Below 900 px (the phone's dock, option A, 2026-11-03) the
+   console is the light one too: a dark slab under the code would outweigh it there as well. */
+@media (min-width: 900px) and (max-width: 1099px) {
 :root[data-palette="signal"]:not([data-theme="dark"]) .panel {
   color-scheme: dark;
   --bg: #15181d;
@@ -505,7 +506,6 @@
   --h-runlog: 32px;
   --h-status: 24px;
   --rail-w: 64px;        /* the activity rail (900 px and wider) */
-  --h-viewbar: 64px;     /* the phone's bottom view bar: 52 px items, 4 + 8 px padding */
   --h-row: 28px;
   --tab-h: 30px;         /* an editor tab or panel tab pill */
   --target: 24px;        /* WCAG 2.2 minimum, everywhere */

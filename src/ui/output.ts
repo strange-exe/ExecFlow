@@ -119,7 +119,11 @@ export class OutputView {
   private phaseLabel = "";
   private phaseStarted = 0;
   private tick: ReturnType<typeof setInterval> | undefined;
+  /** Line ends in the log so far (see appended): with an unfinished last line, the log's line count. */
+  private newlines = 0;
   onPackDownload: (() => void) | null = null;
+  /** Told the log's line count whenever it may have changed (the phone's dock: "All output, 8 lines"). */
+  onLines: ((lines: number) => void) | null = null;
 
   constructor() {
     this.stdin = h("textarea", {
@@ -295,6 +299,7 @@ export class OutputView {
     this.block = null;
     this.blockChars = 0;
     this.lastChar = "";
+    this.newlines = 0;
     this.stuck = true;
     this.promptTail = null;
     this.receipt.hidden = true;
@@ -314,6 +319,23 @@ export class OutputView {
       this.otherFile = false;
     }
     this.hint.hidden = false;
+    this.tellLines();
+  }
+
+  /** The log's lines: every line end, and a last line still being written. */
+  get lines(): number {
+    return this.newlines + (this.lastChar && this.lastChar !== "\n" ? 1 : 0);
+  }
+
+  private tellLines(): void {
+    this.onLines?.(this.lines);
+  }
+
+  /** Scrolls the log to its end and follows new output again (the phone's peek shows the last lines). */
+  toEnd(): void {
+    const scroller = this.console.parentElement!;
+    scroller.scrollTop = scroller.scrollHeight;
+    this.stuck = true;
   }
 
   /** Program output; batched per frame so a printing loop doesn't relayout on every line. */
@@ -340,6 +362,7 @@ export class OutputView {
   private appended(text: string): void {
     this.blockChars += text.length;
     this.lastChar = text.slice(-1);
+    for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) this.newlines++;
     if (!this.console.hasAttribute("tabindex")) this.console.tabIndex = 0;
   }
 
@@ -360,6 +383,7 @@ export class OutputView {
       const scroller = this.console.parentElement!;
       scroller.scrollTop = scroller.scrollHeight;
     }
+    this.tellLines();
   }
 
   /** A plain sentence about the run (not program output): RunResult.message, skipped files. */
@@ -373,12 +397,14 @@ export class OutputView {
     }
     block.append(h("span", { class: `note ${tone}`, "data-stream": "note" }, icon(tone === "warning" ? "warning" : "info"), ` ${text}\n`));
     this.appended(` ${text}\n`);
+    this.tellLines();
   }
 
   private echo(text: string, end: boolean): void {
     this.flush();
     this.target().append(h("span", { class: end ? "echo end" : "echo", "data-stream": "echo" }, text));
     this.appended(text);
+    this.tellLines();
   }
 
   // ------------------------------------------------------------------ run state
@@ -396,6 +422,7 @@ export class OutputView {
     this.header.hidden = false;
     clearInterval(this.tick);
     this.tick = setInterval(() => this.renderPhase(), 100);
+    this.tellLines();
   }
 
   /** The header's first item: the run's file and arguments, after "Last run:" when another file is open. */
@@ -547,6 +574,7 @@ export class OutputView {
     this.header.toggleAttribute("data-failed", failed);
     this.header.hidden = false;
     this.hint.hidden = true;
+    this.tellLines();
   }
 
   /** The lifted exception: its own danger icon and edge; the words in --text, the place secondary. */
@@ -672,6 +700,7 @@ export class OutputView {
     this.receipt.hidden = false;
     this.header.toggleAttribute("data-failed", true);
     this.header.hidden = false;
+    this.tellLines();
   }
 
   /**

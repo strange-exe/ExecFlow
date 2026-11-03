@@ -225,7 +225,11 @@ test.describe("the Output tab's tool row", () => {
       await page.setViewportSize(vp);
       await chartFor(page, [{ name: "main.py", text: "n = int(input())\nprint(n * 2)\n" }], "main.py");
       for (const id of ["#input-toggle", "#restart-python", "#clear-output"]) await expect(page.locator(id), id).toBeHidden();
-      await page.locator(isNarrow(page) ? "#view-output" : "#ptab-output").click();
+      // Phones: under the chart the dock is its strip alone; Code, then All output (option A).
+      if (isNarrow(page)) {
+        await page.locator("#view-code").click();
+        await page.locator("#dock-toggle").click();
+      } else await page.locator("#ptab-output").click();
       for (const id of ["#input-toggle", "#restart-python", "#clear-output"]) await expect(page.locator(id), id).toBeVisible();
       await expect(bar(page)).toBeHidden();
     });

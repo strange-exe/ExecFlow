@@ -58,10 +58,12 @@ for (const vp of viewports) {
       await expect(page.locator("#empty-new-file")).toBeInViewport();
       await expect(page.locator('.starter[data-language="python"]')).toBeInViewport();
       await expect(page.locator("#run-button")).toHaveAttribute("aria-disabled", "true");
-      if (vp.width >= 1100) {
+      // On phones (option A, phone dock) the dock is that strip alone too.
+      if (vp.width >= 1100 || narrow) {
         await expect(page.locator("#panel > .run-strip > #run-button")).toBeVisible();
         await expect(page.locator("#panel > .panel-bar")).toBeHidden();
         await expect(page.locator("#panel-output")).toBeHidden();
+        if (narrow) await expect(page.locator("#panel > .dock-foot")).toBeHidden();
       } else await expect(page.locator("#panel")).toBeHidden();
       expect(await noOverflow(page), "no horizontal scroll (empty)").toBe(true);
       await page.screenshot({ path: `${dir}/empty-${vp.name}-${scheme}.png`, animations: "disabled" });
@@ -79,9 +81,10 @@ for (const vp of viewports) {
       expect(await noOverflow(page), "no horizontal scroll (editing)").toBe(true);
       const editorBox = (await page.locator("#editor-panel").boundingBox())!;
       if (narrow) {
-        // No tab strip, and the view switch is at the bottom (Workbench Pro): the code starts
-        // right under the top bar (48).
-        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(48);
+        // No tab strip: the code starts right under the top bar (48) and the segment (60), and
+        // ends where the dock begins (option A, phone dock).
+        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(108);
+        expect(Math.round(editorBox.y + editorBox.height), "the code meets the dock").toBe(Math.round((await page.locator("#panel").boundingBox())!.y));
       } else {
         // Before the first run the panel is its bar: collapsed, its body hidden, the code tall.
         await expect(page.locator("#panel-toggle")).toHaveAttribute("aria-expanded", "false");
@@ -174,11 +177,11 @@ test("no horizontal scroll at 320 px, and the primary controls are 44 px on a ph
   await expectActive(page, "main.cpp");
   await expect(page.locator("#run-button")).not.toHaveAttribute("aria-disabled", "true");
   expect(await noOverflow(page)).toBe(true);
-  // The top bar's controls are 44 px; the bottom view bar's items 52 (Workbench Pro, item 8).
-  for (const sel of ["#run-button", "#settings-button"]) expect((await page.locator(sel).boundingBox())!.height, sel).toBeGreaterThanOrEqual(44);
-  for (const sel of [".drawer-toggle", "#view-code", "#view-output", "#view-problems", "#view-flowchart"]) {
+  // The top bar's controls, the segment's tabs and All output are 44 px; Run in the dock 48 (option A, 0.29.0).
+  expect((await page.locator("#run-button").boundingBox())!.height, "#run-button").toBeGreaterThanOrEqual(48);
+  for (const sel of ["#settings-button", ".drawer-toggle", "#view-code", "#view-flowchart", "#dock-toggle"]) {
     const box = (await page.locator(sel).boundingBox())!;
-    expect(box.height, sel).toBeGreaterThanOrEqual(52);
+    expect(box.height, sel).toBeGreaterThanOrEqual(44);
     expect(box.width, sel).toBeGreaterThanOrEqual(44);
   }
 });

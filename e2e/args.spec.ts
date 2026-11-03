@@ -239,19 +239,21 @@ test("an unclosed quote: no error while typing, the error on leaving the field, 
   expect(await runs(page)).toBe(before + 1);
 });
 
-test("on a phone, Run with an unclosed quote from the Code view shows the Output view with the field focused", async ({ page }) => {
+test("on a phone, Run with an unclosed quote from the Code view opens All output with the field focused", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openApp(page);
   await importFiles(page, [{ name: "show.py", text: ARGV_PY }]);
   await openFromTree(page, "show.py");
-  await page.locator("#view-output").click();
+  await page.locator("#dock-toggle").click();
   await openBox(page);
   await field(page).fill('"open');
   await page.locator("#view-code").click();
+  await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "false");
   await expect(field(page)).toBeHidden();
   const before = await runs(page);
   await page.locator("#run-button").click();
-  await expect(page.locator("#view-output")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#ptab-output")).toHaveAttribute("aria-selected", "true");
   await expect(field(page)).toBeFocused();
   await expect(field(page)).toBeInViewport();
   await expect(row(page)).toHaveAttribute("data-state", "invalid");

@@ -447,8 +447,9 @@ async function runRingPixels(page: Page) {
   );
 }
 
-// Below 900 px Run sits in the top bar with the bar's controls' rings drawn inside (the bar meets
+// Below 900 px Run sat in the top bar with the bar's controls' rings drawn inside (the bar meets
 // the window's top edge), so the fill touched the ring: 1.6:1 light, 1.16:1 dark (audit 2026-10-24).
+// Since option A (phone dock) Run is in the dock, where its ring keeps the desktop's offset.
 for (const scheme of ["light", "dark"] as const) {
   test(`phones (390 px, ${scheme}): every top bar, switch and status bar stop has a ring of 3:1 against what is next to it, Run's included`, async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -467,17 +468,20 @@ for (const scheme of ["light", "dark"] as const) {
     expect.soft(shown.filter((s) => s.ringContrast === null || s.ringContrast < 3).map((s) => `${label(s)} ${s.ringContrast} (${s.outline}${s.shadow ? `; ${s.shadow}` : ""})`), "focus rings under 3:1").toEqual([]);
     expect.soft(shown.filter((s) => s.clipped.length).map((s) => `${label(s)} ${s.clipped.join(", ")}`), "rings cut off").toEqual([]);
 
-    // The painted pixels agree: Run filled, focused from the keyboard.
-    await page.locator("#settings-button").focus();
+    // The painted pixels agree: Run filled, focused from the keyboard (in the dock since option A:
+    // the stop before it, then Tab).
+    await page.locator("#run-button").focus();
     await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
     await expect(page.locator("#run-button")).toBeFocused();
     expect(await page.locator("#run-button").evaluate((el) => el.matches(":focus-visible"))).toBe(true);
     const ring = await runRingPixels(page);
-    await page.screenshot({ path: `${dirFor(info, "keyboard")}/run-focus-390-${scheme}.png`, clip: { x: 200, y: 0, width: 190, height: 48 } });
+    const rb = (await page.locator("#run-button").boundingBox())!;
+    await page.screenshot({ path: `${dirFor(info, "keyboard")}/run-focus-390-${scheme}.png`, clip: { x: Math.max(0, rb.x - 12), y: Math.max(0, rb.y - 12), width: Math.min(390 - Math.max(0, rb.x - 12), rb.width + 24), height: rb.height + 24 } });
     info.annotations.push({ type: `run ring ${scheme}`, description: JSON.stringify(ring) });
     for (const [side, r] of Object.entries(ring)) {
       expect.soft(r.inside, `${side}: the ring against what is inside it`).toBeGreaterThanOrEqual(3);
-      expect.soft(r.outside, `${side}: the ring against the top bar`).toBeGreaterThanOrEqual(3);
+      expect.soft(r.outside, `${side}: the ring against the dock`).toBeGreaterThanOrEqual(3);
     }
   });
 }

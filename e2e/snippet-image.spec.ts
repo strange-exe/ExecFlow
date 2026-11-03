@@ -686,7 +686,8 @@ test.describe("13: phones (Chromium, WebKit)", () => {
     for (const el of await dialogOf(page).locator(".snippet-actions .btn, .snippet-choice, .snippet-segment, #snippet-actual, .dialog-head .icon-btn").all()) expect((await box(el)).height).toBeGreaterThanOrEqual(44);
     await expect((await canCopy(page)) ? copyButton(page) : downloadButton(page)).toBeFocused();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("button", { name: "Files", exact: true })).toBeFocused();
+    // Files is named with the open file on phones (option A, phone dock).
+    await expect(page.getByRole("button", { name: "Files: main.py", exact: true })).toBeFocused();
 
     await page.setViewportSize({ width: 320, height: 640 });
     await page.locator(".drawer-toggle").click();
@@ -1742,7 +1743,9 @@ test("34: when the head button is hidden by the time the dialog closes, focus go
   // At once: WebKit's media query lists still report the old width until the next frame (a full run, 2026-10-21).
   await page.keyboard.press("Escape");
   try {
-    await expect(page.getByRole("button", { name: "Files", exact: true })).toBeFocused();
+    // Files is named with the open file on phones (option A, phone dock): "Files: main.py".
+    await expect(page.locator(".drawer-toggle")).toBeFocused();
+    await expect(page.locator(".drawer-toggle")).toHaveAccessibleName(/^Files(: |$)/);
   } catch (e) {
     // Say where focus went and what the page knew of its width (WebKit at 4 workers: 1 run in 20 at HEAD, 2026-10-22).
     const where = await page.evaluate(() => ({
@@ -1751,7 +1754,7 @@ test("34: when the head button is hidden by the time the dialog closes, focus go
     }));
     throw new Error(`${(e as Error).message}\nwhere focus went: ${JSON.stringify(where)}`);
   }
-  expect(await page.evaluate(() => (window as unknown as { focusLog: string[] }).focusLog[0])).toBe("Files");
+  expect(await page.evaluate(() => (window as unknown as { focusLog: string[] }).focusLog[0])).toMatch(/^Files(: |$)/);
 });
 
 for (const size of [{ width: 683, height: 330 }]) {

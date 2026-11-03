@@ -23,6 +23,7 @@ import {
 } from "@codemirror/view";
 import arrowSvg from "@phosphor-icons/core/assets/regular/arrow-elbow-down-right.svg?raw";
 import { filePath } from "./completion-context";
+import { hangingIndent } from "./hanging-indent";
 import { isCallSite } from "./diagnostics";
 import { editorTheme, foldMarker, highlightStyle } from "./highlight";
 import { languageForPath, languageSupport } from "./language-support";
@@ -347,7 +348,8 @@ const LIST_PREFS = {
 /** A new extension value each call: compartments compare by identity, so build it once per change. */
 export function prefsExtension(prefs: EditorPrefs): Extension {
   const list = LIST_PREFS[prefs.suggestOnTyping ? "typing" : "notTyping"][prefs.enterAcceptsTop ? "top" : "none"];
-  return [prefs.lineWrapping ? EditorView.lineWrapping : [], list];
+  // Wrapped rows hang two columns past their line's indent (hanging-indent.ts).
+  return [prefs.lineWrapping ? [EditorView.lineWrapping, hangingIndent] : [], list];
 }
 
 /** What fileConf holds for `path`. */
