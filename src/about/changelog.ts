@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.28.3",
+    date: "2026-11-03",
+    title: "Pause means pause",
+    items: [
+      { kind: "fixed", text: "On the About page, the launch video's button now does what its label says. A press on Pause video could start the video again if the player was catching up at that moment." },
+    ],
+  },
+  {
     version: "0.28.2",
     date: "2026-11-03",
     title: "The video's Pause button always answers",

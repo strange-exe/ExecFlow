@@ -362,7 +362,10 @@ function video(): void {
   });
   player.addEventListener("error", () => state("unplayable"));
   button.addEventListener("click", () => {
-    if (player.paused) {
+    // Act on what the button says, not on player.paused: the two can differ for a moment (CI Firefox
+    // left it playing after a press on "Pause video", run 41619117987), and the press means the label.
+    const says = stage.dataset.video === "playing" || stage.dataset.video === "loading" ? "pause" : "play";
+    if (says === "play") {
       held = false;
       play();
     } else {

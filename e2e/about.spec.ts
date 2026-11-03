@@ -440,8 +440,19 @@ test.describe("the About page", () => {
       await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
       await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 5_000 }).toBeGreaterThan(0.3);
       await expect(button).toHaveText("Pause video");
+      // A log of what the page saw around the press, so a failure says whether the click arrived
+      // (CI Firefox runs 41608296840 and 41619117987 kept "playing"; no trace was kept).
+      await stage.evaluate((el) => {
+        const v = el.querySelector("video")!;
+        const log: string[] = ((window as unknown as { videoLog: string[] }).videoLog = []);
+        const note = (what: string) => log.push(`${Math.round(performance.now())} ${what} paused=${v.paused} state=${el.dataset.video}`);
+        for (const t of ["pointerdown", "pointerup", "click"]) el.querySelector("button")!.addEventListener(t, () => note(t), { capture: true });
+        for (const t of ["play", "playing", "pause", "waiting", "seeking"]) v.addEventListener(t, () => note(t));
+      });
       await button.click();
-      await expect(stage).toHaveAttribute("data-video", "paused");
+      await expect(stage).toHaveAttribute("data-video", "paused").catch(async (e: Error) => {
+        throw new Error(`${e.message}\nvideo log:\n${(await page.evaluate(() => (window as unknown as { videoLog: string[] }).videoLog)).join("\n")}`);
+      });
       await expect(button).toHaveText("Play video");
       // A pause by the button holds: out of view and back, it stays paused.
       await page.evaluate(() => scrollTo(0, 0));
@@ -460,6 +471,26 @@ test.describe("the About page", () => {
     await expect(page.locator("#video-text a[download]")).toHaveAttribute("href", file!);
     await expect(video).toHaveAttribute("aria-describedby", "video-text");
     for (const path of [await video.getAttribute("poster"), file]) expect((await request.get(path!)).status(), path!).toBe(200);
+  });
+
+  test("a press on Pause video pauses it, even at a moment the player reports itself paused", async ({ page }) => {
+    // The press means what the label says. The click used to read player.paused, so a moment where
+    // that read true (a stall, a loop seek) turned a press on "Pause video" into another play.
+    await page.goto("/about");
+    const stage = page.locator("#launch-video .about-stage");
+    await stage.scrollIntoViewIfNeeded();
+    test.skip(!(await stage.locator("video").evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.640028"') !== "")), "this browser can't decode the file");
+    await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
+    const button = stage.getByRole("button");
+    await expect(button).toHaveText("Pause video");
+    // Report paused for the press only; the real pause() still runs underneath.
+    await stage.locator("video").evaluate((v: HTMLVideoElement) => {
+      Object.defineProperty(v, "paused", { configurable: true, get: () => true });
+      v.addEventListener("pause", () => delete (v as unknown as { paused?: boolean }).paused, { once: true });
+    });
+    await button.click();
+    await expect(stage).toHaveAttribute("data-video", "paused");
+    expect(await stage.locator("video").evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
   });
 
   test("a repeated playing event leaves the button and the stage untouched", async ({ page }) => {

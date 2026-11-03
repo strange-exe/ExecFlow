@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.28.3] - 2026-11-03
+
+Pause means pause
+
+### Fixed
+
+- On the About page, the launch video's button now does what its label says. A press on Pause video could start the video again if the player was catching up at that moment.
+
 ## [0.28.2] - 2026-11-03
 
 The video's Pause button always answers
