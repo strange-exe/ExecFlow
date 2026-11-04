@@ -1,19 +1,19 @@
-// The About page (0.7.0, brief .claude/tasks/v07-about.md): served at /about as its own entry; the
-// first viewport says what ExecFlow is, for whom, and offers "Open the editor"; the hero's poster
-// (a pre-rendered still of the scene) shows at once and the real-time three.js scene replaces it only
-// where WebGL works and motion is welcome; the changelog lists every release; light and dark, 320 px,
-// keyboard and axe; and the editor's first visit loads nothing of it.
+// The About page (0.7.0, brief .claude/tasks/v07-about.md; hero redesigned 2026-11-04, option A):
+// served at /about as its own entry; the first viewport says what ExecFlow is, for whom, and offers
+// "Open the editor", over the editor window (code beside its flowchart, markup, no script); the
+// changelog lists every release; light and dark, 320 px, keyboard and axe; and the editor's first
+// visit loads nothing of it.
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, TestInfo } from "@playwright/test";
+import type { TestInfo } from "@playwright/test";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANGELOG } from "../src/about/changelog";
+import { BUILT_IN, themePalette } from "../src/theme/themes";
 import { OPEN_RELEASES, olderLabel, olderRange } from "../src/about/timeline";
 import { expect, hierarchyShots, openIn, test, tolerating } from "./helpers";
 import { contrast } from "./pixels";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-const scene = (page: Page) => page.locator("[data-scene]");
 
 function shotsDir(info: TestInfo): string {
   const dir = process.env.ABOUT_SHOTS ? join(process.env.ABOUT_SHOTS, info.project.name) : info.outputPath();
@@ -36,20 +36,38 @@ test.describe("the About page", () => {
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toBeInViewport();
-        // The headline names the languages too, in its subtitle line (SEO review minor 2, 2026-10-29).
-        await expect(h1).toHaveAccessibleName("Write code. Run it. See how it flows. Python, C and C++ in your browser");
-        await expect(h1.locator(".about-h1-sub")).toBeInViewport();
+        // The headline names the languages and what the editor does with them (SEO review minor 2, 2026-10-29).
+        await expect(h1).toHaveAccessibleName("Write Python, C or C++ and watch it run as a flowchart");
         await expect(page.locator(".about-lede")).toBeInViewport();
-        // The lede keeps its own space under the headline (a broader `main p` rule once zeroed it).
-        const gap = await page.evaluate(() => document.querySelector(".about-lede")!.getBoundingClientRect().top - document.querySelector("h1")!.getBoundingClientRect().bottom);
+        // The lede keeps its own space from the headline (beside it on a desktop, under it on a phone).
+        const gap = await page.evaluate(() => {
+          const l = document.querySelector(".about-lede")!.getBoundingClientRect();
+          const h = document.querySelector("h1")!.getBoundingClientRect();
+          return Math.max(l.top - h.bottom, l.left - h.right);
+        });
         expect(gap).toBeGreaterThanOrEqual(16);
-        const open = page.getByRole("link", { name: "Open the editor" }).first();
+        // One filled action on the first screen: the hero's Open the editor (the bar's is the ghost).
+        const open = page.locator(".about-hero").getByRole("link", { name: "Open the editor" });
         await expect(open).toBeInViewport();
         await expect(open).toHaveAttribute("href", "/");
-        // The poster is there at once, with its size reserved (no layout shift).
-        const poster = page.locator(".about-poster");
-        await expect(poster).toBeVisible();
-        expect(Number(await poster.getAttribute("width"))).toBeGreaterThan(0);
+        const filled = await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLElement>(".about-btn")].filter((b) => {
+            const r = b.getBoundingClientRect();
+            return r.bottom > 0 && r.top < innerHeight && getComputedStyle(b).backgroundColor !== "rgba(0, 0, 0, 0)";
+          }).length,
+        );
+        expect(filled, "filled buttons in the first viewport").toBe(1);
+        // The editor window starts in the first screen, with no request of its own (it is markup).
+        const win = page.locator(".about-window");
+        await expect(win).toBeInViewport();
+        await expect(win).toHaveAccessibleName(/grades\.c open/);
+        await expect(win.locator(".aw-frame")).toHaveAttribute("aria-hidden", "true");
+        // A desktop shows the code beside its chart; a phone shows the chart with the switch and Run in the dock.
+        const phone = vp.width < 760;
+        await expect(win.locator(".aw-code-board")).toBeVisible({ visible: !phone });
+        await expect(win.locator(".aw-seg")).toBeVisible({ visible: phone });
+        await expect(win.locator(".aw-dock")).toBeVisible({ visible: phone });
+        await expect(win.locator(".aw-fc")).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
         const axe = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
         expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
@@ -89,10 +107,7 @@ test.describe("the About page", () => {
     test(`${scheme}: each picture offers AVIF first with a WebP fallback, and the browser loads an image`, async ({ page }, info) => {
       await openIn(page, "/about", scheme);
       await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-      for (const [picture, base] of [
-        [".about-scene picture", "about-scene"],
-        [".about-shot picture", `about-flowchart-${scheme}`],
-      ] as const) {
+      for (const [picture, base] of [[".about-shot picture", `about-flowchart-${scheme}`]] as const) {
         const img = page.locator(`${picture} > img`);
         // The fallback and the reserved size stay on the <img>.
         await expect(img).toHaveAttribute("src", /\/media\/[a-z-]+\.[0-9a-f]{8}\.webp$/);
@@ -473,6 +488,56 @@ test.describe("the About page", () => {
     for (const path of [await video.getAttribute("poster"), file]) expect((await request.get(path!)).status(), path!).toBe(200);
   });
 
+  for (const scheme of ["light", "dark"] as const) {
+    test(`${scheme}: the poster and the video are the ${scheme} ones, and the other scheme's are never fetched`, async ({ page }) => {
+      const media: string[] = [];
+      page.on("request", (r) => (/\/media\/launch-/.test(r.url()) ? media.push(new URL(r.url()).pathname) : null));
+      // Count from the last load on: openIn's first load is in the default scheme (emulation set
+      // before the first navigation can be dropped, Firefox), then it emulates and reloads.
+      page.on("framenavigated", (f) => (f === page.mainFrame() ? (media.length = 0) : null));
+      await openIn(page, "/about", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      const stage = page.locator("#launch-video .about-stage");
+      const video = stage.locator("video");
+      const want = scheme === "dark" ? { poster: "data-poster-dark", src: "data-src-dark" } : { poster: "data-poster", src: "data-src" };
+      const poster = (await video.getAttribute(want.poster))!;
+      const file = (await video.getAttribute(want.src))!;
+      expect(poster).toMatch(scheme === "dark" ? /-dark-poster\./ : /^\/media\/launch-[\d.]+-poster\./);
+      await expect(video).toHaveAttribute("poster", poster);
+      await stage.scrollIntoViewIfNeeded();
+      await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.getAttribute("src"))).toBe(file);
+      await expect(stage).toHaveAttribute("data-video", /^(loading|playing|still|unplayable)$/);
+      await page.waitForTimeout(300);
+      const other = scheme === "dark" ? ["data-poster", "data-src"] : ["data-poster-dark", "data-src-dark"];
+      const others = await Promise.all(other.map((a) => video.getAttribute(a)));
+      expect(media.filter((m) => others.includes(m)), "the other scheme's files").toEqual([]);
+      expect(media).toContain(poster);
+    });
+
+    test(`${scheme}: the video's button keeps a solid ground under the pointer (never its label straight over the picture)`, async ({ page }) => {
+      await openIn(page, "/about", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      // The button shows once the video starts, in view.
+      await page.locator("#launch-video .about-stage").scrollIntoViewIfNeeded();
+      const button = page.locator("#launch-video .about-play");
+      await expect(button).toBeVisible();
+      // The computed ground's alpha: "rgba(r, g, b, a)" or "color(srgb r g b / a)"; no alpha means opaque.
+      const alpha = async () => {
+        const bg = await button.evaluate((b) => getComputedStyle(b).backgroundColor);
+        // Only the 4-part forms carry alpha; "rgb(255, 255, 255)" ends in a channel, not an alpha.
+        const m = /^rgba\((?:[^,]+,){3}\s*([\d.]+)\)$/.exec(bg) ?? /\/\s*([\d.]+)\)$/.exec(bg);
+        return { bg, a: m ? Number(m[1]) : 1 };
+      };
+      expect((await alpha()).a, "at rest").toBe(1);
+      await button.hover();
+      const hovered = await alpha();
+      expect(hovered.a, `under the pointer: ${hovered.bg}`).toBe(1);
+      // And the hover still shows: its ground differs from the rest state.
+      await page.mouse.move(0, 0);
+      expect((await alpha()).bg).not.toBe(hovered.bg);
+    });
+  }
+
   test("a press on Pause video pauses it, even at a moment the player reports itself paused", async ({ page }) => {
     // The press means what the label says. The click used to read player.paused, so a moment where
     // that read true (a stall, a loop seek) turned a press on "Pause video" into another play.
@@ -626,77 +691,57 @@ test.describe("the About page", () => {
   });
 });
 
-test.describe("the hero scene", () => {
+test.describe("the hero window", () => {
   test.use({ serviceWorkers: "block" });
 
-  test("with WebGL and motion welcome, the real-time scene replaces the poster once it has drawn", async ({ page, browserName }) => {
+  test("the editor window is markup: drawn with scripts off, nothing fetched for it, nothing that moves", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false, serviceWorkers: "block" });
+    const page = await context.newPage();
+    const seen: string[] = [];
+    page.on("request", (r) => seen.push(new URL(r.url()).pathname));
     await page.goto("/about");
-    await expect(scene(page)).toHaveAttribute("data-scene", /^(running|unavailable)$/, { timeout: 20_000 });
-    const state = await scene(page).getAttribute("data-scene");
-    // Only a browser with neither WebGL 2 nor WebGL may say unavailable (lessons.md, Pocket Run).
-    if (state === "unavailable") {
-      const any = await page.evaluate(() => {
-        const c = document.createElement("canvas");
-        return Boolean(c.getContext("webgl2") ?? c.getContext("webgl"));
+    const win = page.locator(".about-window");
+    await expect(win.locator(".aw-fc")).toBeVisible();
+    // Every line of grades.c, and the chosen line is the one the chart's chosen box stands for.
+    await expect(win.locator(".aw-code .l")).toHaveCount(16);
+    await expect(win.locator(".aw-code .l.here")).toHaveText(/if \(score < 0\) continue;/);
+    await expect(win.locator(".aw-fc .chosen + text")).toHaveText("score < 0 ?");
+    // No picture or script request of its own. The page's own media further down (the flowchart
+    // screenshot, the video's poster) may load: with scripts off, browsers turn lazy loading off.
+    const pageMedia = /^\/media\/(about-flowchart-|launch-)/;
+    expect(seen.filter((p) => /\.(webp|avif|png|svg|mp4)$/.test(p) && !p.startsWith("/icons/") && !pageMedia.test(p))).toEqual([]);
+    // Nothing in it animates, so it needs no pause control (WCAG 2.2.2).
+    expect(await win.evaluate((w) => [w, ...w.querySelectorAll("*")].some((e) => getComputedStyle(e).animationName !== "none"))).toBe(false);
+    await context.close();
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`${scheme}: the window's chart follows the page's theme: boxes on the theme's raised surface, edges in its tokens`, async ({ page }) => {
+      await openIn(page, "/about", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      const colours = await page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const probe = document.createElement("span");
+        document.body.append(probe);
+        const resolve = (v: string) => ((probe.style.color = v), getComputedStyle(probe).color);
+        const got = (sel: string, prop: "fill" | "stroke") => getComputedStyle(document.querySelector(sel)!)[prop];
+        const out = {
+          proc: [got(".aw-fc .proc", "fill"), resolve(root.getPropertyValue("--surface-raised"))],
+          yes: [got(".aw-fc .edge.yes", "stroke"), resolve(root.getPropertyValue("--success"))],
+          no: [got(".aw-fc .edge.no", "stroke"), resolve(root.getPropertyValue("--danger"))],
+          chosen: [got(".aw-fc .chosen", "stroke"), resolve(root.getPropertyValue("--action"))],
+        };
+        probe.remove();
+        return out;
       });
-      expect(any, `${browserName} has WebGL but the scene says unavailable`).toBe(false);
-      await expect(page.locator(".about-poster")).toBeVisible();
-      return;
-    }
-    await expect(page.locator(".about-scene canvas")).toBeVisible();
-    await expect(page.locator(".about-scene canvas")).toHaveAttribute("aria-hidden", "true");
-  });
-
-  /** Waits for the scene to start; false where the browser has no WebGL (checked as above). */
-  async function sceneRuns(page: Page): Promise<boolean> {
-    await expect(scene(page)).toHaveAttribute("data-scene", /^(running|unavailable)$/, { timeout: 20_000 });
-    if ((await scene(page).getAttribute("data-scene")) === "running") return true;
-    expect(await page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl"))), "WebGL works, yet the scene is unavailable").toBe(false);
-    await expect(page.locator(".about-scene-toggle")).toBeHidden();
-    return false;
+      for (const [part, [is, want]] of Object.entries(colours)) expect(is, part).toBe(want);
+    });
   }
-  const framesOf = async (page: Page) => Number(await scene(page).getAttribute("data-frames"));
 
-  test("the scene has a Pause button (WCAG 2.2.2): the pause holds out of view and back, and Play runs it again", async ({ page }) => {
+  test("reduced motion turned on mid-visit stops the launch video", async ({ page }) => {
     await page.goto("/about");
-    if (!(await sceneRuns(page))) return;
-    // By its class: its name changes with the state.
-    const toggle = page.locator(".about-scene-toggle");
-    await expect(toggle).toBeVisible();
-    await expect(toggle).toHaveAccessibleName("Pause animation");
-    const box = (await toggle.boundingBox())!;
-    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(24);
-    await toggle.focus();
-    expect(await toggle.evaluate((b) => getComputedStyle(b).outlineStyle)).not.toBe("none");
-    await page.keyboard.press("Enter");
-    await expect(scene(page)).toHaveAttribute("data-scene", "paused");
-    await expect(toggle).toHaveText("Play animation");
-    // The paused frame stays (not the poster), and no frame is drawn, even after scrolling away and back.
-    await expect(page.locator(".about-scene canvas")).toBeVisible();
-    const frames = await framesOf(page);
-    await page.locator("#changelog").scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
-    await page.evaluate(() => scrollTo(0, 0));
-    await page.waitForTimeout(800);
-    expect(await framesOf(page)).toBe(frames);
-    await expect(scene(page)).toHaveAttribute("data-scene", "paused");
-    await toggle.click();
-    await expect(scene(page)).toHaveAttribute("data-scene", "running");
-    await expect(toggle).toHaveText("Pause animation");
-    await expect.poll(() => framesOf(page)).toBeGreaterThan(frames);
-  });
-
-  test("reduced motion turned on mid-visit stops the scene (the poster again) and the launch video", async ({ page }) => {
-    await page.goto("/about");
-    const runs = await sceneRuns(page);
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), "reduced motion applied").toBe(true);
-    await expect(scene(page)).toHaveAttribute("data-scene", runs ? "still" : "unavailable");
-    const frames = await framesOf(page);
-    await page.waitForTimeout(800);
-    expect(await framesOf(page)).toBe(frames);
-    await expect(page.locator(".about-poster")).toBeVisible();
-    await expect(page.locator(".about-scene-toggle")).toBeHidden();
     // The launch video no longer starts by itself in view; its button still plays it.
     const stage = page.locator("#launch-video .about-stage");
     await stage.scrollIntoViewIfNeeded();
@@ -705,80 +750,13 @@ test.describe("the hero scene", () => {
     expect(await stage.locator("video").evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
     await expect(stage.getByRole("button")).toHaveText("Play video");
   });
-
-  test("reduced motion turned on while the scene's button has focus: focus moves to the hero's title, not to the page", async ({ page }) => {
-    await page.goto("/about");
-    if (!(await sceneRuns(page))) return;
-    const toggle = page.locator(".about-scene-toggle");
-    await toggle.focus();
-    await expect(toggle).toBeFocused();
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(scene(page)).toHaveAttribute("data-scene", "still");
-    await expect(toggle).toBeHidden();
-    await expect(page.locator("#hero-title")).toBeFocused();
-    // The next Tab goes on from the hero: the first link after the title.
-    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("H1");
-  });
-
-  /** The space kept under the scene for its button, and the hero's height (where the next section starts; its reveal moves it, so not its own box). */
-  const room = (page: Page) =>
-    page.evaluate(() => ({
-      margin: getComputedStyle(document.querySelector(".about-scene")!).marginBottom,
-      hero: document.querySelector<HTMLElement>(".about-hero")!.offsetHeight,
-    }));
-
-  test("the scene's button keeps its room from the poster on (no shift when the scene starts), and none where it can't show", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/about");
-    const before = await room(page);
-    expect(before.margin).not.toBe("0px");
-    if (await sceneRuns(page)) {
-      expect(await room(page)).toEqual(before);
-      await page.locator(".about-scene-toggle").click();
-      await expect(scene(page)).toHaveAttribute("data-scene", "paused");
-      expect(await room(page)).toEqual(before);
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await expect(scene(page)).toHaveAttribute("data-scene", "still");
-    }
-    // Still (or unavailable): no button, so no gap under the poster.
-    expect((await room(page)).margin).toBe("0px");
-  });
-
-  test("reduced motion: the poster stays and the scene never starts a frame", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/about");
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.reload();
-    expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
-    await expect(scene(page)).toHaveAttribute("data-scene", "still");
-    await page.waitForTimeout(1500);
-    expect(Number(await scene(page).getAttribute("data-frames"))).toBe(0);
-    await expect(page.locator(".about-poster")).toBeVisible();
-    await expect(page.locator(".about-scene canvas")).toHaveCount(0);
-    expect((await room(page)).margin).toBe("0px");
-  });
-
-  test("WebGL unavailable: the poster stays, and the page says nothing is wrong", async ({ page }) => {
-    await page.addInitScript(() => {
-      const original = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
-        if (type === "webgl" || type === "webgl2" || type === "experimental-webgl") return null;
-        return (original as (...a: unknown[]) => unknown).call(this, type, ...rest);
-      } as typeof original;
-    });
-    await page.goto("/about");
-    await expect(scene(page)).toHaveAttribute("data-scene", "unavailable", { timeout: 20_000 });
-    await expect(page.locator(".about-poster")).toBeVisible();
-    // Its button can never show: no gap kept for it.
-    expect((await room(page)).margin).toBe("0px");
-  });
 });
 
 // After a release, an older service worker keeps serving its own precached about.html until the user
 // takes the update (it waits: an editor tab can hold unsaved text). That page must still find its
-// code: every script and stylesheet it names is in the same precache (only the optional 3D scene,
-// imported later from assets/a/, may be missing, and then the poster stays). The page's entry once
-// lived in assets/a/, and the live About page lost its changelog after the next deploy.
+// code: every script and stylesheet it names is in the same precache. The page's entry once lived
+// in assets/a/ (kept out of the precache), and the live About page lost its changelog after the
+// next deploy.
 test("every script and stylesheet the About page names is precached with it", async ({ request }) => {
   const html = await (await request.get("/about")).text();
   const refs = [...html.matchAll(/<(?:script[^>]*\ssrc|link[^>]*\shref)="([^"]+\.(?:js|css))"/g)].map((m) => m[1].replace(/^\//, ""));
@@ -798,6 +776,93 @@ test("the editor's first visit loads nothing of the About page", async ({ page, 
   expect(seen.filter((p) => p.startsWith("/assets/a/") || p.startsWith("/media/"))).toEqual([]);
 });
 
+// "Your colours" (2026-11-04, owner: "an actual preview of themes instead of just a carousel"): one
+// small editor window painted in the chosen theme's own palette, and a native radio per theme.
+test.describe("the theme preview", () => {
+  test.use({ serviceWorkers: "block" });
+  const picks = BUILT_IN.filter((t) => !t.system);
+  const byId = (id: string) => picks.find((t) => t.id === id)!;
+  const short = (id: string) => byId(id).name.replace(/^ExecFlow /, "");
+  const rgb = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+  /** What the window should show for a theme: its ground, code ground, Run fill and keyword colour. */
+  const expected = (id: string) => {
+    const p = themePalette(byId(id)).palette;
+    return { frame: rgb(p.surface), code: rgb(p.bg), run: rgb(p.action), keyword: rgb(p["syn-keyword"]) };
+  };
+  const look = (page: import("@playwright/test").Page) =>
+    page.locator(".tp-window").evaluate((w) => {
+      const css = (sel: string, prop: "backgroundColor" | "color") => getComputedStyle(w.querySelector(sel)!)[prop];
+      return { frame: getComputedStyle(w).backgroundColor, code: css(".tp-code", "backgroundColor"), run: css(".tp-run", "backgroundColor"), keyword: css(".tp-code .k", "color") };
+    });
+  const group = (page: import("@playwright/test").Page) => page.getByRole("radiogroup", { name: "Preview a theme" });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`${scheme}: one choice per theme, the page's own theme chosen first, the window in its colours`, async ({ page }) => {
+      await openIn(page, "/about", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      await expect(group(page).getByRole("radio")).toHaveCount(picks.length);
+      await expect(page.locator("[data-theme-count]").first()).toHaveText(String(picks.length));
+      const own = `signal-${scheme}`;
+      await expect(group(page).getByRole("radio", { checked: true })).toHaveAccessibleName(short(own));
+      await expect(page.locator(".tp-caption")).toContainText(short(own));
+      expect(await look(page)).toEqual(expected(own));
+    });
+
+    test(`${scheme}: arrow keys and a press choose a theme, and the window repaints in its colours; axe clean`, async ({ page }) => {
+      await openIn(page, "/about", scheme);
+      const checked = group(page).getByRole("radio", { checked: true });
+      await checked.focus();
+      const from = picks.findIndex((t) => t.id === `signal-${scheme}`);
+      await page.keyboard.press("ArrowDown");
+      const next = picks[from + 1]!;
+      await expect(checked).toHaveAccessibleName(short(next.id));
+      await expect(page.locator(".tp-caption")).toContainText(short(next.id));
+      expect(await look(page)).toEqual(expected(next.id));
+      // A theme of the other scheme paints the window, never the page around it.
+      const other = scheme === "light" ? "dracula" : "github-light";
+      await group(page).getByRole("radio", { name: short(other), exact: true }).check();
+      expect(await look(page)).toEqual(expected(other));
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      const axe = await new AxeBuilder({ page }).include(".about-themes").withTags(AXE_TAGS).analyze();
+      expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
+    });
+  }
+
+  test("the theme chosen in the editor is the one shown first", async ({ page }) => {
+    await page.goto("/about");
+    await page.evaluate(() => localStorage.setItem("codeeditor:theme", "nord"));
+    await page.reload();
+    await expect(group(page).getByRole("radio", { checked: true })).toHaveAccessibleName(short("nord"));
+    expect(await look(page)).toEqual(expected("nord"));
+  });
+
+  test("phone: a short list first, Show all reveals every theme; 44 px choices; nothing scrolls sideways", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openIn(page, "/about", "light");
+    const radios = group(page).getByRole("radio");
+    const visible = async () => (await radios.evaluateAll((rs) => rs.filter((r) => (r.closest("label") as HTMLElement).offsetParent !== null).length));
+    expect(await visible()).toBeLessThan(picks.length);
+    const more = page.getByRole("button", { name: `Show all ${picks.length} themes` });
+    await more.scrollIntoViewIfNeeded();
+    await more.click();
+    expect(await visible()).toBe(picks.length);
+    await expect(more).toBeHidden();
+    const heights = await page.locator(".tp-choice").evaluateAll((ls) => ls.map((l) => l.getBoundingClientRect().height));
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test("desktop: every theme is listed at once, with no Show all", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openIn(page, "/about", "dark");
+    await expect(page.locator(".tp-choice").last()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Show all \d+ themes/ })).toBeHidden();
+  });
+});
+
 test("with the service worker in control, /about works offline after one visit, and / is still the editor", async ({ page, context }) => {
   test.setTimeout(240_000);
   await page.goto("/");
@@ -811,27 +876,7 @@ test("with the service worker in control, /about works offline after one visit, 
   await page.waitForLoadState("networkidle");
   await page.goto("/about");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  // The scene's code is fetched at idle (page.ts scene()), which can come after networkidle: going
-  // offline first left it uncached, and the offline reload's fetch of it failed in the service
-  // worker (Firefox on CI, run 40566760719). Every end state means its code came (or isn't needed),
-  // and then it is in the About cache (vite.config.ts runtimeCaching) before the network goes.
-  await expect(page.locator(".about-scene")).toHaveAttribute("data-scene", /^(running|unavailable|still)$/, { timeout: 30_000 });
-  // Every About chunk the page loaded, not just one: the scene and three.js are separate files, and
-  // the cache stores each after its response is passed on, so one could still be missing (Firefox on
-  // CI, run 40843953981: the offline reload failed on the second chunk). Also when the scene stays
-  // still: the About page's own code is under /assets/a/ too, and skipping this wait then let the
-  // offline reload miss it (Firefox on CI, 0.13.0: "A ServiceWorker intercepted the request").
-  await expect
-    .poll(
-      () =>
-        page.evaluate(async () => {
-          const loaded = performance.getEntriesByType("resource").map((e) => new URL(e.name).pathname).filter((p) => p.startsWith("/assets/a/"));
-          const cached = new Set((await (await caches.open("codeeditor-about")).keys()).map((r) => new URL(r.url).pathname));
-          return loaded.every((p) => cached.has(p)) ? "all" : `${loaded.filter((p) => !cached.has(p)).length} of ${loaded.length} missing`;
-        }),
-      { timeout: 15_000 },
-    )
-    .toBe("all");
+  // The page's code is all precached (the test above); the hero is markup, so offline it is all there.
   await page.waitForLoadState("networkidle");
   await context.setOffline(true);
   await page.reload();

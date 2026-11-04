@@ -36,9 +36,8 @@ function servedPaths(): string[] {
     "/auth-callback",
     "/sitemap.xml",
     "/robots.txt",
-    // Files only: a folder's address (/assets/a) is no file, so it is the 404 page.
-    ...list("assets").filter((f) => f !== "w" && f !== "a").map((f) => `/assets/${f}`),
-    ...list("assets/a").map((f) => `/assets/a/${f}`),
+    // Files only: a folder's address (/assets/w) is no file, so it is the 404 page.
+    ...list("assets").filter((f) => f !== "w").map((f) => `/assets/${f}`),
     ...list("assets/w").map((f) => `/assets/w/${f}`),
     `/pyodide/${pyDir}/pyodide.mjs`,
     `/pyodide/${pyDir}/pyodide-lock.json`,

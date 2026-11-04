@@ -13,10 +13,10 @@ const answer = (path: string, type: string | null) => {
 
 describe("cacheOnlyTheFile (vite.config.ts runtimeCaching)", () => {
   it.each([
-    ["/media/about-scene.5d85575b.webp", "image/webp"],
-    ["/media/about-scene.79bc158d.avif", "image/avif"],
-    ["/assets/a/scene-1a2b3c4d.js", "text/javascript; charset=utf-8"],
-    ["/assets/a/scene-1a2b3c4d.js", "application/javascript"],
+    ["/media/about-flowchart-light.5baba884.webp", "image/webp"],
+    ["/media/about-flowchart-light.c24d432b.avif", "image/avif"],
+    ["/assets/1a2b3c4d.js", "text/javascript; charset=utf-8"],
+    ["/assets/1a2b3c4d.js", "application/javascript"],
     ["/flowchart/1/tree-sitter-c.wasm", "application/wasm"],
     ["/pyodide/314.0.7-heap1024/numpy-2.2.5-cp313-cp313-pyodide_2025_0_wasm32.whl", "application/octet-stream"],
     ["/pyodide/314.0.7-heap1024/numpy-2.2.5-cp313-cp313-pyodide_2025_0_wasm32.whl", null],
@@ -25,12 +25,12 @@ describe("cacheOnlyTheFile (vite.config.ts runtimeCaching)", () => {
   });
 
   it.each([
-    ["/media/about-scene.00000000.webp", "text/html; charset=utf-8"],
-    ["/media/about-scene.00000000.webp", null],
-    ["/media/about-scene.00000000.avif", "text/html; charset=utf-8"],
-    ["/media/about-scene.00000000.avif", "image/webp"],
-    ["/assets/a/00000000.js", "text/html; charset=utf-8"],
-    ["/assets/a/00000000.js", "text/plain"],
+    ["/media/about-flowchart-light.00000000.webp", "text/html; charset=utf-8"],
+    ["/media/about-flowchart-light.00000000.webp", null],
+    ["/media/about-flowchart-light.00000000.avif", "text/html; charset=utf-8"],
+    ["/media/about-flowchart-light.00000000.avif", "image/webp"],
+    ["/assets/00000000.js", "text/html; charset=utf-8"],
+    ["/assets/00000000.js", "text/plain"],
     ["/flowchart/1/missing.wasm", "text/html; charset=utf-8"],
     ["/pyodide/314.0.7-heap1024/missing.whl", "text/html; charset=utf-8"],
   ])("refuses %s sent as %s (the site's fallback page, not the file)", async (path, type) => {

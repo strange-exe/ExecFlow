@@ -1,9 +1,11 @@
-// The About page (about.html): the changelog from the release data, the build's version, a strip of
-// the built-in colour themes drawn from their own palettes, restrained reveals, and the launch video.
+// The About page (about.html): the changelog from the release data, the build's version, a live
+// preview of the built-in colour themes drawn from their own palettes, restrained reveals, and the launch video.
 // The hero (the editor window) is markup and needs no script. Every string from the data goes in as
 // text (textContent / createTextNode), never as markup.
 import { CHANGELOG, type Kind, type Release } from "./changelog";
-import { BUILT_IN, themePalette } from "../theme/themes";
+import { COLOR_VARS } from "../theme/contrast";
+import { BUILT_IN, CHOSEN_KEY, themePalette } from "../theme/themes";
+import { firstPreview, previewThemes, shortName } from "./theme-preview";
 import {
   ITEMS_SHOWN,
   KIND_WORD,
@@ -200,28 +202,73 @@ function renderChangelog(): void {
   addEventListener("hashchange", () => show(location.hash));
 }
 
-function renderThemes(): void {
-  const strip = document.querySelector(".about-swatches");
-  if (!strip) return;
-  // "Match device" entries repeat their light and dark themes: each look once.
-  const themes = BUILT_IN.filter((t) => !t.system);
+/**
+ * "Your colours": a small editor window and one native radio per theme. Choosing a theme sets its
+ * palette (the app's own data, #rrggbb) as the window's CSS variables, set as style values, never
+ * as markup, so the window's own token rules draw it in that theme. The page keeps its own theme.
+ */
+function themePreview(): void {
+  const win = document.querySelector<HTMLElement>(".tp-window");
+  const picker = document.querySelector<HTMLFieldSetElement>(".tp-picker");
+  const caption = document.querySelector(".tp-caption");
+  const more = document.querySelector<HTMLButtonElement>(".tp-more");
+  if (!win || !picker || !caption || !more) return;
+  const themes = previewThemes(BUILT_IN);
+  const scheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  const first = firstPreview(BUILT_IN, readChosen(), scheme);
+
+  const paint = (id: string) => {
+    const t = themes.find((x) => x.id === id);
+    if (!t) return;
+    const { palette } = themePalette(t);
+    for (const key of COLOR_VARS) win.style.setProperty(`--${key}`, palette[key]);
+    win.dataset.scheme = t.scheme;
+    caption.textContent = `The editor in ${shortName(t)}, a ${t.scheme} theme`;
+  };
+
   for (const t of themes) {
     const { palette } = themePalette(t);
-    const item = el("li", "swatch");
-    const sample = el("span", "swatch-sample");
-    sample.setAttribute("aria-hidden", "true");
-    // Colours come from the app's own palette data (#rrggbb), set as style values, never as markup:
-    // the theme's ground, and a line of code in its keyword, string and function colours.
-    sample.style.backgroundColor = palette.bg;
-    for (const key of ["syn-keyword", "syn-string", "syn-function"] as const) {
-      const bar = el("span", "swatch-bar");
-      bar.style.backgroundColor = palette[key];
-      sample.append(bar);
-    }
-    item.append(sample, el("span", "swatch-name", t.name.replace(/^ExecFlow /, "")));
-    strip.append(item);
+    const label = el("label", "tp-choice");
+    const radio = el("input");
+    radio.type = "radio";
+    radio.name = "tp-theme";
+    radio.value = t.id;
+    radio.checked = t.id === first;
+    const dots = el("span", "tp-dots");
+    dots.setAttribute("aria-hidden", "true");
+    // The theme's ground with its Run colour on it: a picture of the choice, hidden from AT.
+    dots.style.backgroundColor = palette.bg;
+    const dot = el("span", "tp-dot");
+    dot.style.backgroundColor = palette.action;
+    dots.append(dot);
+    label.append(radio, dots, el("span", "tp-name", shortName(t)));
+    picker.append(label);
   }
+  picker.addEventListener("change", (e) => {
+    const target = e.target;
+    if (target instanceof HTMLInputElement && target.name === "tp-theme") paint(target.value);
+  });
+  paint(first);
+  picker.hidden = false;
+
+  // A phone shows the first few (and the chosen one) until Show all.
+  picker.dataset.collapsed = "true";
+  more.textContent = `Show all ${themes.length} themes`;
+  more.hidden = false;
+  more.addEventListener("click", () => {
+    delete picker.dataset.collapsed;
+    more.hidden = true;
+    picker.querySelector<HTMLInputElement>("input:checked")?.focus();
+  });
   for (const n of document.querySelectorAll<HTMLElement>("[data-theme-count]")) n.textContent = String(themes.length);
+}
+
+function readChosen(): string | null {
+  try {
+    return localStorage.getItem(CHOSEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -291,10 +338,15 @@ function video(): void {
     button.hidden = s === "unplayable";
   };
   let held = false;
+  // The light or the dark cut, by the theme the page shows (theme-boot.js's data-theme follows a
+  // saved theme, not only the device). The poster is set here, not in the markup, so a dark page
+  // never fetches the light one.
+  const dark = () => document.documentElement.dataset.theme === "dark";
+  player.poster = (dark() ? player.dataset.posterDark : player.dataset.poster) ?? "";
   const attach = () => {
     if (player.src) return;
     player.preload = "auto";
-    player.src = player.dataset.src ?? "";
+    player.src = (dark() ? player.dataset.srcDark : player.dataset.src) ?? "";
   };
   const play = () => {
     attach();
@@ -356,6 +408,6 @@ function video(): void {
 // The picture first, before its lazy fetch can start.
 shot();
 renderChangelog();
-renderThemes();
+themePreview();
 reveals();
 video();

@@ -150,8 +150,13 @@ body.about {
   background: var(--action-hover);
 }
 .about .about-btn-ghost {
+  /* A <button> brings the browser's own grey fill, border and font: the ghost has none of them. */
+  border: 0;
+  background: transparent;
+  font-family: inherit;
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border-strong);
+  cursor: pointer;
 }
 .about .about-btn-ghost:hover {
   background: var(--hover);
@@ -186,7 +191,8 @@ body.about {
   font-size: clamp(36px, 4.6vw, 56px);
   line-height: 1.08;
   letter-spacing: -0.03em;
-  font-weight: var(--w-body, 400);
+  /* Display at regular weight (Cursor): size, not weight, makes the headline. */
+  font-weight: 400;
   max-width: 17ch;
   text-wrap: balance;
 }
@@ -212,7 +218,7 @@ body.about {
 @media (min-width: 900px) {
   .about-hero {
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    column-gap: var(--s7, 48px);
+    column-gap: calc(2 * var(--s5));
     row-gap: var(--s6);
     align-items: end;
   }
@@ -382,6 +388,7 @@ body.about {
 .aw-fc .term { fill: color-mix(in srgb, var(--success) 14%, var(--surface-raised)); stroke: var(--success); }
 .aw-fc .io { fill: color-mix(in srgb, var(--info) 14%, var(--surface-raised)); stroke: var(--info); }
 .aw-fc .dec { fill: color-mix(in srgb, var(--warning) 14%, var(--surface-raised)); stroke: var(--warning); }
+.aw-fc .bar { stroke: var(--info); stroke-width: 1.5; }
 .aw-fc .chosen { stroke: var(--action); stroke-width: 2.5; }
 .aw-seg,
 .aw-dock {
@@ -558,51 +565,239 @@ body.about {
   font-weight: var(--w-strong);
 }
 
-/* Themes: a scroll-snap strip of samples, each a line of code in the theme's colours. */
-.about-swatches {
+/* Themes: a small editor window in the chosen theme, beside one native radio per theme. page.ts
+   sets the theme's palette as the window's own variables, so every rule inside reads tokens. */
+.tp {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 168px;
-  gap: var(--s3);
-  margin: var(--s4) 0 0;
-  padding: 0 0 var(--s3);
-  list-style: none;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
+  gap: var(--s5);
+  margin-top: var(--s5);
 }
-.swatch {
-  scroll-snap-align: start;
+@media (min-width: 900px) {
+  .tp {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    align-items: start;
+  }
+  .tp-window {
+    position: sticky;
+    top: var(--s5);
+  }
+  /* A pointer's list: 36 px rows (above the 24 px minimum) keep 42 themes beside the window. */
+  .tp-choice {
+    min-height: 36px;
+  }
 }
-.swatch-sample {
+.tp-window {
+  margin: 0;
+  padding: 0;
+  border-radius: var(--r-board);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  overflow: hidden;
+}
+.tp-top,
+.tp-out {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  height: 84px;
-  padding: var(--s3);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+.tp-top {
+  border-bottom: 1px solid var(--divider);
+}
+.tp-file {
+  font-family: var(--font-code);
+  color: var(--text-secondary);
+}
+.tp-run {
+  padding: var(--s1) var(--s3);
   border-radius: var(--r-control);
-  box-shadow: inset 0 0 0 1px var(--border);
-  transition: transform 0.2s ease-out;
+  background: var(--action);
+  color: var(--on-action);
+  font-weight: var(--w-strong);
 }
-.swatch-bar {
+.tp-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  background: var(--bg);
+}
+.tp-code {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  background: var(--bg);
+  color: var(--syn-variable);
+  font-family: var(--font-code);
+  font-size: 12.5px;
+  line-height: 22px;
+  white-space: pre;
+  overflow: hidden;
+  counter-reset: tp-line;
+}
+.tp-code .l {
   display: block;
-  height: 8px;
-  border-radius: 4px;
+  padding-left: 28px;
+  position: relative;
 }
-.swatch-bar:nth-child(1) {
-  width: 60%;
+.tp-code .l::before {
+  counter-increment: tp-line;
+  content: counter(tp-line);
+  position: absolute;
+  left: 0;
+  width: 16px;
+  text-align: right;
+  color: var(--gutter-text);
 }
-.swatch-bar:nth-child(2) {
-  width: 85%;
+.tp-code .here {
+  background: var(--active-line);
 }
-.swatch-bar:nth-child(3) {
-  width: 45%;
+.tp-code .k {
+  color: var(--syn-keyword);
 }
-.swatch-name {
-  display: block;
-  margin-top: var(--s2);
+.tp-code .f {
+  color: var(--syn-function);
+}
+.tp-code .s {
+  color: var(--syn-string);
+}
+.tp-code .n {
+  color: var(--syn-number);
+}
+.tp-code .c {
+  color: var(--syn-comment);
+}
+.tp-code .o {
+  color: var(--syn-operator);
+}
+.tp-chart {
+  width: 120px;
+  height: auto;
+  padding: var(--s3) var(--s3) var(--s3) 0;
+  box-sizing: content-box;
+}
+.tp-edge {
+  stroke: var(--text-secondary);
+  stroke-width: 1.25;
+  fill: none;
+}
+.tp-chart :is(.tp-term, .tp-io, .tp-dec) {
+  stroke-width: 1.5;
+}
+.tp-term {
+  fill: color-mix(in srgb, var(--success) 14%, var(--surface-raised));
+  stroke: var(--success);
+}
+.tp-io {
+  fill: color-mix(in srgb, var(--info) 14%, var(--surface-raised));
+  stroke: var(--info);
+}
+.tp-dec {
+  fill: color-mix(in srgb, var(--warning) 14%, var(--surface-raised));
+  stroke: var(--warning);
+}
+.tp-out {
+  border-top: 1px solid var(--divider);
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
+  font-family: var(--font-code);
+}
+.tp-ok {
+  color: var(--success);
+}
+.tp-caption {
+  padding: var(--s2) var(--s4);
+  border-top: 1px solid var(--divider);
   font-size: var(--fs-2);
   line-height: var(--lh-2);
   color: var(--text-secondary);
+}
+.tp-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tp-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text-secondary);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  cursor: pointer;
+}
+.tp-choice:hover {
+  background: var(--hover);
+}
+/* The radio covers its chip, so a press anywhere on it chooses; the chip draws the state. */
+.tp-choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.tp-choice:has(input:checked) {
+  box-shadow: inset 0 0 0 2px var(--action);
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+.tp-choice:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.tp-dots {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-key);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  pointer-events: none;
+}
+.tp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.tp-name {
+  pointer-events: none;
+}
+/* .about .about-btn sets a display of its own: this outranks it. */
+.about .tp-more {
+  display: none;
+}
+@media (max-width: 760px) {
+  .tp-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tp-chart {
+    display: none;
+  }
+  .tp-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* The first eight and the chosen one, until Show all. */
+  .tp-picker[data-collapsed] .tp-choice:nth-of-type(n + 9):not(:has(input:checked)) {
+    display: none;
+  }
+  .about .tp-picker[data-collapsed] ~ .tp-more:not([hidden]) {
+    display: inline-flex;
+    justify-self: start;
+  }
 }
 
 /* The launch video: the player at the column's width, then what it shows in words. */
@@ -641,8 +836,10 @@ body.about {
   font-weight: var(--w-strong);
   cursor: pointer;
 }
+/* Opaque on hover too: --hover is a translucent tint, and over a light video it let the label
+   sit straight on the picture. A solid mix keeps the ground and still reads as a change. */
 .about-play:hover {
-  background: var(--hover);
+  background: color-mix(in srgb, var(--text) 8%, var(--surface-raised));
 }
 /* display above outranks the hidden attribute's own rule: a file that can't play has no button. */
 .about-play[hidden] {
@@ -1153,8 +1350,7 @@ body.about {
   .will-reveal.is-in {
     transform: none;
   }
-  .about-lang:hover,
-  .swatch:hover .swatch-sample {
+  .about-lang:hover {
     transform: translateY(-2px);
   }
   .release-chev {

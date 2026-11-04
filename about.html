@@ -23,7 +23,7 @@
           <a href="#flowcharts">Flowcharts</a>
           <a href="#changelog">What's new</a>
         </nav>
-        <a class="about-btn about-btn-primary about-open" href="/">Open the editor</a>
+        <a class="about-btn about-btn-ghost about-open" href="/">Open the editor</a>
       </div>
     </header>
 
@@ -77,7 +77,7 @@
                     <polygon class="io" points="82,258 226,258 218,286 74,286" /><text x="150" y="276" text-anchor="middle">scanf("%d", &amp;score)</text><line class="edge" x1="150" y1="286" x2="150" y2="304" marker-end="url(#aw-arrow)" />
                     <polygon class="dec chosen" points="150,304 206,326 150,348 94,326" /><text x="150" y="330" text-anchor="middle">score &lt; 0 ?</text>
                     <line class="edge no" x1="150" y1="348" x2="150" y2="366" marker-end="url(#aw-arrow)" /><text class="lbl" x="158" y="361">No</text>
-                    <rect class="io" x="58" y="366" width="184" height="28" /><line class="edge" x1="64" y1="366" x2="64" y2="394" /><line class="edge" x1="236" y1="366" x2="236" y2="394" /><text x="150" y="384" text-anchor="middle">printf("%c", grade(score))</text><line class="edge" x1="150" y1="394" x2="150" y2="412" marker-end="url(#aw-arrow)" />
+                    <rect class="io" x="56" y="366" width="188" height="28" /><line class="bar" x1="62" y1="366" x2="62" y2="394" /><line class="bar" x1="238" y1="366" x2="238" y2="394" /><text x="150" y="384" text-anchor="middle">printf("%c", grade(score))</text><line class="edge" x1="150" y1="394" x2="150" y2="412" marker-end="url(#aw-arrow)" />
                     <rect class="proc" x="114" y="412" width="72" height="28" /><text x="150" y="430" text-anchor="middle">i++</text>
                     <polyline class="edge yes" points="206,326 250,326 250,426 186,426" marker-end="url(#aw-arrow)" /><text class="lbl" x="214" y="320">Yes</text>
                     <polyline class="edge" points="114,426 52,426 52,218 102,218" marker-end="url(#aw-arrow)" />
@@ -155,8 +155,32 @@ for i in range(3):
 
       <section class="about-themes" aria-labelledby="themes-title">
         <h2 id="themes-title">Your colours</h2>
-        <p>ExecFlow Signal is the default. <span data-theme-count></span> themes are one click away in Settings, each checked for readable contrast.</p>
-        <ul class="about-swatches" aria-label="Colour themes" tabindex="0"></ul>
+        <p>ExecFlow Signal is the default. <span data-theme-count></span> themes are one click away in Settings, each checked for readable contrast. Pick one to see the editor in it.</p>
+        <!-- page.ts themePreview(): the window takes the chosen theme's palette as its own variables,
+             so everything inside it is drawn from tokens. Without script it shows the page's theme. -->
+        <div class="tp">
+          <figure class="tp-window" aria-labelledby="tp-caption">
+            <div class="tp-frame" aria-hidden="true">
+              <div class="tp-top"><span class="tp-file">grades.py</span><span class="tp-run">Run</span></div>
+              <div class="tp-body">
+                <pre class="tp-code"><span class="l"><span class="k">def</span> <span class="f">average</span>(scores):</span><span class="l">    <span class="c"># skip a mark left blank</span></span><span class="l">    marks = [s <span class="k">for</span> s <span class="k">in</span> scores <span class="k">if</span> s <span class="o">&gt;=</span> <span class="n">0</span>]</span><span class="l">    <span class="k">return</span> <span class="f">sum</span>(marks) <span class="o">/</span> <span class="f">len</span>(marks)</span><span class="l here"><span class="f">print</span>(<span class="s">"Average:"</span>, <span class="f">average</span>([<span class="n">72</span>, <span class="n">-1</span>, <span class="n">88</span>]))</span></pre>
+                <svg class="tp-chart" viewBox="0 0 120 150" focusable="false">
+                  <path class="tp-edge" d="M60 26v14M60 62v14M60 104v14" />
+                  <rect class="tp-term" x="28" y="6" width="64" height="20" rx="10" />
+                  <rect class="tp-io" x="18" y="40" width="84" height="22" rx="3" />
+                  <polygon class="tp-dec" points="60,76 96,90 60,104 24,90" />
+                  <rect class="tp-term" x="28" y="118" width="64" height="20" rx="10" />
+                </svg>
+              </div>
+              <div class="tp-out"><span class="tp-ok">Finished, exit code 0</span><span>Average: 80.0</span></div>
+            </div>
+            <figcaption class="tp-caption" id="tp-caption">The editor in Signal</figcaption>
+          </figure>
+          <fieldset class="tp-picker" role="radiogroup" aria-labelledby="tp-legend" hidden>
+            <legend class="about-sr" id="tp-legend">Preview a theme</legend>
+          </fieldset>
+          <button class="about-btn about-btn-ghost tp-more" type="button" hidden></button>
+        </div>
       </section>
 
       <section class="about-video" aria-labelledby="video-title" id="launch-video">
@@ -165,7 +189,7 @@ for i in range(3):
              when it first comes into view, nothing starts with reduced motion, and the button pauses it.
              No sound; every word is on screen. -->
         <div class="about-stage" data-video="idle">
-          <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" poster="/media/launch-0.29.0-poster.c52c1d8d.webp" data-src="/media/launch-0.29.0.55bf2179.mp4" aria-describedby="video-text"></video>
+          <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" data-poster="/media/launch-0.29.0-poster.c52c1d8d.webp" data-src="/media/launch-0.29.0.55bf2179.mp4" data-poster-dark="/media/launch-0.29.0-dark-poster.7b1b34ab.webp" data-src-dark="/media/launch-0.29.0-dark.20ce762f.mp4" aria-describedby="video-text"></video>
           <button type="button" class="about-play" hidden>Play video</button>
         </div>
         <div class="about-note" id="video-text">
