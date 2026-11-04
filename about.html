@@ -96,21 +96,26 @@
         <div class="about-flow-text">
           <h2 id="flow-title">See how your code runs</h2>
           <p>
-            Open the Flowchart tab and every decision, loop and early return becomes a box, in the standard flowchart
-            shapes. Click a box to jump to its lines, or read the same steps as a list.
+            Open a file and its flowchart is drawn on a board beside the code. Every decision, loop and early return
+            becomes a box, in the standard flowchart shapes. Click a box to jump to its lines, or read the same steps as
+            a list.
           </p>
           <p>
             It helps with code you wrote and code you were given to read. Export the chart as a PNG or SVG for a report or
-            an assignment.
+            an assignment. Capture makes a picture of the lines you select, ready to share.
+          </p>
+          <p>
+            On a phone, a Code and Flowchart switch sits under the top bar, and Run waits in the dock at the bottom, in
+            reach of your thumb.
           </p>
         </div>
         <figure class="about-shot">
           <picture>
             <!-- AVIF first, WebP after; the dark pair follows the page's theme (page.ts shot()). -->
-            <source srcset="/media/about-flowchart-dark.a8532232.avif" type="image/avif" media="(prefers-color-scheme: dark)" />
-            <source srcset="/media/about-flowchart-dark.b15aa4c6.webp" type="image/webp" media="(prefers-color-scheme: dark)" />
-            <source srcset="/media/about-flowchart-light.4b86e408.avif" type="image/avif" />
-            <img src="/media/about-flowchart-light.76ec11c3.webp" width="1200" height="900" alt="The ExecFlow window: a C program, and below it the program's flowchart, with a loop and a decision." loading="lazy" decoding="async" />
+            <source srcset="/media/about-flowchart-dark.709f1c66.avif" type="image/avif" media="(prefers-color-scheme: dark)" />
+            <source srcset="/media/about-flowchart-dark.8aa92354.webp" type="image/webp" media="(prefers-color-scheme: dark)" />
+            <source srcset="/media/about-flowchart-light.c24d432b.avif" type="image/avif" />
+            <img src="/media/about-flowchart-light.5baba884.webp" width="1200" height="900" alt="The ExecFlow window: a C program, and beside it the program's flowchart, with a loop and a decision." loading="lazy" decoding="async" />
           </picture>
         </figure>
       </section>
@@ -155,24 +160,25 @@ for i in range(3):
       </section>
 
       <section class="about-video" aria-labelledby="video-title" id="launch-video">
-        <h2 id="video-title">ExecFlow in 20 seconds</h2>
+        <h2 id="video-title">ExecFlow in 23 seconds</h2>
         <!-- A muted loop that plays while it is on screen (page.ts video()): the file is attached only
              when it first comes into view, nothing starts with reduced motion, and the button pauses it.
              No sound; every word is on screen. -->
         <div class="about-stage" data-video="idle">
-          <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" poster="/media/launch-0.22.0-poster.40f270f1.webp" data-src="/media/launch-0.22.0.ec553551.mp4" aria-describedby="video-text"></video>
+          <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" poster="/media/launch-0.29.0-poster.c52c1d8d.webp" data-src="/media/launch-0.29.0.55bf2179.mp4" aria-describedby="video-text"></video>
           <button type="button" class="about-play" hidden>Play video</button>
         </div>
         <div class="about-note" id="video-text">
           <p>The video has no sound. What it shows, in the real app:</p>
           <ol>
-            <li>Write code: a two-line Python program types itself.</li>
-            <li>Run it, right in the browser, with nothing to install: Run is pressed and "Hello, Abhinesh" appears.</li>
-            <li>See how it flows: the flowchart of a C program draws from Start to its end.</li>
-            <li>Every box is a line of your code: a decision box is clicked and its line lights up.</li>
-            <li>The ExecFlow mark and name, and Open the editor at execflow.abhinesh.codes.</li>
+            <li>Write code. A two-line Python program, hello.py, types itself into the editor.</li>
+            <li>Run it. Right in the browser. Nothing to install. Run is pressed and "Hello, Abhinesh" appears in the output.</li>
+            <li>See how it flows. The flowchart is drawn beside the code: the chart of a C program, grades.c, draws from Start to its end.</li>
+            <li>Every box is a line of your code. A decision box is clicked and its line in the code lights up.</li>
+            <li>On your phone too. Run sits in reach of your thumb. On a phone, grades.c switches between Code and its flowchart, and Run waits in the dock at the bottom.</li>
+            <li>The ExecFlow mark and name, Open the editor, and the address execflow.abhinesh.codes.</li>
           </ol>
-          <p><a href="/media/launch-0.22.0.ec553551.mp4" download="execflow.mp4">Download the video</a> (MP4, 0.6 MB).</p>
+          <p><a href="/media/launch-0.29.0.55bf2179.mp4" download="execflow.mp4">Download the video</a> (MP4, 0.8 MB).</p>
         </div>
       </section>
 
