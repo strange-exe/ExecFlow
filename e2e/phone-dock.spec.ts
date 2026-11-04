@@ -109,7 +109,9 @@ test("after a failed run the code stays: the error line's band, the dock's error
   await expect(error).toContainText("ZeroDivisionError");
   await expect(error).toContainText("line 7");
   await expect(page.locator("#run-button")).toBeInViewport();
-  // Run steps back to its outline after a failure: no fill.
+  // Run steps back to its outline after a failure: no fill. The pointer leaves it first, or the click's
+  // pointer still hovers it and draws the hover tint (Linux WebKit).
+  await page.mouse.move(0, 0);
   expect(await page.locator("#run-button").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
   // Nothing in the dock overlaps the code: the editor ends where the dock begins.
   const [editor, dock] = [await box(page.locator(".editor-area")), await box(page.locator("#panel"))];
