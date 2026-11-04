@@ -138,18 +138,9 @@ const pageCsp = directives("'self' https://api.github.com", ` ${BEACON} ${BEACON
 const workerCsp = directives("'self'");
 
 /** Hash-only file names: long-term caching still works and source names don't leak. */
-/**
- * The About page's 3D scene and three.js (136 KB gzip) live under assets/a/: the service worker
- * leaves them out of the precache every visitor downloads, and caches them when /about is opened.
- * The page's own entry (a few KB: the changelog, the video) stays in assets/ and is precached with
- * its HTML, so a page served by an older service worker after a release still has its code; only
- * the optional scene can be missing there, and then the poster stays (the scene's failure path).
- */
-const aboutOnly = (chunk: { name: string; moduleIds: readonly string[] }) =>
-  chunk.moduleIds.some((id) => /[\\/]node_modules[\\/]three[\\/]|[\\/]src[\\/]about[\\/]scene\.ts$/.test(id));
 const hashedNames = {
   entryFileNames: "assets/[hash].js",
-  chunkFileNames: (chunk: { name: string; moduleIds: readonly string[] }) => (aboutOnly(chunk) ? "assets/a/[hash].js" : "assets/[hash].js"),
+  chunkFileNames: "assets/[hash].js",
   assetFileNames: "assets/[hash][extname]",
 };
 /** Worker bundles live under assets/w/ so the worker-only policy can target them. */
@@ -574,9 +565,9 @@ export default defineConfig(({ mode }) => ({
         // _routes.json is Cloudflare's (which paths run the sign-in function), not the app's.
         // The flowchart's parser files (~4.5 MB) are not precached either: they download the first time
         // a flowchart is asked for, and are runtime-cached below.
-        // The About page's code and images (assets/a/, media/) are cached when /about is opened, below.
+        // The About page's images (media/) are cached when /about is opened, below.
         // move.html is the editor served without isolation for the move to the new address (movePage).
-        globIgnores: ["clang/**", "pyodide/**", "flowchart/**", "_routes.json", "assets/a/**", "media/**", "move.html"],
+        globIgnores: ["clang/**", "pyodide/**", "flowchart/**", "_routes.json", "media/**", "move.html"],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // Hashed URLs need no ?__WB_REVISION__ cache-buster, so installing the service worker can
         // reuse what the page already downloaded.
@@ -637,10 +628,10 @@ export default defineConfig(({ mode }) => ({
               plugins: [cacheOnlyTheFile],
             },
           },
-          // The About page's code and its images, once /about was opened. Both have content-hashed names
-          // (media/: src/about/media.test.ts), so a cached copy is never stale.
+          // The About page's images, once /about was opened. They have content-hashed names
+          // (src/about/media.test.ts), so a cached copy is never stale.
           {
-            urlPattern: /\/(assets\/a\/[^/]+\.js|media\/[^/]+\.(webp|avif))$/,
+            urlPattern: /\/media\/[^/]+\.(webp|avif)$/,
             handler: "CacheFirst",
             options: {
               cacheName: "codeeditor-about",

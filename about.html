@@ -12,8 +12,6 @@
     <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
     <script src="theme-boot.js"></script>
     <link rel="stylesheet" href="/src/styles/about.css" />
-    <!-- The AVIF the poster's <picture> picks; a browser without AVIF skips this preload (type) and loads the WebP. -->
-    <link rel="preload" as="image" href="/media/about-scene.79bc158d.avif" type="image/avif" />
   </head>
   <body class="about">
     <a class="about-skip" href="#content">Skip to the content</a>
@@ -32,31 +30,66 @@
     <main id="content">
       <section class="about-hero" aria-labelledby="hero-title">
         <div class="about-hero-text">
-          <h1 id="hero-title" tabindex="-1">
-            Write code. Run it. See how it flows.
-            <span class="about-h1-sub">Python, C and C++ in your browser</span>
-          </h1>
+          <h1 id="hero-title" tabindex="-1">Write Python, C or C++ and watch it run as a <em>flowchart</em></h1>
+        </div>
+        <div class="about-hero-side">
           <p class="about-lede">
-            A free code editor for students. Python, C and C++ run right in your browser, with nothing to install, and a
-            flowchart shows how your program runs, step by step.
+            A free code editor for students. It runs in your browser with nothing to install, and every decision and loop
+            in your program becomes a box you can click.
           </p>
           <div class="about-ctas">
             <a class="about-btn about-btn-primary" href="/">Open the editor</a>
-            <a class="about-btn about-btn-ghost" href="#changelog">What's new</a>
+            <a class="about-btn about-btn-ghost" href="#launch-video">Watch the tour</a>
           </div>
         </div>
-        <div class="about-scene" data-scene="poster" data-frames="0">
-          <picture>
-            <source srcset="/media/about-scene.79bc158d.avif" type="image/avif" />
-            <img class="about-poster" src="/media/about-scene.5d85575b.webp" width="720" height="720" alt="" fetchpriority="high" />
-          </picture>
-          <p class="about-scene-text">
-            A flowchart in 3D: a start, a step, a decision with a loop back, an output and an end, the shapes the
-            Flowchart tab draws for your code.
-          </p>
-          <!-- Shown only while the scene runs or is paused (about.css); page.ts scene() pauses it. -->
-          <button type="button" class="about-play about-scene-toggle">Pause animation</button>
-        </div>
+        <!-- The editor as it looks with grades.c open: a picture made of markup (crisp, themed, no download),
+             so it is hidden from screen readers and described in words by its caption. On a phone it becomes
+             the phone layout the app ships: the Code and Flowchart switch, the chart, and Run in the dock. -->
+        <figure class="about-window" aria-labelledby="window-text">
+          <figcaption class="about-sr" id="window-text">
+            The ExecFlow editor with grades.c open: the C program on the left and its flowchart on the right. The
+            flowchart starts, reads n, loops while i is less than n, reads a score, skips negative scores, prints a
+            grade, and returns 0. The decision score less than 0 is selected, and its line is highlighted in the code.
+          </figcaption>
+          <div class="aw-frame" aria-hidden="true">
+            <div class="aw-top">
+              <span class="aw-file"><span class="aw-badge">c</span> grades.c</span>
+              <span class="aw-meta">No problems</span>
+              <span class="aw-run">Run <span class="aw-key">Ctrl</span><span class="aw-key">Enter</span></span>
+            </div>
+            <div class="aw-seg"><span>Code</span><span class="aw-on">Flowchart</span></div>
+            <div class="aw-boards">
+              <div class="aw-board aw-code-board">
+                <div class="aw-head">Code</div>
+                <pre class="aw-code"><span class="l"><span class="k">#include</span> <span class="s">&lt;stdio.h&gt;</span></span><span class="l"><span class="t">int</span> <span class="f">grade</span>(<span class="t">int</span> score) {</span><span class="l">    <span class="k">if</span> (score &gt;= <span class="n">90</span>) <span class="k">return</span> <span class="s">'A'</span>;</span><span class="l">    <span class="k">else if</span> (score &gt;= <span class="n">75</span>) <span class="k">return</span> <span class="s">'B'</span>;</span><span class="l">    <span class="k">return</span> <span class="s">'C'</span>;</span><span class="l">}</span><span class="l"><span class="t">int</span> <span class="f">main</span>(<span class="t">void</span>) {</span><span class="l">    <span class="t">int</span> n, score;</span><span class="l">    <span class="f">scanf</span>(<span class="s">"%d"</span>, &amp;n);</span><span class="l">    <span class="k">for</span> (<span class="t">int</span> i = <span class="n">0</span>; i &lt; n; i++) {</span><span class="l">        <span class="f">scanf</span>(<span class="s">"%d"</span>, &amp;score);</span><span class="l here">        <span class="k">if</span> (score &lt; <span class="n">0</span>) <span class="k">continue</span>;</span><span class="l">        <span class="f">printf</span>(<span class="s">"%c"</span>, <span class="f">grade</span>(score));</span><span class="l">    }</span><span class="l">    <span class="k">return</span> <span class="n">0</span>;</span><span class="l">}</span></pre>
+              </div>
+              <div class="aw-board">
+                <div class="aw-head">Flowchart <span>main</span></div>
+                <div class="aw-chart">
+                  <svg class="aw-fc" viewBox="0 0 300 512" width="300" height="512" focusable="false">
+                    <defs><marker id="aw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="aw-tip" d="M0 0L8 4L0 8z" /></marker></defs>
+                    <rect class="term" x="112" y="12" width="76" height="26" rx="13" /><text x="150" y="29" text-anchor="middle">Start</text><line class="edge" x1="150" y1="38" x2="150" y2="58" marker-end="url(#aw-arrow)" />
+                    <rect class="proc" x="98" y="58" width="104" height="28" /><text x="150" y="76" text-anchor="middle">int n, score</text><line class="edge" x1="150" y1="86" x2="150" y2="104" marker-end="url(#aw-arrow)" />
+                    <polygon class="io" points="94,104 214,104 206,132 86,132" /><text x="150" y="122" text-anchor="middle">scanf("%d", &amp;n)</text><line class="edge" x1="150" y1="132" x2="150" y2="150" marker-end="url(#aw-arrow)" />
+                    <rect class="proc" x="104" y="150" width="92" height="28" /><text x="150" y="168" text-anchor="middle">int i = 0</text><line class="edge" x1="150" y1="178" x2="150" y2="196" marker-end="url(#aw-arrow)" />
+                    <polygon class="dec" points="150,196 198,218 150,240 102,218" /><text x="150" y="222" text-anchor="middle">i &lt; n ?</text>
+                    <line class="edge yes" x1="150" y1="240" x2="150" y2="258" marker-end="url(#aw-arrow)" /><text class="lbl" x="158" y="253">Yes</text>
+                    <polygon class="io" points="82,258 226,258 218,286 74,286" /><text x="150" y="276" text-anchor="middle">scanf("%d", &amp;score)</text><line class="edge" x1="150" y1="286" x2="150" y2="304" marker-end="url(#aw-arrow)" />
+                    <polygon class="dec chosen" points="150,304 206,326 150,348 94,326" /><text x="150" y="330" text-anchor="middle">score &lt; 0 ?</text>
+                    <line class="edge no" x1="150" y1="348" x2="150" y2="366" marker-end="url(#aw-arrow)" /><text class="lbl" x="158" y="361">No</text>
+                    <rect class="io" x="58" y="366" width="184" height="28" /><line class="edge" x1="64" y1="366" x2="64" y2="394" /><line class="edge" x1="236" y1="366" x2="236" y2="394" /><text x="150" y="384" text-anchor="middle">printf("%c", grade(score))</text><line class="edge" x1="150" y1="394" x2="150" y2="412" marker-end="url(#aw-arrow)" />
+                    <rect class="proc" x="114" y="412" width="72" height="28" /><text x="150" y="430" text-anchor="middle">i++</text>
+                    <polyline class="edge yes" points="206,326 250,326 250,426 186,426" marker-end="url(#aw-arrow)" /><text class="lbl" x="214" y="320">Yes</text>
+                    <polyline class="edge" points="114,426 52,426 52,218 102,218" marker-end="url(#aw-arrow)" />
+                    <polyline class="edge no" points="198,218 276,218 276,486 188,486" marker-end="url(#aw-arrow)" /><text class="lbl" x="206" y="212">No</text>
+                    <rect class="term" x="112" y="472" width="76" height="28" rx="14" /><text x="150" y="490" text-anchor="middle">return 0</text>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div class="aw-dock"><span>Finished, exit code 0</span><span class="aw-run">Run</span></div>
+          </div>
+        </figure>
       </section>
 
       <section class="about-flow" aria-labelledby="flow-title" id="flowcharts">

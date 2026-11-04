@@ -1,10 +1,9 @@
 // The About page (about.html): the changelog from the release data, the build's version, a strip of
-// the built-in colour themes drawn from their own palettes, restrained reveals, and the hero's
-// three.js scene, loaded only after the first paint and only where it can run. Every string from the
-// data goes in as text (textContent / createTextNode), never as markup.
+// the built-in colour themes drawn from their own palettes, restrained reveals, and the launch video.
+// The hero (the editor window) is markup and needs no script. Every string from the data goes in as
+// text (textContent / createTextNode), never as markup.
 import { CHANGELOG, type Kind, type Release } from "./changelog";
 import { BUILT_IN, themePalette } from "../theme/themes";
-import type { SceneControl } from "./scene";
 import {
   ITEMS_SHOWN,
   KIND_WORD,
@@ -268,53 +267,6 @@ function reveals(): void {
 }
 
 /**
- * The hero scene, after the first paint: the poster stays where WebGL or motion isn't welcome. Its
- * button (shown by about.css only while it runs or is paused) pauses it (WCAG 2.2.2), and the pause
- * holds until the button plays it again. Reduced motion turned on during the visit stops it for good.
- */
-function scene(): void {
-  const host = document.querySelector<HTMLElement>(".about-scene");
-  if (!host) return;
-  if (reducedMotion.matches) {
-    host.dataset.scene = "still";
-    return;
-  }
-  let control: SceneControl | null = null;
-  let stopped = false;
-  const toggle = host.querySelector<HTMLButtonElement>(".about-scene-toggle");
-  whenMotionIsReduced(() => {
-    stopped = true;
-    // The button goes with the motion: focus on it would fall to the page, so it moves to the hero's
-    // title first (tabindex="-1"), and Tab goes on from there.
-    if (toggle && document.activeElement === toggle) document.querySelector<HTMLElement>("#hero-title")?.focus();
-    if (control) control.stop();
-    else if (host.dataset.scene !== "unavailable") host.dataset.scene = "still";
-  });
-  let held = false;
-  toggle?.addEventListener("click", () => {
-    held = !held;
-    control?.hold(held);
-    toggle.textContent = held ? "Play animation" : "Pause animation";
-  });
-  const start = () => {
-    if (stopped) return;
-    host.dataset.scene = "loading";
-    import("./scene")
-      .then((m) => {
-        // Reduced motion came on while the code was on its way.
-        if (stopped) host.dataset.scene = "still";
-        else control = m.mountScene(host);
-      })
-      .catch(() => {
-        // The scene's code didn't arrive (offline before it was cached): the poster is the hero.
-        host.dataset.scene = "unavailable";
-      });
-  };
-  if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 1500 });
-  else setTimeout(start, 300);
-}
-
-/**
  * The launch video plays like a hero video: muted and looping, while at least a third of it is on
  * screen. Its file is attached only when it first comes into view (some engines fetch a source even
  * with preload="none"). Nothing starts by itself with reduced motion. The button pauses it (WCAG
@@ -407,5 +359,3 @@ renderChangelog();
 renderThemes();
 reveals();
 video();
-if (document.readyState === "complete") scene();
-else addEventListener("load", scene, { once: true });

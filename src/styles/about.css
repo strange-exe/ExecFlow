@@ -1,8 +1,8 @@
-/* The About page (about.html): the one more expressive surface of 0.7.0, in the app's own tokens and the
-   calm direction (owner's pick B). Reading order: 1. the headline and "Open the editor", 2. the hero
-   scene, 3. the sections, 4. the changelog. One accent (--action), one radius family (--r-control for
-   controls, --r-dialog for frames), one light and one dark theme from theme-boot.js. Motion settles
-   content in (never from opacity 0) and stops under reduced motion. */
+/* The About page (about.html), in the app's own tokens; layout from the owner's 2026-11-04 pick, option A
+   "the editor up front" (.claude/design/about.md). Reading order: 1. the headline, 2. the editor window
+   (code beside its flowchart), 3. "Open the editor", 4. the sections, 5. the changelog. One accent
+   (--action), one radius family (--r-control for controls, --r-dialog for frames), one light and one dark
+   theme from theme-boot.js. Motion settles content in (never from opacity 0) and stops under reduced motion. */
 @import "./tokens.css";
 @import "./wordmark.css";
 
@@ -171,39 +171,35 @@ body.about {
 }
 
 /* ---------------------------------------------------------------- hero */
+/* Option A (2026-11-04, .claude/design/about.md): the editor itself is the hero. The headline (display
+   weight 400, Cursor) and the lede with the two actions share a row; under them the window, as the app
+   draws it (Raycast: product window as the hero, surface ladder and hairlines, keycaps, one filled action). */
 .about-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--s5);
-  padding-top: var(--s5);
+  padding-top: var(--s6);
   padding-bottom: var(--s6);
-  align-items: center;
 }
 .about h1 {
   margin: 0;
-  font-size: clamp(34px, 5.2vw, 58px);
-  line-height: 1.06;
+  font-size: clamp(36px, 4.6vw, 56px);
+  line-height: 1.08;
   letter-spacing: -0.03em;
-  font-weight: var(--w-strong);
-  max-width: 14ch;
+  font-weight: var(--w-body, 400);
+  max-width: 17ch;
+  text-wrap: balance;
 }
-/* The headline's second line names the languages (what students search for), a step down. */
-.about h1 .about-h1-sub {
-  display: block;
-  max-width: none;
-  margin-top: var(--s3);
-  font-size: clamp(20px, 2.2vw, 26px);
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  font-weight: var(--w-label);
-  color: var(--text-secondary);
+.about h1 em {
+  font-style: normal;
+  color: var(--action);
 }
 /* `.about .about-lede` (0,2,0) so it outranks `.about main p` (0,1,2) below, margin and measure both. */
 .about .about-lede {
-  margin: var(--s5) 0 0;
-  max-width: 36ch;
+  margin: 0;
+  max-width: 46ch;
   font-size: 18px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-secondary);
   text-wrap: pretty;
 }
@@ -213,50 +209,236 @@ body.about {
   gap: var(--s3);
   margin-top: var(--s5);
 }
-
-.about-scene {
-  position: relative;
-  width: 100%;
-  max-width: 560px;
-  aspect-ratio: 1 / 1;
-  justify-self: center;
-}
-.about-poster,
-.about-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.about-canvas {
-  opacity: 0;
-}
-.about-scene[data-scene="running"] .about-canvas {
-  opacity: 1;
-  transition: opacity 0.4s ease-out;
-}
-.about-scene[data-scene="running"] .about-poster {
-  opacity: 0;
-  transition: opacity 0.4s ease-out;
-}
-/* The scene's text equivalent: read by screen readers, not shown. */
-.about-scene-text {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  margin: 0;
-}
-
-/* Two columns from 900 px: tall enough for the scene, never so tall the headline floats mid-screen. */
 @media (min-width: 900px) {
   .about-hero {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-    min-height: min(calc(100dvh - 64px), 600px);
-    padding-top: var(--s5);
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    column-gap: var(--s7, 48px);
+    row-gap: var(--s6);
+    align-items: end;
+  }
+  .about-window {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The window: a picture of the editor made of markup, in the page's own tokens (so it follows light and
+   dark). Its flowchart follows the app's chart rules (src/flowchart/render.ts): a kind's box is its hue at
+   14% (CHART_TINT) over --surface-raised with a hue edge (start and end success, decision warning, input
+   and output info), a step is --surface-raised with --border-strong, Yes is success and No danger. */
+.about-window {
+  margin: 0;
+}
+.aw-frame {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  user-select: none;
+}
+.aw-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--divider);
+  font-family: var(--font-code);
+  font-size: 13px;
+}
+.aw-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+/* The Hue file badge as shipped: a coloured bar and the extension in mono. */
+.aw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--syn-type);
+}
+.aw-badge::before {
+  content: "";
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.aw-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.aw-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-control);
+  background: var(--action);
+  color: var(--on-action);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: var(--w-strong);
+}
+.aw-key {
+  min-width: 20px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--on-action) 45%, transparent);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 400 11px/16px var(--font-code);
+  text-align: center;
+}
+.aw-boards {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  padding: 10px;
+}
+.aw-board {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.aw-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.aw-code {
+  margin: 0;
+  padding: 10px 0;
+  overflow: hidden;
+  counter-reset: aw-ln;
+  font: 400 13.5px/22px var(--font-code);
+  font-variant-ligatures: none;
+  white-space: pre;
+}
+.aw-code .l {
+  display: block;
+  padding-right: var(--s4);
+}
+.aw-code .l::before {
+  counter-increment: aw-ln;
+  content: counter(aw-ln);
+  display: inline-block;
+  width: 36px;
+  padding-right: 14px;
+  text-align: right;
+  color: var(--gutter-text);
+}
+.aw-code .here {
+  background: color-mix(in srgb, var(--action) 9%, transparent);
+  box-shadow: inset 2px 0 0 var(--action);
+}
+.aw-code .k { color: var(--syn-keyword); }
+.aw-code .s { color: var(--syn-string); }
+.aw-code .n { color: var(--syn-number); }
+.aw-code .f { color: var(--syn-function); }
+.aw-code .t { color: var(--syn-type); }
+.aw-chart {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: var(--s2);
+  background-image: radial-gradient(color-mix(in srgb, var(--border-strong) 30%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.aw-fc {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-height: 440px;
+}
+.aw-fc text {
+  font: 400 11px var(--font-code);
+  font-variant-ligatures: none;
+  fill: var(--text);
+}
+.aw-fc .lbl {
+  font: 600 10px var(--font-ui);
+  fill: var(--text);
+}
+.aw-fc .edge { stroke: var(--text-secondary); stroke-width: 1.25; fill: none; }
+.aw-fc .edge.yes { stroke: var(--success); }
+.aw-fc .edge.no { stroke: var(--danger); }
+.aw-fc .aw-tip { fill: var(--text-secondary); }
+.aw-fc .proc { fill: var(--surface-raised); stroke: var(--border-strong); stroke-width: 1.25; }
+.aw-fc :is(.term, .io, .dec) { stroke-width: 1.5; }
+.aw-fc .term { fill: color-mix(in srgb, var(--success) 14%, var(--surface-raised)); stroke: var(--success); }
+.aw-fc .io { fill: color-mix(in srgb, var(--info) 14%, var(--surface-raised)); stroke: var(--info); }
+.aw-fc .dec { fill: color-mix(in srgb, var(--warning) 14%, var(--surface-raised)); stroke: var(--warning); }
+.aw-fc .chosen { stroke: var(--action); stroke-width: 2.5; }
+.aw-seg,
+.aw-dock {
+  display: none;
+}
+/* Phones: the window is the phone layout the app ships: the switch, the chart full size, Run in the dock. */
+@media (max-width: 760px) {
+  .aw-frame {
+    height: auto;
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .aw-top .aw-run,
+  .aw-code-board {
+    display: none;
+  }
+  .aw-boards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aw-seg {
+    display: flex;
+    gap: 4px;
+    margin: 8px 10px 0;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .aw-seg span {
+    flex: 1;
+    padding: 8px;
+    border-radius: 7px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .aw-seg .aw-on {
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .aw-dock {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: 10px;
+    border-top: 1px solid var(--divider);
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .aw-dock .aw-run {
+    min-height: 44px;
+    padding: 0 var(--s5);
+    font-size: 15px;
+  }
+  .aw-fc {
+    width: min(100%, 250px);
+    height: auto;
+    max-height: none;
   }
 }
 
@@ -270,7 +452,7 @@ body.about {
   font-size: clamp(26px, 3vw, 32px);
   line-height: 1.25;
   letter-spacing: var(--tracking-title);
-  font-weight: var(--w-strong);
+  font-weight: var(--w-label);
 }
 .about main p {
   margin: 0 0 var(--s3);
@@ -473,41 +655,10 @@ body.about {
   background: currentColor;
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
-/* The pause bars whenever the button pauses: from play() on (loading), and while the scene runs. */
+/* The pause bars whenever the button pauses: from play() on (loading). */
 .about-stage[data-video="playing"] .about-play::before,
-.about-stage[data-video="loading"] .about-play::before,
-.about-scene[data-scene="running"] .about-play::before {
+.about-stage[data-video="loading"] .about-play::before {
   clip-path: polygon(0 0, 35% 0, 35% 100%, 0 100%, 0 0, 65% 0, 100% 0, 100% 100%, 65% 100%, 65% 0);
-}
-/* The hero scene's own pause and play, the same button in the scene's corner, only while it moves or
-   is held (the poster has nothing to pause). Paused, it keeps its frame rather than the poster. */
-.about-scene-toggle {
-  display: none;
-  /* Just under the scene's right edge, off the drawing (the square is wider than the shapes and
-     they reach its bottom on phones); above the canvas, which scene.ts appends after it. */
-  left: auto;
-  right: 0;
-  bottom: auto;
-  top: calc(100% + var(--s2));
-  z-index: 1;
-}
-/* Room for the button under the scene, from the poster on (so nothing moves when the scene starts),
-   and none where it can never show: still (reduced motion) or unavailable (no WebGL, no code). Under
-   reduced motion it is never kept, so the poster doesn't lose a gap when page.ts marks it still. */
-@media (prefers-reduced-motion: no-preference) {
-  .about-scene:is([data-scene="poster"], [data-scene="loading"], [data-scene="running"], [data-scene="paused"]) {
-    margin-bottom: calc(44px + var(--s3));
-  }
-}
-.about-scene[data-scene="running"] .about-scene-toggle,
-.about-scene[data-scene="paused"] .about-scene-toggle {
-  display: inline-flex;
-}
-.about-scene[data-scene="paused"] .about-canvas {
-  opacity: 1;
-}
-.about-scene[data-scene="paused"] .about-poster {
-  opacity: 0;
 }
 .about-video .about-note {
   margin-top: var(--s3);
