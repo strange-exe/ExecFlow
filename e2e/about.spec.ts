@@ -466,7 +466,7 @@ test.describe("the About page", () => {
       await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
     }
     // Its text equivalent names every scene and offers the file; the poster and the file are served.
-    await expect(page.locator("#video-text li")).toHaveCount(5);
+    await expect(page.locator("#video-text li")).toHaveCount(6);
     const file = await video.getAttribute("data-src");
     await expect(page.locator("#video-text a[download]")).toHaveAttribute("href", file!);
     await expect(video).toHaveAttribute("aria-describedby", "video-text");
