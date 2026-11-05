@@ -6,6 +6,24 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.30.0] - 2026-11-05
+
+A new About page, with themes you can try
+
+### Added
+
+- On the About page, Your colours lets you pick any of the built-in themes and see the editor drawn in it, before you change anything in Settings.
+- The launch video has a light and a dark version, and the page plays the one that matches its theme.
+
+### Changed
+
+- The About page opens on the editor itself: a C program beside its flowchart, with the line you're on marked in both. It replaces the 3D scene, so the page loads less and shows what ExecFlow does.
+- The launch video is new: 23 seconds of ExecFlow as it is today, from typing a program to its flowchart on a phone.
+
+### Fixed
+
+- The launch video's Pause button no longer turns see-through when the pointer is on it.
+
 ## [0.29.0] - 2026-11-03
 
 A phone layout built for thumbs, and clearer menus

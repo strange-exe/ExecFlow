@@ -20,6 +20,18 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.30.0",
+    date: "2026-11-05",
+    title: "A new About page, with themes you can try",
+    items: [
+      { kind: "changed", text: "The About page opens on the editor itself: a C program beside its flowchart, with the line you're on marked in both. It replaces the 3D scene, so the page loads less and shows what ExecFlow does." },
+      { kind: "added", text: "On the About page, Your colours lets you pick any of the built-in themes and see the editor drawn in it, before you change anything in Settings." },
+      { kind: "changed", text: "The launch video is new: 23 seconds of ExecFlow as it is today, from typing a program to its flowchart on a phone." },
+      { kind: "added", text: "The launch video has a light and a dark version, and the page plays the one that matches its theme." },
+      { kind: "fixed", text: "The launch video's Pause button no longer turns see-through when the pointer is on it." },
+    ],
+  },
+  {
     version: "0.29.0",
     date: "2026-11-03",
     title: "A phone layout built for thumbs, and clearer menus",
