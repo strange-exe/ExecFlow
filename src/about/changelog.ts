@@ -29,6 +29,7 @@ export const CHANGELOG: readonly Release[] = [
       { kind: "added", text: "On the About page, Your colours lets you pick any of the built-in themes and see the editor drawn in it, before you change anything in Settings." },
       { kind: "changed", text: "The launch video is new: 23 seconds of ExecFlow as it is today, from typing a program to its flowchart on a phone." },
       { kind: "added", text: "The launch video has a light and a dark version, and the page plays the one that matches its theme." },
+      { kind: "changed", text: "In What's new, the current release has a crisp ring and a slower, thinner beacon, and the timeline leads down from it in the accent colour." },
       { kind: "fixed", text: "The launch video's Pause button no longer turns see-through when the pointer is on it." },
     ],
   },

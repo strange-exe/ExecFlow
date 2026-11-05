@@ -358,6 +358,51 @@ test.describe("the About page", () => {
     expect(off.pulse, "no beacon with reduced motion").toBe("none");
   });
 
+  // 2026-11-05, owner picked "Refine, keep the beacon": a crisp node, a thinner and slower beacon, the
+  // line in the accent from the current release to the next, fading at both ends.
+  for (const scheme of ["light", "dark"] as const) {
+    test(`${scheme}: the current release's node is crisp, its beacon thin and slow, and the line leads from it in the accent, fading at the ends`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await openIn(page, "/about#changelog", scheme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      const look = await page.evaluate(() => {
+        const rgbOf = (v: string) => {
+          const probe = document.createElement("span");
+          probe.style.color = `var(${v})`;
+          document.body.append(probe);
+          const c = getComputedStyle(probe).color;
+          probe.remove();
+          return c;
+        };
+        const current = document.querySelector('#changelog .release[data-current="true"]')!;
+        const node = current.querySelector(".release-node")!;
+        const releases = [...document.querySelectorAll<HTMLElement>("#changelog .release")].filter((r) => r.offsetParent !== null);
+        const last = releases[releases.length - 1]!;
+        const after = getComputedStyle(node, "::after");
+        return {
+          action: rgbOf("--action"),
+          fill: getComputedStyle(node).backgroundColor,
+          shadow: getComputedStyle(node).boxShadow,
+          ring: ((s) => `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor} offset ${s.outlineOffset}`)(getComputedStyle(node)),
+          beaconWidth: after.boxShadow,
+          beaconSeconds: parseFloat(after.animationDuration),
+          currentLine: getComputedStyle(current.querySelector(".release-axis")!, "::before").backgroundImage,
+          lastLine: getComputedStyle(last.querySelector(".release-axis")!, "::before").backgroundImage,
+          lastIsCurrent: last === current,
+        };
+      });
+      expect(look.fill).toBe(look.action);
+      // One solid ring with a see-through gap (an outline and its offset): a gap painted in the page's
+      // ground showed as a dark halo on the current release's tinted card.
+      expect(look.ring).toBe(`solid 2px ${look.action} offset 2px`);
+      expect(look.shadow).toBe("none");
+      expect(look.beaconWidth).toMatch(/ 0px 0px 0px 1\.5px$/);
+      expect(look.beaconSeconds).toBeGreaterThanOrEqual(3);
+      expect(look.currentLine, "the accent leads from the current release").toMatch(new RegExp(`^linear-gradient\\(${look.action.replace(/[()]/g, "\\$&")}`));
+      if (!look.lastIsCurrent) expect(look.lastLine, "the line fades out under the last release shown").toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+    });
+  }
+
   for (const scheme of ["light", "dark"] as const) {
     test(`${scheme}: with every fold open, What's new is axe clean; on a phone its buttons are 44 px and nothing scrolls sideways`, async ({ page }) => {
       await openIn(page, "/about#changelog", scheme);

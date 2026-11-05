@@ -980,9 +980,22 @@ body.about {
   background: var(--bg);
   box-shadow: inset 0 0 0 2px var(--border-strong);
 }
+/* The current release: a filled dot in one solid ring. The gap is an outline's offset, so it shows
+   the card's own (tinted) ground: a gap painted in --bg read as a dark halo there. */
 .release[data-current="true"] .release-node {
   background: var(--action);
-  box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--action);
+  box-shadow: none;
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+/* The line leads from the current release in the accent and settles into the divider by the next. */
+.release[data-current="true"] .release-axis::before {
+  background: linear-gradient(var(--action), var(--divider));
+}
+/* It runs on past the last release shown and fades out, so the history doesn't stop on a hard end. */
+.release.is-last:not(.is-first) .release-axis::before {
+  height: 80px;
+  background: linear-gradient(var(--divider) 50%, transparent);
 }
 /* The current release has a moving border: a light runs round its edge. .release-edge (page.ts) is a
    clipped layer under the content (isolation keeps it above the card's ground): a large conic
@@ -1385,8 +1398,8 @@ body.about {
     position: absolute;
     inset: -4px;
     border-radius: 50%;
-    box-shadow: 0 0 0 2px var(--action);
-    animation: release-node-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+    box-shadow: 0 0 0 1.5px var(--action);
+    animation: release-node-pulse 3.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   }
 }
 @keyframes release-edge-turn {
@@ -1396,11 +1409,11 @@ body.about {
 }
 @keyframes release-node-pulse {
   from {
-    transform: scale(0.8);
-    opacity: 0.7;
+    transform: scale(1);
+    opacity: 0.55;
   }
   to {
-    transform: scale(2);
+    transform: scale(1.8);
     opacity: 0;
   }
 }

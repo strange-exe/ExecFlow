@@ -20,6 +20,7 @@ A new About page, with themes you can try
 
 - The About page opens on the editor itself: a C program beside its flowchart, with the line you're on marked in both. It replaces the 3D scene, so the page loads less and shows what ExecFlow does.
 - The launch video is new: 23 seconds of ExecFlow as it is today, from typing a program to its flowchart on a phone.
+- In What's new, the current release has a crisp ring and a slower, thinner beacon, and the timeline leads down from it in the accent colour.
 
 ### Fixed
 
