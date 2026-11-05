@@ -10,6 +10,7 @@ import { APP_ROUTE, NAVIGATE_DENYLIST } from "./src/about/fallback-deny.ts";
 import { CHANGELOG } from "./src/about/changelog.ts";
 import { HTML_INPUT, PAGES, pageDates, pagesFile, parseRewrites, rewriteFor, servedPath, sitemapXml, withHeadTags } from "./src/about/site.ts";
 import { makeCodeLink } from "./src/core/code-link.ts";
+import { escapeHtml, licencesListHtml, licencesText, summaryLine, type LicenceEntry } from "./src/legal/licences.ts";
 import { loadGuideData } from "./src/pages/load.ts";
 import { expandGuide, type GuideData } from "./src/pages/render.ts";
 import { GUIDE_ROUTES } from "./src/pages/routes.ts";
@@ -312,14 +313,17 @@ function licenseFileOf(pkg: string): string | null {
 }
 
 /**
- * Writes /licenses.txt: ExecFlow's own licence, then every third-party licence text the site's
- * files ship under. A bundled package without a licence file stops the build.
+ * Writes /licenses.txt (ExecFlow's own licence, then every third-party licence text the site's
+ * files ship under) and fills the Licences page (licenses.html) from the same list. A bundled
+ * package without a licence file stops the build. After Vite's own HTML output ("post"), so the
+ * page is in the bundle to fill.
  */
 function thirdPartyLicenses(): Plugin {
   return {
     name: "code-editor:third-party-licenses",
     apply: "build",
-    generateBundle() {
+    enforce: "post",
+    generateBundle(_options, bundle) {
       const missing: string[] = [];
       const parts: { name: string; file: string }[] = [];
       for (const pkg of [...bundledPackages].sort()) {
@@ -329,23 +333,31 @@ function thirdPartyLicenses(): Plugin {
       }
       if (missing.length) throw new Error(`No licence file for bundled package(s): ${missing.join(", ")}. Add one to LICENSE_EXTRAS in vite.config.ts.`);
       parts.push(...LICENSE_EXTRAS);
-      const rule = "=".repeat(78);
-      const text = [
+      const entries: LicenceEntry[] = [
+        { name: "ExecFlow", text: readFileSync("LICENSE", "utf8").replace(/\r\n/g, "\n").trim() },
+        ...parts.map(({ name, file }) => ({ name, text: readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim() })),
+      ];
+      const intro = [
         "ExecFlow: licences",
         "",
         "ExecFlow's own code is under the MIT licence (the first text below). The rest are the licences of",
         "the third-party software this site serves, each under its own licence.",
-        "",
-        ...LICENSE_NOTES.map((n) => `- ${n}`),
-        "",
-        rule,
-        "ExecFlow",
-        rule,
-        readFileSync("LICENSE", "utf8").trim(),
-        ...parts.flatMap(({ name, file }) => ["", rule, name, rule, readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim()]),
-        "",
-      ].join("\n");
-      this.emitFile({ type: "asset", fileName: "licenses.txt", source: text });
+      ];
+      this.emitFile({ type: "asset", fileName: "licenses.txt", source: licencesText(intro, LICENSE_NOTES, entries) });
+
+      const page = bundle["licenses.html"];
+      if (!page || page.type !== "asset" || typeof page.source !== "string") throw new Error("licenses.html is not in the bundle to fill.");
+      const slots: Record<string, string> = {
+        "<!-- licences:summary -->": escapeHtml(summaryLine(entries)),
+        "<!-- licences:notes -->": LICENSE_NOTES.map((n) => `<li>${escapeHtml(n)}</li>`).join("\n"),
+        "<!-- licences:list -->": licencesListHtml(entries),
+      };
+      let html = page.source;
+      for (const [slot, value] of Object.entries(slots)) {
+        if (!html.includes(slot)) throw new Error(`licenses.html has no ${slot} to fill.`);
+        html = html.replace(slot, () => value);
+      }
+      page.source = html;
     },
   };
 }

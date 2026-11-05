@@ -17,6 +17,7 @@ const PAGES = [
   { path: "/about", title: "About ExecFlow: run Python, C and C++ in your browser" },
   { path: "/privacy", title: "Privacy - ExecFlow" },
   { path: "/terms", title: "Terms - ExecFlow" },
+  { path: "/licenses", title: "Licences - ExecFlow" },
 ] as const;
 // The 404s below are the point of these tests; each engine reports the page's own 404 in its words.
 const NOT_FOUND_NOISE = tolerating(
@@ -187,7 +188,7 @@ test.describe("search and sharing", () => {
     }
   }
 
-  test("robots.txt names the sitemap, and sitemap.xml lists the four pages and every guide", async ({ request }) => {
+  test("robots.txt names the sitemap, and sitemap.xml lists the five pages and every guide", async ({ request }) => {
     const robots = await (await request.get("/robots.txt")).text();
     expect(robots).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
     const res = await request.get("/sitemap.xml");

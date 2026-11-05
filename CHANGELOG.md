@@ -12,6 +12,7 @@ A new About page, with themes you can try
 
 ### Added
 
+- A Licences page beside Privacy and Terms lists every open-source part ExecFlow uses, each with its licence in full and a box to find one. The single text file is still there.
 - On the About page, Your colours lets you pick any of the built-in themes and see the editor drawn in it, before you change anything in Settings.
 - The launch video has a light and a dark version, and the page plays the one that matches its theme.
 

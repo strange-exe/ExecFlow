@@ -18,6 +18,7 @@ export const PAGES = [
   { path: "/about", file: "about.html" },
   { path: "/privacy", file: "privacy.html" },
   { path: "/terms", file: "terms.html" },
+  { path: "/licenses", file: "licenses.html" },
 ] as const;
 
 /**
@@ -30,6 +31,7 @@ export const HTML_INPUT: Record<string, string> = {
   index: "index.html",
   privacy: "privacy.html",
   terms: "terms.html",
+  licenses: "licenses.html",
   about: "about.html",
   notFound: "404.html",
 };

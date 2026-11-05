@@ -317,7 +317,7 @@ export function createSettingsDialog(deps: SettingsDeps): { open(opener?: HTMLEl
   const foot = h(
     "div",
     { class: "settings-foot" },
-    h("p", { class: "field-note settings-legal" }, "What ExecFlow keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses.txt", "Licences"), "."),
+    h("p", { class: "field-note settings-legal" }, "What ExecFlow keeps and sends: ", legalLink("/privacy", "Privacy"), ". The rules for using it: ", legalLink("/terms", "Terms"), ". Open-source parts: ", legalLink("/licenses", "Licences"), "."),
     version,
   );
   body.before(nav);

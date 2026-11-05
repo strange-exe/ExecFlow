@@ -417,6 +417,109 @@ test.describe("legal pages", () => {
     }
   });
 
+  // The Licences page (2026-11-05, owner: "can we improvise this as well" on the plain licences.txt):
+  // the same legal shell, a find box and one native disclosure per licence text, each in full.
+  test.describe("the Licences page", () => {
+    /** The plain file's sections (name, text), as licencesText() writes them, for comparing. */
+    const sections = async (request: import("@playwright/test").APIRequestContext) => {
+      const text = await (await request.get("/licenses.txt")).text();
+      const rule = "=".repeat(78);
+      return [...text.matchAll(new RegExp(`(?:^|\\n)${rule}\\n(.+)\\n${rule}\\n`, "g"))].map((m) => m[1]!);
+    };
+
+    for (const scheme of ["light", "dark"] as const) {
+      test(`${scheme}: every licence in the text file is on the page, named and in full; axe clean`, async ({ page, request }) => {
+        await openIn(page, "/licenses", scheme);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+        await expect(page).toHaveTitle("Licences - ExecFlow");
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText("Licences");
+        const names = await sections(request);
+        // The text file's own headings can hold an "=" rule inside a licence (LLVM's), so it is the
+        // page's count that must cover every heading the file starts with.
+        const rows = page.locator(".lic");
+        expect(await rows.count()).toBeGreaterThanOrEqual(40);
+        const first = rows.first();
+        await expect(first.locator(".lic-name")).toHaveText("ExecFlow");
+        await expect(first.locator(".lic-kind")).toHaveText("MIT");
+        for (const n of names.slice(0, 5)) await expect(page.locator(".lic-name", { hasText: n.split(" ")[0]! }).first()).toBeAttached();
+        // No row says it doesn't know its licence.
+        await expect(page.locator(".lic-kind", { hasText: "Other licence" })).toHaveCount(0);
+        await expect(page.locator(".lic-summary")).toHaveText(new RegExp(`^${await rows.count()} licence texts: \\d+ MIT`));
+        // A row opens to its full text.
+        const view = page.locator(".lic", { has: page.locator(".lic-name", { hasText: /^@codemirror\/view$/ }) });
+        await view.locator("summary").click();
+        await expect(view.locator(".lic-text")).toBeVisible();
+        await expect(view.locator(".lic-text")).toContainText("Permission is hereby granted, free of charge");
+        await expect(page.getByRole("link", { name: "All of them as one text file" })).toHaveAttribute("href", "/licenses.txt");
+        const axe = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+        expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
+      });
+    }
+
+    test("the find box narrows the list by package or licence, says how many, and says when none match", async ({ page }) => {
+      await page.goto("/licenses");
+      await expect(page.locator("html")).toHaveAttribute("data-licences", "ready");
+      const box = page.getByLabel("Find a package or licence");
+      const total = await page.locator(".lic").count();
+      await expect(page.locator("#lic-count")).toHaveText(`${total} licences`);
+      // What a find should leave, counted from the page's own data: rows naming tree-sitter.
+      const want = await page.locator(".lic").evaluateAll((ls) => ls.filter((l) => (l as HTMLElement).dataset.filter!.includes("tree-sitter")).length);
+      expect(want).toBeGreaterThanOrEqual(4);
+      await box.fill("tree-sitter");
+      const shown = page.locator(".lic:visible");
+      await expect(shown).toHaveCount(want);
+      await expect(shown.locator(".lic-name")).toContainText([/tree-sitter/, /tree-sitter/, /tree-sitter/, /tree-sitter/]);
+      await expect(page.locator("#lic-count")).toHaveText(`${want} of ${total} licences`);
+      // A licence's name finds its rows: Pyodide is the one under MPL 2.0.
+      await box.fill("mpl 2.0");
+      await expect(shown).toHaveCount(1);
+      await expect(shown.locator(".lic-name")).toContainText("Pyodide");
+      await box.fill("no such thing");
+      await expect(shown).toHaveCount(0);
+      await expect(page.locator(".lic-none")).toBeVisible();
+      await box.fill("");
+      await expect(shown).toHaveCount(total);
+      await expect(page.locator(".lic-none")).toBeHidden();
+    });
+
+    test("a #lic-<n> link opens that licence", async ({ page }) => {
+      await page.goto("/licenses#lic-3");
+      await expect(page.locator("#lic-3 details")).toHaveJSProperty("open", true);
+      await expect(page.locator("#lic-3 .lic-text")).toBeInViewport();
+    });
+
+    test("phone: nothing scrolls sideways, rows are 44 px or more, the document switch names all three", async ({ page }) => {
+      await page.setViewportSize(PHONE);
+      await openIn(page, "/licenses", "light");
+      expect(await overflow(page)).toBe(false);
+      const heights = await page.locator(".lic summary").evaluateAll((s) => s.map((e) => e.getBoundingClientRect().height));
+      expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+      const seg = page.locator(".legal-seg");
+      await expect(seg.getByRole("link")).toHaveText(["Privacy", "Terms", "Licences"]);
+      await page.locator(".lic summary").nth(4).click();
+      expect(await overflow(page)).toBe(false);
+    });
+
+    test("without script the list reads fully: every row opens natively", async ({ browser }) => {
+      const context = await browser.newContext({ javaScriptEnabled: false, serviceWorkers: "block" });
+      const page = await context.newPage();
+      await page.goto("/licenses");
+      await expect(page.locator(".lic-find")).toBeHidden();
+      await page.locator(".lic summary").first().click();
+      await expect(page.locator(".lic-text").first()).toContainText("Copyright (c) 2026 Abhinesh");
+      await context.close();
+    });
+
+    test("every page that links the licences links the page, not the text file", async ({ page }) => {
+      for (const path of ["/about", "/privacy", "/terms", "/flowchart-from-code"]) {
+        await page.goto(path);
+        const links = page.locator('a[href^="/licenses"]').filter({ hasNotText: "text file" });
+        expect(await links.count(), path).toBeGreaterThan(0);
+        for (const href of await links.evaluateAll((as) => as.map((a) => a.getAttribute("href")))) expect(href, path).toBe("/licenses");
+      }
+    });
+  });
+
   test("Settings links to both pages, in a new tab", async ({ page, context }) => {
     await openApp(page);
     await page.locator("#settings-button").click();
@@ -431,7 +534,7 @@ test.describe("legal pages", () => {
       await expect(tab.getByRole("heading", { level: 1 })).toHaveText(name);
       await tab.close();
     }
-    await expect(legal.getByRole("link", { name: "Licences" })).toHaveAttribute("href", "/licenses.txt");
+    await expect(legal.getByRole("link", { name: "Licences" })).toHaveAttribute("href", "/licenses");
   });
 });
 
@@ -485,6 +588,11 @@ test("with the service worker in control, /privacy, /terms and /licenses.txt are
       // The page's own script is precached too: offline it still wires the page.
       await ready(page);
     }
+    // The Licences page is precached like them, its find box with it.
+    await page.goto("/licenses");
+    await expect(page.getByRole("heading", { level: 1 }), `/licenses ${offline ? "offline" : "online"}`).toHaveText("Licences");
+    await expect(page.locator("html")).toHaveAttribute("data-licences", "ready");
+    await expect(page.locator("#app")).toHaveCount(0);
     // The licence notice is a file, not an app route: the navigate fallback once answered it with
     // the editor (About, Terms and Settings link to it). It is precached, so it opens offline too.
     const res = await page.goto("/licenses.txt");

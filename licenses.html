@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Licences - ExecFlow</title>
+    <meta name="description" content="ExecFlow's own code is under the MIT licence. Here is the licence of every piece of software the site serves, each in full." />
+    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
+    <script src="theme-boot.js"></script>
+    <link rel="stylesheet" href="/src/styles/legal.css" />
+  </head>
+  <body class="legal">
+    <a class="legal-skip" href="#main">Skip to the text</a>
+    <header class="legal-top">
+      <a class="legal-brand" href="/"><img src="icons/mark-v2.svg" width="24" height="24" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
+      <span class="legal-crumb">Legal</span>
+      <span class="legal-sp"></span>
+      <a class="legal-top-link" href="/about">About</a>
+      <a class="legal-btn" href="/">Open the editor</a>
+    </header>
+
+    <div class="legal-shell">
+      <nav class="legal-side" aria-label="Legal documents">
+        <p class="legal-side-label">Legal</p>
+        <ul class="legal-docs">
+          <li><a class="legal-doc" href="/privacy">Privacy</a></li>
+          <li><a class="legal-doc" href="/terms">Terms</a></li>
+          <li><a class="legal-doc" href="/licenses" aria-current="page">Licences</a></li>
+        </ul>
+        <p class="legal-side-note">Questions go to the project's <a href="https://github.com/strange-exe/ExecFlow/issues">GitHub issues</a>.</p>
+      </nav>
+
+      <main id="main" class="legal-main" tabindex="-1">
+        <nav class="legal-seg" aria-label="Legal documents">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/licenses" aria-current="page">Licences</a>
+        </nav>
+
+        <article class="legal-paper" aria-labelledby="title">
+          <div class="legal-prose">
+            <header class="legal-doc-head">
+              <h1 id="title">Licences</h1>
+              <p class="legal-lead">ExecFlow's own code is under the MIT licence. Everything else the site serves comes under its own licence, each shown here in full.</p>
+              <div class="legal-meta">
+                <p class="lic-summary"><!-- licences:summary --></p>
+                <a href="/licenses.txt"
+                  >All of them as one text file<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg
+                ></a>
+              </div>
+            </header>
+
+            <section class="legal-short" aria-labelledby="notes">
+              <h2 id="notes">Good to know</h2>
+              <ul>
+<!-- licences:notes -->
+              </ul>
+            </section>
+
+            <section class="lic-sec" aria-labelledby="list-title">
+              <h2 id="list-title" class="lic-h">Every licence</h2>
+              <!-- page: licenses-page.ts shows the find box and keeps the count line current. -->
+              <div class="lic-find" hidden>
+                <label for="lic-q">Find a package or licence</label>
+                <input id="lic-q" type="search" autocomplete="off" spellcheck="false" aria-describedby="lic-count" />
+                <p id="lic-count" class="lic-count" role="status"></p>
+              </div>
+              <ol class="lic-list">
+<!-- licences:list -->
+              </ol>
+              <p class="lic-none" hidden>No package or licence matches that.</p>
+            </section>
+
+            <a class="legal-next" href="/privacy">
+              <span><span class="legal-next-k">Next document</span><span class="legal-next-t">Privacy</span><span class="legal-next-d">What ExecFlow keeps, where it goes, and how to remove it.</span></span>
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+            </a>
+          </div>
+        </article>
+      </main>
+    </div>
+
+    <footer class="legal-foot">
+      <div class="legal-foot-in">
+        <span>ExecFlow</span>
+        <nav aria-label="Site">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/licenses" aria-current="page">Licences</a>
+          <a href="/about">About</a>
+          <a href="https://github.com/strange-exe/ExecFlow">Source code</a>
+        </nav>
+      </div>
+    </footer>
+    <script type="module" src="/src/legal/licenses-page.ts"></script>
+  </body>
+</html>

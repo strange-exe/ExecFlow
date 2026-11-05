@@ -24,6 +24,7 @@ export const CHANGELOG: readonly Release[] = [
     date: "2026-11-05",
     title: "A new About page, with themes you can try",
     items: [
+      { kind: "added", text: "A Licences page beside Privacy and Terms lists every open-source part ExecFlow uses, each with its licence in full and a box to find one. The single text file is still there." },
       { kind: "changed", text: "The About page opens on the editor itself: a C program beside its flowchart, with the line you're on marked in both. It replaces the 3D scene, so the page loads less and shows what ExecFlow does." },
       { kind: "added", text: "On the About page, Your colours lets you pick any of the built-in themes and see the editor drawn in it, before you change anything in Settings." },
       { kind: "changed", text: "The launch video is new: 23 seconds of ExecFlow as it is today, from typing a program to its flowchart on a phone." },
