@@ -15,6 +15,7 @@ import cloudArrowUp from "@phosphor-icons/core/assets/regular/cloud-arrow-up.svg
 import cloudCheck from "@phosphor-icons/core/assets/regular/cloud-check.svg?raw";
 import cloudSlash from "@phosphor-icons/core/assets/regular/cloud-slash.svg?raw";
 import codeSimple from "@phosphor-icons/core/assets/regular/code-simple.svg?raw";
+import columns from "@phosphor-icons/core/assets/regular/columns.svg?raw";
 import copy from "@phosphor-icons/core/assets/regular/copy.svg?raw";
 import cornersIn from "@phosphor-icons/core/assets/regular/corners-in.svg?raw";
 import cornersOut from "@phosphor-icons/core/assets/regular/corners-out.svg?raw";
@@ -35,6 +36,7 @@ import githubLogo from "@phosphor-icons/core/assets/regular/github-logo.svg?raw"
 import image from "@phosphor-icons/core/assets/regular/image.svg?raw";
 import info from "@phosphor-icons/core/assets/regular/info.svg?raw";
 import keyboard from "@phosphor-icons/core/assets/regular/keyboard.svg?raw";
+import layout from "@phosphor-icons/core/assets/regular/layout.svg?raw";
 import linkSimple from "@phosphor-icons/core/assets/regular/link-simple.svg?raw";
 import listChecks from "@phosphor-icons/core/assets/regular/list-checks.svg?raw";
 import lock from "@phosphor-icons/core/assets/regular/lock.svg?raw";
@@ -44,6 +46,7 @@ import paperPlaneRight from "@phosphor-icons/core/assets/regular/paper-plane-rig
 import pencilSimple from "@phosphor-icons/core/assets/regular/pencil-simple.svg?raw";
 import plus from "@phosphor-icons/core/assets/regular/plus.svg?raw";
 import printer from "@phosphor-icons/core/assets/regular/printer.svg?raw";
+import rows from "@phosphor-icons/core/assets/regular/rows.svg?raw";
 import scissors from "@phosphor-icons/core/assets/regular/scissors.svg?raw";
 import selectionAll from "@phosphor-icons/core/assets/regular/selection-all.svg?raw";
 import shieldCheck from "@phosphor-icons/core/assets/regular/shield-check.svg?raw";
@@ -67,12 +70,12 @@ const SOURCES = {
   "arrow-clockwise": arrowClockwise, "arrow-right": arrowRight, "arrows-in-simple": arrowsInSimple, "arrows-out-simple": arrowsOutSimple,
   camera, "caret-down": caretDown, "caret-line-right": caretLineRight, "caret-right": caretRight,
   "caret-up": caretUp, "check-circle": checkCircle,
-  "cloud-arrow-up": cloudArrowUp, "cloud-check": cloudCheck, "cloud-slash": cloudSlash, "code-simple": codeSimple,
+  "cloud-arrow-up": cloudArrowUp, "cloud-check": cloudCheck, "cloud-slash": cloudSlash, "code-simple": codeSimple, columns,
   copy, "corners-in": cornersIn, "corners-out": cornersOut,
   "dots-three": dotsThree, "download-simple": downloadSimple, eraser, file, "file-c": fileC, "file-cpp": fileCpp,
   "file-plus": filePlus, "file-py": filePy, "file-text": fileText, folder, "folder-open": folderOpen,
-  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, "link-simple": linkSimple, "list-checks": listChecks, lock, "magnifying-glass": magnifyingGlass, minus, "paper-plane-right": paperPlaneRight,
-  "pencil-simple": pencilSimple, plus, printer, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple,
+  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, layout, "link-simple": linkSimple, "list-checks": listChecks, lock, "magnifying-glass": magnifyingGlass, minus, "paper-plane-right": paperPlaneRight,
+  "pencil-simple": pencilSimple, plus, printer, rows, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple,
   "square-split-horizontal": squareSplitHorizontal, "square-split-vertical": squareSplitVertical, tabs,
   "terminal-window": terminalWindow, trash, "tree-structure": treeStructure, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,
   x, "x-circle": xCircle, "play-fill": playFill, "stop-fill": stopFill,

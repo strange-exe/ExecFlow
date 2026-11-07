@@ -1719,7 +1719,7 @@ input.switch {
    as Capture does (13 px, the secondary tier, the text colour on hover); About stays its icon. Under
    1280 they are icons named by their words. */
 @media (min-width: 1280px) {
-  .topbar-end > #shortcuts-button, .topbar-end > #settings-button {
+  .topbar-end > #layout-button, .topbar-end > #shortcuts-button, .topbar-end > #settings-button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1728,10 +1728,11 @@ input.switch {
     color: var(--text-secondary);
     font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
   }
-  .topbar-end > #shortcuts-button > .status-btn-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .topbar-end > :is(#layout-button, #shortcuts-button) > .status-btn-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .topbar-end > #layout-button > * { pointer-events: none; }
   .topbar-end > #settings-button > .rail-label { display: inline; }
   .topbar-end > #settings-button > * { pointer-events: none; }
-  .topbar-end > :is(#shortcuts-button, #settings-button):hover { color: var(--text); }
+  .topbar-end > :is(#layout-button, #shortcuts-button, #settings-button):hover { color: var(--text); }
 }
 @media (min-width: 1100px) {
   /* The code board's head shows with nothing open too: Files is the way to the files. */

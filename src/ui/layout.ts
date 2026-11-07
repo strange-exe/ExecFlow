@@ -33,6 +33,7 @@ import { icon } from "./icons";
 import { BOARD_GAP, besideNow, chartDefault, chartMax, CHART_MIN, CONSOLE_GAP, consoleDefault, consoleMax, CONSOLE_MIN } from "./board-size";
 import { chartPanelSize } from "./panel-size";
 import { KeyboardWatch } from "./keyboard";
+import { menuButton, type MenuItem } from "./menu";
 import { clamp, createSplitter, readLayoutFlag, writeLayoutFlag, type Splitter } from "./splitter";
 
 export const NARROW = "(max-width: 899px)";
@@ -326,6 +327,15 @@ export function createLayout(root: HTMLElement): Layout {
     icon("camera"),
     h("span", { class: "capture-label" }, "Capture"),
   );
+  // Layout (owner, 2026-11-07: "the output window alongside the code editor ... multiple view styles
+  // the user can choose"): from 1100 px, a menu button in the top bar listing every arrangement of the
+  // boards as one choice (the menu is built in "the boards" below). Named by its word, as Shortcuts is.
+  const layoutButton = h(
+    "button",
+    { type: "button", class: "status-btn", id: "layout-button", title: "Layout: the output below or beside the code, the flowchart, focus code" },
+    icon("layout"),
+    h("span", { class: "status-btn-label" }, "Layout"),
+  );
   // The editor head: the tabs on the left, the error jump on the right (phones have no head, and
   // keep Capture there out of sight: they reach it from the code menu).
   // From 1100 px the head ends with the board's own tools: Flowchart (while the chart board is
@@ -616,6 +626,8 @@ export function createLayout(root: HTMLElement): Layout {
     const focused = document.activeElement;
     const wide = !narrow && wideQuery.matches;
     if (!wide && filesPop.contains(sidebar)) main.insertBefore(sidebar, sidebarSplit.element);
+    // Layout only from 1100 px: under it the output always stands under the code.
+    if (!wide) layoutButton.remove();
     if (narrow) {
       // The top bar: the mark, the file's name (Files), then the sync status, Search and Settings.
       topStart.replaceChildren(mark, drawerToggle);
@@ -631,7 +643,7 @@ export function createLayout(root: HTMLElement): Layout {
       hideKeyboard.remove();
       topStart.replaceChildren(mark, crumb, syncSlot);
       topbar.insertBefore(paletteButton, topEnd);
-      topEnd.append(snippetButton, status.shortcuts, settingsButton, aboutLink);
+      topEnd.append(snippetButton, layoutButton, status.shortcuts, settingsButton, aboutLink);
       editorHead.prepend(drawerToggle);
       runStrip.append(runButton, runOutcome, status.runtime, problemsButton);
       editorFoot.append(status.lang, status.pos);
@@ -823,7 +835,9 @@ export function createLayout(root: HTMLElement): Layout {
   // screen from the view bar, so nothing is hidden there.
   // Hidden to its head, the console docks under the code in either place: beside the code it
   // stands as a column only while open (so before the first run the code has the whole board).
-  let collapsed = true;
+  // Owner, 2026-11-07: a student who chose the output beside the code (the Layout menu) sees it
+  // there from the start, open, not folded to its head until a run.
+  let collapsed = !(besideWanted && wideQuery.matches);
   const panelCollapsed = () => collapsed && !narrowQuery.matches;
   /** Phones: the dock's peek, or the whole console over the board. */
   let dockNow: Dock = "peek";
@@ -1144,6 +1158,46 @@ export function createLayout(root: HTMLElement): Layout {
   chartHide.addEventListener("click", () => setChartHidden(true));
   chartToggle.addEventListener("click", () => setChartHidden(false));
   focusButton.addEventListener("click", () => setFocusMode(!focusMode));
+  /**
+   * One arrangement from the Layout menu: the flowchart shown or hidden, the output below or beside
+   * the code (opened, so the choice shows). Leaves focus code. Both choices are remembered. Hiding the
+   * chart syncs after its exit (setChartHidden), so the output's place is set first.
+   */
+  function chooseLayout(chart: boolean, beside: boolean) {
+    setFocusMode(false);
+    besideWanted = beside;
+    writeLayoutFlag("consoleBeside", beside);
+    collapsed = false;
+    if (chartHidden === chart) setChartHidden(!chart);
+    else syncBoards();
+  }
+  /** Whether the output fits beside the code with the chart board shown (`chart`) or hidden. */
+  const besideFits = (chart: boolean) => besideNow(true, boardsWidth(), chart && root.dataset.open === "true");
+  function layoutItems(): MenuItem[] {
+    const chartNow = !chartHidden;
+    const besideNowWanted = besideWanted && besideFits(chartNow);
+    const items: MenuItem[] = [];
+    for (const chart of [true, false]) {
+      for (const beside of [false, true]) {
+        const tight = beside && !besideFits(chart);
+        items.push({
+          label: `Output ${beside ? "beside" : "below"} the code, ${chart ? "with" : "without"} the flowchart`,
+          short: `Output ${beside ? "beside" : "below"} the code`,
+          icon: beside ? "columns" : "rows",
+          group: beside ? undefined : { caption: chart ? "With the flowchart" : "Without the flowchart" },
+          checked: !focusMode && chartNow === chart && besideNowWanted === beside,
+          unavailable: tight ? "Needs a wider window" : undefined,
+          explain: () => {
+            for (const listener of sayListeners) listener(BESIDE_ROOM);
+          },
+          run: () => chooseLayout(chart, beside),
+        });
+      }
+    }
+    items.push({ label: "Focus code", sub: "The code alone. Esc leaves it", icon: "arrows-out-simple", shortcut: "Shift+Alt+Enter", separatorBefore: true, checked: focusMode, run: () => setFocusMode(true) });
+    return items;
+  }
+  menuButton(layoutButton, "Layout", layoutItems);
   besideToggle.addEventListener("click", () => {
     if (besideShown) return setBeside(false);
     if (besideWanted) for (const listener of sayListeners) listener(BESIDE_ROOM);

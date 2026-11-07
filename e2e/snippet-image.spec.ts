@@ -597,7 +597,8 @@ test("11: the head button: in the top bar right before Run (from 1100 px, leadin
     page.locator(".topbar").evaluate((bar) =>
       [...bar.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
     );
-  expect((await topStops()).slice(-3)).toEqual(["snippet-button", "shortcuts-button", "settings-button"]);
+  // Layout (2026-11-07) sits between Capture and Shortcuts.
+  expect((await topStops()).slice(-4)).toEqual(["snippet-button", "layout-button", "shortcuts-button", "settings-button"]);
   await expect(page.locator(".run-strip > #run-button")).toBeVisible();
   expect((await box(button)).height).toBe(30);
   // Under 1100 px the top bar keeps Run, and Capture sits right before it.
@@ -1258,16 +1259,16 @@ test("23: with Tab moving focus, Shift+Tab from the code reaches the head button
   const mac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform));
   await page.keyboard.press(mac ? "Shift+Alt+M" : "Control+M");
   // From 1100 px (Flow Board S2) Run is in the run strip under the code, so Shift+Tab goes from the
-  // open tab to Files, then back along the top bar's end (About, Settings, Shortcuts) to Capture.
+  // open tab to Files, then back along the top bar's end (About, Settings, Shortcuts, Layout) to Capture.
   // Focus code (the layout fix) ends the code board's head, so it comes first.
   // Playwright's WebKit leaves links out of the Tab order (Safari's default), so About is optional.
   const wide: string[] = [];
-  for (let i = 0; i < 9 && wide.at(-1) !== "snippet-button"; i++) {
+  for (let i = 0; i < 10 && wide.at(-1) !== "snippet-button"; i++) {
     await page.keyboard.press("Shift+Tab");
     wide.push(await page.evaluate(() => document.activeElement?.id || (document.activeElement?.matches(".drawer-toggle") ? "files" : document.activeElement?.className) || ""));
   }
   info.annotations.push({ type: "23 wide", description: `${info.project.name}: ${wide.join(" < ")}` });
-  expect(wide.filter((s) => s !== "about-link")).toEqual(["focus-code", await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"), "files", "settings-button", "shortcuts-button", "snippet-button"]);
+  expect(wide.filter((s) => s !== "about-link")).toEqual(["focus-code", await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"), "files", "settings-button", "shortcuts-button", "layout-button", "snippet-button"]);
   // Under 1100 px the top bar keeps Run, right after Capture.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(page.locator(".topbar #run-button")).toBeVisible();

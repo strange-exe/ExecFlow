@@ -290,6 +290,9 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   await expect(crumb).toHaveAttribute("title", deep);
 
   await page.setViewportSize({ width: 1024, height: 768 });
+  // The resting layout under 1100 px (Run back in the top bar): WebKit fires the width's change a
+  // moment after the resize, and the wide bar (with Layout) is wider than 1024 px meanwhile.
+  await expect(page.locator(".topbar #run-button")).toBeVisible();
   expect(await noOverflow(page), "no horizontal scroll at 1024 px").toBe(true);
   const fit = await crumb.evaluate((ol) => [...ol.querySelectorAll<HTMLElement>(".crumb-text")].filter((t) => t.getClientRects().length > 0).map((t) => ({ text: t.textContent, cut: t.scrollWidth > t.clientWidth + 1 })));
   // Since the 0.7.0 shell the top bar also holds the command field (160 px at least), the runtime
