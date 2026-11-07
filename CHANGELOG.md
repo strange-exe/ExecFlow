@@ -6,6 +6,18 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.31.0] - 2026-11-08
+
+Choose your layout
+
+### Added
+
+- On wider screens, a Layout button in the top bar puts the output below or beside your code, with or without the flowchart, or shows the code alone. Your choice is remembered.
+
+### Changed
+
+- With the output beside your code, it is open there as soon as the page loads, not only after your first run.
+
 ## [0.30.0] - 2026-11-05
 
 A new About page, with themes you can try

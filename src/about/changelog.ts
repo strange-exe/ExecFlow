@@ -20,6 +20,15 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.31.0",
+    date: "2026-11-08",
+    title: "Choose your layout",
+    items: [
+      { kind: "added", text: "On wider screens, a Layout button in the top bar puts the output below or beside your code, with or without the flowchart, or shows the code alone. Your choice is remembered." },
+      { kind: "changed", text: "With the output beside your code, it is open there as soon as the page loads, not only after your first run." },
+    ],
+  },
+  {
     version: "0.30.0",
     date: "2026-11-05",
     title: "A new About page, with themes you can try",
