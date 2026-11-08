@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.32.0] - 2026-11-08
+
+Horizon and Material themes
+
+### Added
+
+- Two more theme families in Settings: Horizon (Dark and Bright) and Material (Default, Palenight, Ocean, Darker and Lighter), from their published palettes.
+
 ## [0.31.0] - 2026-11-08
 
 Choose your layout

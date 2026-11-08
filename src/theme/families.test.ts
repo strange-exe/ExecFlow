@@ -9,13 +9,13 @@ import { BUILT_IN, themePalette, type Theme } from "./themes";
 const byId = new Map(BUILT_IN.map((t) => [t.id, t]));
 
 describe("theme families", () => {
-  it("hold every built-in theme exactly once, 22 families", () => {
+  it("hold every built-in theme exactly once, 24 families", () => {
     const ids = FAMILIES.flatMap((fam) => fam.variants.map((v) => v.id));
     expect(ids.length).toBe(BUILT_IN.length);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual(BUILT_IN.map((t) => t.id).sort());
-    expect(FAMILIES.length).toBe(22);
-    expect(new Set(FAMILIES.map((fam) => fam.id)).size).toBe(22);
+    expect(FAMILIES.length).toBe(24);
+    expect(new Set(FAMILIES.map((fam) => fam.id)).size).toBe(24);
   });
 
   it("label each variant with words its theme's accessible name contains (label in name), names otherwise unchanged", () => {
@@ -53,17 +53,19 @@ describe("theme families", () => {
     expect(variantShown(byId.get("catppuccin-latte")!, "dark")).toBe(false);
     expect(variantShown(byId.get("catppuccin-latte")!, "all")).toBe(true);
     const light = FAMILIES.filter((fam) => fam.variants.some((v) => variantShown(byId.get(v.id)!, "light")));
-    expect(light.map((fam) => fam.id)).toEqual(["signal", "deep-field", "slate", "github", "tokyo-night", "catppuccin", "rose-pine", "gruvbox", "kanagawa", "everforest", "ayu", "solarized", "vitesse", "flexoki"]);
+    expect(light.map((fam) => fam.id)).toEqual(["signal", "deep-field", "slate", "github", "tokyo-night", "catppuccin", "rose-pine", "gruvbox", "kanagawa", "everforest", "ayu", "solarized", "vitesse", "flexoki", "horizon", "material"]);
   });
 
   it("search by family name, variant label or theme name, ignoring case and punctuation", () => {
     const find = (q: string) => FAMILIES.filter((fam) => familyMatches(fam, byId, q)).map((fam) => fam.id);
-    expect(find("")).toHaveLength(22);
-    expect(find("  ")).toHaveLength(22);
+    expect(find("")).toHaveLength(24);
+    expect(find("  ")).toHaveLength(24);
     expect(find("latte")).toEqual(["catppuccin"]);
+    expect(find("palenight")).toEqual(["material"]);
+    expect(find("horizon bright")).toEqual(["horizon"]);
     expect(find("ROSE-pine")).toEqual(["rose-pine"]);
     expect(find("tokyo storm")).toEqual(["tokyo-night"]);
-    expect(find("night")).toEqual(["tokyo-night", "night-owl", "nightfox"]);
+    expect(find("night")).toEqual(["tokyo-night", "night-owl", "nightfox", "material"]);
     expect(find("zzz")).toEqual([]);
   });
 

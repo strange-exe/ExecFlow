@@ -1,6 +1,6 @@
 // The theme picker (Workbench Pro S4, owner's go-ahead 2026-10-30): Settings > Appearance itself
-// (owner, 2026-10-30: "Inside Settings"). The picker shows the 45
-// built-in themes as 22 family tiles, each with a code preview in its own colours (every syntax
+// (owner, 2026-10-30: "Inside Settings"). The picker shows the 52
+// built-in themes as 24 family tiles, each with a code preview in its own colours (every syntax
 // colour, the failed line, Run) and its variants as native radios, all one group (name=theme, value
 // = the theme id stored as before). A search field and a Light/Dark/All filter narrow the tiles; the
 // first row is curated ("Start here"), the rest follow A to Z.
@@ -12,9 +12,9 @@ test.use({ serviceWorkers: "block" });
 
 const box = async (page: Page, sel: string) => (await page.locator(sel).boundingBox())!;
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-const ALL_FAMILIES = 22;
-/** src/theme/themes.ts BUILT_IN: Signal, Deep Field and Slate in 3 forms each, and 36 palette themes. */
-const BUILT_IN_THEMES = 45;
+const ALL_FAMILIES = 24;
+/** src/theme/themes.ts BUILT_IN: Signal, Deep Field and Slate in 3 forms each, and 43 palette themes. */
+const BUILT_IN_THEMES = 52;
 const START_HERE = ["signal", "slate", "high-contrast", "github", "tokyo-night", "catppuccin"];
 
 const family = (dialog: Locator, id: string) => dialog.locator(`.theme-family[data-theme-family="${id}"]`);
@@ -50,7 +50,7 @@ test("themes are family tiles with a code preview, and every variant is a native
   const dialog = await openThemePicker(page);
   const group = dialog.getByRole("radiogroup", { name: "Colour theme" });
   await expect(group).toBeVisible();
-  // One group of native radios holds all 45 built-in themes, each with its stored id as its value.
+  // One group of native radios holds all 52 built-in themes, each with its stored id as its value.
   const radios = group.locator('input[type="radio"][name="theme"]');
   await expect(radios).toHaveCount(BUILT_IN_THEMES);
   expect(await page.locator('input[name="theme"]').count(), "no theme radio outside the group").toBe(BUILT_IN_THEMES);
@@ -118,7 +118,7 @@ test("keyboard: focus starts on the chosen theme, arrows choose the next variant
   await page.keyboard.press("ArrowLeft");
   await expect(radio(dialog, "signal")).toBeChecked();
   await expect(page.locator("html")).toHaveAttribute("data-theme-id", "signal");
-  // Tab goes past the other 44 radios to the next control.
+  // Tab goes past the other 51 radios to the next control.
   await page.keyboard.press("Tab");
   expect(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name ?? "")).not.toBe("theme");
   // The filter and the search field come before the group, and before them Settings' scrolling body
@@ -145,7 +145,7 @@ test("search narrows the tiles, says how many match, and an empty result offers 
   // A section with nothing to show goes, heading and all.
   await expect(dialog.locator('.theme-section[data-section="all"]')).toBeHidden();
   await search.fill("night");
-  await expect.poll(() => visibleFamilies(dialog)).toEqual(["tokyo-night", "night-owl", "nightfox"]);
+  await expect.poll(() => visibleFamilies(dialog)).toEqual(["tokyo-night", "material", "night-owl", "nightfox"]);
   // Nothing matches: the empty state names the search and clears it; focus goes back to the field.
   await search.fill("zzz");
   await expect.poll(() => visibleFamilies(dialog)).toEqual([]);
@@ -178,7 +178,7 @@ test("the Light / Dark / All filter shows the variants of that scheme, match dev
   await expect(filter.getByRole("radio", { name: "All", exact: true })).toBeChecked();
   await filter.getByRole("radio", { name: "Light", exact: true }).check();
   await expect.poll(() => visibleFamilies(dialog)).not.toContain("dracula");
-  expect(await visibleFamilies(dialog)).toHaveLength(14);
+  expect(await visibleFamilies(dialog)).toHaveLength(16);
   expect(await visibleVariants(family(dialog, "catppuccin"))).toEqual(["catppuccin-latte"]);
   // Signal is chosen (match device): its Dark is hidden, Match device and Light stay.
   expect(await visibleVariants(family(dialog, "signal"))).toEqual(["signal", "signal-light"]);
@@ -261,7 +261,7 @@ function previewContrast(prev: Locator) {
   });
 }
 
-test("every preview's text reads at 4.5:1 or more in each of the 45 themes, measured as drawn", async ({ page }) => {
+test("every preview's text reads at 4.5:1 or more in each of the 52 themes, measured as drawn", async ({ page }) => {
   test.setTimeout(120_000);
   await openApp(page);
   const dialog = await openThemePicker(page);

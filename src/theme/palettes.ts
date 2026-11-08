@@ -33,6 +33,18 @@
 //   Vitesse Dark, Light       antfu/vscode-theme-vitesse scripts/colors.ts (MIT)
 //   Flexoki Dark, Light       kepano/flexoki vscode/Flexoki-*-color-theme.json (MIT)
 //   Nightfox                  EdenEast/nightfox.nvim lua/nightfox/palette/nightfox.lua (MIT)
+// Added 2026-11-08 (owner: "we are missing ... Horizon, Material"):
+//   Horizon, Horizon Bright   jolaleye/horizon-theme-vscode themes/horizon.json, horizon-bright.json
+//                             (MIT; the repository is archived, its last release kept as is)
+//   Material, Palenight, Ocean, Darker, Lighter  kaicataldo/material.vim colors/material.vim (MIT), the
+//                             open palette of the Material Theme (Equinusocio's VS Code theme is now closed
+//                             source); keyword purple, string green, number orange, function blue, type
+//                             yellow, operator cyan, as that file assigns them. Its five variants have no
+//                             sidebar colour, so the page behind the code is the variant's line_highlight
+//                             and the header strips its selection.
+// Horizon's comments are translucent: #bbbbbb4d on #1c1e26 is #4c4d53 and #33333380 on #fdf0ed is
+// #989190; each also serves as the theme's secondary text, which has no colour of its own there.
+// Horizon's Run is its badge pink (#e95378, #e84a72) with dark text.
 // The format holds opaque colours only, so a source colour with an alpha byte is stored as it paints
 // over the ground its theme draws it on (over()): Ayu Light's border #6b7d8f1f on #fcfcfc is
 // #eaedef; Vesper's comment #8b8b8b94 on #101010 is #575757; Poimandres' raised layer #30334080 and
@@ -248,6 +260,13 @@ export const POCKET_THEMES: readonly PaletteTheme[] = [
   { id: "flexoki-dark", name: "Flexoki Dark", scheme: "dark", group: "more", base: b("#100f0f", "#100f0f", "#1c1b1a", "#cecdc3", "#878580", "#343331", "#3aa99f", "#100f0f", "#879a39", "#d14d41", "#da702c", "#879a39", "#3aa99f", "#8b7ec8", "#878580", "#da702c") },
   { id: "flexoki-light", name: "Flexoki Light", scheme: "light", group: "more", base: b("#fffcf0", "#fffcf0", "#f2f0e5", "#100f0f", "#6f6e69", "#dad8ce", "#24837b", "#fffcf0", "#66800b", "#af3029", "#bc5215", "#66800b", "#24837b", "#5e409d", "#6f6e69", "#bc5215") },
   { id: "nightfox", name: "Nightfox", scheme: "dark", group: "more", base: b("#131a24", "#192330", "#212e3f", "#cdcecf", "#aeafb0", "#39506d", "#719cd6", "#131a24", "#81b29a", "#c94f6d", "#dbc074", "#9d79d6", "#81b29a", "#f4a261", "#738091", "#719cd6") },
+  { id: "horizon", name: "Horizon", scheme: "dark", group: "more", base: { ...b("#1a1c23", "#1c1e26", "#2e303e", "#d5d8da", "#4c4d53", "#2e303e", "#e95378", "#1c1e26", "#29d398", "#f43e5c", "#fab795", "#b877db", "#fab795", "#f09483", "#4c4d53", "#25b0bc"), "syn-type": "#fac29a", "syn-variable": "#e95678" } },
+  { id: "horizon-bright", name: "Horizon Bright", scheme: "light", group: "more", base: { ...b("#fdf0ed", "#fdf0ed", "#f9cbbe", "#06060c", "#989190", "#f9cbbe", "#e84a72", "#06060c", "#29d398", "#f43e5c", "#fab795", "#8a31b9", "#f6661e", "#dc3318", "#989190", "#1d8991"), "syn-type": "#f77d26", "syn-variable": "#da103f" } },
+  { id: "material", name: "Material", scheme: "dark", group: "more", base: { ...b("#1a2327", "#263238", "#2c3b41", "#eeffff", "#546e7a", "#37474f", "#82aaff", "#263238", "#c3e88d", "#ff5370", "#ffcb6b", "#c792ea", "#c3e88d", "#f78c6c", "#546e7a", "#82aaff"), "syn-type": "#ffcb6b", "syn-operator": "#89ddff" } },
+  { id: "material-palenight", name: "Material Palenight", scheme: "dark", group: "more", base: { ...b("#1c1f2b", "#292d3e", "#343b51", "#a6accd", "#676e95", "#4e5579", "#82aaff", "#292d3e", "#c3e88d", "#ff5370", "#ffcb6b", "#c792ea", "#c3e88d", "#f78c6c", "#676e95", "#82aaff"), "syn-type": "#ffcb6b", "syn-operator": "#89ddff" } },
+  { id: "material-ocean", name: "Material Ocean", scheme: "dark", group: "more", base: { ...b("#0a0c12", "#0f111a", "#1f2233", "#8f93a2", "#464b5d", "#3b3f51", "#82aaff", "#0f111a", "#c3e88d", "#ff5370", "#ffcb6b", "#c792ea", "#c3e88d", "#f78c6c", "#464b5d", "#82aaff"), "syn-type": "#ffcb6b", "syn-operator": "#89ddff" } },
+  { id: "material-darker", name: "Material Darker", scheme: "dark", group: "more", base: { ...b("#171717", "#212121", "#2c2c2c", "#eeffff", "#545454", "#424242", "#82aaff", "#212121", "#c3e88d", "#ff5370", "#ffcb6b", "#c792ea", "#c3e88d", "#f78c6c", "#545454", "#82aaff"), "syn-type": "#ffcb6b", "syn-operator": "#89ddff" } },
+  { id: "material-lighter", name: "Material Lighter", scheme: "light", group: "more", base: { ...b("#ecf0f1", "#fafafa", "#ebf4f3", "#90a4ae", "#90a4ae", "#b0bec5", "#6182b8", "#fafafa", "#91b859", "#e53935", "#ffb62c", "#7c4dff", "#91b859", "#f76d47", "#90a4ae", "#6182b8"), "syn-type": "#ffb62c", "syn-operator": "#39adb5" } },
 ];
 
 /** "#rrggbb" plus an alpha byte, for the four band tokens that may be translucent. */

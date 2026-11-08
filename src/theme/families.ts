@@ -1,4 +1,4 @@
-// The theme picker's model (Workbench Pro S4): the 45 built-in themes as 22 families, each with its
+// The theme picker's model (Workbench Pro S4): the 52 built-in themes as 24 families, each with its
 // variants (Light, Dark, Match device, or a variant's own name such as Mocha), the curated first
 // row, search and the Light/Dark filter, and the code preview drawn in a theme's own colours. Pure
 // data and functions: theme-picker.ts draws it; families.test.ts checks it, including the preview's
@@ -55,6 +55,8 @@ export const FAMILIES: readonly Family[] = [
   f("vitesse", "Vitesse", ["vitesse-dark", "Dark"], ["vitesse-light", "Light"]),
   f("flexoki", "Flexoki", ["flexoki-dark", "Dark"], ["flexoki-light", "Light"]),
   f("nightfox", "Nightfox", ["nightfox", "Dark"]),
+  f("horizon", "Horizon", ["horizon", "Dark"], ["horizon-bright", "Bright"]),
+  f("material", "Material", ["material", "Default"], ["material-palenight", "Palenight"], ["material-ocean", "Ocean"], ["material-darker", "Darker"], ["material-lighter", "Lighter"]),
 ];
 
 /**

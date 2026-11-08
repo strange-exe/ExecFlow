@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.32.0",
+    date: "2026-11-08",
+    title: "Horizon and Material themes",
+    items: [
+      { kind: "added", text: "Two more theme families in Settings: Horizon (Dark and Bright) and Material (Default, Palenight, Ocean, Darker and Lighter), from their published palettes." },
+    ],
+  },
+  {
     version: "0.31.0",
     date: "2026-11-08",
     title: "Choose your layout",

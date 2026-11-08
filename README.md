@@ -489,7 +489,7 @@ ExecFlow bundles or downloads the following. Their licences apply to their parts
 | Pocket Run (same author) | MIT | The runtimes, theme engine and console were adapted from it |
 
 The colour themes in Settings use the published palettes of these themes, expanded onto
-ExecFlow's colours and adjusted where a colour pair would be hard to read. The table lists all 36
+ExecFlow's colours and adjusted where a colour pair would be hard to read. The table lists all 43
 palette themes; High contrast, like ExecFlow Signal (the default), ExecFlow Deep Field and ExecFlow
 Slate, is ExecFlow's own:
 
@@ -513,4 +513,6 @@ Slate, is ExecFlow's own:
 | Vitesse Dark, Vitesse Light | [antfu/vscode-theme-vitesse](https://github.com/antfu/vscode-theme-vitesse) | MIT |
 | Flexoki Dark, Flexoki Light | [kepano/flexoki](https://github.com/kepano/flexoki) ([stephango.com/flexoki](https://stephango.com/flexoki)) | MIT |
 | Nightfox | [EdenEast/nightfox.nvim](https://github.com/EdenEast/nightfox.nvim) | MIT |
+| Horizon, Horizon Bright | [jolaleye/horizon-theme-vscode](https://github.com/jolaleye/horizon-theme-vscode) | MIT |
+| Material, Material Palenight, Material Ocean, Material Darker, Material Lighter | [kaicataldo/material.vim](https://github.com/kaicataldo/material.vim) (the Material Theme's palette) | MIT |
 | High contrast | ExecFlow (this repository) | MIT (`LICENSE`) |

@@ -413,7 +413,7 @@
    code, the cursor's line and the error band (src/styles/focus-bar.test.ts derives this list from the
    colours and fails when it is wrong). The others keep --focus: Signal light (its teal at 70% is
    2.51:1 on the error band), Deep Field light (4.62:1 on the error band leaves no room), Slate
-   light and seven light or low-contrast palettes. "Match device" themes step down on their dark
+   light and eight light or low-contrast palettes (Material Lighter among them). "Match device" themes step down on their dark
    side only. Custom themes keep --focus: they can't be checked ahead. */
 :root {
   --focus-bar: var(--focus);
@@ -426,7 +426,9 @@
   [data-theme-id="nord"], [data-theme-id="gruvbox-dark"], [data-theme-id="gruvbox-light"], [data-theme-id="kanagawa"],
   [data-theme-id="kanagawa-dragon"], [data-theme-id="everforest-dark"], [data-theme-id="ayu-dark"], [data-theme-id="ayu-mirage"],
   [data-theme-id="night-owl"], [data-theme-id="vesper"], [data-theme-id="poimandres"], [data-theme-id="vitesse-dark"],
-  [data-theme-id="vitesse-light"], [data-theme-id="flexoki-dark"], [data-theme-id="flexoki-light"], [data-theme-id="nightfox"]) {
+  [data-theme-id="vitesse-light"], [data-theme-id="flexoki-dark"], [data-theme-id="flexoki-light"], [data-theme-id="nightfox"],
+  [data-theme-id="horizon"], [data-theme-id="horizon-bright"], [data-theme-id="material"], [data-theme-id="material-palenight"],
+  [data-theme-id="material-ocean"], [data-theme-id="material-darker"]) {
   --focus-bar: color-mix(in srgb, var(--focus) 70%, var(--bg));
 }
 
