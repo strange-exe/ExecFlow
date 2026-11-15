@@ -6,6 +6,15 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.33.1] - 2026-11-15
+
+A tidier shared-code preview
+
+### Fixed
+
+- On a phone, long lines in a shared link's preview wrap as they do in the editor, instead of running off the side.
+- The output box in a shared link's preview appears when a program runs, not empty beside the C/C++ download offer.
+
 ## [0.33.0] - 2026-11-15
 
 Try shared code before you keep it

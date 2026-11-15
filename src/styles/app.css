@@ -1272,6 +1272,7 @@ a.status-btn { text-decoration: none; }
 .code-link-run[hidden] { display: none; }
 .code-link-console { min-height: calc(3 * 1.5em); max-height: min(200px, 24dvh); margin: 0; padding: var(--s2) var(--s3); overflow: auto; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text); font: var(--code-size)/1.5 var(--font-code); white-space: pre-wrap; overflow-wrap: anywhere; }
 .code-link-console:focus-visible { outline-offset: -2px; }
+.code-link-console[hidden] { display: none; }
 .code-link-input { display: flex; align-items: center; gap: var(--s2); }
 .code-link-input[hidden] { display: none; }
 .code-link-input label { font-weight: var(--w-label); }
@@ -1281,6 +1282,8 @@ a.status-btn { text-decoration: none; }
 .code-link-pack { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--surface-raised); box-shadow: inset 2px 0 0 var(--info); }
 .code-link-pack[hidden] { display: none; }
 .code-link-pack-text { flex: 1 1 28ch; margin: 0; }
+/* The offer's one action stands as tall as Run in the actions row (44 px on a phone). */
+.code-link-pack .btn { min-height: var(--primary-h); }
 .code-link-status { margin: 0; color: var(--text-secondary); }
 .code-link-status:empty { display: none; }
 .dialog.code-link .dialog-actions .icon { width: var(--icon-md); height: var(--icon-md); }
@@ -1299,6 +1302,7 @@ a.status-btn { text-decoration: none; }
 /* A phone: the whole screen, as Full screen flowcharts are. */
 @media (max-width: 599px) {
   .dialog.code-link { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+  .dialog.code-link .dialog-head { padding-left: var(--s3); }
   .dialog.code-link .dialog-body { padding: 0 var(--s3) var(--s3); }
   .dialog.code-link .dialog-actions { padding: var(--s2) var(--s3) var(--s3); }
 }

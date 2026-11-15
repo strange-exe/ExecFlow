@@ -180,6 +180,9 @@ for (const route of GUIDE_ROUTES) {
         // Nothing ran: no run started, none counted.
         await expect(page.locator("#app")).not.toHaveAttribute("data-run", /running|waiting/);
         expect(Number((await page.locator("#app").getAttribute("data-runs")) ?? 0)).toBe(0);
+        // The preview's flowchart has finished (drawn or not) before the next goto: leaving while
+        // its grammar is still downloading cancels the fetch, and WebKit logs that as an error.
+        await expect(page.locator("#code-link-chart")).not.toHaveAttribute("data-state", "loading", { timeout: 60_000 });
       }
     });
   });

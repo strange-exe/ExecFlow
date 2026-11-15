@@ -23,6 +23,7 @@ import type { SharedFile } from "../core/code-link";
 import { detectLanguage } from "../core/languages";
 import type { BuildOptions, LanguageId, RunLimits, RunResult } from "../core/types";
 import { EXTRA_SPECIALS, READ_ONLY } from "../editor/extensions";
+import { hangingIndent } from "../editor/hanging-indent";
 import { editorTheme, highlightStyle } from "../editor/highlight";
 import { languageForPath, languageSupport, loadLanguage } from "../editor/language-support";
 import { selectionLayer } from "../editor/selection-layer";
@@ -42,6 +43,8 @@ export interface PreviewDeps {
   readonly runtimes: Runtimes;
   /** The student's run limits and build options (Settings), read when Run is pressed. */
   runSettings(): { limits: RunLimits; build: BuildOptions };
+  /** Whether the editor wraps long lines now (the student's setting, or a narrow layout). */
+  wrapsLines(): boolean;
 }
 
 export interface CodePreview {
@@ -70,6 +73,7 @@ let sharedClient: FlowchartClient | null = null;
 export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps): CodePreview {
   const language = new Compartment();
   const label = new Compartment();
+  const wrap = new Compartment();
   const view = new EditorView({
     state: EditorState.create({
       doc: "",
@@ -89,6 +93,7 @@ export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps):
         EditorView.contentAttributes.of({ autocapitalize: "off", autocorrect: "off", spellcheck: "false", tabindex: "0" }),
         language.of([]),
         label.of([]),
+        wrap.of([]),
       ],
     }),
   });
@@ -161,7 +166,8 @@ export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps):
   // ---------------------------------------------------------------- run
   const runButton = h("button", { type: "button", class: "btn", id: "code-link-run" }, "Run");
   const out = document.createTextNode("");
-  const consoleEl = h("pre", { class: "code-link-console", id: "code-link-console", role: "log", "aria-label": "Output", tabindex: "0" }, out);
+  // Hidden until a run starts: an empty box under the download offer reads as a stuck run.
+  const consoleEl = h("pre", { class: "code-link-console", id: "code-link-console", role: "log", "aria-label": "Output", tabindex: "0", hidden: true }, out);
   const status = h("p", { class: "code-link-status", id: "code-link-status", role: "status" });
   const stdin = h("input", { type: "text", id: "code-link-stdin", autocomplete: "off", spellcheck: "false", "aria-label": "Input for the program" });
   const inputRow = h("form", { class: "code-link-input", hidden: true }, h("label", { for: "code-link-stdin" }, "Input"), stdin, h("button", { type: "submit", class: "btn small" }, "Send"));
@@ -231,6 +237,7 @@ export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps):
     mine = true;
     setRun("running");
     out.data = "";
+    consoleEl.hidden = false;
     status.textContent = lang === "python" ? "Running..." : "Compiling...";
     const { limits, build } = deps.runSettings();
     let result: RunResult;
@@ -335,6 +342,8 @@ export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps):
         effects: [
           language.reconfigure(languageSupport(id)),
           label.reconfigure(EditorView.contentAttributes.of({ "aria-label": `Shared code, ${shown(file.name)} (read-only)`, "aria-describedby": "code-link-about" })),
+          // Long lines as the editor shows them: wrapped (with its hanging indent) where it wraps.
+          wrap.reconfigure(deps.wrapsLines() ? [EditorView.lineWrapping, hangingIndent] : []),
         ],
       });
       codePane.dataset.lines = String(lines);

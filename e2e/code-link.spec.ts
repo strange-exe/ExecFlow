@@ -126,6 +126,11 @@ test("a C link offers the one-time download in the preview before it can run", a
   await expect(pack).toContainText("one-time");
   await expect(page.locator("#code-link-pack-download")).toBeFocused();
   await expect(dialog(page)).not.toHaveAttribute("data-run", "running");
+  // Nothing has run yet, so there is no output box: an empty one under the offer reads as a stuck run.
+  await expect(page.locator("#code-link-console")).toBeHidden();
+  // The offer's one action stands as tall as Run beside it.
+  const [download, runButton] = await Promise.all([page.locator("#code-link-pack-download").boundingBox(), page.locator("#code-link-run").boundingBox()]);
+  expect(download!.height).toBeGreaterThanOrEqual(runButton!.height - 0.5);
 });
 
 test("the flowchart is drawn beside the code on a wide screen, and behind a Flowchart tab on a phone", async ({ page }) => {
@@ -539,7 +544,7 @@ for (const size of [{ name: "desktop", width: 1440, height: 900 }, { name: "phon
       }
     });
 
-    test(`the open dialog: ${size.name} ${scheme}, axe, no overflow, long lines scroll inside`, async ({ page }) => {
+    test(`the open dialog: ${size.name} ${scheme}, axe, no overflow, long lines scroll or wrap as the editor's do`, async ({ page }) => {
       await page.setViewportSize({ width: size.width, height: size.height });
       await openApp(page);
       await page.emulateMedia({ colorScheme: scheme });
@@ -550,8 +555,18 @@ for (const size of [{ name: "desktop", width: 1440, height: 900 }, { name: "phon
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       const box = await dialog(page).boundingBox();
       expect(box!.x + box!.width).toBeLessThanOrEqual(size.width);
-      // The editor's own scroller: long lines and many lines scroll inside it, never the page.
-      expect(await preview(page).locator(".cm-scroller").evaluate((p) => p.scrollWidth > p.clientWidth && p.scrollHeight > p.clientHeight)).toBe(true);
+      // The editor's own scroller: many lines scroll inside it, never the page. Long lines do what
+      // they do in the editor: scroll sideways on a wide screen (wrapping is off by default), wrap
+      // below 900 px, where the editor always wraps (workbench.ts wrapsLines).
+      const scroller = preview(page).locator(".cm-scroller");
+      expect(await scroller.evaluate((p) => p.scrollHeight > p.clientHeight)).toBe(true);
+      const wraps = size.name === "phone";
+      if (wraps) await expect(previewCode(page)).toHaveClass(/cm-lineWrapping/);
+      else await expect(previewCode(page)).not.toHaveClass(/cm-lineWrapping/);
+      expect(await scroller.evaluate((p) => p.scrollWidth > p.clientWidth)).toBe(!wraps);
+      // The title starts where the text under it starts.
+      const [title, lede] = await Promise.all([page.locator("#code-link-title").boundingBox(), page.locator("#code-link-lede").boundingBox()]);
+      expect(Math.abs(title!.x - lede!.x)).toBeLessThanOrEqual(0.5);
       const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).include("dialog#code-link").analyze();
       expect(axe.violations.map((v) => `${v.id} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`)).toEqual([]);
       for (const id of ["code-link-cancel", "code-link-run", "code-link-add"]) {

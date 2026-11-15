@@ -2665,7 +2665,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
           add: (p, text) => addFile(p, text),
           addFolder,
           notice,
-          preview: { runtimes, runSettings: () => ({ limits: runLimits(settings.get()), build: buildOptions(settings.get()) }) },
+          preview: { runtimes, runSettings: () => ({ limits: runLimits(settings.get()), build: buildOptions(settings.get()) }), wrapsLines },
         };
         return link.kind === "short" ? m.openShortCodeLink(link.pathname, link.hash, deps) : m.openCodeLink(link.hash, deps);
       },

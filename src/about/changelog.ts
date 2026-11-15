@@ -20,6 +20,15 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.33.1",
+    date: "2026-11-15",
+    title: "A tidier shared-code preview",
+    items: [
+      { kind: "fixed", text: "On a phone, long lines in a shared link's preview wrap as they do in the editor, instead of running off the side." },
+      { kind: "fixed", text: "The output box in a shared link's preview appears when a program runs, not empty beside the C/C++ download offer." },
+    ],
+  },
+  {
     version: "0.33.0",
     date: "2026-11-15",
     title: "Try shared code before you keep it",
