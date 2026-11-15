@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.33.0",
+    date: "2026-11-15",
+    title: "Try shared code before you keep it",
+    items: [
+      { kind: "added", text: "A shared link opens in a read-only editor with line numbers, highlighting and its flowchart, and a Run of its own: the program runs and takes typed input, and nothing it writes reaches your files." },
+      { kind: "changed", text: "When the same file is already in your files, the link opens that one instead of adding a copy." },
+      { kind: "changed", text: "Closing a shared link without adding it leaves Open again in the notice, so the link isn't lost." },
+    ],
+  },
+  {
     version: "0.32.0",
     date: "2026-11-08",
     title: "Horizon and Material themes",

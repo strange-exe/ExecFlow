@@ -6,6 +6,19 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.33.0] - 2026-11-15
+
+Try shared code before you keep it
+
+### Added
+
+- A shared link opens in a read-only editor with line numbers, highlighting and its flowchart, and a Run of its own: the program runs and takes typed input, and nothing it writes reaches your files.
+
+### Changed
+
+- When the same file is already in your files, the link opens that one instead of adding a copy.
+- Closing a shared link without adding it leaves Open again in the notice, so the link isn't lost.
+
 ## [0.32.0] - 2026-11-08
 
 Horizon and Material themes

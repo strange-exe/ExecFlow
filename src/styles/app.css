@@ -1242,15 +1242,66 @@ a.status-btn { text-decoration: none; }
 /* A body that scrolls is a region the keyboard can scroll (dialogs.ts gives it tabindex=0 while it
    overflows): its ring is drawn inside it, where the dialog can't clip it. */
 .dialog-body:focus-visible { outline-offset: -2px; }
-/* A code link's file before it is added (code-link-dialog.ts): read-only code on the editor's ground,
-   its own scroll box (keyboard-scrollable) so long lines and long files never widen or grow the dialog. */
-.code-link-preview { max-height: min(320px, 40dvh); margin: 0; padding: var(--s2) var(--s3); overflow: auto; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text); font: var(--code-size)/1.5 var(--font-code); white-space: pre; tab-size: 4; }
-.code-link-preview:focus-visible { outline-offset: -2px; }
-.code-link-preview[data-empty]::before { content: "This file is empty."; color: var(--text-muted); font-family: var(--font-ui); }
+/* A code link's file before it is added (code-link-dialog.ts, code-preview.ts): the read-only editor
+   and its flowchart fill a large dialog (the whole screen on a phone); each pane scrolls inside
+   itself, so long lines and long files never widen or grow the dialog. The run's console sits
+   under them once Run is pressed. Side by side from 900 px; below, a Code / Flowchart tab pair. */
+.dialog.code-link { width: min(1200px, calc(100vw - 32px)); height: min(880px, calc(100dvh - 32px)); }
+.dialog.code-link .dialog-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--s3); min-height: 0; overflow: hidden; }
+.code-link-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+.code-link-meta > p { margin: 0; }
+.code-link-meta > .field-note { color: var(--text-secondary); }
+.code-link-panes { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); grid-template-rows: minmax(0, 1fr); gap: var(--s3); min-height: 120px; }
+.code-link-views { display: none; }
+.code-link-code, .code-link-chart { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-control); }
+.code-link-code { background: var(--surface); }
+.code-link-code .cm-editor { flex: 1 1 auto; min-height: 0; height: 100%; }
+.code-link-code .cm-scroller { overflow: auto; }
+.code-link-chart { background: var(--bg); }
+.code-link-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); padding: var(--s2) var(--s3); box-shadow: inset 0 -1px 0 var(--divider); }
+.code-link-pick[hidden] { display: none; }
+.code-link-pick label { font-weight: var(--w-label); }
+.code-link-pick select { min-width: 0; max-width: 100%; }
+.code-link-chart-note { margin: 0; padding: var(--s3); }
+.code-link-chart-note[hidden] { display: none; }
+.code-link-stage { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--s3); }
+.code-link-stage:empty { display: none; }
+.code-link-stage svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+/* The run: the C/C++ download offer, the program's output, its input line, and how it ended. */
+.code-link-run { display: flex; flex: none; flex-direction: column; gap: var(--s2); }
+.code-link-run[hidden] { display: none; }
+.code-link-console { min-height: calc(3 * 1.5em); max-height: min(200px, 24dvh); margin: 0; padding: var(--s2) var(--s3); overflow: auto; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text); font: var(--code-size)/1.5 var(--font-code); white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-link-console:focus-visible { outline-offset: -2px; }
+.code-link-input { display: flex; align-items: center; gap: var(--s2); }
+.code-link-input[hidden] { display: none; }
+.code-link-input label { font-weight: var(--w-label); }
+.code-link-input input { flex: 1 1 auto; min-width: 0; font-family: var(--font-code); }
+/* Send is as tall as its field (44 px on a touch screen), not a small button beside it. */
+.code-link-input .btn { min-height: var(--field-h); }
+.code-link-pack { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--surface-raised); box-shadow: inset 2px 0 0 var(--info); }
+.code-link-pack[hidden] { display: none; }
+.code-link-pack-text { flex: 1 1 28ch; margin: 0; }
+.code-link-status { margin: 0; color: var(--text-secondary); }
+.code-link-status:empty { display: none; }
+.dialog.code-link .dialog-actions .icon { width: var(--icon-md); height: var(--icon-md); }
 /* A folder link: which of its files the preview shows (label and select on one line, wrapping on a phone). */
-.code-link-file { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); margin: 0 0 var(--s2); }
+.code-link-file { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
 .code-link-file label { font-weight: var(--w-label); }
 .code-link-file select { min-width: 0; max-width: 100%; }
+@media (max-width: 899px) {
+  .code-link-panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: var(--s2); }
+  .code-link-views { display: inline-flex; justify-self: start; gap: 2px; padding: 2px; border-radius: var(--r-control); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .code-link-views [role="tab"] { min-height: calc(var(--field-h) - 4px); padding: 0 var(--s4); border: 0; border-radius: var(--r-row); background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--fs-2); font-weight: var(--w-label); cursor: pointer; }
+  .code-link-views [role="tab"]:hover { color: var(--text); background: var(--hover); }
+  .code-link-views [role="tab"][aria-selected="true"] { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .code-link-panes[data-show="code"] .code-link-chart, .code-link-panes[data-show="chart"] .code-link-code { display: none; }
+}
+/* A phone: the whole screen, as Full screen flowcharts are. */
+@media (max-width: 599px) {
+  .dialog.code-link { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+  .dialog.code-link .dialog-body { padding: 0 var(--s3) var(--s3); }
+  .dialog.code-link .dialog-actions { padding: var(--s2) var(--s3) var(--s3); }
+}
 /* Choose files (0.18.0): the workspace as a checklist, folders holding their files, indented. */
 .choose-scroll { max-height: min(360px, 45dvh); overflow: auto; margin: var(--s2) 0; padding: var(--s1) var(--s2); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); }
 .choose-list { list-style: none; margin: 0; padding: 0; }

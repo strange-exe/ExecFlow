@@ -104,7 +104,7 @@ test("a shared folder opens in another browser as a new folder, previewed first;
     await them.goto(url);
     const open = them.locator("dialog.code-link");
     await expect(open).toHaveAttribute("data-state", "ready");
-    await expect(open.locator(".dialog-title")).toHaveText("Open the folder lab1?");
+    await expect(open.locator(".dialog-title")).toHaveText("Folder lab1");
     await expect(open.locator("#code-link-preview")).toContainText("#include");
     await open.locator("#code-link-file").selectOption({ label: "util.h" });
     await expect(open.locator("#code-link-preview")).toContainText("twice");

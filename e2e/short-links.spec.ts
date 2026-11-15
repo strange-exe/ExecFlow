@@ -15,7 +15,7 @@ import { shortMakeRefusalText, shortReadRefusalText } from "../src/core/short-li
 import { BRAND_MARK } from "../src/editor/brand-mark";
 import { forgeLink, keyOf, linksSite, type LinksSite } from "./links-fake";
 import { decodePng, parseHex } from "./pixels";
-import { clickTreeSpace, expect, expectActive, importFiles, openApp, setCode, showFiles, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, linkPreviewText, openApp, setCode, showFiles, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -124,8 +124,8 @@ test("Share: a short link is made only on the press, kept 30 days, opened in ano
   await openElsewhere(browser, site, url, info, tolerate, async (them) => {
     const open = them.locator("dialog#code-link");
     await expect(open).toHaveAttribute("data-state", "ready");
-    await expect(them.locator("#code-link-title")).toHaveText("Open hello.c?");
-    await expect(them.locator("#code-link-preview")).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+    await expect(them.locator("#code-link-title")).toHaveText("hello.c");
+    await expect.poll(() => linkPreviewText(them)).toBe(C_PROGRAM);
     // The key has left the address bar, and so has the id: a reload or a bookmark keeps neither.
     expect(them.url()).toBe(`${ORIGIN}/`);
     await expect(them.locator(".notice")).not.toContainText("Opening the short link");
@@ -169,7 +169,7 @@ test("Share: a file too long for a code link offers a short link instead, which 
   expectShortUrl(url);
   await openElsewhere(browser, site, url, info, tolerate, async (them) => {
     await expect(them.locator("dialog#code-link")).toHaveAttribute("data-state", "ready");
-    expect(await them.locator("#code-link-preview").textContent()).toBe(text);
+    await expect.poll(() => linkPreviewText(them)).toBe(text);
   });
 });
 
@@ -377,7 +377,7 @@ test("Choose files: a folder as a short link kept 90 days; another browser opens
   await openElsewhere(browser, site, url, info, tolerate, async (them) => {
     const open = them.locator("dialog.code-link");
     await expect(open).toHaveAttribute("data-state", "ready");
-    await expect(open.locator(".dialog-title")).toHaveText("Open the folder lab1?");
+    await expect(open.locator(".dialog-title")).toHaveText("Folder lab1");
     await open.locator("#code-link-add").click();
     await showFiles(them);
     await expect(treeItem(them, "lab1/main.c")).toBeVisible();
@@ -550,5 +550,8 @@ test.describe("the opener's code can't load", () => {
     await expect(notice(page)).toContainText("The short link couldn't open. Check the connection, then open the link again.");
     await expect(page.locator("dialog#code-link")).toHaveCount(0);
     expect(page.url()).toBe(`${ORIGIN}/`);
+    // Chunks still loading when the test ends are left to fail quietly: a handler still reading one
+    // once the page has closed threw into the next test of the worker (Chromium, 2026-11-15).
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 });

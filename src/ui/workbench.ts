@@ -26,10 +26,10 @@ import { closeMenus, menuButton, openMenu, type MenuItem } from "./menu";
 import { createAnnouncer, createNotice } from "./notice";
 import type { PaletteApi } from "./palette-model";
 import { FAILED, OutputView, statusWord, type LiftedError } from "./output";
-import { countProblems, describeCounts, ProblemsView, SEVERITY_WORD, type RenderHelp } from "./problems";
+import { countProblems, describeCounts, ProblemsView, type RenderHelp } from "./problems";
 import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
 import { dropStash, readStash, textHash, writeStash } from "./recover";
-import { callSiteMarks } from "./run-diagnostics";
+import { callSiteMarks, diagnosticLine } from "./run-diagnostics";
 import { mainToOffer, phaseLabel } from "./run-words";
 import { buildOptions, createSettingsStore, runLimits } from "./settings";
 import { whatsNew } from "../about/whats-new";
@@ -76,13 +76,6 @@ function announcement(r: RunResult, summary: string, path: WsPath, timeLimitS: n
     case "unavailable":
       return `Couldn't run${r.message ? `: ${r.message}` : "."}`;
   }
-}
-
-/** A compiler-style line for the console: "main.c:3:5: error: expected ';'". */
-function diagnosticLine(d: ToolDiagnostic): string {
-  const col = d.col === undefined ? "" : `:${d.base === 0 ? d.col + 1 : d.col}`;
-  const where = d.path ? `${d.path}:${d.line}${col}: ` : "";
-  return `${where}${(SEVERITY_WORD[d.severity] ?? "Error").toLowerCase()}: ${d.message.split("\n")[0]}`;
 }
 
 export async function startWorkbench(root: HTMLElement): Promise<void> {
@@ -2656,7 +2649,24 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     codeLinkChunk.then(
       (m) => {
         if (wiped) return;
-        const deps: CodeLinkDeps = { taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)), add: (p, text) => addFile(p, text), addFolder, notice };
+        const deps: CodeLinkDeps = {
+          taken: (p) => entries.some((e) => foldKey(e.path) === foldKey(p)),
+          // The stored text after pending edits are saved: an identical copy is opened, not added again.
+          same: async (p, text) => {
+            const entry = entries.find((e) => foldKey(e.path) === foldKey(p) && e.kind === "file");
+            if (!entry) return null;
+            await saves.flushAll();
+            return (await store.readFile(ws, entry.path).catch(() => null)) === text ? entry.path : null;
+          },
+          open: async (p) => {
+            tree.reveal(p);
+            await openFile(p, { focus: true });
+          },
+          add: (p, text) => addFile(p, text),
+          addFolder,
+          notice,
+          preview: { runtimes, runSettings: () => ({ limits: runLimits(settings.get()), build: buildOptions(settings.get()) }) },
+        };
         return link.kind === "short" ? m.openShortCodeLink(link.pathname, link.hash, deps) : m.openCodeLink(link.hash, deps);
       },
       () => {

@@ -519,6 +519,22 @@ export async function showChart(page: Page) {
  * selected one. Below 900 px there is no tab strip (files switch in the drawer), so there the tab
  * is checked as attached and selected; everywhere else it must be visible too.
  */
+/**
+ * The code a link's preview shows (src/ui/code-link-dialog.ts): its read-only editor's document.
+ * Read from the editor, not from its lines: CodeMirror leaves the far parts of a very long line
+ * undrawn until they scroll into view. The view hangs on the content element, where
+ * EditorView.findFromDOM finds it (@codemirror/view 6.43: cmTile.root.view); a missing one throws,
+ * so an upgrade that moves it fails here rather than reading nothing.
+ */
+export async function linkPreviewText(page: Page): Promise<string> {
+  return page.locator("#code-link-preview .cm-content").evaluate((el) => {
+    type Found = { cmTile?: { root?: { view?: { state: { doc: { toString(): string } } } } } };
+    const view = (el as unknown as Found).cmTile?.root?.view;
+    if (!view) throw new Error("no CodeMirror view on the preview's content element");
+    return view.state.doc.toString();
+  });
+}
+
 export async function expectActive(page: Page, path: string) {
   await expect(page.locator(`.cm-content[aria-label="Code editor, ${path}"]`)).toBeVisible();
   const tab = page.locator(`.tabs [role=tab][title="${path}"]`);

@@ -175,6 +175,9 @@ test("/move runs without isolation, so it offers no code links; / still does", a
   await expect(page.locator("dialog#code-link")).toHaveAttribute("data-state", "ready");
   // How long / took to offer it once the editor was ready: /move gets several times that to (not) do it.
   const offerMs = Date.now() - shown;
+  // The preview draws the flowchart with a worker of its own: left before it loaded, the browser
+  // reports its script as an aborted request (Firefox, WebKit).
+  await expect(page.locator("#code-link-chart")).toHaveAttribute("data-state", /^(ready|none|failed)$/, { timeout: 60_000 });
   await openApp(page, `${NEW}/move${link}`);
   // The editor decided (its last start-up step), and the link was left alone: still in the address
   // bar, no dialog. On / the same link left the address bar as soon as it was taken.

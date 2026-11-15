@@ -1,6 +1,7 @@
 // Code links (src/core/code-link.ts, src/ui/code-link-dialog.ts, .claude/tasks/code-links.md): a
-// file carried in the link itself. Opening one shows the code read-only first; Add puts it in the
-// student's files under a free name and opens it; nothing runs. A damaged or hostile link says so
+// file carried in the link itself. Opening one shows the code in a read-only editor first, with its
+// flowchart and a Run of its own that writes nothing to the files; Add puts it in the student's files
+// under a free name and opens it; nothing runs until Run is pressed. A damaged or hostile link says so
 // and adds nothing. Links are made here with the app's own encoder (Node has the same compression
 // streams), and one is made by the Share dialog and opened in a second, separate browser profile.
 import AxeBuilder from "@axe-core/playwright";
@@ -8,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { deflateRawSync } from "node:zlib";
 import { makeCodeLink } from "../src/core/code-link";
 import { darkPath, qrPlan } from "../src/core/qr-plan";
-import { expect, expectActive, importFiles, openApp, showFiles, test, treeItem, watchContext } from "./helpers";
+import { expect, expectActive, importFiles, linkPreviewText, openApp, run, showFiles, test, treeItem, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -29,12 +30,16 @@ async function openLink(page: Page, hash: string) {
   await expect(dialog(page)).toHaveAttribute("data-state", "ready");
 }
 
+/** The read-only editor in the preview: its content element (the one that takes focus). */
+const previewCode = (page: Page) => preview(page).locator(".cm-content");
+
 test("a link opens a read-only preview; Add puts it in the files and opens it; nothing runs", async ({ page }) => {
   await openLink(page, await fragment("hello.c", C_PROGRAM));
-  await expect(page.locator("#code-link-title")).toHaveText("Open hello.c?");
+  await expect(page.locator("#code-link-title")).toHaveText("hello.c");
   await expect(page.locator("#code-link-about")).toHaveText("C, 6 lines.");
-  await expect(preview(page)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
-  await expect(page.locator("#code-link-add")).toBeFocused();
+  await expect.poll(() => linkPreviewText(page)).toBe(C_PROGRAM);
+  // Focus starts in the code, not on Add: Enter or Space there adds nothing.
+  await expect(previewCode(page)).toBeFocused();
   // The code has left the address bar: a reload or a bookmark doesn't carry it.
   expect(new URL(page.url()).hash).toBe("");
   // Nothing is in the files until Add (counted in the list as it is: from 1100 px Files is a
@@ -46,6 +51,130 @@ test("a link opens a read-only preview; Add puts it in the files and opens it; n
   await expectActive(page, "hello.c");
   await expect(page.locator(".cm-content")).toContainText('printf("Hello from a link\\n");');
   await expect(page.locator("#app")).not.toHaveAttribute("data-run", /running|waiting/);
+});
+
+test("the preview is the editor, read-only: line numbers, highlighting, and keys change nothing", async ({ page }) => {
+  await openLink(page, await fragment("hello.c", C_PROGRAM));
+  await expect(preview(page).locator(".cm-editor")).toHaveCount(1);
+  await expect(previewCode(page)).toHaveAttribute("aria-readonly", "true");
+  await expect(previewCode(page)).toHaveAttribute("aria-label", "Shared code, hello.c (read-only)");
+  // The editor's own gutter: line 6 can be found by its number.
+  await expect(preview(page).locator(".cm-lineNumbers .cm-gutterElement", { hasText: /^6$/ })).toHaveCount(1);
+  // The C grammar is there: some of the code is drawn as tokens (keywords, strings), not plain text.
+  await expect.poll(() => preview(page).locator(".cm-line span[class]").count()).toBeGreaterThan(2);
+  await previewCode(page).press("End");
+  await page.keyboard.type("zz");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Backspace");
+  await expect.poll(() => linkPreviewText(page)).toBe(C_PROGRAM);
+  // Enter in the code added nothing.
+  await expect(dialog(page)).toHaveAttribute("data-state", "ready");
+  await expect(treeItem(page, "hello.c")).toHaveCount(0);
+});
+
+test("Run in the preview runs the shared file without adding it; files it writes stay out", async ({ page }) => {
+  await openLink(page, await fragment("steal.py", PY_PROGRAM));
+  await page.locator("#code-link-run").click();
+  await expect(dialog(page)).toHaveAttribute("data-run", "done", { timeout: 60_000 });
+  await expect(page.locator("#code-link-console")).toContainText("this must not run by itself");
+  // The main run state never moved: this run belongs to the preview.
+  await expect(page.locator("#app")).not.toHaveAttribute("data-run", /running|waiting/);
+  await page.locator("#code-link-cancel").click();
+  await expect(dialog(page)).toHaveCount(0);
+  await showFiles(page);
+  await expect(treeItem(page, "pwned.txt")).toHaveCount(0);
+  await expect(treeItem(page, "steal.py")).toHaveCount(0);
+});
+
+test("a program that asks for input gets it in the preview's console", async ({ page }) => {
+  await openLink(page, await fragment("ask.py", 'name = input("Name? ")\nprint("Hi " + name)\n'));
+  await page.locator("#code-link-run").click();
+  const field = page.locator("#code-link-stdin");
+  await expect(field).toBeVisible({ timeout: 60_000 });
+  await expect(field).toBeFocused();
+  await expect(dialog(page)).toHaveAttribute("data-run", "waiting");
+  await field.fill("Ada");
+  await field.press("Enter");
+  await expect(dialog(page)).toHaveAttribute("data-run", "done");
+  await expect(page.locator("#code-link-console")).toContainText("Hi Ada");
+});
+
+test("Stop ends the preview's run, and closing the preview stops it too", async ({ page }) => {
+  await openLink(page, await fragment("loop.py", "while True:\n    pass\n"));
+  const runButton = page.locator("#code-link-run");
+  await runButton.click();
+  await expect(dialog(page)).toHaveAttribute("data-run", "running", { timeout: 60_000 });
+  await expect(runButton).toHaveText("Stop");
+  await runButton.click();
+  await expect(dialog(page)).toHaveAttribute("data-run", "done", { timeout: 30_000 });
+  await expect(runButton).toHaveText("Run");
+  await runButton.click();
+  await expect(dialog(page)).toHaveAttribute("data-run", "running");
+  await page.keyboard.press("Escape");
+  await expect(dialog(page)).toHaveCount(0);
+  // The runtime is free again: the student's own Run works straight away.
+  await importFiles(page, [{ name: "mine.py", text: 'print("mine ran")\n' }]);
+  await expectActive(page, "mine.py");
+  expect((await run(page)).output).toContain("mine ran");
+});
+
+test("a C link offers the one-time download in the preview before it can run", async ({ page }) => {
+  await openLink(page, await fragment("hello.c", C_PROGRAM));
+  await page.locator("#code-link-run").click();
+  const pack = page.locator("#code-link-pack");
+  await expect(pack).toBeVisible({ timeout: 30_000 });
+  await expect(pack).toContainText("one-time");
+  await expect(page.locator("#code-link-pack-download")).toBeFocused();
+  await expect(dialog(page)).not.toHaveAttribute("data-run", "running");
+});
+
+test("the flowchart is drawn beside the code on a wide screen, and behind a Flowchart tab on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openLink(page, await fragment("hello.c", C_PROGRAM));
+  const chart = page.locator("#code-link-chart");
+  await expect(chart.locator("svg")).toBeVisible({ timeout: 60_000 });
+  // The chart's own stylesheet came with it: its focus rings are unfilled (an unstyled ring rect
+  // fills black and draws every box with a heavy black frame).
+  expect(await chart.locator(".fc-ring").first().evaluate((r) => getComputedStyle(r).fill)).toBe("none");
+  await expect(previewCode(page)).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tabs = page.locator("#code-link-views");
+  await expect(tabs).toBeVisible();
+  await expect(previewCode(page)).toBeVisible();
+  await expect(chart).toBeHidden();
+  await tabs.getByRole("tab", { name: "Flowchart" }).click();
+  await expect(chart.locator("svg")).toBeVisible();
+  await expect(previewCode(page)).toBeHidden();
+  await tabs.getByRole("tab", { name: "Code" }).click();
+  await expect(previewCode(page)).toBeVisible();
+});
+
+test("Not now leaves a way back: the notice's Open again shows the same file", async ({ page }) => {
+  await openLink(page, await fragment("hello.c", C_PROGRAM));
+  await page.locator("#code-link-cancel").click();
+  await expect(dialog(page)).toHaveCount(0);
+  const again = page.locator(".notice").getByRole("button", { name: "Open again" });
+  await expect(page.locator(".notice")).toContainText("Closed hello.c");
+  await again.click();
+  await expect(dialog(page)).toHaveAttribute("data-state", "ready");
+  await expect(page.locator("#code-link-title")).toHaveText("hello.c");
+  await expect.poll(() => linkPreviewText(page)).toBe(C_PROGRAM);
+  await page.locator("#code-link-add").click();
+  await expectActive(page, "hello.c");
+});
+
+test("the same file opened again from a link opens the copy already in the files, no duplicate", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [{ name: "hello.c", text: C_PROGRAM }]);
+  await page.goto(`/${await fragment("hello.c", C_PROGRAM)}`);
+  await expect(dialog(page)).toHaveAttribute("data-state", "ready");
+  await expect(page.locator("#code-link-about")).toContainText("You already have this file, as hello.c.");
+  await expect(page.locator("#code-link-add")).toHaveText("Open hello.c");
+  await page.locator("#code-link-add").click();
+  await expect(dialog(page)).toHaveCount(0);
+  await expectActive(page, "hello.c");
+  await expect(treeItem(page, "hello-2.c")).toHaveCount(0);
+  await expect(treeItem(page, "hello.c")).toHaveCount(1);
 });
 
 test("a Python link never runs by itself: added, opened, and still idle", async ({ page }) => {
@@ -87,7 +216,7 @@ test("markup in the code is shown as text, and an invisible character is tagged"
   const zwsp = String.fromCodePoint(0x200b);
   const code = `<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>\nint a${zwsp}b;\n`;
   await openLink(page, await fragment("a&b'.html", code));
-  await expect(page.locator("#code-link-title")).toHaveText("Open a&b'.html?");
+  await expect(page.locator("#code-link-title")).toHaveText("a&b'.html");
   await expect(dialog(page).locator("img, script")).toHaveCount(0);
   await expect(preview(page)).toContainText('<img src=x onerror="window.__xss=1">');
   await expect(preview(page)).toContainText("int a[U+200B]b;");
@@ -152,7 +281,7 @@ test("a deflate bomb is fed to the browser's decoder 1 KiB at a time, and feedin
 test("a link with Windows line endings is added with LF, as a file import adds it", async ({ page }) => {
   const forged = `#code=1.${deflateRawSync(JSON.stringify({ n: "crlf.c", t: C_PROGRAM.split("\n").join(String.fromCharCode(13) + "\n") })).toString("base64url")}`;
   await openLink(page, forged);
-  await expect(preview(page)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+  await expect.poll(() => linkPreviewText(page)).toBe(C_PROGRAM);
   await page.locator("#code-link-add").click();
   await expectActive(page, "crlf.c");
   await expect(dialog(page)).toHaveCount(0);
@@ -192,7 +321,7 @@ test.describe("an add that fails keeps the shared file in the dialog", () => {
     await expect(dialog(page)).not.toHaveAttribute("aria-busy", "true");
     await expect(page.locator("#code-link-result")).toHaveAttribute("data-tone", "error");
     await expect(page.locator("#code-link-result")).toContainText("The disk is full (test).");
-    await expect(preview(page)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+    await expect.poll(() => linkPreviewText(page)).toBe(C_PROGRAM);
     await expect(treeItem(page, "hello.c")).toHaveCount(0);
     await page.evaluate(() => ((window as unknown as { __failWrites: boolean }).__failWrites = false));
     await page.locator("#code-link-add").click();
@@ -211,20 +340,20 @@ test.describe("an add that fails keeps the shared file in the dialog", () => {
     await expect(dialog(second)).toHaveAttribute("data-state", "refused");
     await expect(second.locator("#code-link-result")).toHaveAttribute("data-tone", "warning");
     await expect(second.locator("#code-link-result")).toContainText("read-only");
-    await expect(preview(second)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+    await expect.poll(() => linkPreviewText(second)).toBe(C_PROGRAM);
     // The code left this tab's address bar too, before any other script ran (e2e/link-fragment.spec.ts).
     expect(new URL(second.url()).hash).toBe("");
     await page.evaluate((h) => (location.hash = h), hash);
     await expect(dialog(page)).toHaveAttribute("data-state", "ready");
     await page.locator("#code-link-add").click();
     await expectActive(page, "hello.c");
-    // The free name is chosen again at each press: the read-only tab learns of hello.c and would
-    // now add the file as hello-2.c, never over it.
+    // What is in the files is read again at each press: the read-only tab learns of hello.c, the
+    // same file, so Add there opens it (reading is allowed) instead of adding a copy.
     await expect(async () => {
       await second.locator("#code-link-add").click();
-      await expect(second.locator("#code-link-about")).toContainText("so this one is added as hello-2.c.", { timeout: 1000 });
+      await expect(dialog(second)).toHaveCount(0, { timeout: 1000 });
     }).toPass({ timeout: 15_000 });
-    await expect(dialog(second)).toHaveAttribute("data-state", "refused");
+    await expectActive(second, "hello.c");
   });
 });
 
@@ -233,7 +362,7 @@ test("a link pasted into the address bar of an open tab opens too (only the frag
   const hash = await fragment("later.py", 'print("later")\n');
   await page.evaluate((h) => (location.hash = h), hash);
   await expect(dialog(page)).toHaveAttribute("data-state", "ready");
-  await expect(page.locator("#code-link-title")).toHaveText("Open later.py?");
+  await expect(page.locator("#code-link-title")).toHaveText("later.py");
 });
 
 test("Share link makes the link with nothing sent; a second browser profile opens it", async ({ page, browser, tolerate }, info) => {
@@ -266,7 +395,7 @@ test("Share link makes the link with nothing sent; a second browser profile open
     await them.goto(url!);
     await expect(them.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
     await expect(dialog(them)).toHaveAttribute("data-state", "ready");
-    await expect(preview(them)).toHaveText(C_PROGRAM.replace(/\n$/, ""));
+    await expect.poll(() => linkPreviewText(them)).toBe(C_PROGRAM);
     await them.locator("#code-link-add").click();
     await expectActive(them, "hello.c");
     expect(watch.settle(), "console errors and failed requests in the second profile").toEqual([]);
@@ -373,6 +502,43 @@ test("a file too long for a link says why in the Share dialog, and offers a shor
 
 for (const size of [{ name: "desktop", width: 1440, height: 900 }, { name: "phone", width: 390, height: 844 }]) {
   for (const scheme of ["light", "dark"] as const) {
+    test(`a run waiting for input in the preview: ${size.name} ${scheme}, axe, no overflow; the chart tab too`, async ({ page }) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await openApp(page);
+      await page.emulateMedia({ colorScheme: scheme });
+      await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      const code = 'n = int(input("How many stars? "))\nfor i in range(1, n + 1):\n    print("*" * i)\n';
+      await page.evaluate((h) => (location.hash = h), await fragment("stars.py", code));
+      await expect(dialog(page)).toHaveAttribute("data-state", "ready");
+      await page.locator("#code-link-run").click();
+      await expect(dialog(page)).toHaveAttribute("data-run", "waiting", { timeout: 60_000 });
+      const shots = `${process.env.SHOTS_DIR ?? "e2e/shots"}/code-link/${test.info().project.name}`;
+      const check = async (what: string) => {
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), what).toBe(true);
+        const box = (await dialog(page).boundingBox())!;
+        expect(box.x + box.width, what).toBeLessThanOrEqual(size.width);
+        expect(box.y + box.height, what).toBeLessThanOrEqual(size.height);
+        const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).include("dialog#code-link").analyze();
+        expect(axe.violations.map((v) => `${v.id} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`), what).toEqual([]);
+      };
+      await check("waiting");
+      // Send stands as tall as the field it sends (a 44 px target on a phone).
+      const [field, send] = await Promise.all([page.locator("#code-link-stdin").boundingBox(), page.locator(".code-link-input button").boundingBox()]);
+      expect(send!.height).toBeGreaterThanOrEqual(field!.height - 0.5);
+      await page.screenshot({ path: `${shots}/run-${size.name}-${scheme}.png`, animations: "disabled" });
+      await page.locator("#code-link-stdin").fill("4");
+      await page.locator("#code-link-stdin").press("Enter");
+      await expect(dialog(page)).toHaveAttribute("data-run", "done");
+      await expect(page.locator("#code-link-console")).toContainText("****");
+      await check("done");
+      if (size.name === "phone") {
+        await page.locator("#code-link-views").getByRole("tab", { name: "Flowchart" }).click();
+        await expect(page.locator("#code-link-chart svg")).toBeVisible({ timeout: 60_000 });
+        await check("chart");
+        await page.screenshot({ path: `${shots}/chart-${size.name}-${scheme}.png`, animations: "disabled" });
+      }
+    });
+
     test(`the open dialog: ${size.name} ${scheme}, axe, no overflow, long lines scroll inside`, async ({ page }) => {
       await page.setViewportSize({ width: size.width, height: size.height });
       await openApp(page);
@@ -384,10 +550,11 @@ for (const size of [{ name: "desktop", width: 1440, height: 900 }, { name: "phon
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       const box = await dialog(page).boundingBox();
       expect(box!.x + box!.width).toBeLessThanOrEqual(size.width);
-      expect(await preview(page).evaluate((p) => p.scrollWidth > p.clientWidth && p.scrollHeight > p.clientHeight)).toBe(true);
+      // The editor's own scroller: long lines and many lines scroll inside it, never the page.
+      expect(await preview(page).locator(".cm-scroller").evaluate((p) => p.scrollWidth > p.clientWidth && p.scrollHeight > p.clientHeight)).toBe(true);
       const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).include("dialog#code-link").analyze();
-      expect(axe.violations.map((v) => `${v.id} (${v.nodes.length})`)).toEqual([]);
-      for (const id of ["code-link-cancel", "code-link-add"]) {
+      expect(axe.violations.map((v) => `${v.id} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`)).toEqual([]);
+      for (const id of ["code-link-cancel", "code-link-run", "code-link-add"]) {
         const b = (await page.locator(`#${id}`).boundingBox())!;
         expect(b.height, id).toBeGreaterThanOrEqual(size.name === "phone" ? 43.5 : 23.5);
       }

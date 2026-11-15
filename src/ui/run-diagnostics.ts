@@ -3,6 +3,14 @@
 // that needs attention, not only the module where it ended.
 import { nameOf } from "../core/paths";
 import type { ToolDiagnostic } from "../core/types";
+import { SEVERITY_WORD } from "./problems";
+
+/** A compiler-style line for the console: "main.c:3:5: error: expected ';'". */
+export function diagnosticLine(d: ToolDiagnostic): string {
+  const col = d.col === undefined ? "" : `:${d.base === 0 ? d.col + 1 : d.col}`;
+  const where = d.path ? `${d.path}:${d.line}${col}: ` : "";
+  return `${where}${(SEVERITY_WORD[d.severity] ?? "Error").toLowerCase()}: ${d.message.split("\n")[0]}`;
+}
 
 /** At most this many call marks per run (a deep recursion has one frame per call). */
 export const MAX_CALL_MARKS = 20;

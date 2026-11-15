@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { loadGuideData } from "../src/pages/load";
 import { GUIDE_ROUTES, SITE } from "../src/pages/routes";
 import { EXAMPLES } from "../src/pages/examples";
-import { expect, openApp, openIn, test, waitReady } from "./helpers";
+import { expect, linkPreviewText, openApp, openIn, test, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -173,8 +173,8 @@ for (const route of GUIDE_ROUTES) {
         await waitReady(page);
         const dialog = page.locator("dialog#code-link");
         await expect(dialog).toHaveAttribute("data-state", "ready");
-        await expect(page.locator("#code-link-title")).toHaveText(`Open ${EXAMPLES[id].name}?`);
-        await expect(page.locator("#code-link-preview")).toHaveText(data.sources[id].code.replace(/\n$/, ""));
+        await expect(page.locator("#code-link-title")).toHaveText(EXAMPLES[id].name);
+        await expect.poll(() => linkPreviewText(page)).toBe(data.sources[id].code);
         expect(new URL(page.url()).hash, "the code left the address bar").toBe("");
         expect(href.startsWith("/#code=1.")).toBe(true);
         // Nothing ran: no run started, none counted.

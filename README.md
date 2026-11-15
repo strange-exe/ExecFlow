@@ -259,16 +259,20 @@ Share link... asks how to share, then copies the link. Nothing is shared until y
   uploaded and anyone can open it. A link holds up to 8000 characters, so chat apps keep it
   whole; a file too long for one says so. Copy with title copies it as
   a titled link ("Open main.py in ExecFlow") for documents and mail, and Show QR code draws it
-  to scan from a screen. Opening a code link shows a read-only preview first; Add puts it in your
-  files under a free name, and it never runs by itself. Damaged links, links whose content would
+  to scan from a screen. Opening a code link shows it in a read-only editor first, with line
+  numbers, highlighting and its flowchart, and a Run of its own: the program runs with your limits
+  and gets typed input, and whatever it writes is dropped, so trying it never touches your files.
+  Add puts it in your files under a free name (or, when the same file is already there, opens
+  that one), and it never runs by itself. Closed without adding, the notice offers it again.
+  Damaged links, links whose content would
   unpack beyond 256 KB, names that aren't a single safe file name, and text that isn't plain text
   are refused; hidden characters in a name or the code are shown as tags in the preview.
 - **A folder in a code link** (Choose files to download or share...): the ticked files under one
   folder name (`#code=2.<data>`), at most 50 files, within the same 8000 characters and 256 KB.
   Each path is checked as an import checks it (no `..`, no absolute paths or reserved names, at
   most 8 folders deep), and two files that would land on one name, or a file where a folder is,
-  refuse the whole link. Opening one lists the files and previews each; Add puts them in a new
-  folder at the top.
+  refuse the whole link. Opening one lists the files and previews each in the same read-only
+  editor (Run there gets the folder's files); Add puts them in a new folder at the top.
 - **People with access to the repository**: the file's page on GitHub,
   `https://github.com/<owner>/<repo>/blob/<commit>/<path>`, pinned to the commit of the last sync.
   It opens only for you and the repository's collaborators while the repository is private. The

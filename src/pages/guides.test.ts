@@ -92,11 +92,11 @@ describe.each(GUIDE_ROUTES)("$path", (route) => {
     expect(html.match(/>Open in ExecFlow<span class="ex-sr">/g) ?? []).toHaveLength(opens.length);
   });
 
-  it("says what Open in ExecFlow really does: a preview first, the editor only after Add to my files", async () => {
+  it("says what Open in ExecFlow really does: a read-only preview first, the editor only after Add to my files", async () => {
     const html = await page(route.file);
     const intro = attr(html, /<section aria-labelledby="examples">([\s\S]*?)<div class="guide-example">/)!.replace(/\s+/g, " ");
     expect(intro).toContain("<strong>Open in ExecFlow</strong> shows");
-    expect(intro).toContain("a preview");
+    expect(intro).toContain("a read-only preview first, with its flowchart and a Run button");
     expect(intro).toContain("<strong>Add to my files</strong> puts it in the editor");
     expect(intro).toContain("until you press Run");
     expect(html).not.toMatch(/puts (it|the program) in the editor without|loads it into the editor/);

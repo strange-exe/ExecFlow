@@ -108,7 +108,7 @@ test("a short link opened in a read-only second tab: the key leaves that address
   await openApp(second, link.path);
   await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
   await expect(dialog(second)).toHaveAttribute("data-state", "ready");
-  await expect(second.locator("#code-link-title")).toHaveText("Open hello.c?");
+  await expect(second.locator("#code-link-title")).toHaveText("hello.c");
   expect(await beaconSaw(second)).toBe(`${ORIGIN}/`);
   expect(second.url()).toBe(`${ORIGIN}/`);
   await expectNeverSent(s, link.secrets, 2);
