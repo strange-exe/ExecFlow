@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.34.0",
+    date: "2026-11-17",
+    title: "C and C++ get ready on their own, and sharing from any tab",
+    items: [
+      { kind: "changed", text: "Opening a C or C++ file starts its one-time download by itself, as Python does, so Run is ready sooner. If the download fails, Try again waits for you." },
+      { kind: "added", text: "A tab open beside the one you edit in can now make code links and short links. Repository links and gists are still made in the tab you edit in." },
+      { kind: "changed", text: "Opening the same shared folder twice opens the copy you already have, rather than adding it again as lab1-2." },
+    ],
+  },
+  {
     version: "0.33.2",
     date: "2026-11-16",
     title: "Renaming with Chinese, Japanese or Korean input",

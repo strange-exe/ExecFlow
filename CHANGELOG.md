@@ -6,6 +6,19 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.34.0] - 2026-11-17
+
+C and C++ get ready on their own, and sharing from any tab
+
+### Added
+
+- A tab open beside the one you edit in can now make code links and short links. Repository links and gists are still made in the tab you edit in.
+
+### Changed
+
+- Opening a C or C++ file starts its one-time download by itself, as Python does, so Run is ready sooner. If the download fails, Try again waits for you.
+- Opening the same shared folder twice opens the copy you already have, rather than adding it again as lab1-2.
+
 ## [0.33.2] - 2026-11-16
 
 Renaming with Chinese, Japanese or Korean input
