@@ -512,6 +512,15 @@ test.describe("the About page", () => {
     const stage = page.locator("#launch-video .about-stage");
     const video = stage.locator("video");
     const button = stage.getByRole("button");
+    // A press where the button is on screen, as a person makes it. Firefox's click() scrolled the page
+    // first (y 3468 to 4071 with the button already in view), so most of the video left the screen, the
+    // player paused itself out of view, and the press then met "Play video" (CI run 43911676402).
+    const press = async () => {
+      const y = await page.evaluate(() => scrollY);
+      const box = (await button.boundingBox())!;
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      expect(await page.evaluate(() => scrollY), "the press didn't scroll the page").toBe(y);
+    };
     // Below the fold: no file yet (Linux WebKit fetches a source even with preload="none").
     await expect(stage).toHaveAttribute("data-video", "idle");
     await page.waitForTimeout(500);
@@ -531,11 +540,12 @@ test.describe("the About page", () => {
       await stage.evaluate((el) => {
         const v = el.querySelector("video")!;
         const log: string[] = ((window as unknown as { videoLog: string[] }).videoLog = []);
-        const note = (what: string) => log.push(`${Math.round(performance.now())} ${what} paused=${v.paused} state=${el.dataset.video}`);
+        const note = (what: string) => log.push(`${Math.round(performance.now())} ${what} paused=${v.paused} state=${el.dataset.video} y=${Math.round(scrollY)}`);
+        note("before click");
         for (const t of ["pointerdown", "pointerup", "click"]) el.querySelector("button")!.addEventListener(t, () => note(t), { capture: true });
         for (const t of ["play", "playing", "pause", "waiting", "seeking"]) v.addEventListener(t, () => note(t));
       });
-      await button.click();
+      await press();
       await expect(stage).toHaveAttribute("data-video", "paused").catch(async (e: Error) => {
         throw new Error(`${e.message}\nvideo log:\n${(await page.evaluate(() => (window as unknown as { videoLog: string[] }).videoLog)).join("\n")}`);
       });
@@ -546,7 +556,7 @@ test.describe("the About page", () => {
       await stage.scrollIntoViewIfNeeded();
       await page.waitForTimeout(800);
       expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
-      await button.click();
+      await press();
       // As long as the first start: a software decoder (Linux WebKit in CI) may need to fill its
       // buffer again after the pause (run 40590457063 was still "paused" at 5 s).
       await expect(stage).toHaveAttribute("data-video", "playing", { timeout: 15_000 });
