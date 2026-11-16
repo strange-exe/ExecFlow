@@ -258,19 +258,30 @@ test.describe("B9: Python's first start", () => {
 
 test.describe("B10: the C/C++ first run", () => {
   test.setTimeout(240_000);
+  test.use(
+    tolerating(
+      /^HTTP 503: http:\/\/127\.0\.0\.1:\d+\/clang\/[^/]+\/sysroot\.tar\.gz$/,
+      /^Failed to load resource: the server responded with a status of 503( \(.*\))?$/,
+    ),
+  );
 
-  test("Run, then Download: the program runs once the download is in, and the notice goes", async ({ page }) => {
-    // The last part of the pack is held back, so the download is seen running.
+  test("after a download that stopped, Run then Download: the program runs once it is in, and the notice goes", async ({ page }) => {
+    // Opening the C file starts the download by itself (0.33.3); that one is refused, so the pack is
+    // still missing when Run is pressed. The next one holds its last part back, so it is seen running.
+    let refuse = true;
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     await page.route("**/clang/*/sysroot.tar.gz", async (route) => {
+      if (refuse) return route.fulfill({ status: 503, body: "busy" });
       await held;
       await route.continue().catch(() => {});
     });
     await openApp(page);
     await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("pack ok"); return 0; }\n' }]);
     await openFromTree(page, "main.c");
-    await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
+    await expect(page.locator(".pack-offer")).toHaveAttribute("data-state", "failed", { timeout: 60_000 });
+    await expect(runtime(page)).toHaveAttribute("data-state", "absent");
+    refuse = false;
     const notice = page.locator(".notice");
 
     await page.locator("#run-button").click();
@@ -306,10 +317,9 @@ test.describe("B10: the C/C++ first run", () => {
     await openApp(page);
     await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("pack ok"); return 0; }\n' }]);
     await openFromTree(page, "main.c");
-    await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
+    // Opening the C file starts the download (0.33.3).
+    await expect(runtime(page)).toHaveAttribute("data-state", "downloading", { timeout: 30_000 });
     await showView(page, "output");
-    await page.locator("#pack-download").click();
-    await expect(runtime(page)).toHaveAttribute("data-state", "downloading");
     await expect(page.locator(".pack-offer")).not.toContainText("runs when it finishes");
     await page.locator("#run-button").click();
     await expect(page.locator(".notice")).toContainText("main.c runs as soon as it finishes.");

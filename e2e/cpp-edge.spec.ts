@@ -37,7 +37,7 @@ test.describe("a pack download that fails", () => {
   });
 });
 
-test("reloading in the middle of the pack download: the offer comes back and the download completes", async ({ page }) => {
+test("reloading in the middle of the pack download: it starts again by itself and completes", async ({ page }) => {
   let release!: () => void;
   const held = new Promise<void>((r) => (release = r));
   await page.route("**/clang/*/sysroot.tar.gz", async (route) => {
@@ -47,10 +47,8 @@ test("reloading in the middle of the pack download: the offer comes back and the
   await openApp(page);
   await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("ok"); return 0; }\n' }]);
   await openFromTree(page, "main.c");
-  await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
-  await showView(page, "output");
-  await page.locator("#pack-download").click();
-  await expect(runtime(page)).toHaveAttribute("data-state", "downloading");
+  // Opening the C file starts the download (0.33.3).
+  await expect(runtime(page)).toHaveAttribute("data-state", "downloading", { timeout: 30_000 });
   // Let the other files arrive first.
   await page.waitForTimeout(3000);
   await page.unroute("**/clang/*/sysroot.tar.gz");
@@ -117,17 +115,18 @@ const hasPackPart = (page: Page, part: string) =>
     return false;
   }, part);
 
-test("a pack that lost a part offers the download again on the next visit, instead of failing to start", async ({ page }) => {
+test("a pack that lost a part downloads again by itself on the next visit, instead of failing to start", async ({ page }) => {
+  let fetched = 0;
+  page.on("request", (r) => void (/\/clang\/[^/]+\/llvm\.core\.wasm\.gz$/.test(new URL(r.url()).pathname) && fetched++));
   await openApp(page);
   await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("ok"); return 0; }\n' }]);
   await openFromTree(page, "main.c");
   await installCpp(page);
   expect(await dropPackPart(page, "llvm.core.wasm")).toBe(true);
+  const before = fetched;
   await reloadApp(page);
-  await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
-  await showView(page, "output");
-  await expect(page.locator("#pack-download")).toBeVisible();
-  await page.locator("#pack-download").click();
+  // The reopened C file finds the part missing and fetches the pack again, with no press.
+  await expect.poll(() => fetched, { timeout: 60_000 }).toBeGreaterThan(before);
   await expect(runtime(page)).toHaveAttribute("data-state", /^(idle|booting|ready)$/, { timeout: 120_000 });
   const r = await run(page, { timeout: 150_000 });
   expect(r.status, r.output).toBe("ok");
@@ -143,9 +142,8 @@ test("a part that goes missing during the download is fetched again before the p
   await openApp(page);
   await importFiles(page, [{ name: "main.c", text: '#include <stdio.h>\nint main(void) { puts("ok"); return 0; }\n' }]);
   await openFromTree(page, "main.c");
-  await expect(runtime(page)).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
-  await showView(page, "output");
-  await page.locator("#pack-download").click();
+  // Opening the C file starts the download (0.33.3).
+  await expect(runtime(page)).toHaveAttribute("data-state", "downloading", { timeout: 30_000 });
   // The compiler and its resources come first; the sysroot is held back meanwhile.
   await expect.poll(() => hasPackPart(page, "resources.tar"), { timeout: 60_000 }).toBe(true);
   expect(await dropPackPart(page, "llvm.core.wasm")).toBe(true);

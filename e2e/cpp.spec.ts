@@ -1,4 +1,4 @@
-import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showFiles, showPanel, showView, test, treeItem } from "./helpers";
+import { clickTreeSpace, expect, importFiles, installCpp, openApp, openFromTree, run, setCode, showFiles, showPanel, showView, test, tolerating, treeItem } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 
@@ -21,18 +21,56 @@ int main(void) {
 }
 `;
 
-test("C and C++ need a one-time download, offered where the output appears", async ({ page }) => {
+// Owner, 2026-11-17: C and C++ download when a C or C++ file is first opened, as Python does, not on
+// a press of the offer's button. A failed download waits for Try again (no retry loop on a bad network).
+const PACK_PART = "**/clang/*/llvm.core.wasm.gz";
+const isPackPart = (url: string) => /\/clang\/[^/]+\/llvm\.core\.wasm\.gz$/.test(new URL(url).pathname);
+
+test("opening a C file starts the one-time C/C++ download by itself, with its progress where the output appears", async ({ page }) => {
+  test.setTimeout(180_000);
+  let fetched = 0;
+  page.on("request", (r) => void (isPackPart(r.url()) && fetched++));
   await openApp(page);
+  expect(fetched, "nothing is fetched before a C file is open").toBe(0);
   await page.locator('.starter[data-language="c"]').click();
   const runtime = page.locator("#status-runtime");
   await expect(runtime).toHaveAttribute("data-runtime", "cpp");
-  await expect(runtime).not.toHaveAttribute("data-state", /^(not-loaded|checking)$/, { timeout: 30_000 });
-  test.skip((await runtime.getAttribute("data-state")) !== "absent", "the pack is already installed in this browser profile");
-  await page.locator("#run-button").click();
-  await showView(page, "output");
-  await expect(page.locator("#pack-download")).toBeFocused();
-  await expect(page.locator("#pack-download")).toHaveText(/Download C\/C\+\+ \(\d+\.\d MB\)/);
-  await expect(page.locator(".notice")).toHaveAttribute("data-tone", "info");
+  // No press: the download starts and shows its progress in Output.
+  await expect(runtime).toHaveAttribute("data-state", /^(downloading|idle|booting|ready)$/, { timeout: 30_000 });
+  await expect.poll(() => fetched, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect(runtime).toHaveAttribute("data-state", /^(idle|booting|ready)$/, { timeout: 120_000 });
+  await expect(page.locator(".pack-offer")).toHaveAttribute("data-state", "hidden");
+  expect(fetched, "one download").toBe(1);
+});
+
+test.describe("a C/C++ download that fails by itself", () => {
+  test.use(
+    tolerating(
+      /^HTTP 503: http:\/\/127\.0\.0\.1:\d+\/clang\/[^/]+\/llvm\.core\.wasm\.gz$/,
+      /^Failed to load resource: the server responded with a status of 503( \(.*\))?$/,
+    ),
+  );
+  test("waits for Try again, and Try again finishes it", async ({ page }) => {
+    test.setTimeout(180_000);
+    let fail = true;
+    let fetched = 0;
+    page.on("request", (r) => void (isPackPart(r.url()) && fetched++));
+    await page.route(PACK_PART, (route) => (fail ? route.fulfill({ status: 503, body: "busy" }) : route.continue()));
+    await openApp(page);
+    await page.locator('.starter[data-language="c"]').click();
+    await showView(page, "output");
+    const offer = page.locator(".pack-offer");
+    await expect(offer).toHaveAttribute("data-state", "failed", { timeout: 60_000 });
+    await expect(page.locator("#pack-download")).toHaveText("Try again");
+    const tries = fetched;
+    // It isn't started over by itself: on a bad network the student chooses when.
+    await page.waitForTimeout(3000);
+    expect(fetched, "no automatic retry").toBe(tries);
+    await expect(offer).toHaveAttribute("data-state", "failed");
+    fail = false;
+    await page.locator("#pack-download").click();
+    await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", /^(idle|booting|ready)$/, { timeout: 120_000 });
+  });
 });
 
 test("multi-file C with a header, live scanf input, fopen of a data file, and the written file saved", async ({ page }) => {

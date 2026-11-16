@@ -1658,8 +1658,11 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     if (fresh.length) holdWritten(fresh.map((c) => ({ path: c.target, text: c.file.text })));
   }
 
-  // C/C++ download offer (in Output while a C or C++ file is open).
+  // C/C++ download (in Output while a C or C++ file is open). Like Python's, it starts by itself the
+  // first time a C or C++ file is open and the pack is missing (owner, 2026-11-17); the button is
+  // there for a download that stopped (Try again) and for a page that was offline at that moment.
   let packShown = false;
+  let packStartedByItself = false;
   output.onPackDownload = () => {
     runtimes.cppRunner?.download();
     // The service worker keeps the app (and, in WebKit, the pack's cache) for offline use: main.ts.
@@ -1676,6 +1679,13 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     // Only once the pack is in (or the runner isn't there yet) may a later offer open the panel again.
     if (!cpp) packShown = false;
     if (!cpp || (lang !== "c" && lang !== "cpp")) return output.showPack({ state: "hidden", loaded: 0, total: 0 });
+    // Once per page: a download that failed waits for Try again, so a bad network isn't hit in a loop.
+    // Offline, nothing can arrive: the offer stays for when the connection is back.
+    if (cpp.state === "absent" && !cpp.error && !packStartedByItself && navigator.onLine) {
+      packStartedByItself = true;
+      // After this render: download() reports its new state, which renders the offer again.
+      queueMicrotask(() => output.onPackDownload?.());
+    }
     // The offer is something to act on before any run: a collapsed panel opens to show it, once per
     // offer rather than on every visit to a C file, so a panel the user collapsed again stays so
     // (review B, 2026-10-18).

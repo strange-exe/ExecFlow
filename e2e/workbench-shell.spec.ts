@@ -7,7 +7,7 @@
 // no rail, Run on the run strip, Files a popover) is e2e/flow-board.spec.ts's; the rail is checked
 // under 1100 px here.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, reloadApp, run, showPanel, test } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, reloadApp, run, showPanel, test, tolerating } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -186,10 +186,19 @@ test.describe("desktop", () => {
 // the page scrolled sideways (146 px at 900, 7 px at 1100) and Run was cut off at the right edge.
 // From 1100 px (Flow Board S2) Run and the runtime state are on the run strip at the code board's
 // foot instead, held to the same rules.
+// Since 0.33.3 the download starts by itself when a C file opens; those words come back when it
+// fails, so the pack is refused here to hold them.
 test.describe("the top bar (from 1100 px the run strip) with a long runtime state", () => {
+  test.use(
+    tolerating(
+      /^HTTP 503: http:\/\/127\.0\.0\.1:\d+\/clang\/[^/]+\/llvm\.core\.wasm\.gz$/,
+      /^Failed to load resource: the server responded with a status of 503( \(.*\))?$/,
+    ),
+  );
   for (const width of [900, 1000, 1099, 1100, 1279, 1280, 1366, 1440]) {
     test(`${width} px: the page never scrolls sideways and Run stays whole; the words stay in the name`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
+      await page.route("**/clang/*/llvm.core.wasm.gz", (route) => route.fulfill({ status: 503, body: "busy" }));
       await openApp(page);
       await importFiles(page, [{ name: "main.c", text: "int main(void) {\n    return 0;\n}\n" }]);
       await openFromTree(page, "main.c");
