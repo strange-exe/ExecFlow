@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.33.2",
+    date: "2026-11-16",
+    title: "Renaming with Chinese, Japanese or Korean input",
+    items: [
+      { kind: "fixed", text: "Renaming a file or folder with a Chinese, Japanese or Korean keyboard: the Enter that picks a word no longer saves the name half typed, and Escape no longer cancels the rename." },
+    ],
+  },
+  {
     version: "0.33.1",
     date: "2026-11-15",
     title: "A tidier shared-code preview",

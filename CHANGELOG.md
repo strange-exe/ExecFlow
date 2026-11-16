@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.33.2] - 2026-11-16
+
+Renaming with Chinese, Japanese or Korean input
+
+### Fixed
+
+- Renaming a file or folder with a Chinese, Japanese or Korean keyboard: the Enter that picks a word no longer saves the name half typed, and Escape no longer cancels the rename.
+
 ## [0.33.1] - 2026-11-15
 
 A tidier shared-code preview
