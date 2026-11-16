@@ -15,7 +15,8 @@
     "e2e": "playwright test",
     "e2e:speed": "playwright test --project=speed --no-deps",
     "gen:completions:c": "node scripts/gen-c-completions.mjs",
-    "gen:completions:python": "node scripts/gen-python-completions.mjs"
+    "gen:completions:python": "node scripts/gen-python-completions.mjs",
+    "tag-releases": "node scripts/tag-releases.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
