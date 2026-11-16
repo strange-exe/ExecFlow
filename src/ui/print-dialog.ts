@@ -11,7 +11,7 @@ import {
   type PrintMessage, type PrintOptions,
 } from "../core/print";
 import type { PrintedFile, PrintSource } from "../editor/print-render";
-import { dialogShell, openModal } from "./dialogs";
+import { closesDialog, dialogShell, openModal } from "./dialogs";
 import { h } from "./dom";
 import { icon } from "./icons";
 import type { Notice } from "./notice";
@@ -127,7 +127,7 @@ export function openPrintDialog(args: PrintDialogArgs): void {
   all.addEventListener("click", () => setAll(true));
   none.addEventListener("click", () => setAll(false));
   for (const input of boxesByPath.values()) input.addEventListener("change", () => input.checked && showError(null));
-  cancel.addEventListener("click", () => dialog.close());
+  closesDialog(cancel, dialog);
 
   const say = (m: PrintMessage | null) => {
     if (!m) {

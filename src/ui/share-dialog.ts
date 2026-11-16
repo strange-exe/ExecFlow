@@ -38,7 +38,7 @@ import type { GistBody } from "../sync/github";
 import type * as ShareRules from "../sync/share";
 import type { RepoLinkState } from "../sync/share";
 import type { AuthKind } from "../sync/repo-check";
-import { dialogShell, openModal } from "./dialogs";
+import { closesDialog, dialogShell, openModal } from "./dialogs";
 import { h, shown, svg } from "./dom";
 import { icon } from "./icons";
 import type { Notice } from "./notice";
@@ -172,7 +172,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
   const result = h("p", { class: "result-line connect-result share-result", id: "share-result", role: "status" });
   const cancel = h("button", { type: "button", class: "btn", id: "share-cancel" }, "Cancel");
   const primary = h("button", { type: "button", class: "btn primary", id: "share-primary" });
-  cancel.addEventListener("click", () => dialog.close());
+  closesDialog(cancel, dialog);
   dialog.append(h("div", { class: "dialog-actions share-actions" }, cancel, primary));
 
   /** One sentence in the result line: an error or a warning on the band, or a plain "done". */

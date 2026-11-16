@@ -9,7 +9,7 @@
 // removed when it closes; the text only leaves it through `start`.
 import { SUBJECT_MAX, cleanSubject } from "../sync/commit-message";
 import { h, plural } from "./dom";
-import { openModal } from "./dialogs";
+import { closesDialog, openModal } from "./dialogs";
 import { createAnnouncer } from "./notice";
 import { syncIcon } from "./sync-icons";
 
@@ -101,8 +101,8 @@ export function openMessageDialog(deps: MessageDeps): void {
     started = true;
     dialog.close();
   });
-  cancel.addEventListener("click", () => dialog.close());
-  close.addEventListener("click", () => dialog.close());
+  closesDialog(cancel, dialog);
+  closesDialog(close, dialog);
   dialog.addEventListener(
     "close",
     () => {

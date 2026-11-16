@@ -92,6 +92,20 @@ function watchScroll(dialog: HTMLDialogElement): () => void {
   return measure;
 }
 
+/**
+ * Makes a Cancel or close button close its dialog. Where the browser has HTML invoker commands the
+ * button names the dialog as its command target (command="close"), with no script on the click;
+ * older browsers we still support (Firefox before 144, Safari before 26.2) get a click listener.
+ */
+export function closesDialog(button: HTMLButtonElement, dialog: HTMLDialogElement): void {
+  if ("commandForElement" in HTMLButtonElement.prototype) {
+    button.command = "close";
+    button.commandForElement = dialog;
+  } else {
+    button.addEventListener("click", () => dialog.close());
+  }
+}
+
 /** A dialog shell: title, a close button, and a body. Labelled by its title. */
 export function dialogShell(id: string, title: string, options: { wide?: boolean } = {}): { dialog: HTMLDialogElement; body: HTMLElement; close: HTMLButtonElement } {
   const close = h("button", { type: "button", class: "icon-btn", "aria-label": "Close", title: "Close (Esc)" }, icon("x"));
@@ -102,7 +116,7 @@ export function dialogShell(id: string, title: string, options: { wide?: boolean
     h("div", { class: "dialog-head" }, h("h2", { id: `${id}-title`, class: "dialog-title" }, title), close),
     body,
   );
-  close.addEventListener("click", () => dialog.close());
+  closesDialog(close, dialog);
   // A click on the backdrop (outside the dialog box) closes it, like Escape; but never the second
   // click of a double click (the first may have opened this dialog), and never a press that began
   // inside the box (a text selection or a scrollbar drag released outside).
@@ -152,7 +166,7 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
       h("div", { class: "dialog-actions" }, cancel, confirm),
     );
     let answer = false;
-    cancel.addEventListener("click", () => dialog.close());
+    closesDialog(cancel, dialog);
     confirm.addEventListener("click", () => {
       answer = true;
       dialog.close();

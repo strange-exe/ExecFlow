@@ -17,7 +17,7 @@
 // Connect, said by the same live region; focus stays where it was.
 import { validateTokenShape } from "../sync/token-store";
 import { h } from "./dom";
-import { openModal } from "./dialogs";
+import { closesDialog, openModal } from "./dialogs";
 import { createAnnouncer } from "./notice";
 import { branchProblem, ownerProblem, parseRepoInput, repoProblem, tokenPageUrl } from "./sync-form";
 import { syncIcon } from "./sync-icons";
@@ -347,8 +347,8 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
       if (tokenPanel.hidden) return;
       if (!busy) void attempt().finally(() => (dialog.dataset.attempts = String(++attempts)));
     });
-    cancel.addEventListener("click", () => dialog.close());
-    close.addEventListener("click", () => dialog.close());
+    closesDialog(cancel, dialog);
+    closesDialog(close, dialog);
 
     async function attempt() {
       say("");

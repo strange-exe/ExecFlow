@@ -8,7 +8,7 @@ import { nameOf } from "../core/paths";
 import type { WsPath } from "../core/types";
 import type { FirstConnectChoice } from "../sync/engine";
 import { h } from "./dom";
-import { dialogShell, openModal } from "./dialogs";
+import { closesDialog, dialogShell, openModal } from "./dialogs";
 import { syncIcon } from "./sync-icons";
 
 export class FirstConnectCancelled extends Error {
@@ -84,8 +84,8 @@ export function askFirstConnect(repo: string, returnFocus?: HTMLElement | null):
       choice = radios.find((r) => r.input.checked)?.choice.value ?? "merge";
       dialog.close();
     });
-    cancel.addEventListener("click", () => dialog.close());
-    close.addEventListener("click", () => dialog.close());
+    closesDialog(cancel, dialog);
+    closesDialog(close, dialog);
     dialog.addEventListener(
       "close",
       () => {

@@ -18,7 +18,7 @@ import { detectLanguage } from "../core/languages";
 import { readCodeLink, readRefusalText, type ReadResult, type SharedFile, type SharedFolder } from "../core/code-link";
 import { openShortLink, shortLinkId, shortReadRefusalText } from "../core/short-link";
 import { createCodePreview, type CodePreview, type PreviewDeps } from "./code-preview";
-import { dialogShell, openModal } from "./dialogs";
+import { closesDialog, dialogShell, openModal } from "./dialogs";
 import { h, plural, shown } from "./dom";
 import { freeName } from "./examples";
 import { icon } from "./icons";
@@ -102,7 +102,7 @@ function frame(title: string, what: string, lede: string, deps: CodeLinkDeps, re
   const cancel = h("button", { type: "button", class: "btn", id: "code-link-cancel" }, "Not now");
   const add = h("button", { type: "button", class: "btn primary", id: "code-link-add" }, "Add to my files");
   dialog.append(h("div", { class: "dialog-actions" }, cancel, preview.runButton, add));
-  cancel.addEventListener("click", () => dialog.close());
+  closesDialog(cancel, dialog);
   dialog.addEventListener(
     "close",
     () => {

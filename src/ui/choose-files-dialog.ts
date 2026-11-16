@@ -14,7 +14,7 @@ import { linkOf, MAX_LINK_CHARS, MAX_LINK_FILES, packFile, packFolder, type Make
 import { isInside, joinPath, nameOf, parentOf } from "../core/paths";
 import { shortMakeRefusalText } from "../core/short-link";
 import { coverPicks, linkFolder, zipName } from "../storage/export-pick";
-import { dialogShell, openModal } from "./dialogs";
+import { closesDialog, dialogShell, openModal } from "./dialogs";
 import { h, plural, shown } from "./dom";
 import { icon } from "./icons";
 import { DEFAULT_TTL, expiryDay, expiryField, makeShort, SHORT_NOTE, type LinkTtl } from "./short-link-ui";
@@ -161,7 +161,7 @@ export async function openChooseFiles(deps: ChooseFilesDeps, opener?: HTMLElemen
   update();
 
   let busy = false;
-  cancel.addEventListener("click", () => dialog.close());
+  closesDialog(cancel, dialog);
   download.addEventListener("click", async (e) => {
     if (e.detail > 1 || busy) return;
     const p = picks();
