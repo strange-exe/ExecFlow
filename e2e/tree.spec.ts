@@ -135,6 +135,43 @@ test("F2, Delete and the context menu work from the keyboard, and focus comes ba
   await expect(more).toHaveAttribute("aria-expanded", "false");
 });
 
+test("Enter or Escape that ends an IME composition leaves the name field alone", async ({ page }) => {
+  // Found by the legacy scan (2026-11-16): with a Chinese, Japanese or Korean input method, the Enter
+  // that picks a candidate (or the Escape that drops one) reaches the field as a keydown while the
+  // composition is still open. The rename field took it as "save" (or "cancel") mid-word. Browsers mark
+  // that keydown with isComposing, and Safari's late compositionend leaves only keyCode 229 to go by.
+  await setUp(page);
+  await treeItem(page, "beta.py").focus();
+  await page.keyboard.press("F2");
+  const field = page.getByRole("textbox", { name: "New name for beta.py" });
+  await expect(field).toBeFocused();
+  await field.fill("kanji.py");
+  const composingKey = (key: string, mark: "isComposing" | "keyCode229") =>
+    page.evaluate(
+      async ([key, mark]) => {
+        const input = document.querySelector<HTMLInputElement>(".tree-input")!;
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, isComposing: mark === "isComposing" });
+        if (mark === "keyCode229") Object.defineProperty(event, "keyCode", { value: 229 });
+        input.dispatchEvent(event);
+        // Give a commit (it is async) time to land, so a missing guard fails below.
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      },
+      [key, mark] as const,
+    );
+  for (const mark of ["isComposing", "keyCode229"] as const) {
+    for (const key of ["Enter", "Escape"]) {
+      await composingKey(key, mark);
+      await expect(field, `${key} with ${mark}`).toBeFocused();
+      await expect(field).toHaveValue("kanji.py");
+      await expect(treeItem(page, "kanji.py")).toHaveCount(0);
+    }
+  }
+  // Once the composition is over, Enter saves the name as before.
+  await field.press("Enter");
+  await expect(treeItem(page, "kanji.py")).toBeFocused();
+  await expect(treeItem(page, "beta.py")).toHaveCount(0);
+});
+
 test("a menu opened before the delete question's close event keeps its focus", async ({ page }) => {
   // The close event comes a task after the dialog closes (HTML queues it), once the browser has put
   // focus back on the item. Chromium fires it after Escape's keyup, so a key can come first: under load

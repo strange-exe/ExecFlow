@@ -576,6 +576,10 @@ export class FileTree {
     };
     input.addEventListener("keydown", (e) => {
       e.stopPropagation();
+      // An Enter or Escape that ends an IME composition (Chinese, Japanese, Korean input) belongs to the
+      // input method, not to the field. Safari can clear isComposing before this keydown runs (WebKit bug
+      // 165004), so keyCode 229 (an input method's key) is checked too.
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === "Enter") {
         e.preventDefault();
         void submit(false);
