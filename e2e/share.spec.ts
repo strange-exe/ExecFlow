@@ -312,14 +312,33 @@ test.describe("the repository link", () => {
     expect(sel.end).toBe(sel.length);
   });
 
-  test("a read-only second tab doesn't share: it says so, as it does for its other sync actions", async ({ page, context }) => {
+  // Owner, 2026-11-17: a code link or a short link writes nothing to the workspace, so a read-only tab
+  // makes them; the repository link and the gist stay with the tab that edits (they sync or use its sign-in).
+  test("a read-only second tab makes code links and short links; GitHub's two wait for the tab that edits", async ({ page, context }) => {
     await connected(page);
     const second = await context.newPage();
     await openApp(second);
     await expect(second.locator("#app")).toHaveAttribute("data-role", "reader");
-    await shareFromTreeNoDialog(second, "main.py");
-    await expect(second.locator(".notice")).toContainText("This tab is read-only, so it doesn't share from GitHub");
-    await expect(second.locator("#share-dialog")).toHaveCount(0);
+    const pick = async (kind: "code" | "short" | "repo" | "gist") => {
+      await second.locator(`#share-${kind}`).check();
+      await second.locator(`#share-${kind}`).focus();
+    };
+    await shareFromTree(second, "main.py", "code");
+    await expect(dialog(second)).toHaveAttribute("data-state", "code");
+    await expect(link(second)).toHaveValue(/#/);
+    await pick("short");
+    await expect(dialog(second)).toHaveAttribute("data-state", "short-ready");
+    await expect(primary(second)).toHaveText("Make short link");
+    for (const kind of ["repo", "gist"] as const) {
+      await pick(kind);
+      await expect(dialog(second), kind).toHaveAttribute("data-state", "read-only");
+      await expect(second.locator("#share-pending")).toContainText("the tab that edits");
+      await expect(primary(second), kind).toBeHidden();
+    }
+    // Back on the code link, the button comes back.
+    await pick("code");
+    await expect(primary(second)).toBeVisible();
+    await expect(primary(second)).toHaveText("Copy link");
   });
 
   test("the command palette opens it for the open file", async ({ page }) => {
@@ -334,12 +353,6 @@ test.describe("the repository link", () => {
     await expect(page.locator("#share-dialog-title")).toHaveText("Share main.py");
   });
 });
-
-async function shareFromTreeNoDialog(page: Page, path: string) {
-  await showFiles(page);
-  await treeItem(page, path).locator(":scope > .tree-row").click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Share link..." }).click();
-}
 
 test.describe("the public link (a secret gist)", () => {
   test("says it isn't private before anything exists, sends nothing until Create link, then one secret gist", async ({ page }) => {
@@ -660,9 +673,11 @@ test.describe("attacker pass", () => {
     const writes = gh.fake.writes().length;
     await page.locator("#share-sync").click();
     await expect(result(page)).toContainText("This tab became read-only");
+    // The dialog is now a read-only tab's: GitHub's links wait for the tab that edits (no Create link).
+    await expect(dialog(page)).toHaveAttribute("data-state", "read-only");
     await page.locator("#share-gist").check();
-    await primary(page).click();
-    await expect(result(page)).toContainText("This tab became read-only");
+    await expect(page.locator("#share-pending")).toContainText("the tab that edits");
+    await expect(primary(page)).toBeHidden();
     expect(gistPosts(gh)).toEqual([]);
     expect(gh.fake.writes().length).toBe(writes);
   });

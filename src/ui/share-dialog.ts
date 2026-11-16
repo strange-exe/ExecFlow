@@ -47,6 +47,8 @@ import { DEFAULT_TTL, expiryDay, expiryField, SHORT_NOTE, type LinkTtl } from ".
 export type ShareState =
   | { kind: "not-connected" }
   | { kind: "missing" }
+  /** Another tab edits this workspace: code and short links work here, GitHub's links in that tab. */
+  | { kind: "read-only" }
   /** `private`: the repository's visibility stored when connecting (null: not recorded). */
   | { kind: "connected"; repo: string; link: RepoLinkState; opaque: boolean; private: boolean | null };
 
@@ -224,6 +226,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     else delete dialog.dataset.public;
   };
   if (state.kind === "connected") showAudience(state.private);
+  else if (state.kind === "read-only") repoWho.textContent = "The file in your GitHub repository: made in the tab that edits this workspace.";
   else repoWho.textContent = "The file in your GitHub repository: connect GitHub first.";
   const repoRadio = radio("repo", "People with access to the repository", [repoWho]);
   const gistRadio = radio("gist", "Anyone with the link (a secret gist)", [
@@ -401,6 +404,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     const c = choice();
     dialog.dataset.choice = c;
     syncButton = null;
+    primary.hidden = false;
     // One filled control: Sync now while the repository link waits for it, else the footer's action.
     primary.classList.add("primary");
     // Once a gist exists there is nothing left to cancel.
@@ -471,6 +475,19 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
         field.querySelector("select")!.setAttribute("aria-describedby", "share-ttl-note");
         setPrimary("link-simple", shortMaking ? "Making short link..." : "Make short link");
       }
+    } else if (state.kind === "read-only") {
+      // Nothing to press here: these two sync or use the editing tab's sign-in, so they are made there.
+      dialog.dataset.state = "read-only";
+      panel.replaceChildren(
+        h(
+          "p",
+          { class: "share-pending", id: "share-pending" },
+          c === "repo"
+            ? "This tab is read-only (another tab edits this workspace), and this link needs a sync, so make it in the tab that edits. A code link or a short link works from here."
+            : "This tab is read-only (another tab edits this workspace), so the gist is made in the tab that edits. A code link or a short link works from here.",
+        ),
+      );
+      primary.hidden = true;
     } else if (state.kind !== "connected") {
       dialog.dataset.state = "not-connected";
       panel.replaceChildren(
@@ -549,6 +566,8 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (!dialog.open) return;
     state = next;
     render();
+    // Became read-only meanwhile: the sync's own sentence says so (code links still work here).
+    if (state.kind === "read-only") return say(problem ?? MISSING, "error");
     if (state.kind !== "connected") return say(MISSING, "error");
     if (state.link.kind === "ready") {
       say(`Synced. The link shows ${name} as it is now.`, "done");
@@ -648,6 +667,7 @@ export async function openShareDialog(deps: ShareDeps): Promise<void> {
     if (url) return void copy(url);
     if (choice() === "code") return code && "problem" in code ? say(code.problem, "error") : undefined;
     if (choice() === "short") return void makeShort();
+    if (state.kind === "read-only") return;
     if (state.kind !== "connected") {
       dialog.close();
       return deps.connect();

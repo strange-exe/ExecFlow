@@ -822,11 +822,10 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
   }
 
   async function share(path: WsPath, returnFocus: HTMLElement | null) {
-    // A read-only tab neither syncs nor holds the sync's state: the editing tab shares.
-    if (!host.tab.canWrite()) {
-      host.notice.show("This tab is read-only, so it doesn't share from GitHub: the tab that edits this workspace does. Choose Edit here to share from this tab.", { tone: "info" });
-      return;
-    }
+    // A read-only tab neither syncs nor holds the sync's state, so GitHub's links (the repository's,
+    // a gist) are made in the editing tab; a code link or a short link only reads the saved file, so
+    // it is made here too (owner, 2026-11-17).
+    const readOnlyTab = !host.tab.canWrite();
     // Typing not saved yet counts as a change: the link must show what the student sees.
     await host.flushSaves().catch(() => {});
     let m: typeof import("./share-dialog");
@@ -841,7 +840,14 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       path,
       rules: shareRules,
       externalIcon: () => syncIcon("arrow-square-out", "ext-icon"),
-      state: () => shareState(path),
+      state: async () => {
+        if (!host.tab.canWrite()) {
+          // Still a file of this workspace? (It may have been deleted in the editing tab.)
+          const entry = await host.store.getEntry(host.ws, path);
+          return entry?.kind === "file" ? { kind: "read-only" } : { kind: "missing" };
+        }
+        return shareState(path);
+      },
       async repoPrivate() {
         if (!client || !navigator.onLine) return null;
         let isPrivate: boolean;
@@ -874,7 +880,7 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
       },
       readOnly: () => (host.tab.canWrite() ? null : READ_ONLY_SHARE),
       notice: host.notice,
-      createGist: c
+      createGist: c && !readOnlyTab
         ? async (body, signal) => {
             const now = client;
             if (!now) throw new GitHubError("auth", 401, "createGist", "Creating the gist wasn't tried: there is no token in this tab");
