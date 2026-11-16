@@ -35,6 +35,11 @@ export interface CodeLinkDeps {
   taken(path: string): boolean;
   /** `path` when the workspace has a file there whose text is exactly `text` (else null). */
   same(path: string, text: string): Promise<string | null>;
+  /**
+   * The top-level folder whose files are exactly `files` (the same names, as storage compares them,
+   * and the same text; nothing more), else null: a folder link opened twice opens the first copy.
+   */
+  sameFolder(files: readonly SharedFile[]): Promise<string | null>;
   /** Opens a file already in the workspace (the copy a link would otherwise add again). */
   open(path: string): Promise<void>;
   /**
@@ -216,12 +221,25 @@ function offer(read: Extract<ReadResult, { ok: true }>, noun: string, deps: Code
  */
 function openFolder(folder: SharedFolder, deps: CodeLinkDeps, reopen: () => void): void {
   const f = frame(`Folder ${shown(folder.name)}`, `the folder ${shown(folder.name)}`, "Shared with you in a link. It isn't in your files, and nothing in it runs until you press Run.", deps, reopen);
+  /** A top-level folder holding exactly these files (names and text): Add opens it rather than adding a copy. */
+  let same: string | null = null;
   const target = (): string => {
     const free = freeName(folder.name, deps.taken);
-    f.about.textContent = `${plural(folder.files.length, "file")}, added as a new folder at the top of your files.${free === folder.name ? "" : ` You already have something named ${shown(folder.name)}, so this one is added as ${shown(free)}.`}`;
+    const where = same
+      ? ` You already have this folder, as ${shown(same)}.`
+      : free === folder.name ? "" : ` You already have something named ${shown(folder.name)}, so this one is added as ${shown(free)}.`;
+    f.about.textContent = `${plural(folder.files.length, "file")}, added as a new folder at the top of your files.${where}`;
+    f.add.textContent = same ? `Open ${shown(same)}` : "Add to my files";
     return free;
   };
   target();
+  void deps.sameFolder(folder.files).then(
+    (path) => {
+      same = path;
+      target();
+    },
+    () => {},
+  );
   // Which file the preview shows: a native select, the same on a phone as with a keyboard. The first
   // one that runs is shown first (a program, not its header).
   const first = Math.max(0, folder.files.findIndex((file) => detectLanguage(file.name)));
@@ -230,7 +248,17 @@ function openFolder(folder: SharedFolder, deps: CodeLinkDeps, reopen: () => void
   const show = () => f.preview.show(folder.files[Number(picker.value)], folder.files);
   picker.addEventListener("change", show);
   f.meta.append(h("div", { class: "code-link-file" }, h("label", { for: "code-link-file" }, "File"), picker));
-  wireAdd(f, () => deps.addFolder(target(), folder.files), "The folder wasn't added");
+  wireAdd(
+    f,
+    async () => {
+      same = await deps.sameFolder(folder.files).catch(() => null);
+      if (!same) return deps.addFolder(target(), folder.files);
+      // The file the preview would show first, in the copy already there.
+      await deps.open(`${same}/${folder.files[first].name}`);
+      return null;
+    },
+    "The folder wasn't added",
+  );
   show();
   openModal(f.dialog, f.preview.code, backToCode);
   f.dialog.dataset.state = "ready";

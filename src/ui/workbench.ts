@@ -2668,6 +2668,26 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
             await saves.flushAll();
             return (await store.readFile(ws, entry.path).catch(() => null)) === text ? entry.path : null;
           },
+          // A top-level folder with exactly the link's files, saved text included: the first copy opens.
+          sameFolder: async (files) => {
+            const wanted = new Map(files.map((f) => [foldKey(f.name), f.text]));
+            const candidates = entries.filter((e) => e.kind === "dir" && !e.path.includes("/"));
+            if (candidates.length) await saves.flushAll();
+            for (const dir of candidates) {
+              const inside = entries.filter((e) => e.kind === "file" && isInside(e.path, dir.path));
+              if (inside.length !== wanted.size) continue;
+              let match = true;
+              for (const e of inside) {
+                const text = wanted.get(foldKey(e.path.slice(dir.path.length + 1)));
+                if (text === undefined || (await store.readFile(ws, e.path).catch(() => null)) !== text) {
+                  match = false;
+                  break;
+                }
+              }
+              if (match) return dir.path;
+            }
+            return null;
+          },
           open: async (p) => {
             tree.reveal(p);
             await openFile(p, { focus: true });

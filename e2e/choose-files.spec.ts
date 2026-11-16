@@ -84,7 +84,7 @@ test("Download and Share link with nothing ticked say so, and do nothing", async
   await expect(dialog).toHaveAttribute("data-state", "ready");
 });
 
-test("a shared folder opens in another browser as a new folder, previewed first; a second add is lab1-2", async ({ page, browser }) => {
+test("a shared folder opens in another browser as a new folder, previewed first; the same folder again opens it; a changed one is lab1-2", async ({ page, browser }) => {
   await openApp(page);
   await lab(page);
   const dialog = await openChooser(page);
@@ -100,22 +100,42 @@ test("a shared folder opens in another browser as a new folder, previewed first;
   const other = await browser.newContext();
   const them = await other.newPage();
   await openApp(them);
-  for (const expected of ["lab1", "lab1-2"]) {
+  const open = them.locator("dialog.code-link");
+  const offered = async () => {
     await them.goto(url);
-    const open = them.locator("dialog.code-link");
     await expect(open).toHaveAttribute("data-state", "ready");
     await expect(open.locator(".dialog-title")).toHaveText("Folder lab1");
-    await expect(open.locator("#code-link-preview")).toContainText("#include");
-    await open.locator("#code-link-file").selectOption({ label: "util.h" });
-    await expect(open.locator("#code-link-preview")).toContainText("twice");
-    if (expected === "lab1-2") await expect(open.locator("#code-link-about")).toContainText("so this one is added as lab1-2");
-    await open.locator("#code-link-add").click();
-    await expect(open).toHaveCount(0);
-    await showFiles(them);
-    await expect(treeItem(them, `${expected}/main.c`)).toBeVisible();
-    await expect(treeItem(them, `${expected}/util.h`)).toBeVisible();
-    await expect(them.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", `${expected}/main.c`);
-  }
+  };
+  await offered();
+  await expect(open.locator("#code-link-preview")).toContainText("#include");
+  await open.locator("#code-link-file").selectOption({ label: "util.h" });
+  await expect(open.locator("#code-link-preview")).toContainText("twice");
+  await open.locator("#code-link-add").click();
+  await expect(open).toHaveCount(0);
+  await showFiles(them);
+  await expect(treeItem(them, "lab1/main.c")).toBeVisible();
+  await expect(treeItem(them, "lab1/util.h")).toBeVisible();
+  await expect(them.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", "lab1/main.c");
+
+  // The same folder again (owner, 2026-11-17): the copy already there opens, no lab1-2.
+  await offered();
+  await expect(open.locator("#code-link-about")).toContainText("You already have this folder, as lab1.");
+  await expect(open.locator("#code-link-add")).toHaveText("Open lab1");
+  await open.locator("#code-link-add").click();
+  await expect(open).toHaveCount(0);
+  await expect(them.locator('.tabs [role=tab][aria-selected="true"]')).toHaveAttribute("title", "lab1/main.c");
+  await showFiles(them);
+  await expect(treeItem(them, "lab1-2")).toHaveCount(0);
+
+  // Once a file in it changed, the link's folder is another one: it is added beside it as lab1-2.
+  await setCode(them, "// changed\n");
+  await offered();
+  await expect(open.locator("#code-link-about")).toContainText("so this one is added as lab1-2");
+  await expect(open.locator("#code-link-add")).toHaveText("Add to my files");
+  await open.locator("#code-link-add").click();
+  await expect(open).toHaveCount(0);
+  await showFiles(them);
+  await expect(treeItem(them, "lab1-2/main.c")).toBeVisible();
   await other.close();
 });
 
