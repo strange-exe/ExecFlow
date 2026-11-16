@@ -13,6 +13,31 @@ import { OPEN_RELEASES, olderLabel, olderRange } from "../src/about/timeline";
 import { expect, hierarchyShots, openIn, test, tolerating } from "./helpers";
 import { contrast } from "./pixels";
 
+/**
+ * Waits until the section holding `selector` has arrived (its reveal slide starts when it scrolls into
+ * view) and the page's time-based motion has finished, so a box is measured at rest. Mid-slide its top
+ * and bottom sit at fractional offsets far down the page, and a 44 px row measured 43.999755859375 (CI,
+ * Chromium, 2026-11-16). Scroll-driven and endless animations never finish, so they are left out.
+ */
+async function settled(page: import("@playwright/test").Page, selector: string) {
+  await expect
+    .poll(() =>
+      page.evaluate((selector) => {
+        const section = document.querySelector(selector)!.closest("section")!;
+        return !section.classList.contains("will-reveal") || section.classList.contains("is-in");
+      }, selector),
+    )
+    .toBe(true);
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.timeline === document.timeline && a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 function shotsDir(info: TestInfo): string {
@@ -436,6 +461,7 @@ test.describe("the About page", () => {
       for (const width of [390, 320]) {
         await page.setViewportSize({ width, height: 800 });
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), `${width} px`).toBe(false);
+        await settled(page, "#changelog button");
         const heights = await page.locator("#changelog button").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
         expect(Math.min(...heights), `${width} px`).toBeGreaterThanOrEqual(44);
       }
@@ -895,6 +921,7 @@ test.describe("the theme preview", () => {
     await more.click();
     expect(await visible()).toBe(picks.length);
     await expect(more).toBeHidden();
+    await settled(page, ".tp-choice");
     const heights = await page.locator(".tp-choice").evaluateAll((ls) => ls.map((l) => l.getBoundingClientRect().height));
     expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
