@@ -23,7 +23,11 @@ export class ArgsField {
   private path: WsPath | null = null;
 
   /** `row`: the empty #args-row output.ts keeps in the Input box. */
-  constructor(private readonly row: HTMLElement, store: RunArgsStore | null) {
+  /** An error said a moment after the field was left (cancelled by a newer edit or Run). */
+  private sayTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** `say`: the page's polite live region, for an error that shows after the field was left. */
+  constructor(private readonly row: HTMLElement, store: RunArgsStore | null, private readonly say: (text: string) => void = () => {}) {
     this.memory = new RunArgsMemory(store);
     this.field = h("input", {
       id: "args-field",
@@ -46,12 +50,20 @@ export class ArgsField {
       h("p", { class: "args-note", id: "args-note" }, 'Split at spaces. "Two words" in quotes stay one argument.'),
     );
     this.field.addEventListener("input", () => {
+      clearTimeout(this.sayTimer);
       if (this.path === null) return;
       this.memory.set(this.path, this.field.value);
       if (row.dataset.state === "invalid") this.check();
       else this.setError(null);
     });
-    this.field.addEventListener("change", () => this.check());
+    // Leaving the field (or Enter) can show an error nobody hears: it is said a moment later, once
+    // the focus move has been read (guide "validate-input-after-interaction").
+    this.field.addEventListener("change", () => {
+      this.check();
+      clearTimeout(this.sayTimer);
+      const reason = this.row.dataset.state === "invalid" ? this.error.textContent : null;
+      if (reason) this.sayTimer = setTimeout(() => this.say(`Arguments: ${reason}`), 500);
+    });
     // Texts read again from storage (at start, or after another tab wrote) may change the one shown.
     this.memory.onLoad(() => this.show(this.path, false));
   }
@@ -106,6 +118,7 @@ export class ArgsField {
    * there, so the caller says the message instead (nothing would be heard otherwise).
    */
   explain(reason: string): boolean {
+    clearTimeout(this.sayTimer);
     this.setError(reason);
     const already = document.activeElement === this.field;
     if (!already) this.field.focus();

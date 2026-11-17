@@ -154,7 +154,7 @@ test("selects for the standards and optimisation; every field note sits under it
     }),
   );
   // Statuses, not field notes: storage, GitHub, and the theme picker's count of families shown
-  // (Appearance is the picker since 0.15.0; the count is role=status, described by no control).
+  // (Appearance is the picker since 0.15.0; the count describes no control, #theme-status says it).
   for (const n of notes.filter((x) => !["storage-status", "github-status", "theme-count"].includes(x.id))) {
     expect(n.owners, `${n.id}: one owner`).toBe(1);
     expect(n.inRow, `${n.id}: inside its own field's row`).toBe(true);

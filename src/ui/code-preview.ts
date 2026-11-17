@@ -104,7 +104,7 @@ export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps):
   const tabs = h("div", { class: "code-link-views", id: "code-link-views", role: "tablist", "aria-label": "Show" }, codeTab, chartTab);
   const codePane = h("div", { class: "code-link-code", id: "code-link-preview", role: "tabpanel", "aria-labelledby": "code-link-tab-code" }, view.dom);
   const chartNote = h("p", { class: "code-link-chart-note field-note" });
-  const picker = h("select", { id: "code-link-function", "aria-label": "Function" });
+  const picker = h("select", { id: "code-link-function" });
   const pickRow = h("div", { class: "code-link-pick", hidden: true }, h("label", { for: "code-link-function" }, "Function"), picker);
   // A chart taller or wider than its pane scrolls: a keyboard stop of its own, so arrows can scroll it.
   const stage = h("div", { class: "code-link-stage", role: "region", "aria-label": "Flowchart", tabindex: "0" });
@@ -169,12 +169,14 @@ export function createCodePreview(dialog: HTMLDialogElement, deps: PreviewDeps):
   // Hidden until a run starts: an empty box under the download offer reads as a stuck run.
   const consoleEl = h("pre", { class: "code-link-console", id: "code-link-console", role: "log", "aria-label": "Output", tabindex: "0", hidden: true }, out);
   const status = h("p", { class: "code-link-status", id: "code-link-status", role: "status" });
-  const stdin = h("input", { type: "text", id: "code-link-stdin", autocomplete: "off", spellcheck: "false", "aria-label": "Input for the program" });
+  // Named by its visible label (no aria-label over it: guide "accessibility", Choosing the name).
+  const stdin = h("input", { type: "text", id: "code-link-stdin", autocomplete: "off", spellcheck: "false", autocapitalize: "none", autocorrect: "off" });
   const inputRow = h("form", { class: "code-link-input", hidden: true }, h("label", { for: "code-link-stdin" }, "Input"), stdin, h("button", { type: "submit", class: "btn small" }, "Send"));
   const packText = h("p", { class: "code-link-pack-text" });
   const packButton = h("button", { type: "button", class: "btn small", id: "code-link-pack-download" }, "Download C/C++");
   const pack = h("div", { class: "code-link-pack", id: "code-link-pack", hidden: true }, packText, packButton);
-  const runArea = h("section", { class: "code-link-run", "aria-label": "Run", hidden: true }, pack, consoleEl, inputRow, status);
+  // A plain group, not a region landmark: the dialog is the page's only landmark while it's open.
+  const runArea = h("div", { class: "code-link-run", hidden: true }, pack, consoleEl, inputRow, status);
 
   let files: readonly SharedFile[] = [];
   let entry: SharedFile = { name: "", text: "" };

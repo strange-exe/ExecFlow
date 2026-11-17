@@ -101,6 +101,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   L.onNarrowChange(placeOutcome);
   // Phones: the dock's foot counts the output's lines, and its peek shows the last of them.
   output.onLines = (lines) => L.setDockLines(lines);
+  output.say = (text) => announcer.say(text);
   L.onDockChange((dock) => {
     if (dock === "peek") output.toEnd();
   });

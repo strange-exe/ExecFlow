@@ -502,7 +502,8 @@ export class FileTree {
       "aria-label": o.label,
       autocomplete: "off",
       spellcheck: "false",
-      autocapitalize: "off",
+      autocapitalize: "none",
+      autocorrect: "off",
       placeholder: o.placeholder,
     });
     input.value = o.value;
@@ -551,7 +552,9 @@ export class FileTree {
       error.hidden = false;
       input.setAttribute("aria-invalid", "true");
       describe();
-      input.focus();
+      // Focus already here (Enter): its description isn't read again, so the error is said.
+      if (document.activeElement === input) announcer.say(text);
+      else input.focus();
     };
     const submit = async (fromBlur: boolean) => {
       if (busy || finished) return;

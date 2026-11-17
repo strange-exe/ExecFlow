@@ -89,19 +89,25 @@ export function createThemePicker(options: { download(name: string, text: string
   // ---------------------------------------------------------------- search, filter, count
   const search = h("input", {
     type: "search", id: "theme-search", class: "theme-search-field", placeholder: "Search themes", autocomplete: "off", spellcheck: "false",
+    autocapitalize: "none", autocorrect: "off",
   });
   const filters = (["all", "light", "dark"] as const).map((value) => {
     const input = h("input", { type: "radio", name: "theme-scheme", value });
     input.checked = value === "all";
     return { value, input, label: h("label", { class: "seg-option" }, input, h("span", null, value === "all" ? "All" : value === "light" ? "Light" : "Dark")) };
   });
-  const count = h("p", { class: "field-note theme-count", id: "theme-count", role: "status" });
+  // The count shows at once; the spoken copy waits for typing to pause, so a live region rewritten on
+  // every key doesn't talk over the letters (guide "accessibility", Managing announcements).
+  const count = h("p", { class: "field-note theme-count", id: "theme-count" });
+  const spoken = h("p", { class: "visually-hidden", id: "theme-status", role: "status" });
+  let spokenTimer: ReturnType<typeof setTimeout> | undefined;
   const tools = h(
-    "div",
+    "search",
     { class: "theme-tools" },
     h("div", { class: "theme-search" }, h("label", { class: "visually-hidden", for: "theme-search" }, "Search themes"), icon("magnifying-glass"), search),
     h("fieldset", { class: "seg theme-filter" }, h("legend", { class: "visually-hidden" }, "Show"), ...filters.map((f) => f.label)),
     count,
+    spoken,
   );
   const clearSearch = h("button", { type: "button", class: "btn" }, "Clear search");
   const emptyText = h("p", null);
@@ -144,6 +150,8 @@ export function createThemePicker(options: { download(name: string, text: string
     }
     for (const s of sections) s.el.hidden = s.tiles.every((t) => t.el.hidden);
     count.textContent = `${shown} of ${tiles.length} families`;
+    clearTimeout(spokenTimer);
+    spokenTimer = setTimeout(() => (spoken.textContent = count.textContent), 400);
     empty.hidden = shown > 0;
     emptyText.textContent = `No theme matches "${query.trim()}".`;
   }

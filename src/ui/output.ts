@@ -124,6 +124,8 @@ export class OutputView {
   onPackDownload: (() => void) | null = null;
   /** Told the log's line count whenever it may have changed (the phone's dock: "All output, 8 lines"). */
   onLines: ((lines: number) => void) | null = null;
+  /** Says a sentence through the page's polite live region (the workbench's announcer). */
+  say: ((text: string) => void) | null = null;
 
   constructor() {
     this.stdin = h("textarea", {
@@ -131,7 +133,8 @@ export class OutputView {
       class: "stdin-field",
       rows: "3",
       spellcheck: "false",
-      autocapitalize: "off",
+      autocapitalize: "none",
+      autocorrect: "off",
       autocomplete: "off",
       placeholder: "One value per line",
     });
@@ -192,17 +195,19 @@ export class OutputView {
       class: "live-field",
       type: "text",
       autocomplete: "off",
-      autocapitalize: "off",
+      autocapitalize: "none",
+      autocorrect: "off",
       spellcheck: "false",
       enterkeyhint: "send",
       "aria-labelledby": "live-prompt live-label",
+      "aria-describedby": "live-hint",
     });
     const send = h("button", { type: "submit", class: "icon-btn small live-send", "aria-label": "Send", title: "Send (Enter)" }, icon("paper-plane-right"));
     this.liveForm = h(
       "form",
       { class: "live-input", id: "live-input" },
       h("span", { class: "visually-hidden", id: "live-label" }, "Input for the program"),
-      h("div", { class: "live-row" }, this.livePrompt, this.liveField, send, h("span", { class: "live-hint" }, "Enter sends. Ctrl+D ends input.")),
+      h("div", { class: "live-row" }, this.livePrompt, this.liveField, send, h("span", { class: "live-hint", id: "live-hint" }, "Enter sends. Ctrl+D ends input.")),
     );
     this.liveForm.hidden = true;
     this.liveForm.addEventListener("submit", (e) => {
@@ -248,7 +253,7 @@ export class OutputView {
   private loadArgs(): Promise<ArgsField> {
     this.argsChunk ??= import("./args-field").then(
       ({ ArgsField }) => {
-        const field = new ArgsField(this.argsRow, this.argsStore);
+        const field = new ArgsField(this.argsRow, this.argsStore, (text) => this.say?.(text));
         field.show(this.argsPath);
         return (this.argsField = field);
       },

@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.34.1",
+    date: "2026-11-17",
+    title: "Phones keep their size, and screen readers hear more",
+    items: [
+      { kind: "fixed", text: "On an iPhone or iPad, tapping into a text field no longer zooms the whole page in: fields on touch screens use 16 px text." },
+      { kind: "fixed", text: "Screen readers now hear a rename that can't be used (a name already taken) and a problem with the Arguments when you leave the field. The search result counts are read once you stop typing, not on every key." },
+      { kind: "fixed", text: "Program input, file names and searches are never autocorrected on phones. The GitHub connect form tells screen readers which fields are required, and the key hint under the program's input is read with it." },
+    ],
+  },
+  {
     version: "0.34.0",
     date: "2026-11-17",
     title: "C and C++ get ready on their own, and sharing from any tab",

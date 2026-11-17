@@ -77,7 +77,7 @@ function build(api: PaletteApi, mode: PaletteMode, opener: HTMLElement | null): 
   const hintId = "palette-hint";
   const input = h("input", {
     type: "text", class: "palette-input", id: "palette-input", role: "combobox", "aria-autocomplete": "list", "aria-controls": "palette-list",
-    "aria-expanded": "false", "aria-labelledby": "palette-title", "aria-describedby": hintId, autocomplete: "off", autocapitalize: "off",
+    "aria-expanded": "false", "aria-labelledby": "palette-title", "aria-describedby": hintId, autocomplete: "off", autocapitalize: "none", autocorrect: "off",
     spellcheck: "false", enterkeyhint: "go",
   });
   input.placeholder = "Search files and commands";
@@ -85,6 +85,14 @@ function build(api: PaletteApi, mode: PaletteMode, opener: HTMLElement | null): 
   const list = h("div", { class: "palette-list", id: "palette-list", role: "listbox", "aria-labelledby": "palette-title" });
   const empty = h("p", { class: "palette-empty", "aria-hidden": "true" });
   const status = h("div", { class: "visually-hidden", role: "status" });
+  // The count is said once typing pauses: a live region rewritten on every key talks over the
+  // letters being typed (guide "accessibility", Managing announcements).
+  let statusTimer: ReturnType<typeof setTimeout> | undefined;
+  const sayStatus = (text: string, now = false) => {
+    clearTimeout(statusTimer);
+    if (now) status.textContent = text;
+    else statusTimer = setTimeout(() => (status.textContent = text), 400);
+  };
   const hint = h("p", { class: "palette-hint", id: hintId }, "Enter chooses. Esc closes. Type > for commands only.");
   // The close button sits beside the field (the head's title is for assistive technology only).
   body.append(h("div", { class: "palette-row" }, field, close), list, empty, hint, status);
@@ -161,7 +169,7 @@ function build(api: PaletteApi, mode: PaletteMode, opener: HTMLElement | null): 
     const what = r.commandsOnly ? "commands" : "files or commands";
     empty.textContent = r.count ? "" : `No ${what} match. ${r.commandsOnly ? "Delete the > to search the files too." : "Try fewer letters."}`;
     empty.hidden = r.count > 0;
-    status.textContent = r.count ? `${r.count} ${r.count === 1 ? "result" : "results"}` : `No ${what} match`;
+    sayStatus(r.count ? `${r.count} ${r.count === 1 ? "result" : "results"}` : `No ${what} match`);
     dialog.dataset.count = String(r.count);
     setActive(0, false);
     list.scrollTop = 0;
@@ -177,7 +185,7 @@ function build(api: PaletteApi, mode: PaletteMode, opener: HTMLElement | null): 
       render();
       const why = `"${picked.command.label}" no longer applies, so the list is up to date now.`;
       hint.textContent = why;
-      status.textContent = why;
+      sayStatus(why, true);
       return;
     }
     // Where the command was asked for from: what it opens returns there (a dialog, the code).
@@ -249,6 +257,7 @@ function build(api: PaletteApi, mode: PaletteMode, opener: HTMLElement | null): 
     if (i >= 0) choose(i);
   });
   dialog.addEventListener("close", () => {
+    clearTimeout(statusTimer);
     dialog.remove();
     if (instance?.dialog === dialog) instance = null;
   }, { once: true });

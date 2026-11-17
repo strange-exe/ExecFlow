@@ -24,7 +24,7 @@ h1, h2, h3 { letter-spacing: var(--tracking-title); }
 [hidden] { display: none !important; }
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 /* Icons sit on the token scale (12, 14, 16, 18, 20 px), never em-based: an em size beside 13, 14 or
    15 px text drew 14.6, 15.75 and 16.9 px glyphs, between two pixels. 16 px unless a context says. */
@@ -2070,6 +2070,9 @@ input.switch {
   .end-input { min-height: var(--tool); }
   .icon-btn.small.live-send { width: var(--tool); height: var(--tool); }
   .text-btn { min-height: var(--tool); }
+  /* iOS Safari zooms the page when a text field under 16 px takes focus, and it stays zoomed (guide
+     "forms"). Every field's own size rule is more specific than this, hence !important. */
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), textarea, select { font-size: max(16px, 1em) !important; }
 }
 
 /* ------------------------------------------------------------------ phones: the segment and the dock */

@@ -138,7 +138,9 @@ test("search narrows the tiles, says how many match, and an empty result offers 
   const search = dialog.getByRole("searchbox", { name: "Search themes" });
   const count = dialog.locator("#theme-count");
   await expect(count).toHaveText(`${ALL_FAMILIES} of ${ALL_FAMILIES} families`);
-  await expect(count).toHaveAttribute("role", "status");
+  // Said through its own status once typing pauses (forms-a11y.spec.ts checks the timing).
+  await expect(dialog.locator("#theme-status")).toHaveAttribute("role", "status");
+  await expect(dialog.locator("#theme-status")).toHaveText(`${ALL_FAMILIES} of ${ALL_FAMILIES} families`);
   await search.fill("latte");
   await expect.poll(() => visibleFamilies(dialog)).toEqual(["catppuccin"]);
   await expect(count).toHaveText(`1 of ${ALL_FAMILIES} families`);

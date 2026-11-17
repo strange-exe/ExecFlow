@@ -123,10 +123,12 @@ function connectAnnouncer() {
   return announcer;
 }
 
-function textField(id: string, label: string, options: { type?: "text" | "password"; hint?: string; placeholder?: string } = {}): TextField {
+function textField(id: string, label: string, options: { type?: "text" | "password"; hint?: string; placeholder?: string; required?: boolean } = {}): TextField {
   const input = h("input", {
     type: options.type ?? "text",
     id,
+    // Said as "required" (the form is novalidate: attempt() checks and words the errors itself).
+    required: options.required,
     autocomplete: "off",
     spellcheck: "false",
     autocapitalize: "off",
@@ -170,11 +172,11 @@ export function openConnectDialog(deps: ConnectDeps): Promise<boolean> {
   return new Promise((resolve) => {
     const id = "connect-dialog";
     document.getElementById(id)?.remove();
-    const owner = textField("connect-owner", "Owner", { placeholder: "your-account" });
-    const repo = textField("connect-repo", "Repository name", { placeholder: "my-code" });
+    const owner = textField("connect-owner", "Owner", { placeholder: "your-account", required: true });
+    const repo = textField("connect-repo", "Repository name", { placeholder: "my-code", required: true });
     const branch = textField("connect-branch", "Branch (optional)", { hint: "Empty: the repository's default branch." });
     const tokenHint = "Fine-grained tokens start with github_pat_.";
-    const token = textField("connect-token", "Fine-grained token", { type: "password", hint: tokenHint });
+    const token = textField("connect-token", "Fine-grained token", { type: "password", hint: tokenHint, required: true });
     // Not a login: ask password managers that read these hints not to offer to save it. (The
     // browsers' own managers ignore them, so the Remember note below says what to answer.)
     for (const name of ["data-1p-ignore", "data-lpignore", "data-bwignore"]) token.input.setAttribute(name, "true");

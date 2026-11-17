@@ -6,6 +6,16 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.34.1] - 2026-11-17
+
+Phones keep their size, and screen readers hear more
+
+### Fixed
+
+- On an iPhone or iPad, tapping into a text field no longer zooms the whole page in: fields on touch screens use 16 px text.
+- Screen readers now hear a rename that can't be used (a name already taken) and a problem with the Arguments when you leave the field. The search result counts are read once you stop typing, not on every key.
+- Program input, file names and searches are never autocorrected on phones. The GitHub connect form tells screen readers which fields are required, and the key hint under the program's input is read with it.
+
 ## [0.34.0] - 2026-11-17
 
 C and C++ get ready on their own, and sharing from any tab
