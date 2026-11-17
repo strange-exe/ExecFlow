@@ -20,6 +20,16 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.35.0",
+    date: "2026-11-17",
+    title: "A new About page: your code becomes a graph, then it runs",
+    items: [
+      { kind: "added", text: "The About page shows a program folding into its flowchart and running: the path it took lights up, each box counts how many times it ran, and you can step through the run with the arrow keys, in Python, C or C++." },
+      { kind: "changed", text: "The About page has a new look, with its own light and dark switch, and its fonts load from ExecFlow itself." },
+      { kind: "fixed", text: "After one visit, the About page's screenshot of the editor also opens offline." },
+    ],
+  },
+  {
     version: "0.34.1",
     date: "2026-11-17",
     title: "Phones keep their size, and screen readers hear more",

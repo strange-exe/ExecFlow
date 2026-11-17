@@ -7,8 +7,9 @@ import { describe, expect, it } from "vitest";
 const html = readFileSync("about.html", "utf8");
 
 describe("the About page's copy", () => {
+  // Since the Living Graph redesign (2026-11-17) sharing is a node of the features graph.
   it("names the code link first among the ways to share", () => {
-    const line = /<li><strong>Shared with one link\.<\/strong>([^<]*)<\/li>/.exec(html)?.[1] ?? "";
+    const line = /<h3>Share code as a link<\/h3>\s*<p>([^<]*)<\/p>/.exec(html)?.[1] ?? "";
     expect(line).toMatch(/inside the link/);
     expect(line).toMatch(/no account/);
     expect(line.indexOf("inside the link")).toBeLessThan(line.indexOf("repository"));

@@ -296,6 +296,8 @@ const LICENSE_EXTRAS: { name: string; file: string }[] = [
   { name: "web-tree-sitter 0.27.1 (its .wasm, served from /flowchart/)", file: "node_modules/web-tree-sitter/LICENSE" },
   { name: "Geist (@fontsource-variable/geist)", file: "node_modules/@fontsource-variable/geist/LICENSE" },
   { name: "JetBrains Mono (@fontsource/jetbrains-mono)", file: "node_modules/@fontsource/jetbrains-mono/LICENSE" },
+  { name: "TASA Orbiter (@fontsource-variable/tasa-orbiter), the About page", file: "node_modules/@fontsource-variable/tasa-orbiter/LICENSE" },
+  { name: "Geist Mono (@fontsource-variable/geist-mono), the About page", file: "node_modules/@fontsource-variable/geist-mono/LICENSE" },
   // sw.js and workbox-<hash>.js are built by vite-plugin-pwa from these Workbox packages (one licence).
   { name: "Workbox: workbox-core, -precaching, -routing, -strategies, -expiration, -cacheable-response (the service worker)", file: "node_modules/workbox-core/LICENSE" },
 ];

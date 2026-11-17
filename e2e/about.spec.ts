@@ -54,45 +54,53 @@ test.describe("the About page", () => {
     { name: "phone", width: 390, height: 844 },
   ]) {
     for (const scheme of ["light", "dark"] as const) {
+      // Living Graph (redesign 9, 2026-11-17): the headline beside the stage, where the program's code
+      // folds into its flowchart and runs. Measured at rest (reduced motion: the run's final state), so
+      // axe and the shots read the finished chart; the motion has its own tests below.
       test(`${vp.name} ${scheme}: the first viewport answers what, who and what next; axe clean; no sideways scroll`, async ({ page }, info) => {
         await page.setViewportSize(vp);
+        await page.emulateMedia({ reducedMotion: "reduce" });
         await openIn(page, "/about", scheme);
         await expect(page).toHaveTitle("About ExecFlow: run Python, C and C++ in your browser");
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toBeInViewport();
         // The headline names the languages and what the editor does with them (SEO review minor 2, 2026-10-29).
-        await expect(h1).toHaveAccessibleName("Write Python, C or C++ and watch it run as a flowchart");
+        await expect(h1).toHaveAccessibleName("Your Python, C or C++ becomes a flowchart. Then it runs.");
         await expect(page.locator(".about-lede")).toBeInViewport();
-        // The lede keeps its own space from the headline (beside it on a desktop, under it on a phone).
+        // The lede keeps its own space from the headline (under it at every width).
         const gap = await page.evaluate(() => {
           const l = document.querySelector(".about-lede")!.getBoundingClientRect();
           const h = document.querySelector("h1")!.getBoundingClientRect();
           return Math.max(l.top - h.bottom, l.left - h.right);
         });
         expect(gap).toBeGreaterThanOrEqual(16);
-        // One filled action on the first screen: the hero's Open the editor (the bar's is the ghost).
+        // One filled action on the first screen: the hero's Open the editor, in the page's one accent
+        // (the bar's Open the editor and the stage's controls are outlined).
         const open = page.locator(".about-hero").getByRole("link", { name: "Open the editor" });
         await expect(open).toBeInViewport();
         await expect(open).toHaveAttribute("href", "/");
-        const filled = await page.evaluate(() =>
-          [...document.querySelectorAll<HTMLElement>(".about-btn")].filter((b) => {
-            const r = b.getBoundingClientRect();
-            return r.bottom > 0 && r.top < innerHeight && getComputedStyle(b).backgroundColor !== "rgba(0, 0, 0, 0)";
-          }).length,
-        );
-        expect(filled, "filled buttons in the first viewport").toBe(1);
-        // The editor window starts in the first screen, with no request of its own (it is markup).
-        const win = page.locator(".about-window");
-        await expect(win).toBeInViewport();
-        await expect(win).toHaveAccessibleName(/grades\.c open/);
-        await expect(win.locator(".aw-frame")).toHaveAttribute("aria-hidden", "true");
-        // A desktop shows the code beside its chart; a phone shows the chart with the switch and Run in the dock.
-        const phone = vp.width < 760;
-        await expect(win.locator(".aw-code-board")).toBeVisible({ visible: !phone });
-        await expect(win.locator(".aw-seg")).toBeVisible({ visible: phone });
-        await expect(win.locator(".aw-dock")).toBeVisible({ visible: phone });
-        await expect(win.locator(".aw-fc")).toBeVisible();
+        const filled = await page.evaluate(() => {
+          const probe = document.createElement("span");
+          probe.style.color = "var(--lg-pulse)";
+          document.body.append(probe);
+          const accent = getComputedStyle(probe).color;
+          probe.remove();
+          return [...document.querySelectorAll<HTMLElement>("a, button")]
+            .filter((b) => {
+              const r = b.getBoundingClientRect();
+              return r.width > 0 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(b).backgroundColor === accent;
+            })
+            .map((b) => b.textContent?.trim());
+        });
+        expect(filled, "accent-filled actions in the first viewport").toEqual([expect.stringMatching(/^Open the editor/)]);
+        // The stage starts in the first screen: the program's code, its chart, and the run controls.
+        const stage = page.locator("#lg-stage");
+        await expect(stage).toBeInViewport();
+        await expect(stage.locator("#lg-graph")).toHaveAccessibleName("Flowchart of the sample program");
+        await expect(stage.locator("#lg-graph .nd")).toHaveCount(7);
+        await expect(stage.locator("#lg-code li")).toHaveCount(5);
+        await expect(stage.getByRole("tablist", { name: "Language of the sample program" })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
         const axe = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
         expect(axe.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
@@ -482,8 +490,8 @@ test.describe("the About page", () => {
     await expect(skip).toBeFocused();
     await expect(skip).toBeInViewport();
     if (linksAreStops) {
-      // The home link, the bar's three section links (Overview, Flowcharts, What's new), then Open the editor.
-      for (const name of ["ExecFlow", "Overview", "Flowcharts", "What's new"]) {
+      // The home link, the bar's three section links (features, the editor, what's new), then Open the editor.
+      for (const name of ["ExecFlow", "features", "the editor", "what's new"]) {
         await page.keyboard.press("Tab");
         await expect(page.locator(".about-head").getByRole("link", { name, exact: true })).toBeFocused();
       }
@@ -772,45 +780,208 @@ test.describe("the About page", () => {
   });
 });
 
-test.describe("the hero window", () => {
+// The Living Graph hero (redesign 9, 2026-11-17, src/about/graph.ts): sum_evens folds from its code
+// into its flowchart, then runs; pass counts, the output and the step readout come from the trace in
+// src/about/living-graph.ts (unit-tested there). The stage says its state in data-phase (idle, fold,
+// edges, ready, run, done) and data-step, so these wait on attributes, never on wording or time.
+test.describe("the hero stage", () => {
   test.use({ serviceWorkers: "block" });
+  // A pass count reads "x7" with the multiplication sign (U+00D7), built from its code point.
+  const times = (n: number) => String.fromCodePoint(0xd7) + n;
+  const BADGES = [1, 1, 7, 6, 3, 1, 1].map(times);
+  const NODE_ORDER = ["start", "init", "loop", "test", "add", "out", "end"];
+  const badges = (page: import("@playwright/test").Page) =>
+    page.evaluate((order) => order.map((id) => {
+      const b = document.querySelector(`#lg-graph .nd[data-node="${id}"] .badge`)!;
+      return b.classList.contains("on") ? b.textContent : "";
+    }), NODE_ORDER);
+  const readout = (page: import("@playwright/test").Page) => page.locator("#lg-readout").evaluate((e) => e.textContent!.replace(/\s+/g, " ").trim());
 
-  test("the editor window is markup: drawn with scripts off, nothing fetched for it, nothing that moves", async ({ browser }) => {
-    const context = await browser.newContext({ javaScriptEnabled: false, serviceWorkers: "block" });
-    const page = await context.newPage();
-    const seen: string[] = [];
-    page.on("request", (r) => seen.push(new URL(r.url()).pathname));
+  test("the headline and lede start readable, before any motion has run", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/about");
-    const win = page.locator(".about-window");
-    await expect(win.locator(".aw-fc")).toBeVisible();
-    // Every line of grades.c, and the chosen line is the one the chart's chosen box stands for.
-    await expect(win.locator(".aw-code .l")).toHaveCount(16);
-    await expect(win.locator(".aw-code .l.here")).toHaveText(/if \(score < 0\) continue;/);
-    await expect(win.locator(".aw-fc .chosen + text")).toHaveText("score < 0 ?");
-    // No picture or script request of its own. The page's own media further down (the flowchart
-    // screenshot, the video's poster) may load: with scripts off, browsers turn lazy loading off.
-    const pageMedia = /^\/media\/(about-flowchart-|launch-)/;
-    expect(seen.filter((p) => /\.(webp|avif|png|svg|mp4)$/.test(p) && !p.startsWith("/icons/") && !pageMedia.test(p))).toEqual([]);
-    // Nothing in it animates, so it needs no pause control (WCAG 2.2.2).
-    expect(await win.evaluate((w) => [w, ...w.querySelectorAll("*")].some((e) => getComputedStyle(e).animationName !== "none"))).toBe(false);
-    await context.close();
+    for (const sel of ["h1", ".about-lede"]) {
+      expect(await page.locator(sel).evaluate((e) => getComputedStyle(e).opacity), sel).toBe("1");
+      await expect(page.locator(sel)).toBeInViewport();
+    }
+  });
+
+  test("with reduced motion: the run's final state at once, nothing plays by itself", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/about");
+    expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), "reduced motion applied").toBe(true);
+    const stage = page.locator("#lg-stage");
+    await expect(stage).toHaveAttribute("data-phase", "done");
+    await expect(stage).toHaveAttribute("data-step", "19");
+    expect(await badges(page)).toEqual(BADGES);
+    await expect(page.locator("#lg-out")).toHaveText("12");
+    expect(await readout(page)).toMatch(/^step 19\/19/);
+    expect(await readout(page)).toMatch(/total = 12$/);
+    // The lines that ran carry their counts (Python: init 1, loop 7, test 6, add 3, out 1).
+    expect(await page.locator("#lg-code .hits").allTextContents()).toEqual([1, 7, 6, 3, 1].map(times));
+    await expect(page.locator("#lg-run-label")).toHaveText("Run again");
+    // Nothing moves: no flying code, no endless dash, and a second later it is still at the end.
+    await expect(page.locator("#lg-fly *")).toHaveCount(0);
+    expect(await stage.evaluate((s) => s.getAnimations({ subtree: true }).length)).toBe(0);
+    await page.waitForTimeout(1500);
+    await expect(stage).toHaveAttribute("data-step", "19");
+  });
+
+  test("the stepper works by keys: Replay rewinds, ArrowRight and ArrowLeft step, End and Home jump; each step is announced", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/about");
+    const stage = page.locator("#lg-stage");
+    await expect(stage).toHaveAttribute("data-phase", "done");
+    await page.locator("#lg-replay").click();
+    await expect(stage).toHaveAttribute("data-step", "0");
+    await expect(page.locator("#lg-out")).toHaveText("nothing printed yet");
+    // Step 0 is the first of the run's 20 visits: the program stands at Start, which has run once;
+    // nothing else has (src/about/living-graph.ts STATES[0], as in the reference).
+    expect(await badges(page)).toEqual([times(1), "", "", "", "", "", ""]);
+    await expect(page.locator("#lg-graph .edge.hot")).toHaveCount(0);
+    await expect(page.locator("#lg-run-label")).toHaveText("Run");
+    await expect(page.locator("#lg-back")).toBeDisabled();
+    await page.locator("#lg-fwd").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(stage).toHaveAttribute("data-step", "1");
+    await expect(page.locator("#lg-live")).toHaveText("Step 1 of 19: total is set to 0");
+    await expect(page.locator("#lg-code li.now")).toHaveAttribute("data-line", "1");
+    await page.keyboard.press("ArrowRight");
+    await expect(stage).toHaveAttribute("data-step", "2");
+    await expect(page.locator("#lg-code li.now")).toHaveAttribute("data-line", "2");
+    await page.keyboard.press("ArrowLeft");
+    await expect(stage).toHaveAttribute("data-step", "1");
+    await page.keyboard.press("End");
+    await expect(stage).toHaveAttribute("data-step", "19");
+    expect(await badges(page)).toEqual(BADGES);
+    await expect(page.locator("#lg-out")).toHaveText("12");
+    await expect(page.locator("#lg-fwd")).toBeDisabled();
+    await page.locator("#lg-back").focus();
+    await page.keyboard.press("Home");
+    await expect(stage).toHaveAttribute("data-step", "0");
+    // The step buttons have names and are at least 44 px (primary controls).
+    for (const id of ["#lg-run", "#lg-back", "#lg-fwd", "#lg-replay"]) {
+      const box = (await page.locator(id).boundingBox())!;
+      expect(Math.min(box.width, box.height), id).toBeGreaterThanOrEqual(44);
+    }
+    await expect(page.locator("#lg-back")).toHaveAccessibleName("Step back");
+    await expect(page.locator("#lg-fwd")).toHaveAccessibleName("Step forward");
+  });
+
+  test("with motion: the code folds into the chart and runs by itself to the same counts; Pause holds it", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/about");
+    const stage = page.locator("#lg-stage");
+    await expect(stage).toHaveAttribute("data-phase", /^(fold|edges|ready|run)$/, { timeout: 10_000 });
+    await expect(stage).toHaveAttribute("data-phase", "done", { timeout: 40_000 });
+    await expect(stage).toHaveAttribute("data-step", "19");
+    expect(await badges(page)).toEqual(BADGES);
+    await expect(page.locator("#lg-out")).toHaveText("12");
+    await expect(page.locator("#lg-fly *")).toHaveCount(0);
+    // Replay runs it again; Run (now Pause) holds it where it is, and every edge stops moving.
+    await page.locator("#lg-replay").click();
+    await expect(stage).toHaveAttribute("data-phase", "run", { timeout: 10_000 });
+    await expect(stage).toHaveAttribute("data-playing", "true");
+    await expect(page.locator("#lg-run-label")).toHaveText("Pause");
+    // Pause once the run has moved: held at step 0 nothing has run yet, and the button rightly says
+    // Run (runLabel, unit-tested); past it, Resume.
+    await expect(stage).not.toHaveAttribute("data-step", "0", { timeout: 10_000 });
+    await page.locator("#lg-run").click();
+    await expect(stage).toHaveAttribute("data-playing", "false");
+    const held = await stage.getAttribute("data-step");
+    await page.waitForTimeout(1200);
+    await expect(stage).toHaveAttribute("data-step", held!);
+    await expect(page.locator("#lg-run-label")).toHaveText("Resume");
+    expect(await stage.evaluate((s) => s.getAnimations({ subtree: true }).filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations === Infinity).length), "no endless motion while paused").toBe(0);
+    // The held pulse rests where its edge meets the box, never over the box's words.
+    const rest = await page.locator("#lg-graph").evaluate((svg) => {
+      const core = svg.querySelector(".pulse.on .p-core")?.getBoundingClientRect();
+      const label = svg.querySelector(".nd.now .lbl")?.getBoundingClientRect();
+      if (!core || !label) return null;
+      const x = core.left + core.width / 2;
+      const y = core.top + core.height / 2;
+      return { onLabel: x > label.left && x < label.right && y > label.top && y < label.bottom };
+    });
+    if (held !== "0" && held !== "19") expect(rest, "a held run shows its pulse").toEqual({ onLabel: false });
+  });
+
+  test("the 01 / 03 switcher shows the same program in Python, C and C++, by click and by arrow keys", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/about");
+    const tabs = page.getByRole("tablist", { name: "Language of the sample program" });
+    const code = () => page.locator("#lg-code .src").evaluateAll((els) => els.map((e) => e.textContent!.replace(/\s+$/, "")));
+    await expect(tabs.getByRole("tab", { name: "Python" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#lg-sw-idx")).toHaveText("01");
+    expect(await code()).toEqual(["total = 0", "for n in range(1, 7):", "    if n % 2 == 0:", "        total += n", "print(total)"]);
+    await tabs.getByRole("tab", { name: "C", exact: true }).click();
+    await expect(tabs.getByRole("tab", { name: "C", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#lg-sw-idx")).toHaveText("02");
+    await expect(page.locator("#lg-sw-file")).toHaveText("sum_evens.c");
+    const c = await code();
+    expect(c[0]).toBe("#include <stdio.h>");
+    expect(c[7]).toBe('    printf("%d\\n", total);');
+    await expect(page.locator('#lg-graph .nd[data-node="out"] .lbl')).toHaveText('printf("%d\\n", total);');
+    // The panel is labelled by the chosen tab; the final state again (reduced motion: nothing plays).
+    await expect(page.locator("#lg-stage-panel")).toHaveAttribute("aria-labelledby", "lg-tab-c");
+    await expect(page.locator("#lg-stage")).toHaveAttribute("data-step", "19");
+    await tabs.getByRole("tab", { name: "C", exact: true }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(tabs.getByRole("tab", { name: "C++" })).toBeFocused();
+    await expect(tabs.getByRole("tab", { name: "C++" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#lg-sw-idx")).toHaveText("03");
+    expect((await code())[7]).toBe("    std::cout << total << '\\n';");
+    await page.keyboard.press("ArrowRight");
+    await expect(tabs.getByRole("tab", { name: "Python" })).toBeFocused();
+    await expect(page.locator("#lg-sw-idx")).toHaveText("01");
+  });
+
+  test("a node can be nudged by pointer or arrow keys and springs back; Enter lights its line of code", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/about");
+    const stage = page.locator("#lg-stage");
+    await expect(stage).toHaveAttribute("data-phase", /^(ready|run|done)$/, { timeout: 20_000 });
+    const node = page.locator('#lg-graph .nd[data-node="test"]');
+    await expect(node).toHaveAttribute("role", "button");
+    await expect(node).toHaveAccessibleName(/^Decision n % 2 == 0, line 3\./);
+    // Pressed where a person aims, on the box's own shape: the group's box is no target (Firefox
+    // counts its empty count badge's text into it, so its centre can fall outside the diamond).
+    const box = (await node.locator(".shape").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 10, { steps: 6 });
+    const moved = await node.evaluate((n) => (n as SVGGElement).style.transform);
+    expect(moved, "follows the pointer").toMatch(/translate\(/);
+    // Never further than 18 chart units from home.
+    const [dx, dy] = moved.match(/-?[\d.]+/g)!.map(Number);
+    expect(Math.hypot(dx, dy)).toBeLessThanOrEqual(18.01);
+    await page.mouse.up();
+    await expect.poll(() => node.evaluate((n) => (n as SVGGElement).style.transform), { timeout: 3_000 }).toBe("");
+    await node.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => node.evaluate((n) => (n as SVGGElement).style.transform)).toMatch(/translate\(/);
+    await expect.poll(() => node.evaluate((n) => (n as SVGGElement).style.transform), { timeout: 3_000 }).toBe("");
+    await page.keyboard.press("Enter");
+    await expect(page.locator('#lg-code li[data-line="3"]')).toHaveClass(/linked/);
   });
 
   for (const scheme of ["light", "dark"] as const) {
-    test(`${scheme}: the window's chart follows the page's theme: boxes on the theme's raised surface, edges in its tokens`, async ({ page }) => {
+    test(`${scheme}: the chart is drawn in the page's own tokens: nodes, their outline, and the taken path`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
       await openIn(page, "/about", scheme);
       await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+      await expect(page.locator("#lg-stage")).toHaveAttribute("data-phase", "done");
       const colours = await page.evaluate(() => {
-        const root = getComputedStyle(document.documentElement);
         const probe = document.createElement("span");
         document.body.append(probe);
-        const resolve = (v: string) => ((probe.style.color = v), getComputedStyle(probe).color);
+        const resolve = (v: string) => ((probe.style.color = `var(${v})`), getComputedStyle(probe).color);
         const got = (sel: string, prop: "fill" | "stroke") => getComputedStyle(document.querySelector(sel)!)[prop];
         const out = {
-          proc: [got(".aw-fc .proc", "fill"), resolve(root.getPropertyValue("--surface-raised"))],
-          yes: [got(".aw-fc .edge.yes", "stroke"), resolve(root.getPropertyValue("--success"))],
-          no: [got(".aw-fc .edge.no", "stroke"), resolve(root.getPropertyValue("--danger"))],
-          chosen: [got(".aw-fc .chosen", "stroke"), resolve(root.getPropertyValue("--action"))],
+          node: [got('#lg-graph .nd[data-node="init"] .shape', "fill"), resolve("--lg-node")],
+          outline: [got('#lg-graph .nd[data-node="init"] .shape', "stroke"), resolve("--lg-node-edge")],
+          taken: [got('#lg-graph [data-edge="test>add"] .e-hot', "stroke"), resolve("--lg-flow")],
+          badge: [got('#lg-graph .nd[data-node="loop"] .badge rect', "fill"), resolve("--lg-pulse")],
+          page: [getComputedStyle(document.body).backgroundColor, resolve("--lg-ground")],
         };
         probe.remove();
         return out;
@@ -818,6 +989,80 @@ test.describe("the hero window", () => {
       for (const [part, [is, want]] of Object.entries(colours)) expect(is, part).toBe(want);
     });
   }
+
+  test("the light/dark toggle switches the page, is remembered for this page, and leaves the editor's theme alone", async ({ page }) => {
+    await openIn(page, "/about", "light");
+    const toggle = page.getByRole("button", { name: "Dark theme" });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    const ground = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const light = await ground();
+    await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(await ground()).not.toBe(light);
+    expect(await page.evaluate(() => localStorage.getItem("codeeditor:about-scheme"))).toBe("dark");
+    expect(await page.evaluate(() => localStorage.getItem("codeeditor:theme-paint")), "the editor's theme is untouched").toBeNull();
+    await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute("content", "#0c0c0e");
+    // Remembered: the device still says light, the page opens dark (about-boot.js, before the first paint).
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    expect(await ground()).toBe(light);
+  });
+
+  for (const width of [390, 320]) {
+    test(`${width} px: the stage fits (no sideways scroll), its tabs and controls stay 44 px, and the chart stays in the column`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/about");
+      await expect(page.locator("#lg-stage")).toHaveAttribute("data-phase", "done");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+      const sizes = await page.locator("#lg-stage").evaluate((s) => [...s.querySelectorAll("button")].map((b) => ({ id: b.id || b.textContent, ...b.getBoundingClientRect().toJSON() })));
+      for (const b of sizes) expect(Math.min(b.width, b.height), b.id!).toBeGreaterThanOrEqual(44);
+      const [graph, col] = await Promise.all([page.locator("#lg-graph").boundingBox(), page.locator("#lg-stage").boundingBox()]);
+      expect(graph!.x).toBeGreaterThanOrEqual(col!.x - 0.5);
+      expect(graph!.x + graph!.width).toBeLessThanOrEqual(col!.x + col!.width + 0.5);
+    });
+  }
+
+  test("what's new opens with the two latest releases on a commit line, each a link to its entry", async ({ page }) => {
+    await page.goto("/about");
+    const commits = page.locator("#changelog .lg-commit");
+    await expect(commits).toHaveCount(2);
+    for (const [n, r] of CHANGELOG.slice(0, 2).entries()) {
+      await expect(commits.nth(n).locator(".lg-ver")).toContainText(r.version);
+      await expect(commits.nth(n).locator("a")).toHaveText(r.title);
+      await expect(commits.nth(n).locator("a")).toHaveAttribute("href", `#v${r.version.replaceAll(".", "-")}`);
+    }
+    await expect(commits.first()).toHaveClass(/latest/);
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+    await expect(page.locator(".about-hero").getByRole("link", { name: /^What's new in / })).toHaveText(`What's new in ${pkg.version.split(".").slice(0, 2).join(".")}`);
+    await commits.first().locator("a").click();
+    await expect(page.locator(`#v${CHANGELOG[0].version.replaceAll(".", "-")}`)).toBeFocused();
+  });
+
+  test("with scripts off the hero still reads: the headline, the lede, Open the editor and the program's five lines; nothing moves", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false, serviceWorkers: "block" });
+    const page = await context.newPage();
+    const seen: string[] = [];
+    page.on("request", (r) => seen.push(new URL(r.url()).pathname));
+    await page.goto("/about");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator(".about-lede")).toBeVisible();
+    await expect(page.locator(".about-hero").getByRole("link", { name: "Open the editor" })).toBeVisible();
+    await expect(page.locator("#lg-code li")).toHaveCount(5);
+    await expect(page.locator("#lg-code li").first()).toContainText("total = 0");
+    // No picture of its own. The page's own media further down (the flowchart screenshot, the
+    // video's poster) may load: with scripts off, browsers turn lazy loading off.
+    const pageMedia = /^\/media\/(about-flowchart-|launch-)/;
+    expect(seen.filter((p) => /\.(webp|avif|png|svg|mp4)$/.test(p) && !p.startsWith("/icons/") && !pageMedia.test(p))).toEqual([]);
+    expect(await page.locator("#lg-stage").evaluate((w) => [w, ...w.querySelectorAll("*")].some((e) => getComputedStyle(e).animationName !== "none"))).toBe(false);
+    await context.close();
+  });
 
   test("reduced motion turned on mid-visit stops the launch video", async ({ page }) => {
     await page.goto("/about");
@@ -964,6 +1209,10 @@ test("with the service worker in control, /about works offline after one visit, 
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.locator("#changelog .release")).toHaveCount(CHANGELOG.length);
+  // The flowchart screenshot, far down the page and never scrolled to online, is there offline too.
+  const shotImg = page.locator(".about-shot img");
+  await shotImg.scrollIntoViewIfNeeded();
+  await expect.poll(() => shotImg.evaluate((i) => ((i as HTMLImageElement).complete ? (i as HTMLImageElement).naturalWidth : 0)), { timeout: 10_000 }).toBeGreaterThan(0);
   await page.goto("/");
   await expect(page.locator("#app")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await context.setOffline(false);

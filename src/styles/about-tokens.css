@@ -1,0 +1,101 @@
+/* The About page's own palette and type (redesign 9, "Living Graph", the owner's pick of the
+   "Electric Blue" palette, 2026-11-17; .claude/design/DESIGN.md "Redesign 9"). Only about.css imports
+   this file, so the editor carries none of it. Every name starts with --lg- and never overrides an
+   app token (tokens.test.ts); about-tokens.test.ts checks every pair the page paints against WCAG 2.2
+   AA in both schemes. Light on :root, dark under data-theme="dark" (set by theme-boot.js, or by the
+   page's own toggle through about-boot.js). One blue action per view; pink only for "where the
+   program is now" and for focus. */
+
+/* Self-hosted, Latin subset only, SIL Open Font License 1.1 (README credits, licenses.txt). Both are
+   variable files: one download each for every weight the page uses. TASA Orbiter
+   (@fontsource-variable/tasa-orbiter 5.3.0) for display and text; Geist Mono
+   (@fontsource-variable/geist-mono 5.3.0) for labels, navigation and code. */
+@font-face {
+  font-family: "TASA Orbiter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 800;
+  src: url("@fontsource-variable/tasa-orbiter/files/tasa-orbiter-latin-wght-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2");
+}
+
+:root {
+  --lg-sans: "TASA Orbiter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --lg-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --lg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --lg-ease-in: cubic-bezier(0.55, 0, 0.75, 0.2);
+  --lg-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+
+  --lg-ground: #f4f4f6;
+  --lg-surface: #ffffff;
+  --lg-surface-2: #fafafb;
+  --lg-surface-3: #e8e8ee;
+  --lg-pane: #f7f7f9;
+  --lg-node: #ffffff;
+  --lg-dot: #d9d9e0;
+  --lg-hair: #dddde3;
+  --lg-hair-strong: #c6c6cf;
+  --lg-node-edge: #747482;
+  --lg-edge-idle: #747482;
+  --lg-text: #111114;
+  --lg-muted: #55555f;
+  --lg-pulse: #2f5fe8;
+  --lg-on-pulse: #ffffff;
+  --lg-pulse-ink: #2448c7;
+  --lg-pulse-edge: #2f5fe8;
+  --lg-flow: #2448c7;
+  --lg-halo: #5b8cff;
+  --lg-active: #be185d;
+  --lg-focus: #be185d;
+  --lg-key-top: #ffffff;
+  --lg-key-bot: #eeeef2;
+  /* What's new: one hue per kind of change (glyph, tint, ring), the word always in --lg-text. */
+  --lg-added: #15803d;
+  --lg-changed: #b45309;
+  --lg-fixed: #2448c7;
+  --lg-edge-hi: rgb(255 255 255 / 0.9);
+  --lg-shade: rgb(20 20 30 / 0.1);
+  --lg-halo-rest: 0.3;
+  --lg-halo-now: 0.6;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --lg-ground: #0c0c0e;
+  --lg-surface: #141417;
+  --lg-surface-2: #1a1a1f;
+  --lg-surface-3: #23232a;
+  --lg-pane: #101013;
+  --lg-node: #1a1a1f;
+  --lg-dot: #26262e;
+  --lg-hair: #24242b;
+  --lg-hair-strong: #33333c;
+  --lg-node-edge: #6a6a78;
+  --lg-edge-idle: #71717f;
+  --lg-text: #f2f2f5;
+  --lg-muted: #a0a0ac;
+  --lg-pulse: #5b8cff;
+  --lg-on-pulse: #0c0c0e;
+  --lg-pulse-ink: #7fa6ff;
+  --lg-pulse-edge: #5b8cff;
+  --lg-flow: #7fa6ff;
+  --lg-halo: #5b8cff;
+  --lg-active: #f9a8d4;
+  --lg-focus: #f9a8d4;
+  --lg-key-top: #24242b;
+  --lg-key-bot: #1a1a1f;
+  --lg-added: #4ade80;
+  --lg-changed: #fbbf24;
+  --lg-fixed: #7fa6ff;
+  --lg-edge-hi: rgb(255 255 255 / 0.05);
+  --lg-shade: rgb(0 0 0 / 0.45);
+  --lg-halo-rest: 0.16;
+  --lg-halo-now: 0.42;
+  color-scheme: dark;
+}

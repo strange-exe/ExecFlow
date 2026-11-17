@@ -12,9 +12,19 @@ import { COLOR_VARS, UI_MIXES } from "../theme/contrast";
 const DIR = "src/styles";
 const sheets = readdirSync(DIR).filter((f) => f.endsWith(".css")).map((f) => ({ file: f, text: readFileSync(`${DIR}/${f}`, "utf8") }));
 const tokens = sheets.find((s) => s.file === "tokens.css")!.text;
+/**
+ * The About page's own palette (redesign 9, Living Graph): a token file like tokens.css, for that
+ * page only, so the app's stylesheet carries none of it. Its names all start with --lg-; its pairs
+ * are checked for contrast in about-tokens.test.ts.
+ */
+const TOKEN_FILES = ["tokens.css", "about-tokens.css"];
+const aboutTokens = sheets.find((s) => s.file === "about-tokens.css")!.text;
 
-/** Custom properties tokens.css declares (colours, mixes, fonts, sizes, space, shape, heights, motion). */
-const DECLARED = new Set([...tokens.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
+/** Custom properties tokens.css declares (colours, mixes, fonts, sizes, space, shape, heights, motion), and the About page's --lg-* ones. */
+const DECLARED = new Set([
+  ...[...tokens.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+  ...[...aboutTokens.matchAll(/^\s*(--lg-[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+]);
 /** Set at run time by the app's own code, or locally on one rule (with where). */
 const RUNTIME = new Set([
   "--sidebar-w", // src/ui/layout.ts, the file list's width
@@ -131,9 +141,15 @@ describe("type, shape and desktop heights (redesign 2, option a)", () => {
   });
 });
 
-describe("components hold no raw colour (only tokens.css and palettes.ts do)", () => {
-  it.each(sheets.filter((s) => s.file !== "tokens.css").map((s) => [s.file, s.text] as const))("%s", (_, text) => {
+describe("components hold no raw colour (only tokens.css, about-tokens.css and palettes.ts do)", () => {
+  it.each(sheets.filter((s) => !TOKEN_FILES.includes(s.file)).map((s) => [s.file, s.text] as const))("%s", (_, text) => {
     expect(rawColours(text)).toEqual([]);
+  });
+
+  it("the About token file declares only --lg-* names, so it can never override an app token", () => {
+    const names = [...aboutTokens.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(?:^|[;{])\s*(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]);
+    expect(names.length).toBeGreaterThan(20);
+    expect(names.filter((n) => !n.startsWith("--lg-"))).toEqual([]);
   });
 
   it("the checks read the real stylesheet: one changed declaration in app.css is caught", () => {

@@ -6,6 +6,22 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.35.0] - 2026-11-17
+
+A new About page: your code becomes a graph, then it runs
+
+### Added
+
+- The About page shows a program folding into its flowchart and running: the path it took lights up, each box counts how many times it ran, and you can step through the run with the arrow keys, in Python, C or C++.
+
+### Changed
+
+- The About page has a new look, with its own light and dark switch, and its fonts load from ExecFlow itself.
+
+### Fixed
+
+- After one visit, the About page's screenshot of the editor also opens offline.
+
 ## [0.34.1] - 2026-11-17
 
 Phones keep their size, and screen readers hear more

@@ -1,10 +1,13 @@
-// The About page (about.html): the changelog from the release data, the build's version, a live
-// preview of the built-in colour themes drawn from their own palettes, restrained reveals, and the launch video.
-// The hero (the editor window) is markup and needs no script. Every string from the data goes in as
-// text (textContent / createTextNode), never as markup.
+// The About page (about.html): the Living Graph hero and features graph (graph.ts), the page's
+// light/dark toggle, the changelog from the release data with its two latest on a commit line, the
+// build's version, a live preview of the built-in colour themes drawn from their own palettes,
+// restrained reveals, and the launch video. Every string from the data goes in as text
+// (textContent / createTextNode), never as markup.
 import { CHANGELOG, type Kind, type Release } from "./changelog";
 import { COLOR_VARS } from "../theme/contrast";
 import { BUILT_IN, CHOSEN_KEY, themePalette } from "../theme/themes";
+import { initLivingGraph } from "./graph";
+import { applyScheme, otherScheme, type Scheme } from "./scheme";
 import { firstPreview, previewThemes, shortName } from "./theme-preview";
 import {
   ITEMS_SHOWN,
@@ -280,17 +283,82 @@ function whenMotionIsReduced(stop: () => void): void {
   });
 }
 
-/** The flowchart screenshot in the theme the page shows: theme-boot.js's data-theme follows a saved theme, not only the device. */
+/** The scheme the page shows (theme-boot.js, about-boot.js or the toggle). */
+const pageScheme = (): Scheme => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+
+/** The dark screenshot's sources (AVIF, then WebP) with the media query they were written with. */
+const darkShots = [...document.querySelectorAll<HTMLSourceElement>(".about-shot source[media]")].map((s) => ({ s, media: s.media }));
+
+/**
+ * The flowchart screenshot in the theme the page shows: theme-boot.js's data-theme follows a saved
+ * theme, not only the device, and the page's toggle can change it. Runs on load and on each toggle.
+ */
 function shot(): void {
-  // The dark screenshot's sources (AVIF, then WebP) carry the media query; the light ones have none.
-  const dark = [...document.querySelectorAll<HTMLSourceElement>(".about-shot source[media]")];
-  if (!dark.length) return;
-  // Only when the page's theme and the device differ: changing a <source> restarts its picture's
-  // selection, and Firefox aborts a fetch already under way (NS_BINDING_ABORTED in about.spec).
-  // Both changes land in this one task, so the picture selects once.
-  const wantDark = document.documentElement.dataset.theme === "dark";
-  if (matchMedia(dark[0].media).matches === wantDark) return;
-  for (const s of dark) s.media = wantDark ? "all" : "not all";
+  if (!darkShots.length) return;
+  const wantDark = pageScheme() === "dark";
+  // As written when the page's theme and the device agree. Only otherwise is a <source> changed:
+  // that restarts its picture's selection, and Firefox aborts a fetch already under way
+  // (NS_BINDING_ABORTED in about.spec). All changes land in this one task, so the picture selects once.
+  const agree = matchMedia(darkShots[0].media).matches === wantDark;
+  for (const { s, media } of darkShots) {
+    const next = agree ? media : wantDark ? "all" : "not all";
+    if (s.media !== next) s.media = next;
+  }
+}
+
+/**
+ * The screenshot sits far down the page and loads lazily, so a visit that never scrolls to it never
+ * fetched it, and the service worker's media route (vite.config.ts) had nothing to keep for offline:
+ * offline, Chromium widens its lazy-load distance, asks for it, and it fails. Once the page has loaded
+ * and a service worker controls it, the picture loads anyway, the file the browser itself picks (format
+ * and scheme), so the worker caches it. The first paint is untouched; a visit with no worker (the first
+ * one) keeps the lazy load.
+ */
+function keepShotOffline(): void {
+  const img = document.querySelector<HTMLImageElement>(".about-shot img");
+  if (!img || !navigator.serviceWorker?.controller) return;
+  const eager = () => {
+    img.loading = "eager";
+  };
+  if (document.readyState === "complete") eager();
+  else window.addEventListener("load", eager, { once: true });
+}
+
+/**
+ * The page's own light/dark toggle (scheme.ts): flips the page, remembers it for this page only,
+ * and tells the parts that pick a file by scheme (the screenshot, the video's poster).
+ */
+function schemeToggle(): void {
+  const button = document.querySelector<HTMLButtonElement>("#lg-toggle");
+  if (!button) return;
+  const sync = () => button.setAttribute("aria-pressed", String(pageScheme() === "dark"));
+  button.addEventListener("click", () => {
+    applyScheme(otherScheme(pageScheme()));
+    sync();
+    shot();
+    document.dispatchEvent(new Event("lg-scheme"));
+  });
+  sync();
+  button.hidden = false;
+}
+
+/** What's new's top: the two latest releases on a commit line, each a link to its entry below. */
+function renderCommits(): void {
+  const list = document.querySelector<HTMLOListElement>("#lg-commits");
+  if (!list) return;
+  CHANGELOG.slice(0, 2).forEach((r, n) => {
+    const item = el("li", n === 0 ? "lg-commit latest" : "lg-commit");
+    const ver = el("span", "lg-ver", r.version);
+    if (n === 0) ver.append(el("span", "lg-tag", "latest"));
+    const link = el("a", undefined, r.title);
+    link.href = `#${releaseId(r.version)}`;
+    const line = el("p");
+    line.append(link);
+    item.append(ver, line);
+    list.append(item);
+  });
+  // The hero's second action names the release line: "What's new in 0.34".
+  for (const a of document.querySelectorAll<HTMLElement>("[data-whats-new]")) a.textContent = `What's new in ${__APP_VERSION__.split(".").slice(0, 2).join(".")}`;
 }
 
 /** Secondary sections settle in as they arrive: they start readable (never from opacity 0) and nothing moves with reduced motion. */
@@ -342,7 +410,12 @@ function video(): void {
   // saved theme, not only the device). The poster is set here, not in the markup, so a dark page
   // never fetches the light one.
   const dark = () => document.documentElement.dataset.theme === "dark";
-  player.poster = (dark() ? player.dataset.posterDark : player.dataset.poster) ?? "";
+  const poster = () => (player.poster = (dark() ? player.dataset.posterDark : player.dataset.poster) ?? "");
+  poster();
+  // The page's toggle: a video not yet attached takes the new scheme's poster (and file, when it starts).
+  document.addEventListener("lg-scheme", () => {
+    if (!player.src) poster();
+  });
   const attach = () => {
     if (player.src) return;
     player.preload = "auto";
@@ -407,7 +480,11 @@ function video(): void {
 
 // The picture first, before its lazy fetch can start.
 shot();
+schemeToggle();
+initLivingGraph();
+renderCommits();
 renderChangelog();
 themePreview();
 reveals();
 video();
+keepShotOffline();

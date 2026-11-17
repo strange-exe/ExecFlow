@@ -5,241 +5,392 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>About ExecFlow: run Python, C and C++ in your browser</title>
     <meta name="description" content="ExecFlow is a free code editor for students: write Python, C or C++ in your browser, run it with nothing to install, and see a flowchart of how it runs." />
-    <meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f4f4f6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0c0e" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="icons/mark-v2-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="icons/mark-v2.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/mark-v2-apple-180.png" />
     <script src="theme-boot.js"></script>
+    <script src="about-boot.js"></script>
     <link rel="stylesheet" href="/src/styles/about.css" />
   </head>
+  <!-- Living Graph (redesign 9, the owner's pick 2026-11-17, "Electric Blue"; reference page
+       .claude/design/redesign9/c/final.html). Reading order: 1. the headline, 2. the stage, where the
+       program's code folds into its flowchart and runs, 3. Open the editor, 4. the features graph,
+       5. the sections, 6. What's new. Script: src/about/page.ts and src/about/graph.ts. -->
   <body class="about">
     <a class="about-skip" href="#content">Skip to the content</a>
-    <header class="about-top">
-      <div class="about-head">
-        <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
-        <nav class="about-nav" aria-label="On this page">
-          <a href="#content">Overview</a>
-          <a href="#flowcharts">Flowcharts</a>
-          <a href="#changelog">What's new</a>
-        </nav>
-        <a class="about-btn about-btn-ghost about-open" href="/">Open the editor</a>
-      </div>
-    </header>
+    <div class="lg-page">
+      <header class="about-top">
+        <div class="about-head">
+          <a class="about-home" href="/"><img src="icons/mark-v2.svg" width="22" height="22" alt="" /><span class="wordmark"><span class="wm-exec">Exec</span><span class="wm-flow">Flow</span></span></a>
+          <nav class="about-nav" aria-label="On this page">
+            <a href="#features">features</a>
+            <a href="#editor">the editor</a>
+            <a href="#changelog">what's new</a>
+          </nav>
+          <span class="lg-spacer"></span>
+          <a class="about-btn about-btn-ghost about-open" href="/">Open the editor</a>
+          <button type="button" class="lg-icon-btn lg-toggle" id="lg-toggle" aria-pressed="false" aria-label="Dark theme" hidden>
+            <svg class="i-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" focusable="false"><path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5Z" /></svg>
+            <svg class="i-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.5" /><path d="M10 1.5v2.5M10 16v2.5M1.5 10H4M16 10h2.5M4 4l1.8 1.8M14.2 14.2 16 16M4 16l1.8-1.8M14.2 5.8 16 4" /></svg>
+          </button>
+        </div>
+      </header>
 
-    <main id="content">
-      <section class="about-hero" aria-labelledby="hero-title">
-        <div class="about-hero-text">
-          <h1 id="hero-title" tabindex="-1">Write Python, C or C++ and watch it run as a <em>flowchart</em></h1>
-        </div>
-        <div class="about-hero-side">
-          <p class="about-lede">
-            A free code editor for students. It runs in your browser with nothing to install, and every decision and loop
-            in your program becomes a box you can click.
-          </p>
-          <div class="about-ctas">
-            <a class="about-btn about-btn-primary" href="/">Open the editor</a>
-            <a class="about-btn about-btn-ghost" href="#launch-video">Watch the tour</a>
-          </div>
-        </div>
-        <!-- The editor as it looks with grades.c open: a picture made of markup (crisp, themed, no download),
-             so it is hidden from screen readers and described in words by its caption. On a phone it becomes
-             the phone layout the app ships: the Code and Flowchart switch, the chart, and Run in the dock. -->
-        <figure class="about-window" aria-labelledby="window-text">
-          <figcaption class="about-sr" id="window-text">
-            The ExecFlow editor with grades.c open: the C program on the left and its flowchart on the right. The
-            flowchart starts, reads n, loops while i is less than n, reads a score, skips negative scores, prints a
-            grade, and returns 0. The decision score less than 0 is selected, and its line is highlighted in the code.
-          </figcaption>
-          <div class="aw-frame" aria-hidden="true">
-            <div class="aw-top">
-              <span class="aw-file"><span class="aw-badge">c</span> grades.c</span>
-              <span class="aw-meta">No problems</span>
-              <span class="aw-run">Run <span class="aw-key">Ctrl</span><span class="aw-key">Enter</span></span>
+      <main id="content">
+        <section class="about-hero" aria-labelledby="hero-title">
+          <div class="lg-hero-copy">
+            <h1 id="hero-title" tabindex="-1">Your Python, C or C++ becomes a flowchart. Then it <span class="lg-run-word">runs</span>.</h1>
+            <p class="about-lede">ExecFlow is a free code editor for students that runs in your browser. Every program gets a flowchart drawn from its code. Press Run and the chart shows which boxes ran, how many times, and which branch was taken.</p>
+            <p class="lg-spec"><span>Runs on your own device &middot;</span> <span>nothing to install &middot;</span> <span>works offline</span></p>
+            <div class="about-ctas">
+              <a class="about-btn about-btn-primary" href="/">Open the editor
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" focusable="false"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" /></svg>
+              </a>
+              <a class="about-btn about-btn-ghost" href="#changelog" data-whats-new>What's new</a>
             </div>
-            <div class="aw-seg"><span>Code</span><span class="aw-on">Flowchart</span></div>
-            <div class="aw-boards">
-              <div class="aw-board aw-code-board">
-                <div class="aw-head">Code</div>
-                <pre class="aw-code"><span class="l"><span class="k">#include</span> <span class="s">&lt;stdio.h&gt;</span></span><span class="l"><span class="t">int</span> <span class="f">grade</span>(<span class="t">int</span> score) {</span><span class="l">    <span class="k">if</span> (score &gt;= <span class="n">90</span>) <span class="k">return</span> <span class="s">'A'</span>;</span><span class="l">    <span class="k">else if</span> (score &gt;= <span class="n">75</span>) <span class="k">return</span> <span class="s">'B'</span>;</span><span class="l">    <span class="k">return</span> <span class="s">'C'</span>;</span><span class="l">}</span><span class="l"><span class="t">int</span> <span class="f">main</span>(<span class="t">void</span>) {</span><span class="l">    <span class="t">int</span> n, score;</span><span class="l">    <span class="f">scanf</span>(<span class="s">"%d"</span>, &amp;n);</span><span class="l">    <span class="k">for</span> (<span class="t">int</span> i = <span class="n">0</span>; i &lt; n; i++) {</span><span class="l">        <span class="f">scanf</span>(<span class="s">"%d"</span>, &amp;score);</span><span class="l here">        <span class="k">if</span> (score &lt; <span class="n">0</span>) <span class="k">continue</span>;</span><span class="l">        <span class="f">printf</span>(<span class="s">"%c"</span>, <span class="f">grade</span>(score));</span><span class="l">    }</span><span class="l">    <span class="k">return</span> <span class="n">0</span>;</span><span class="l">}</span></pre>
+          </div>
+
+          <!-- The stage (src/about/graph.ts): sum_evens's code, its flowchart and the run controls.
+               The code is here for a reader without script; the chart is drawn by script. -->
+          <div class="lg-stage" id="lg-stage" data-phase="idle" data-step="0" data-playing="false">
+            <div class="lg-switcher">
+              <p class="lg-sw-now"><span class="lg-sw-idx" id="lg-sw-idx">01</span><span>/ 03</span><span><span class="lg-sw-dot" aria-hidden="true"></span> now running &middot; <span class="lg-sw-file" id="lg-sw-file">sum_evens.py</span></span></p>
+              <div class="lg-sw-tabs" role="tablist" aria-label="Language of the sample program">
+                <button type="button" class="lg-sw-tab" role="tab" id="lg-tab-py" data-lang="py" aria-selected="true" aria-controls="lg-stage-panel" tabindex="0">Python<span class="lg-seg" aria-hidden="true"><span class="seg-fill"></span></span></button>
+                <button type="button" class="lg-sw-tab" role="tab" id="lg-tab-c" data-lang="c" aria-selected="false" aria-controls="lg-stage-panel" tabindex="-1">C<span class="lg-seg" aria-hidden="true"><span class="seg-fill"></span></span></button>
+                <button type="button" class="lg-sw-tab" role="tab" id="lg-tab-cpp" data-lang="cpp" aria-selected="false" aria-controls="lg-stage-panel" tabindex="-1">C++<span class="lg-seg" aria-hidden="true"><span class="seg-fill"></span></span></button>
               </div>
-              <div class="aw-board">
-                <div class="aw-head">Flowchart <span>main</span></div>
-                <div class="aw-chart">
-                  <svg class="aw-fc" viewBox="0 0 300 512" width="300" height="512" focusable="false">
-                    <defs><marker id="aw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="aw-tip" d="M0 0L8 4L0 8z" /></marker></defs>
-                    <rect class="term" x="112" y="12" width="76" height="26" rx="13" /><text x="150" y="29" text-anchor="middle">Start</text><line class="edge" x1="150" y1="38" x2="150" y2="58" marker-end="url(#aw-arrow)" />
-                    <rect class="proc" x="98" y="58" width="104" height="28" /><text x="150" y="76" text-anchor="middle">int n, score</text><line class="edge" x1="150" y1="86" x2="150" y2="104" marker-end="url(#aw-arrow)" />
-                    <polygon class="io" points="94,104 214,104 206,132 86,132" /><text x="150" y="122" text-anchor="middle">scanf("%d", &amp;n)</text><line class="edge" x1="150" y1="132" x2="150" y2="150" marker-end="url(#aw-arrow)" />
-                    <rect class="proc" x="104" y="150" width="92" height="28" /><text x="150" y="168" text-anchor="middle">int i = 0</text><line class="edge" x1="150" y1="178" x2="150" y2="196" marker-end="url(#aw-arrow)" />
-                    <polygon class="dec" points="150,196 198,218 150,240 102,218" /><text x="150" y="222" text-anchor="middle">i &lt; n ?</text>
-                    <line class="edge yes" x1="150" y1="240" x2="150" y2="258" marker-end="url(#aw-arrow)" /><text class="lbl" x="158" y="253">Yes</text>
-                    <polygon class="io" points="82,258 226,258 218,286 74,286" /><text x="150" y="276" text-anchor="middle">scanf("%d", &amp;score)</text><line class="edge" x1="150" y1="286" x2="150" y2="304" marker-end="url(#aw-arrow)" />
-                    <polygon class="dec chosen" points="150,304 206,326 150,348 94,326" /><text x="150" y="330" text-anchor="middle">score &lt; 0 ?</text>
-                    <line class="edge no" x1="150" y1="348" x2="150" y2="366" marker-end="url(#aw-arrow)" /><text class="lbl" x="158" y="361">No</text>
-                    <rect class="io" x="56" y="366" width="188" height="28" /><line class="bar" x1="62" y1="366" x2="62" y2="394" /><line class="bar" x1="238" y1="366" x2="238" y2="394" /><text x="150" y="384" text-anchor="middle">printf("%c", grade(score))</text><line class="edge" x1="150" y1="394" x2="150" y2="412" marker-end="url(#aw-arrow)" />
-                    <rect class="proc" x="114" y="412" width="72" height="28" /><text x="150" y="430" text-anchor="middle">i++</text>
-                    <polyline class="edge yes" points="206,326 250,326 250,426 186,426" marker-end="url(#aw-arrow)" /><text class="lbl" x="214" y="320">Yes</text>
-                    <polyline class="edge" points="114,426 52,426 52,218 102,218" marker-end="url(#aw-arrow)" />
-                    <polyline class="edge no" points="198,218 276,218 276,486 188,486" marker-end="url(#aw-arrow)" /><text class="lbl" x="206" y="212">No</text>
-                    <rect class="term" x="112" y="472" width="76" height="28" rx="14" /><text x="150" y="490" text-anchor="middle">return 0</text>
+            </div>
+            <div id="lg-stage-panel" role="tabpanel" aria-labelledby="lg-tab-py">
+              <div class="lg-stage-body">
+                <div class="lg-ed-col">
+                  <div class="lg-col-cap"><span class="lg-file" id="lg-ed-file">sum_evens.py</span><span aria-hidden="true">&middot;</span><span id="lg-ed-lang">Python</span></div>
+                  <ol class="lg-code" id="lg-code" aria-label="Source code of sum_evens.py">
+                    <li data-line="1"><span class="ln" aria-hidden="true">1</span><span class="src">total = 0</span><span class="hits" aria-hidden="true"></span></li>
+                    <li data-line="2"><span class="ln" aria-hidden="true">2</span><span class="src">for n in range(1, 7):</span><span class="hits" aria-hidden="true"></span></li>
+                    <li data-line="3"><span class="ln" aria-hidden="true">3</span><span class="src">    if n % 2 == 0:</span><span class="hits" aria-hidden="true"></span></li>
+                    <li data-line="4"><span class="ln" aria-hidden="true">4</span><span class="src">        total += n</span><span class="hits" aria-hidden="true"></span></li>
+                    <li data-line="5"><span class="ln" aria-hidden="true">5</span><span class="src">print(total)</span><span class="hits" aria-hidden="true"></span></li>
+                  </ol>
+                  <div class="lg-outbox">
+                    <span class="lg-cap" id="lg-out-cap">output</span>
+                    <output class="lg-out" id="lg-out" aria-labelledby="lg-out-cap" aria-live="polite"><span class="none">nothing printed yet</span></output>
+                  </div>
+                </div>
+                <div class="lg-gr-col">
+                  <svg class="lg-graph" id="lg-graph" viewBox="0 0 490 548" role="group" aria-labelledby="lg-graph-title" aria-describedby="lg-graph-desc">
+                    <title id="lg-graph-title">Flowchart of the sample program</title>
+                    <desc id="lg-graph-desc">Start, then total = 0, then a loop over n from 1 to 6. Inside the loop a decision asks n % 2 == 0: yes goes to total += n and back to the loop, no goes straight back to the loop. When the loop is done, the program prints total, then ends.</desc>
                   </svg>
+                  <p class="about-sr" id="lg-drag-hint">Draggable node. Drag it, or press the arrow keys to nudge it, and it springs back into place. Press Enter to highlight its line of code.</p>
                 </div>
               </div>
+              <div class="lg-ctl" id="lg-ctl" role="group" aria-label="Run controls">
+                <button type="button" class="lg-btn lg-btn-run" id="lg-run">
+                  <svg class="lg-dotplay" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="8" /><path class="i-play" d="M7 5.2v7.6L12.6 9z" /><path class="i-pause" d="M6.4 5.5h2v7h-2zM9.6 5.5h2v7h-2z" style="display: none" /></svg>
+                  <span id="lg-run-label">Run</span>
+                </button>
+                <button type="button" class="lg-icon-btn" id="lg-back" aria-label="Step back">
+                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 3h1.8v10H3zM13 3v10L6 8z" fill="currentColor" /></svg>
+                </button>
+                <button type="button" class="lg-icon-btn" id="lg-fwd" aria-label="Step forward">
+                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M11.2 3H13v10h-1.8zM3 3v10l7-5z" fill="currentColor" /></svg>
+                </button>
+                <button type="button" class="lg-btn lg-btn-replay" id="lg-replay">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" focusable="false"><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.5v2.8h2.8" /></svg>
+                  <span class="lg-rp-t">Replay</span>
+                </button>
+                <p class="lg-readout" id="lg-readout">step <b>00</b>/19</p>
+              </div>
             </div>
-            <div class="aw-dock"><span>Finished, exit code 0</span><span class="aw-run">Run</span></div>
+            <p class="about-sr" id="lg-live" aria-live="polite"></p>
+            <div class="lg-fly" id="lg-fly" aria-hidden="true"></div>
           </div>
-        </figure>
-      </section>
 
-      <section class="about-flow" aria-labelledby="flow-title" id="flowcharts">
-        <div class="about-flow-text">
-          <h2 id="flow-title">See how your code runs</h2>
-          <p>
-            Open a file and its flowchart is drawn on a board beside the code. Every decision, loop and early return
-            becomes a box, in the standard flowchart shapes. Click a box to jump to its lines, or read the same steps as
-            a list.
-          </p>
-          <p>
-            It helps with code you wrote and code you were given to read. Export the chart as a PNG or SVG for a report or
-            an assignment. Capture makes a picture of the lines you select, ready to share.
-          </p>
-          <p>
-            On a phone, a Code and Flowchart switch sits under the top bar, and Run waits in the dock at the bottom, in
-            reach of your thumb.
-          </p>
-        </div>
-        <figure class="about-shot">
-          <picture>
-            <!-- AVIF first, WebP after; the dark pair follows the page's theme (page.ts shot()). -->
-            <source srcset="/media/about-flowchart-dark.709f1c66.avif" type="image/avif" media="(prefers-color-scheme: dark)" />
-            <source srcset="/media/about-flowchart-dark.8aa92354.webp" type="image/webp" media="(prefers-color-scheme: dark)" />
-            <source srcset="/media/about-flowchart-light.c24d432b.avif" type="image/avif" />
-            <img src="/media/about-flowchart-light.5baba884.webp" width="1200" height="900" alt="The ExecFlow window: a C program, and beside it the program's flowchart, with a loop and a decision." loading="lazy" decoding="async" />
-          </picture>
-        </figure>
-      </section>
+          <ul class="lg-legend">
+            <li><span class="lg-key"><span class="lg-solid" aria-hidden="true"></span></span>solid line: a path the program took</li>
+            <li><span class="lg-key"><span class="lg-dash" aria-hidden="true"></span></span>dashed line: not taken yet</li>
+            <li><span class="lg-key"><span class="lg-badge" aria-hidden="true">&times;7</span></span>how many times a box ran</li>
+            <li><span class="lg-key" aria-hidden="true"><kbd>&larr;</kbd><kbd>&rarr;</kbd></span>step through the run; drag a box and it springs back</li>
+          </ul>
+        </section>
 
-      <section class="about-run" aria-labelledby="run-title">
-        <h2 id="run-title">Nothing to install</h2>
-        <dl class="about-langs">
-          <div class="about-lang about-lang-wide">
-            <dt>Python</dt>
-            <dd>
-              <pre class="about-code"><code>name = input("Your name: ")
-for i in range(3):
-    print(f"Hello, {name}! Line {i + 1}")</code></pre>
-              Runs as soon as you open a file. Programs that ask for input wait for you to type it. numpy and pandas download the first time you import them.</dd>
+        <section class="lg-band" id="features" aria-labelledby="feat-title">
+          <div class="lg-sec-head">
+            <div>
+              <span class="lg-sec-num">02 / features</span>
+              <h2 id="feat-title">Everything around the graph works without setup.</h2>
+            </div>
+            <p>No installer, no account, no waiting for a server. These are the parts that make ExecFlow easy to keep using.</p>
           </div>
-          <div class="about-lang">
-            <dt>C</dt>
-            <dd>Compiled in the browser after a one-time download, with errors marked on their lines.</dd>
-          </div>
-          <div class="about-lang">
-            <dt>C++</dt>
-            <dd>The same compiler and download, with the C++ standard library.</dd>
-          </div>
-        </dl>
-        <p class="about-note">Common errors come with an explanation in plain words, next to the line they point to.</p>
-      </section>
-
-      <section class="about-sync" aria-labelledby="sync-title">
-        <h2 id="sync-title">Your files, your repository</h2>
-        <ul class="about-points">
-          <li><strong>On this computer first.</strong> Files are kept in your browser. Nothing leaves it unless you connect GitHub or share a link.</li>
-          <li><strong>In your private GitHub repository.</strong> Sign in with GitHub and your changes sync to it, each commit named after its files.</li>
-          <li><strong>Shared with one link.</strong> The code can travel inside the link, so anyone can open it in ExecFlow with no account. Or link the file in your repository, or make a secret gist anyone with the link can open.</li>
-        </ul>
-        <p><a href="/privacy">What ExecFlow keeps and sends</a></p>
-      </section>
-
-      <section class="about-themes" aria-labelledby="themes-title">
-        <h2 id="themes-title">Your colours</h2>
-        <p>ExecFlow Signal is the default. <span data-theme-count></span> themes are one click away in Settings, each checked for readable contrast. Pick one to see the editor in it.</p>
-        <!-- page.ts themePreview(): the window takes the chosen theme's palette as its own variables,
-             so everything inside it is drawn from tokens. Without script it shows the page's theme. -->
-        <div class="tp">
-          <figure class="tp-window" aria-labelledby="tp-caption">
-            <div class="tp-frame" aria-hidden="true">
-              <div class="tp-top"><span class="tp-file">grades.py</span><span class="tp-run">Run</span></div>
-              <div class="tp-body">
-                <pre class="tp-code"><span class="l"><span class="k">def</span> <span class="f">average</span>(scores):</span><span class="l">    <span class="c"># skip a mark left blank</span></span><span class="l">    marks = [s <span class="k">for</span> s <span class="k">in</span> scores <span class="k">if</span> s <span class="o">&gt;=</span> <span class="n">0</span>]</span><span class="l">    <span class="k">return</span> <span class="f">sum</span>(marks) <span class="o">/</span> <span class="f">len</span>(marks)</span><span class="l here"><span class="f">print</span>(<span class="s">"Average:"</span>, <span class="f">average</span>([<span class="n">72</span>, <span class="n">-1</span>, <span class="n">88</span>]))</span></pre>
-                <svg class="tp-chart" viewBox="0 0 120 150" focusable="false">
-                  <path class="tp-edge" d="M60 26v14M60 62v14M60 104v14" />
-                  <rect class="tp-term" x="28" y="6" width="64" height="20" rx="10" />
-                  <rect class="tp-io" x="18" y="40" width="84" height="22" rx="3" />
-                  <polygon class="tp-dec" points="60,76 96,90 60,104 24,90" />
-                  <rect class="tp-term" x="28" y="118" width="64" height="20" rx="10" />
+          <ol class="lg-tree pending" id="lg-tree">
+            <li class="lg-fnode">
+              <div class="lg-card">
+                <div>
+                  <span class="lg-port">node 01</span>
+                  <h3>Runs on your own device</h3>
+                  <p>Python runs through Pyodide as soon as you open a file; programs that ask for input wait for you to type it, and numpy and pandas download the first time you import them. C and C++ compile in the browser with clang built for WebAssembly, after a one-time download, with errors marked on their lines and explained in plain words. Nothing to install, and it keeps working offline.</p>
+                </div>
+                <svg class="lg-glyph" viewBox="0 0 132 96" aria-hidden="true" focusable="false">
+                  <rect class="g-box" x="10" y="8" width="112" height="66" rx="6" />
+                  <path class="g-line" d="M2 82 H130" />
+                  <text class="g-t" x="22" y="30">python</text>
+                  <text class="g-t" x="22" y="48">c &#160;c++</text>
+                  <circle class="g-dot" cx="100" cy="44" r="6" />
+                  <path class="g-dash" d="M56 90 H118" />
+                  <text class="g-m" x="8" y="94">offline</text>
                 </svg>
               </div>
-              <div class="tp-out"><span class="tp-ok">Finished, exit code 0</span><span>Average: 80.0</span></div>
-            </div>
-            <figcaption class="tp-caption" id="tp-caption">The editor in Signal</figcaption>
-          </figure>
-          <fieldset class="tp-picker" role="radiogroup" aria-labelledby="tp-legend" hidden>
-            <legend class="about-sr" id="tp-legend">Preview a theme</legend>
-          </fieldset>
-          <button class="about-btn about-btn-ghost tp-more" type="button" hidden></button>
-        </div>
-      </section>
-
-      <section class="about-video" aria-labelledby="video-title" id="launch-video">
-        <h2 id="video-title">ExecFlow in 23 seconds</h2>
-        <!-- A muted loop that plays while it is on screen (page.ts video()): the file is attached only
-             when it first comes into view, nothing starts with reduced motion, and the button pauses it.
-             No sound; every word is on screen. -->
-        <div class="about-stage" data-video="idle">
-          <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" data-poster="/media/launch-0.29.0-poster.c52c1d8d.webp" data-src="/media/launch-0.29.0.55bf2179.mp4" data-poster-dark="/media/launch-0.29.0-dark-poster.7b1b34ab.webp" data-src-dark="/media/launch-0.29.0-dark.20ce762f.mp4" aria-describedby="video-text"></video>
-          <button type="button" class="about-play" hidden>Play video</button>
-        </div>
-        <div class="about-note" id="video-text">
-          <p>The video has no sound. What it shows, in the real app:</p>
-          <ol>
-            <li>Write code. A two-line Python program, hello.py, types itself into the editor.</li>
-            <li>Run it. Right in the browser. Nothing to install. Run is pressed and "Hello, Abhinesh" appears in the output.</li>
-            <li>See how it flows. The flowchart is drawn beside the code: the chart of a C program, grades.c, draws from Start to its end.</li>
-            <li>Every box is a line of your code. A decision box is clicked and its line in the code lights up.</li>
-            <li>On your phone too. Run sits in reach of your thumb. On a phone, grades.c switches between Code and its flowchart, and Run waits in the dock at the bottom.</li>
-            <li>The ExecFlow mark and name, Open the editor, and the address execflow.abhinesh.codes.</li>
+            </li>
+            <li class="lg-fnode">
+              <div class="lg-card">
+                <div>
+                  <span class="lg-port">node 02</span>
+                  <h3>Share code as a link</h3>
+                  <p>Send one file or a whole folder as a short link. The code can travel inside the link, so anyone can open it in ExecFlow with no account. Or link the file in your repository, or make a secret gist anyone with the link can open.</p>
+                </div>
+                <svg class="lg-glyph" viewBox="0 0 132 96" aria-hidden="true" focusable="false">
+                  <rect class="g-box" x="4" y="10" width="62" height="76" rx="6" />
+                  <path class="g-line" d="M14 28 H52 M22 44 H56 M22 58 H50 M22 72 H54" />
+                  <path class="g-flow" d="M70 48 H92" />
+                  <circle class="g-dot" cx="70" cy="48" r="4" />
+                  <rect class="g-box" x="94" y="34" width="34" height="28" rx="14" />
+                  <path class="g-line" d="M104 48 h14 M106 44 q-4 4 0 8 M116 44 q4 4 0 8" />
+                </svg>
+              </div>
+            </li>
+            <li class="lg-fnode">
+              <div class="lg-card">
+                <div>
+                  <span class="lg-port">node 03</span>
+                  <h3>GitHub sync, if you want it</h3>
+                  <p>Your files are kept in your browser first, and nothing leaves it unless you connect GitHub or share a link. Sign in with GitHub and your changes sync to your own private repository, each commit named after its files. <a href="/privacy">What ExecFlow keeps and sends</a></p>
+                </div>
+                <svg class="lg-glyph" viewBox="0 0 132 96" aria-hidden="true" focusable="false">
+                  <path class="g-line" d="M14 48 H118" />
+                  <circle class="g-box" cx="22" cy="48" r="7" />
+                  <circle class="g-box" cx="56" cy="48" r="7" />
+                  <circle class="g-box" cx="90" cy="48" r="7" />
+                  <circle class="g-dot" cx="118" cy="48" r="7" />
+                  <path class="g-flow" d="M90 48 V22 H118 V41" />
+                  <text class="g-m" x="10" y="82">your repo</text>
+                </svg>
+              </div>
+            </li>
+            <li class="lg-fnode">
+              <div class="lg-card">
+                <div>
+                  <span class="lg-port">node 04</span>
+                  <h3>40+ colour themes. Works on phones.</h3>
+                  <p>Pick a look you can stare at for an hour. The same editor, flowchart included, works on a phone screen, with Run in reach of your thumb.</p>
+                </div>
+                <svg class="lg-glyph" viewBox="0 0 132 96" aria-hidden="true" focusable="false">
+                  <rect class="s1" x="4" y="10" width="20" height="20" rx="4" /><rect class="s2" x="28" y="10" width="20" height="20" rx="4" />
+                  <rect class="s3" x="52" y="10" width="20" height="20" rx="4" /><rect class="s4" x="4" y="34" width="20" height="20" rx="4" />
+                  <rect class="s5" x="28" y="34" width="20" height="20" rx="4" /><rect class="s6" x="52" y="34" width="20" height="20" rx="4" />
+                  <text class="g-t g-big" x="4" y="80">40+</text>
+                  <rect class="g-box" x="88" y="4" width="40" height="88" rx="8" />
+                  <rect class="g-line" x="98" y="20" width="20" height="10" rx="3" />
+                  <path class="g-flow" d="M108 30 V44" />
+                  <path class="g-line" d="M108 44 l9 8 -9 8 -9 -8z" />
+                  <path class="g-dash" d="M108 60 V76" />
+                </svg>
+              </div>
+            </li>
           </ol>
-          <p><a href="/media/launch-0.29.0.55bf2179.mp4" download="execflow.mp4">Download the video</a> (MP4, 0.8 MB).</p>
-        </div>
-      </section>
+        </section>
 
-      <section class="about-changelog" aria-labelledby="changelog-title" id="changelog">
-        <h2 id="changelog-title">What's new</h2>
-        <p>Every change that reached the site, newest first. Features raise the middle number, fixes the last one.</p>
-        <ul class="release-facts">
-          <li>You are on <strong class="release-mono">ExecFlow <span data-app-version></span></strong></li>
-          <li><strong data-release-count></strong> releases since <span data-first-date></span></li>
-        </ul>
-        <!-- page.ts renderChangelog() draws the releases from src/about/changelog.ts. -->
-        <div class="release-layout">
-          <div class="release-card">
-            <ol class="release-list" id="releases-recent"></ol>
-            <div class="release-older-row" hidden>
-              <button type="button" class="release-older-toggle" aria-expanded="false" aria-controls="releases-older"></button>
+        <section class="lg-band about-themes" aria-labelledby="themes-title">
+          <div class="lg-sec-head">
+            <div>
+              <span class="lg-sec-num">03 / your colours</span>
+              <h2 id="themes-title">Your colours</h2>
             </div>
-            <ol class="release-list release-list-older" id="releases-older" hidden></ol>
+            <p>ExecFlow Signal is the default. <span data-theme-count></span> themes are one click away in Settings, each checked for readable contrast. Pick one to see the editor in it.</p>
           </div>
-          <nav class="release-index" aria-labelledby="release-index-title">
-            <h3 id="release-index-title">Releases</h3>
-            <ol></ol>
-          </nav>
-        </div>
-      </section>
-    </main>
+          <!-- page.ts themePreview(): the window takes the chosen theme's palette as its own variables,
+               so everything inside it is drawn from tokens. Without script it shows the page's theme. -->
+          <div class="tp">
+            <figure class="tp-window" aria-labelledby="tp-caption">
+              <div class="tp-frame" aria-hidden="true">
+                <div class="tp-top"><span class="tp-file">grades.py</span><span class="tp-run">Run</span></div>
+                <div class="tp-body">
+                  <pre class="tp-code"><span class="l"><span class="k">def</span> <span class="f">average</span>(scores):</span><span class="l">    <span class="c"># skip a mark left blank</span></span><span class="l">    marks = [s <span class="k">for</span> s <span class="k">in</span> scores <span class="k">if</span> s <span class="o">&gt;=</span> <span class="n">0</span>]</span><span class="l">    <span class="k">return</span> <span class="f">sum</span>(marks) <span class="o">/</span> <span class="f">len</span>(marks)</span><span class="l here"><span class="f">print</span>(<span class="s">"Average:"</span>, <span class="f">average</span>([<span class="n">72</span>, <span class="n">-1</span>, <span class="n">88</span>]))</span></pre>
+                  <svg class="tp-chart" viewBox="0 0 120 150" focusable="false">
+                    <path class="tp-edge" d="M60 26v14M60 62v14M60 104v14" />
+                    <rect class="tp-term" x="28" y="6" width="64" height="20" rx="10" />
+                    <rect class="tp-io" x="18" y="40" width="84" height="22" rx="3" />
+                    <polygon class="tp-dec" points="60,76 96,90 60,104 24,90" />
+                    <rect class="tp-term" x="28" y="118" width="64" height="20" rx="10" />
+                  </svg>
+                </div>
+                <div class="tp-out"><span class="tp-ok">Finished, exit code 0</span><span>Average: 80.0</span></div>
+              </div>
+              <figcaption class="tp-caption" id="tp-caption">The editor in Signal</figcaption>
+            </figure>
+            <fieldset class="tp-picker" role="radiogroup" aria-labelledby="tp-legend" hidden>
+              <legend class="about-sr" id="tp-legend">Preview a theme</legend>
+            </fieldset>
+            <button class="about-btn about-btn-ghost tp-more" type="button" hidden></button>
+          </div>
+        </section>
 
-    <footer class="about-foot">
-      <p class="about-foot-note">ExecFlow is free for students.</p>
-      <nav aria-label="More">
-        <a href="/privacy">Privacy</a>
-        <a href="/terms">Terms</a>
-        <a href="/licenses">Licences</a>
-        <a href="https://github.com/strange-exe/ExecFlow#third-party-software">Credits</a>
-        <a href="https://github.com/strange-exe/ExecFlow">Source code</a>
-      </nav>
-    </footer>
+        <section class="lg-band" id="editor" aria-labelledby="ed-title">
+          <div class="lg-sec-head">
+            <div>
+              <span class="lg-sec-num">04 / the editor</span>
+              <h2 id="ed-title">Code, graph and output, side by side.</h2>
+            </div>
+            <p>Press Run and the chart marks the path the program took, with a count on every box that ran and the output beside it.</p>
+          </div>
+          <div class="lg-mock" role="img" aria-label="A drawing of the editor in this page's colours: sum_evens.py on the left with run counts beside each line, its flowchart in the middle with the taken path drawn solid, and the output 12 on the right.">
+            <div class="lg-mock-bar" aria-hidden="true">
+              <span class="lg-mock-mark"><img src="icons/mark-v2.svg" width="16" height="16" alt="" />ExecFlow</span>
+              <span class="lg-mock-tab">sum_evens.py</span>
+              <span class="lg-mock-tab off">notes.txt</span>
+              <span class="lg-spacer"></span>
+              <span class="lg-mock-chip">Share</span>
+              <span class="lg-mock-run"><svg viewBox="0 0 16 16" width="12" height="12" focusable="false"><path d="M4 2.5v11l9-5.5z" fill="currentColor" /></svg>Run</span>
+            </div>
+            <div class="lg-mock-body" aria-hidden="true">
+              <div class="lg-mock-pane">
+                <div class="lg-col-cap"><span class="lg-file">sum_evens.py</span></div>
+                <ol class="lg-code" id="lg-code2"></ol>
+              </div>
+              <div class="lg-mock-pane lg-gr-col">
+                <svg class="lg-graph static" id="lg-graph2" viewBox="0 0 490 548" focusable="false"></svg>
+              </div>
+              <div class="lg-mock-pane">
+                <div class="lg-col-cap">output</div>
+                <pre class="lg-mock-out">12</pre>
+                <p class="lg-mock-note">finished, ran on this device</p>
+                <ul class="lg-mock-passes">
+                  <li><span>for n in range(1, 7)</span><b>&times;7</b></li>
+                  <li><span>n % 2 == 0</span><b>&times;6</b></li>
+                  <li><span>total += n</span><b>&times;3</b></li>
+                </ul>
+              </div>
+            </div>
+            <div class="lg-mock-status" aria-hidden="true">
+              <span class="ok">Python &middot; ready</span><span>step 19/19</span><span>total = 12</span><span>7 nodes &middot; 8 edges</span>
+            </div>
+          </div>
+          <p class="lg-mock-caption">A drawing in this page's colours, not a screenshot. The editor as it ships today is below.</p>
+
+          <div class="about-flow" id="flowcharts">
+            <div class="about-flow-text">
+              <h3>See how your code runs</h3>
+              <p>
+                Open a file and its flowchart is drawn on a board beside the code. Every decision, loop and early return
+                becomes a box, in the standard flowchart shapes. Click a box to jump to its lines, or read the same steps as
+                a list.
+              </p>
+              <p>
+                It helps with code you wrote and code you were given to read. Export the chart as a PNG or SVG for a report or
+                an assignment. Capture makes a picture of the lines you select, ready to share.
+              </p>
+              <p>
+                On a phone, a Code and Flowchart switch sits under the top bar, and Run waits in the dock at the bottom, in
+                reach of your thumb.
+              </p>
+            </div>
+            <figure class="about-shot">
+              <picture>
+                <!-- AVIF first, WebP after; the dark pair follows the page's theme (page.ts shot()). -->
+                <source srcset="/media/about-flowchart-dark.709f1c66.avif" type="image/avif" media="(prefers-color-scheme: dark)" />
+                <source srcset="/media/about-flowchart-dark.8aa92354.webp" type="image/webp" media="(prefers-color-scheme: dark)" />
+                <source srcset="/media/about-flowchart-light.c24d432b.avif" type="image/avif" />
+                <img src="/media/about-flowchart-light.5baba884.webp" width="1200" height="900" alt="The ExecFlow window: a C program, and beside it the program's flowchart, with a loop and a decision." loading="lazy" decoding="async" />
+              </picture>
+            </figure>
+          </div>
+        </section>
+
+        <section class="lg-band about-video" aria-labelledby="video-title" id="launch-video">
+          <div class="lg-sec-head">
+            <div>
+              <span class="lg-sec-num">05 / the tour</span>
+              <h2 id="video-title">ExecFlow in 23 seconds</h2>
+            </div>
+            <p>A short film of the real app: write, run, see the flow, on a phone too.</p>
+          </div>
+          <!-- A muted loop that plays while it is on screen (page.ts video()): the file is attached only
+               when it first comes into view, nothing starts with reduced motion, and the button pauses it.
+               No sound; every word is on screen. -->
+          <div class="lg-video-row">
+            <div class="about-stage" data-video="idle">
+              <video class="about-player" playsinline muted loop preload="none" width="1280" height="720" data-poster="/media/launch-0.29.0-poster.c52c1d8d.webp" data-src="/media/launch-0.29.0.55bf2179.mp4" data-poster-dark="/media/launch-0.29.0-dark-poster.7b1b34ab.webp" data-src-dark="/media/launch-0.29.0-dark.20ce762f.mp4" aria-describedby="video-text"></video>
+              <button type="button" class="about-play" hidden>Play video</button>
+            </div>
+            <div class="about-note" id="video-text">
+              <p>The video has no sound. What it shows, in the real app:</p>
+              <ol>
+                <li>Write code. A two-line Python program, hello.py, types itself into the editor.</li>
+                <li>Run it. Right in the browser. Nothing to install. Run is pressed and "Hello, Abhinesh" appears in the output.</li>
+                <li>See how it flows. The flowchart is drawn beside the code: the chart of a C program, grades.c, draws from Start to its end.</li>
+                <li>Every box is a line of your code. A decision box is clicked and its line in the code lights up.</li>
+                <li>On your phone too. Run sits in reach of your thumb. On a phone, grades.c switches between Code and its flowchart, and Run waits in the dock at the bottom.</li>
+                <li>The ExecFlow mark and name, Open the editor, and the address execflow.abhinesh.codes.</li>
+              </ol>
+              <p><a href="/media/launch-0.29.0.55bf2179.mp4" download="execflow.mp4">Download the video</a> (MP4, 0.8 MB).</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="lg-band about-changelog" aria-labelledby="changelog-title" id="changelog">
+          <div class="lg-log">
+            <div>
+              <span class="lg-sec-num">06 / log</span>
+              <h2 id="changelog-title">What's new</h2>
+            </div>
+            <!-- page.ts renderCommits(): the two latest releases from src/about/changelog.ts. -->
+            <ol class="lg-commits" id="lg-commits"></ol>
+          </div>
+          <p class="lg-log-lede">Every change that reached the site, newest first. Features raise the middle number, fixes the last one.</p>
+          <ul class="release-facts">
+            <li>You are on <strong class="release-mono">ExecFlow <span data-app-version></span></strong></li>
+            <li><strong data-release-count></strong> releases since <span data-first-date></span></li>
+          </ul>
+          <!-- page.ts renderChangelog() draws the releases from src/about/changelog.ts. -->
+          <div class="release-layout">
+            <div class="release-card">
+              <ol class="release-list" id="releases-recent"></ol>
+              <div class="release-older-row" hidden>
+                <button type="button" class="release-older-toggle" aria-expanded="false" aria-controls="releases-older"></button>
+              </div>
+              <ol class="release-list release-list-older" id="releases-older" hidden></ol>
+            </div>
+            <nav class="release-index" aria-labelledby="release-index-title">
+              <h3 id="release-index-title">Releases</h3>
+              <ol></ol>
+            </nav>
+          </div>
+        </section>
+
+        <section class="lg-band" aria-labelledby="close-title">
+          <div class="lg-closer">
+            <div>
+              <h2 id="close-title">Your next program already has a graph.</h2>
+              <p>Free, in the browser, on your own device.</p>
+            </div>
+            <a class="about-btn about-btn-primary" href="/">Open the editor</a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="about-foot">
+        <p class="about-foot-note">ExecFlow is free for students.</p>
+        <nav aria-label="More">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/licenses">Licences</a>
+          <a href="https://github.com/strange-exe/ExecFlow#third-party-software">Credits</a>
+          <a href="https://github.com/strange-exe/ExecFlow">Source code</a>
+        </nav>
+      </footer>
+    </div>
     <script type="module" src="/src/about/page.ts"></script>
   </body>
 </html>
