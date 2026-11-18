@@ -10,10 +10,17 @@
 //   listed in `skipped` ("ex2.c, ex3.c have their own main()"); the entry is always built.
 // - Every C/C++ source and header the request carries is mounted for the compiler, so
 //   `#include "../common/util.h"` works; only the units above are compiled.
+// - A unit is "needed" when the entry reaches it through quoted includes: it includes a header the
+//   entry (or another needed unit) includes, or it is a header's namesake (util.h and util.c).
+//   The other units are still built, so a prototype in main.c with its body in ops.c works, but
+//   they are `optional`: when every error of a build is in an optional unit or a header only
+//   optional units include, leaveOutUnused() drops those units and the program is built again
+//   (an unrelated broken file in the folder no longer stops the program).
 
-import { isConflictCopy, isInside, nameOf, parentOf } from "../core/paths";
+import { isConflictCopy, isInside, nameOf, parentOf, splitExtension } from "../core/paths";
 import { detectLanguage, isHeader } from "../core/languages";
-import type { WorkspaceFile, WsPath } from "../core/types";
+import type { ToolDiagnostic, WorkspaceFile, WsPath } from "../core/types";
+import { includeClosure } from "./cpp-build";
 import { definesMain } from "./cpp-scan";
 
 export type CLang = "c" | "cpp";
@@ -33,6 +40,10 @@ export interface ProgramPlan {
   skipped: WsPath[];
   /** Everything the compiler can see: units, other C/C++ sources and headers. */
   mounted: WorkspaceFile[];
+  /** Units the entry doesn't reach through its includes (built, but left out if only they fail). */
+  optional: WsPath[];
+  /** The entry, the needed units and every file they include: an error here always stops the build. */
+  needed: WsPath[];
 }
 
 export type PlanResult = { ok: true; plan: ProgramPlan } | { ok: false; reason: string };
@@ -87,7 +98,59 @@ export function planProgram(entry: WsPath, files: readonly WorkspaceFile[]): Pla
   }
   // A conflict copy can be run on purpose (to try the other version); it is then the only copy built.
   if (isConflictCopy(entry) && !mounted.some((f) => f.path === entry)) mounted.push(byPath.get(entry)!);
-  return { ok: true, plan: { entry, root, units, skipped, mounted } };
+  const { optional, needed } = neededUnits(entry, units, mounted, byPath, root);
+  return { ok: true, plan: { entry, root, units, skipped, mounted, optional, needed } };
+}
+
+const stemOf = (path: WsPath) => splitExtension(nameOf(path)).stem;
+
+/** Splits the units into ones the entry reaches through quoted includes and the optional rest. */
+function neededUnits(
+  entry: WsPath, units: readonly BuildUnit[], mounted: readonly WorkspaceFile[], byPath: ReadonlyMap<WsPath, WorkspaceFile>, root: WsPath,
+): { optional: WsPath[]; needed: WsPath[] } {
+  const files = new Map<WsPath, WorkspaceFile>(mounted.map((f) => [f.path, f]));
+  if (!files.has(entry)) files.set(entry, byPath.get(entry)!);
+  const reach = new Map(units.map((u) => [u.path, includeClosure(u.path, files, root)]));
+  const needed = new Set<WsPath>([entry, ...reach.get(entry)!]);
+  const used = new Set<WsPath>([entry]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    const stems = new Set([...needed].filter((p) => isHeader(nameOf(p))).map(stemOf));
+    for (const u of units) {
+      if (used.has(u.path)) continue;
+      const own = reach.get(u.path)!;
+      if (!stems.has(stemOf(u.path)) && !own.some((p) => needed.has(p) && isHeader(nameOf(p)))) continue;
+      used.add(u.path);
+      needed.add(u.path);
+      for (const p of own) needed.add(p);
+      grew = true;
+    }
+  }
+  return { optional: units.map((u) => u.path).filter((p) => !used.has(p)), needed: [...needed] };
+}
+
+/**
+ * When every error of a failed build is in optional units or in files only they include, the plan
+ * without those units, and which they were; null when an error touches what the program needs (or
+ * names no file), so the build failure stands as it is.
+ */
+export function leaveOutUnused(plan: ProgramPlan, diagnostics: readonly ToolDiagnostic[]): { plan: ProgramPlan; leftOut: WsPath[] } | null {
+  const errors = diagnostics.filter((d) => d.severity === "error");
+  if (!errors.length || plan.optional.length === 0) return null;
+  const needed = new Set(plan.needed);
+  const paths = new Set<WsPath>();
+  for (const e of errors) {
+    if (!e.path || needed.has(e.path)) return null;
+    paths.add(e.path);
+  }
+  const files = new Map(plan.mounted.map((f) => [f.path, f]));
+  const leftOut = plan.optional.filter((u) => paths.has(u) || includeClosure(u, files, plan.root).some((p) => paths.has(p)));
+  if (!leftOut.length) return null;
+  const out = new Set(leftOut);
+  return {
+    leftOut,
+    plan: { ...plan, units: plan.units.filter((u) => !out.has(u.path)), optional: plan.optional.filter((p) => !out.has(p)) },
+  };
 }
 
 /** Where the compiler sees the workspace (a fresh mount, "/w2", replaces it if names collide). */

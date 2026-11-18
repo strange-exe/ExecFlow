@@ -4,6 +4,13 @@
 import { splitExtension, nameOf } from "../core/paths";
 import type { LanguageId, RunPhase, RunResult, WsPath } from "../core/types";
 
+/** "util.c was left out because it has errors." (C/C++: files the program doesn't include). */
+export function leftOutWords(paths: readonly WsPath[]): string {
+  const names = paths.map(nameOf);
+  const list = names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${list} ${names.length === 1 ? "was" : "were"} left out because ${names.length === 1 ? "it has" : "they have"} errors.`;
+}
+
 const mb = (bytes: number) => (bytes / 1e6).toFixed(1);
 
 /**

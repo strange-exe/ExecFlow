@@ -249,6 +249,22 @@ test("an error in a header in a sub-folder, included by two files, is listed onc
   await expect(page.locator(".cm-lint-marker-error").first()).toBeVisible();
 });
 
+test("an error in a file main.cpp doesn't include doesn't stop main.cpp from running, and Problems still lists it", async ({ page }) => {
+  await openApp(page);
+  await importFiles(page, [
+    { name: "main.cpp", text: '#include <iostream>\nint main() { std::cout << "ran fine" << std::endl; return 0; }\n' },
+    { name: "help.cpp", text: "this is not C++\n" },
+  ]);
+  await openFromTree(page, "main.cpp");
+  await installCpp(page);
+  const r = await run(page, { timeout: 150_000 });
+  expect(r.status).toBe("ok");
+  expect(r.output).toContain("ran fine");
+  expect(r.output).toContain("help.cpp was left out because it has errors.");
+  await showPanel(page, "problems");
+  await expect(page.locator('.problem[data-path="help.cpp"]').first()).toBeVisible();
+});
+
 test("a header renamed while the build runs: every Problems row names a file that exists", async ({ page }) => {
   await openApp(page);
   await importFiles(page, [

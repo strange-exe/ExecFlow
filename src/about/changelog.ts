@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.35.1",
+    date: "2026-11-18",
+    title: "One broken file no longer stops another from running",
+    items: [
+      { kind: "fixed", text: "In C and C++, an error in a file your program doesn't include no longer stops it from running: that file is left out, Output says which one and why, and Problems still lists its errors. A file your program does include still has to build." },
+    ],
+  },
+  {
     version: "0.35.0",
     date: "2026-11-17",
     title: "A new About page: your code becomes a graph, then it runs",

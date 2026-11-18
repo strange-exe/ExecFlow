@@ -137,6 +137,8 @@ export interface RunResult {
   message?: string;
   /** C/C++ only: units left out because they define their own main(). */
   skipped?: WsPath[];
+  /** C/C++ only: units left out because they have errors and the program doesn't include them. */
+  leftOut?: WsPath[];
   /**
    * Text files the program created or changed (paths relative to the workspace root), so the UI can
    * save them to the workspace (never over a code file). Capped at 20 files, 1 MiB each.

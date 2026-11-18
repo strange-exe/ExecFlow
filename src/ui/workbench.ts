@@ -30,7 +30,7 @@ import { countProblems, describeCounts, ProblemsView, type RenderHelp } from "./
 import { Runtimes, runtimeOf, type RuntimeKind } from "./run";
 import { dropStash, readStash, textHash, writeStash } from "./recover";
 import { callSiteMarks, diagnosticLine } from "./run-diagnostics";
-import { mainToOffer, phaseLabel } from "./run-words";
+import { leftOutWords, mainToOffer, phaseLabel } from "./run-words";
 import { buildOptions, createSettingsStore, runLimits } from "./settings";
 import { whatsNew } from "../about/whats-new";
 import { paletteKey } from "./palette-keys";
@@ -1517,6 +1517,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         output.note(names.length === 1
           ? `Skipped ${names[0]}: it has its own main(), so it is a separate program.`
           : `Skipped ${listNames(names)}: they have their own main(), so they are separate programs.`);
+      }
+      // A built program the left-out files didn't stop: say which (a failed build's message says it).
+      if (result.leftOut?.length && result.status !== "build-failed") {
+        output.note(`${leftOutWords(result.leftOut)} ${nameOf(file.path)} doesn't include ${result.leftOut.length === 1 ? "it" : "them"}, so it ran without ${result.leftOut.length === 1 ? "it" : "them"}: see Problems.`, "warning");
       }
       if (result.message) output.note(result.message, result.status === "ok" ? "info" : "warning");
       // A failed build wrote a line per compiler error: the danger line in the log is the lifted

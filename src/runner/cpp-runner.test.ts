@@ -236,6 +236,53 @@ describe("a C/C++ run", () => {
     expect(runner.state).toBe("ready");
   });
 
+  it("an error only in a file the program doesn't include leaves that file out and runs the program", async () => {
+    const { runner, compiler, programs } = setup(true);
+    runner.prepare();
+    compiler().reply({ type: "ready", ms: 1 });
+    const done = runner.run(REQ, hooks().h);
+    await tick();
+    const first = compiler().last("build") as { id: number; units: { path: string }[] };
+    expect(first.units.map((u) => u.path)).toEqual(["lab/ex1.c", "lab/util.c"]);
+    const helpError = { path: "lab/util.c", line: 1, unit: "utf8-byte" as const, base: 1 as const, severity: "error" as const, message: "expected unqualified-id", source: "clang" as const };
+    compiler().reply({ type: "built", id: first.id, ok: false, stage: "compile", compileMs: 1, linkMs: 0, compiled: 2, reused: 0, recycle: false, diagnostics: [helpError] });
+    await tick();
+    const second = compiler().last("build") as { id: number; units: { path: string }[] };
+    expect(second.id).not.toBe(first.id);
+    expect(second.units.map((u) => u.path)).toEqual(["lab/ex1.c"]);
+    compiler().reply({ type: "built", id: second.id, ok: true, stage: "link", wasm: new Uint8Array([0]), diagnostics: [], compileMs: 1, linkMs: 1, compiled: 0, reused: 1, recycle: false });
+    await tick();
+    running(programs).reply({ type: "done", exitCode: 0, truncated: false, ms: 1, written: [] });
+    const r = await done;
+    expect(r.status).toBe("ok");
+    expect(r.leftOut).toEqual(["lab/util.c"]);
+    // The file's own error stays reported (it is still wrong), but it no longer stops the program.
+    expect(r.diagnostics).toContainEqual(helpError);
+  });
+
+  it("if the program then doesn't link, the left-out file is named with the link error", async () => {
+    const { runner, compiler } = setup(true);
+    runner.prepare();
+    compiler().reply({ type: "ready", ms: 1 });
+    const done = runner.run(REQ, hooks().h);
+    await tick();
+    const first = compiler().last("build") as { id: number };
+    compiler().reply({
+      type: "built", id: first.id, ok: false, stage: "compile", compileMs: 1, linkMs: 0, compiled: 2, reused: 0, recycle: false,
+      diagnostics: [{ path: "lab/util.c", line: 1, unit: "utf8-byte", base: 1, severity: "error", message: "x", source: "clang" }],
+    });
+    await tick();
+    const second = compiler().last("build") as { id: number };
+    compiler().reply({
+      type: "built", id: second.id, ok: false, stage: "link", compileMs: 1, linkMs: 1, compiled: 0, reused: 1, recycle: false,
+      diagnostics: [{ path: null, line: 1, unit: "utf16", base: 0, severity: "error", message: "undefined symbol: helper", source: "wasm-ld" }],
+    });
+    const r = await done;
+    expect(r.status).toBe("build-failed");
+    expect(r.leftOut).toEqual(["lab/util.c"]);
+    expect(r.message).toBe("The program didn't link: 2 errors in util.c. util.c was left out because it has errors.");
+  });
+
   it("gives every build step its own time limit, then replaces the stuck compiler", async () => {
     vi.useFakeTimers();
     const { runner, compiler, compilers } = setup(true);

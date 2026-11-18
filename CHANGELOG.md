@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.35.1] - 2026-11-18
+
+One broken file no longer stops another from running
+
+### Fixed
+
+- In C and C++, an error in a file your program doesn't include no longer stops it from running: that file is left out, Output says which one and why, and Problems still lists its errors. A file your program does include still has to build.
+
 ## [0.35.0] - 2026-11-17
 
 A new About page: your code becomes a graph, then it runs

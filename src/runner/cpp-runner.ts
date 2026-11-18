@@ -10,7 +10,8 @@ import { checkBuildOptions, includeClosure } from "./cpp-build";
 import { cppHints } from "./hints";
 import { createOutputTail, readOutputTail } from "./cpp-output-tail";
 import { createInputChannel, sendInput } from "./input-channel";
-import { planProgram, type ProgramPlan } from "./program";
+import { leaveOutUnused, planProgram, type ProgramPlan } from "./program";
+import { leftOutWords } from "../ui/run-words";
 import { RunClock, START_ATTEMPTS } from "./run-clock";
 import { UPDATE_FOR_CPP, wasmExceptionsSupported } from "./wasm-features";
 
@@ -260,7 +261,7 @@ export class CppRunner {
         diagnostics: [{ path: req.entry, line: 1, unit: "utf16", base: 0, severity: "error", message: planned.reason, source: "clang" }],
       };
     }
-    const plan = planned.plan;
+    let plan = planned.plan;
 
     // ---- phase 0: the pack, then clang. Stop works throughout and never starts a compile. ----
     let cancel!: (reason: StopReason) => void;
@@ -281,7 +282,19 @@ export class CppRunner {
     this.setState("running");
 
     // ---- phase 1: build, one watchdog per step ----
-    const built = await this.build(req, plan, hooks, cancelled);
+    let built = await this.build(req, plan, hooks, cancelled);
+    // Errors only in files the program doesn't include: build again without them (program.ts).
+    let leftOut: WsPath[] = [];
+    let leftOutDiagnostics: ToolDiagnostic[] = [];
+    if (typeof built !== "string" && !built.ok && built.stage === "compile" && !built.internalError) {
+      const narrower = leaveOutUnused(plan, built.diagnostics);
+      if (narrower) {
+        leftOut = narrower.leftOut;
+        leftOutDiagnostics = built.diagnostics;
+        plan = narrower.plan;
+        built = await this.build(req, plan, hooks, cancelled);
+      }
+    }
     const buildMs = performance.now() - started;
     if (typeof built === "string") {
       this.active = null;
@@ -293,34 +306,41 @@ export class CppRunner {
         ...(message ? { message } : {}),
       };
     }
+    const finished = built;
+    const finalPlan = plan;
+    // A left-out file's own errors stay reported (it is still wrong); they just don't stop the program.
+    // The program's own errors first: the editor jumps to the first one.
+    const buildDiagnostics = [...finished.diagnostics, ...leftOutDiagnostics];
+    const left = leftOut.length ? { leftOut } : {};
     // Hints read the program's own files only: plan.mounted is every C/C++ file of the workspace.
-    const sources = programSources(plan);
-    const hints = (status: RunStatus) => cppHints({ sources, units: plan.units.map((u) => u.path), diagnostics: built.diagnostics, status });
+    const sources = programSources(finalPlan);
+    const hints = (status: RunStatus) => cppHints({ sources, units: finalPlan.units.map((u) => u.path), diagnostics: finished.diagnostics, status });
     // A compiler past its memory budget (or one that crashed) is replaced once it is idle again.
     const recycle = () => {
-      if (!built.recycle) return this.setState("ready");
+      if (!finished.recycle) return this.setState("ready");
       this.restartCompiler();
       this.prepare();
     };
-    if (!built.ok) {
+    if (!finished.ok) {
       this.active = null;
       recycle();
+      const why = leftOut.length ? ` ${leftOutWords(leftOut)}` : "";
       return {
-        status: "build-failed", exitCode: null, skipped: plan.skipped, ms: { build: buildMs },
-        diagnostics: [...built.diagnostics, ...hints("build-failed")],
-        message: built.internalError
-          ? `The ${built.stage === "link" ? "linker" : "compiler"} crashed (${built.internalError}).`
-          : `The program didn't ${built.stage === "link" ? "link" : "compile"}: ${summarize(built.diagnostics)}.`,
+        status: "build-failed", exitCode: null, skipped: finalPlan.skipped, ms: { build: buildMs }, ...left,
+        diagnostics: [...buildDiagnostics, ...hints("build-failed")],
+        message: finished.internalError
+          ? `The ${finished.stage === "link" ? "linker" : "compiler"} crashed (${finished.internalError}).`
+          : `The program didn't ${finished.stage === "link" ? "link" : "compile"}: ${summarize(buildDiagnostics)}.${why}`,
       };
     }
 
     // ---- phase 2: run the program in a fresh worker; only this part has the time limit ----
     hooks.onPhase("running");
-    const run = await this.execute(req, plan, built.wasm!, hooks);
+    const run = await this.execute(req, finalPlan, finished.wasm!, hooks);
     this.active = null;
     recycle();
-    const diagnostics = [...built.diagnostics, ...run.runtime, ...hints(run.status)];
-    return { ...run.result, diagnostics, skipped: plan.skipped, ms: { build: buildMs, run: run.result.ms.run } };
+    const diagnostics = [...buildDiagnostics, ...run.runtime, ...hints(run.status)];
+    return { ...run.result, diagnostics, skipped: finalPlan.skipped, ...left, ms: { build: buildMs, run: run.result.ms.run } };
   }
 
   /** Waits for the pack and a booted clang; returns a finished result when the run can't go on. */
