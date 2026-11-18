@@ -83,7 +83,43 @@ export function traceChart(chart: FlowChart, trace: RunTrace, program: boolean):
   const order = new Array<number>(chart.edges.length).fill(-1);
   const unsure = new Set<number>();
   let next = 0;
+  let calls = 0;
+  replay(chart, trace, codes, (m) => {
+    if (m.first) calls++;
+    for (const i of m.edges) {
+      counts[i]++;
+      if (order[i] < 0) order[i] = next++;
+    }
+    for (const d of m.unsure) unsure.add(d);
+  });
+  return { counts, order, unsure: [...unsure].sort((a, b) => a - b), calls, partial: trace.partial };
+}
 
+/** One event of the chart's calls, as replay() walks them (one object, reused for every event). */
+export interface Moved {
+  /** The event's index in trace.events, as pairs (index / 2). */
+  event: number;
+  /** The call (trace.calls index). */
+  serial: number;
+  /** The line the call moved to, or -1 (returned) or -2 (ended by an exception). */
+  line: number;
+  /** The call's first event: it starts at the chart's Start. */
+  first: boolean;
+  /** The box the call is at after this event. */
+  at: number;
+  /** The connectors this event went along (chart.edges indexes), in order. */
+  edges: readonly number[];
+  /** Decisions this event passed that the line events can't tell (see traceChart). */
+  unsure: readonly number[];
+}
+
+const NONE: readonly number[] = [];
+
+/**
+ * Replays the trace's events for the calls of `codes` (codesFor) on the chart, in the run's order,
+ * calling `visit` for each event that belongs to one of those calls (and isn't past its end).
+ */
+export function replay(chart: FlowChart, trace: RunTrace, codes: Set<number>, visit: (m: Moved) => void): void {
   // Boxes by line (Start and the closing End have no lines of their own), first box first.
   const end = closingEnd(chart);
   const byLine = new Map<number, number[]>();
@@ -144,14 +180,6 @@ export function traceChart(chart: FlowChart, trace: RunTrace, program: boolean):
     }
     return s;
   }
-  function take(s: Step0) {
-    for (const i of s.edges) {
-      counts[i]++;
-      if (order[i] < 0) order[i] = next++;
-    }
-    for (const d of s.unsure) unsure.add(d);
-  }
-
   // Each call replayed on its own: where it is (box, last line seen) and the last raw line.
   interface Call {
     at: number;
@@ -161,43 +189,58 @@ export function traceChart(chart: FlowChart, trace: RunTrace, program: boolean):
   }
   const { events, calls: callCode } = trace;
   const live: (Call | undefined)[] = new Array(callCode.length);
-  let calls = 0;
+  const m: Moved = { event: 0, serial: 0, line: 0, first: false, at: chart.start, edges: NONE, unsure: NONE };
+  const move = (c: Call, s: Step0 | null) => {
+    m.at = c.at;
+    m.edges = s ? s.edges : NONE;
+    m.unsure = s ? s.unsure : NONE;
+    visit(m);
+  };
   for (let k = 0; k + 1 < events.length; k += 2) {
     const serial = events[k];
     const line = events[k + 1];
     if (!(serial >= 0 && serial < callCode.length && codes.has(callCode[serial]))) continue;
     let c = live[serial];
-    if (!c) {
-      c = live[serial] = { at: chart.start, line: null, raw: null, over: false };
-      calls++;
-    }
+    m.first = !c;
+    if (!c) c = live[serial] = { at: chart.start, line: null, raw: null, over: false };
     if (c.over) continue;
+    m.event = k >> 1;
+    m.serial = serial;
+    m.line = line;
     if (line < 0) {
       // The call returned (-1) to its caller: on to the closing End. An exception (-2) goes nowhere on the chart.
       c.over = true;
-      if (line === -1 && end !== null && chart.nodes[c.at]?.kind !== "end") take(step(2, c.at, end, c.line, null));
+      if (line === -1 && end !== null && chart.nodes[c.at]?.kind !== "end") {
+        const s = step(2, c.at, end, c.line, null);
+        c.at = end;
+        move(c, s);
+      } else move(c, null);
       continue;
     }
     const again = line === c.raw;
     c.raw = line;
     const on = line < LINES ? byLine.get(line) : undefined;
-    if (!on) continue;
+    if (!on) {
+      move(c, null);
+      continue;
+    }
     if (again) {
       // Back to the same line: once round a loop written on that line, if the chart has one.
-      take(step(1, c.at, c.at, null, line));
+      move(c, step(1, c.at, c.at, null, line));
       continue;
     }
     if (on.includes(c.at)) {
       // Another line of the same box (a statement over several lines).
       c.line = line;
+      move(c, null);
       continue;
     }
     const to = on[0];
-    take(step(0, c.at, to, c.line, line));
+    const s = step(0, c.at, to, c.line, line);
     c.at = to;
     c.line = line;
+    move(c, s);
   }
-  return { counts, order, unsure: [...unsure].sort((a, b) => a - b), calls, partial: trace.partial };
 }
 
 // ---------------------------------------------------------------- drawing and words

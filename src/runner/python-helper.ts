@@ -18,7 +18,7 @@
 // String.raw keeps Python's backslashes as written; the code must not contain "${" or backticks.
 
 export const RUNNER_PY = String.raw`
-import ast, functools, gc, importlib, io, itertools, json, linecache, os, runpy, signal, sys, time, traceback, warnings
+import ast, functools, gc, importlib, io, itertools, json, linecache, os, runpy, signal, sys, time, traceback, types, warnings
 
 ROOT = "/workspace"
 MAX_STACK = 50
@@ -361,6 +361,241 @@ _CO_OPTIMIZED = 0x1
 _CO_SKIP = 0x20 | 0x80 | 0x100 | 0x200  # generators and coroutines: each resume would look like a fresh call
 _TRACE = {}
 
+# Variable values for stepping through a run: at each traced event, the call's simple variables
+# (numbers, strings, None, and short lists, tuples, sets and dicts of them) as short one-line texts,
+# recorded as changes only. Only built-in types are formatted, by their own C methods, so the
+# program's own __repr__, __str__, __eq__, __hash__ or metaclass never runs here (it could print,
+# loop or raise); any other object is "<ClassName>". Functions, classes, modules and names starting
+# with "__" are left out. The texts stop at VALUE_BUDGET (the trace then says where: "cut").
+# Cost: each event re-reads only the names already shown (a full scan only when the number of names
+# changes or one went away), and numbers and strings are kept as they are and written out once,
+# after the run (they can't change); only containers are written out at the event.
+TRACE_VALUES = True
+# Events with values: reading them costs more per line than the line trace itself (about 3 us an
+# event in Pyodide), so a long run pays for its start only, as with TRACE_STEPS.
+VALUE_STEPS = 10000
+VALUE_BUDGET = 2000000  # characters of names and texts (+8 each) and 12 per change
+VALUE_TEXT = 40
+VALUE_RECORDS = 600000  # changes kept during the run (each holds its value until the run ends)
+_ELL = chr(0x2026)
+_BIG_INT = 1 << 128  # a longer int is described (str() of a huge int is slow, or refused)
+_TYPE_NAME = type.__dict__["__name__"]
+_MUT = object()  # prev's object for values compared by their text (containers, other objects)
+_GONE = object()  # a record's value when the name went away
+
+
+def _vtype(t):
+    """<ClassName>, read past the metaclass (it could define __name__)."""
+    try:
+        name = _TYPE_NAME.__get__(t, type)
+    except Exception:
+        name = ""
+    return "<" + (name[:30] if type(name) is str and name.isidentifier() else "object") + ">"
+
+
+def _vtext(v, depth=0):
+    f = _VFMT.get(id(type(v)))
+    return f(v, depth) if f is not None else _vtype(type(v))
+
+
+def _vitems(items, depth, pairs=False):
+    """The items' texts, stopping once past VALUE_TEXT (the rest would be cut anyway)."""
+    out, size = [], 0
+    for x in items:
+        s = _vtext(x[0], depth + 1) + ": " + _vtext(x[1], depth + 1) if pairs else _vtext(x, depth + 1)
+        out.append(s)
+        size += len(s) + 2
+        if size > VALUE_TEXT:
+            break
+    return ", ".join(out)
+
+
+def _vint(v, depth):
+    if -_BIG_INT < v < _BIG_INT:
+        return int.__repr__(v)
+    return "<int, about " + str(int((int.bit_length(v) - 1) * 0.30103) + 1) + " digits>"
+
+
+def _vseq(start, end, empty):
+    def fmt(v, depth):
+        if not v:
+            return empty
+        if depth >= 2:
+            return start + _ELL + end
+        return start + _vitems(dict.items(v) if type(v) is dict else v, depth, type(v) is dict) + end
+    return fmt
+
+
+_vtuple_items = _vseq("(", ")", "()")
+
+
+def _vtuple(v, depth):
+    if len(v) == 1 and depth < 2:
+        return "(" + _vtext(v[0], depth + 1) + ",)"
+    return _vtuple_items(v, depth)
+
+
+def _vcut(text):
+    return text if len(text) <= VALUE_TEXT else text[:VALUE_TEXT - 1] + _ELL
+
+
+def _vput(name, v, t, e, at, rec):
+    """Records v as name's value at event at when it differs from e (prev's entry, updated).
+    Numbers and strings go in as they are (a long string cut, a huge int described); anything else
+    as its text in a 1-tuple, and only when the text changed."""
+    if id(t) in _VSAME:
+        e[0] = v
+        e[1] = None
+        if t is str:
+            if len(v) > VALUE_TEXT:
+                v = v[:VALUE_TEXT + 1]
+        elif t is int and not -_BIG_INT < v < _BIG_INT:
+            v = (_vint(v, 0),)
+        rec += (at, name, v)
+        return
+    look = None
+    if id(t) in _VNEST:
+        look = _vlook(v, t)
+        if look is not None and e[0] is _MUT and look == e[3]:
+            return  # the same items as last time: the same text
+    f = _VFMT.get(id(t))
+    text = _vcut(f(v, 0) if f is not None else _vtype(t))
+    e[0] = _MUT
+    e[3] = look
+    if e[1] != text:
+        e[1] = text
+        rec += (at, name, (text,))
+
+
+def _vids(v, t):
+    """What a container's text can show, cheaply (C calls only): its type, size and the ids of its
+    first items (and keys). An id is only compared, never kept as a reference."""
+    if t is list or t is tuple:
+        return (id(t), len(v), tuple(map(id, v[:_VLOOK])))
+    if t is dict:
+        return (id(t), len(v), tuple(map(id, itertools.islice(dict.keys(v), _VLOOK))),
+                tuple(map(id, itertools.islice(dict.values(v), _VLOOK))))
+    return (id(t), len(v), tuple(map(id, itertools.islice(v, _VLOOK))))
+
+
+def _vlook(v, t):
+    """_vids, or None when one of those first items is a container (its own items could change)."""
+    items = itertools.islice(dict.values(v) if t is dict else v, _VLOOK)
+    return _vids(v, t) if _VNEST.isdisjoint(map(id, map(type, items))) else None
+
+
+def _vhidden(t):
+    """Functions, classes, modules and the like: not variables to show."""
+    return id(t) in _VSKIP or issubclass(t, type)
+
+
+def _vscan(loc, st, at, rec):
+    """Records the values in loc (a frame's f_locals) that changed at event at into rec, as (event,
+    name, value) triples: every name, new ones in the frame's order, and names gone. The trace's
+    snap() re-reads only the names already shown, and calls this when the number of names changed
+    or one went away. st, per call: [prev {name: [object (_VSAME types) or _MUT, text or None, last
+    full scan, _vlook of a container]}, names never shown, {name: function, class or module},
+    number of names]. The
+    objects kept are numbers and strings only: holding anything else could change when the
+    program's objects are freed (a __del__ that prints)."""
+    prev, never, objs = st[0], st[1], st[2]
+    objs.clear()
+    for name, v in loc.items():
+        if type(name) is not str or name in never:  # hashing any other key could run the program's __hash__
+            continue
+        e = prev.get(name)
+        if e is None and (name[:2] == "__" or not name.isidentifier()):
+            never.add(name)
+            continue
+        t = type(v)
+        if id(t) not in _VSAME and _vhidden(t):
+            objs[name] = v
+            continue  # a shown name that became a function goes away below
+        if e is None:
+            e = prev[name] = [_MUT, None, at, None]
+            _vput(name, v, t, e, at, rec)
+            continue
+        e[2] = at
+        old = e[0]
+        if v is not old and not (t is type(old) and v == old):
+            _vput(name, v, t, e, at, rec)
+    for name in [n for n, e in prev.items() if e[2] != at]:
+        del prev[name]
+        rec += (at, name, _GONE)
+    st[3] = len(loc)
+
+
+def _vfinish(rec, cut):
+    """The run's records as [names, texts, (event, name, text or -1) int32s, cut], within
+    VALUE_BUDGET (past it, the values stop at that event: cut)."""
+    from array import array
+    names, texts, nix, tix, ni, ti = [], [], {}, {}, [], []
+    budget = VALUE_BUDGET
+    ats, keys, vals = rec[0::3], rec[1::3], rec[2::3]
+    ints = int.__repr__  # ints in the records are short ones (_vput describes the others)
+    n = len(vals)
+    for k in range(n):
+        v = vals[k]
+        t = type(v)
+        if t is int:
+            text = ints(v)
+        elif t is tuple:
+            text = v[0]
+        elif v is _GONE:
+            text = None
+        else:
+            try:
+                text = _vcut(_VFMT[id(t)](v, 0))
+            except Exception:
+                text, budget = None, -1  # stops here, as past the budget
+        name = keys[k]
+        i = nix.get(name)
+        j = -1 if text is None else tix.get(text)
+        cost = 12 + (len(name) + 8 if i is None else 0) + (len(text) + 8 if j is None else 0)
+        if cost > budget:
+            cut = ats[k]
+            n = k
+            while n and ats[n - 1] == cut:  # this event's changes would be part only
+                n -= 1
+            break
+        budget -= cost
+        if i is None:
+            i = nix[name] = len(names)
+            names.append(name)
+        if j is None:
+            j = tix[text] = len(texts)
+            texts.append(text)
+        ni.append(i)
+        ti.append(j)
+    flat = [0] * (3 * n)
+    flat[0::3] = ats[:n]
+    flat[1::3] = ni[:n]
+    flat[2::3] = ti[:n]
+    return names, texts, array("i", flat), cut
+
+
+_VFMT = {
+    id(int): _vint,
+    id(bool): lambda v, depth: "True" if v is True else "False",
+    id(float): lambda v, depth: float.__repr__(v),
+    id(complex): lambda v, depth: complex.__repr__(v),
+    id(type(None)): lambda v, depth: "None",
+    id(str): lambda v, depth: str.__repr__(v[:VALUE_TEXT + 1]),
+    id(list): _vseq("[", "]", "[]"),
+    id(tuple): _vtuple,
+    id(set): _vseq("{", "}", "set()"),
+    id(frozenset): _vseq("frozenset({", "})", "frozenset()"),
+    id(dict): _vseq("{", "}", "{}"),
+}
+# Values whose text can only change with the object: the same object means the same text.
+_VSAME = {id(int), id(bool), id(float), id(complex), id(type(None)), id(str)}
+# Containers, and how many of their first items _vlook checks (more than a VALUE_TEXT text can show).
+_VNEST = {id(list), id(tuple), id(set), id(frozenset), id(dict)}
+_VLOOK = 16
+_VSKIP = {id(t) for t in (types.ModuleType, types.FunctionType, types.BuiltinFunctionType, types.MethodType,
+                          types.MethodWrapperType, types.WrapperDescriptorType, types.MethodDescriptorType,
+                          staticmethod, classmethod, property, functools.partial)}
+
 
 def _trace_start(path):
     from array import array
@@ -372,10 +607,26 @@ def _trace_start(path):
     left = TRACE_STEPS
     _TRACE.clear()
     _TRACE.update(codes=codes, calls=calls, events=events, partial=False)
+    # Values: (event, name, value) triples, written out by __ce_trace (_vfinish).
+    rec = []
+    valued = TRACE_VALUES
+    if valued:
+        _TRACE.update(values=rec, vcut=None)
 
     def cut():
         _TRACE["partial"] = True
         sys.settrace(None)  # no more events at all: the rest of the run is as fast as untraced
+
+    put = rec.extend
+    most = 3 * VALUE_RECORDS
+
+    def stop_values(at):
+        """Values stop at event at (an error, or past VALUE_RECORDS); the line trace goes on."""
+        nonlocal valued
+        valued = False
+        _TRACE["vcut"] = at
+        while rec and rec[-3] == at:  # this event's changes are part only: dropped
+            del rec[-3:]
 
     def on_call(frame, event, arg):
         code = frame.f_code
@@ -394,6 +645,8 @@ def _trace_start(path):
         serial = len(calls)
         calls.append(at)
         raised = False
+        st = [{}, set(), {}, -1]  # this call's values (_vscan)
+        prev, objs = st[0], st[2]
 
         def on_event(frame, event, arg):
             nonlocal left, raised
@@ -401,14 +654,62 @@ def _trace_start(path):
                 if left <= 0:
                     return cut()
                 left -= 1
+                n = len(events) >> 1
                 add(serial)
                 add(frame.f_lineno)
                 raised = False
-            elif event == "exception":
-                raised = True
             elif event == "return":
+                n = len(events) >> 1
                 add(serial)
                 add(-2 if raised else -1)
+            else:
+                if event == "exception":
+                    raised = True
+                return on_event
+            if not valued:
+                return on_event
+            if n >= VALUE_STEPS:
+                stop_values(n)
+                return on_event
+            # The values at this event. Written out here, as this runs on every line: only the
+            # names already shown are read again; _vscan reads them all when the number of names
+            # changed, a name went away or became a function, or a function's name changed.
+            try:
+                loc = frame.f_locals
+                full = len(loc) != st[3]
+                if not full:
+                    get = loc.get
+                    for name, e in prev.items():
+                        v = get(name, _GONE)
+                        old = e[0]
+                        if v is old:
+                            continue
+                        t = type(v)
+                        if t is int and -_BIG_INT < v < _BIG_INT:  # the common case
+                            if type(old) is not int or v != old:
+                                e[0] = v
+                                e[1] = None
+                                put((n, name, v))
+                        elif id(t) in _VNEST:  # unchanged first items: the same text (_vlook)
+                            look = e[3]
+                            if look is None or old is not _MUT or _vids(v, t) != look:
+                                _vput(name, v, t, e, n, rec)
+                        elif v is _GONE or (id(t) not in _VSAME and _vhidden(t)):
+                            full = True
+                            break
+                        elif not (t is type(old) and v == old):  # not equal numbers or strings
+                            _vput(name, v, t, e, n, rec)
+                    if not full:
+                        for name, h in objs.items():
+                            if get(name, _GONE) is not h:
+                                full = True
+                                break
+                if full:
+                    _vscan(loc, st, n, rec)
+                if len(rec) > most:
+                    stop_values(n)
+            except Exception:
+                stop_values(n)
             return on_event
 
         return on_event
@@ -417,11 +718,16 @@ def _trace_start(path):
 
 
 def __ce_trace():
-    """The last run's trace: [meta JSON, calls as int32 bytes, events as int32 bytes], or None."""
+    """The last run's trace: [meta JSON, calls as int32 bytes, events as int32 bytes], then, when
+    values were recorded, [values JSON {"names", "texts", "cut"}, (event, name, text) int32 bytes].
+    None when there is none."""
     if not _TRACE:
         return None
     out = [json.dumps({"codes": _TRACE["codes"], "partial": _TRACE["partial"]}, ensure_ascii=False),
            _TRACE["calls"].tobytes(), _TRACE["events"].tobytes()]
+    if "values" in _TRACE:
+        names, texts, deltas, cut = _vfinish(_TRACE["values"], _TRACE["vcut"])
+        out += [json.dumps({"names": names, "texts": texts, "cut": cut}, ensure_ascii=False), deltas.tobytes()]
     _TRACE.clear()
     return out
 

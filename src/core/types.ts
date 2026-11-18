@@ -169,6 +169,26 @@ export interface RunTrace {
   events: Int32Array;
   /** The trace stopped early (TRACE_STEPS lines): counts cover only the start of the run. */
   partial: boolean;
+  /** The simple variables of each traced call as its events fired (absent in older traces). */
+  values?: TraceValues;
+}
+
+/**
+ * Variable values as short display texts (plain text from the user's program: shown only through
+ * textContent), recorded as changes: at an event, a call's variable got a new text, or went away.
+ */
+export interface TraceValues {
+  /** Variable names, by index. */
+  names: string[];
+  /** Display texts ("12", "'hi'", "[1, 2, 3]"), by index. */
+  texts: string[];
+  /**
+   * Triples (event, name, text): at the event pair `event` of RunTrace.events (index / 2), the
+   * variable `name` of that event's call has text `text`, or is gone when text is -1. In event order.
+   */
+  deltas: Int32Array;
+  /** Values stopped at this event (the size budget ran out): later events' values are unknown. */
+  cut: number | null;
 }
 
 // ---------------------------------------------------------------- sync

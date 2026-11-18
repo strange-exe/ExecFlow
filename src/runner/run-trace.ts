@@ -3,8 +3,10 @@
 // (traceFromPython), and the runner checks the worker's message before the page uses it
 // (checkTrace): a program can't reach the worker's postMessage, but it can rewrite the helper's
 // buffers while it runs, so every size and type is checked here, and the chart's mapping
-// (flowchart/trace.ts) accepts any numbers.
-import type { RunTrace } from "../core/types";
+// (flowchart/trace.ts) accepts any numbers. The variable values (RunTrace.values, for stepping
+// through the run) are checked the same way: sizes, indexes in range, events in order, and texts
+// short and on one line. They stay plain text from the user's program: shown only via textContent.
+import type { RunTrace, TraceValues } from "../core/types";
 
 /** Line events recorded per run; the Python helper's TRACE_STEPS (a test keeps them equal). */
 export const TRACE_STEPS = 50_000;
@@ -18,6 +20,19 @@ export const MAX_NAME = 300;
  */
 export const MAX_TRACE_CALLS = TRACE_STEPS + 10_000;
 export const MAX_TRACE_INTS = 2 * (TRACE_STEPS + 2 * MAX_TRACE_CALLS);
+
+/** The helper's VALUE_STEPS: events with variable values; later ones have none (values.cut). */
+export const VALUE_STEPS = 10_000;
+/** The helper's VALUE_TEXT: a value's text is cut to this many characters (code points). */
+export const VALUE_TEXT = 40;
+/** The helper's VALUE_BUDGET: name and text characters (+8 each) and 12 per change. */
+export const VALUE_BUDGET = 2_000_000;
+/** What that budget allows at most (a test keeps them in step with the helper). */
+export const MAX_VALUE_DELTAS = Math.floor(VALUE_BUDGET / 12);
+export const MAX_VALUE_TEXTS = Math.floor(VALUE_BUDGET / 9);
+export const MAX_VALUE_NAMES = 20_000;
+/** Line breaks, controls, bidi and other invisible format characters: the helper escapes them all. */
+const UNSHOWABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 function int32s(bytes: unknown): Int32Array | null {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength % 4 !== 0) return null;
@@ -38,19 +53,62 @@ function codesOf(raw: unknown): RunTrace["codes"] | null {
   return out;
 }
 
-/** What __ce_trace returned (converted with toJs) as a RunTrace; undefined when it isn't one. */
-export function traceFromPython(raw: unknown): RunTrace | undefined {
-  if (!Array.isArray(raw) || raw.length !== 3 || typeof raw[0] !== "string") return undefined;
-  let meta: unknown;
+const jsonOf = (text: unknown): unknown => {
+  if (typeof text !== "string") return undefined;
   try {
-    meta = JSON.parse(raw[0]);
+    return JSON.parse(text);
   } catch {
     return undefined;
   }
+};
+
+/**
+ * What __ce_trace returned (converted with toJs) as a RunTrace; undefined when it isn't one.
+ * [meta JSON, calls, events] (no values), or those and [values JSON, deltas] (int32 bytes each).
+ */
+export function traceFromPython(raw: unknown): RunTrace | undefined {
+  if (!Array.isArray(raw) || (raw.length !== 3 && raw.length !== 5)) return undefined;
+  const meta = jsonOf(raw[0]);
   const calls = int32s(raw[1]);
   const events = int32s(raw[2]);
   if (!calls || !events || typeof meta !== "object" || meta === null) return undefined;
-  return checkTrace({ codes: (meta as { codes?: unknown }).codes, calls, events, partial: (meta as { partial?: unknown }).partial === true });
+  const trace: Record<string, unknown> = { codes: (meta as { codes?: unknown }).codes, calls, events, partial: (meta as { partial?: unknown }).partial === true };
+  if (raw.length === 5) {
+    const v = jsonOf(raw[3]);
+    const deltas = int32s(raw[4]);
+    if (typeof v !== "object" || v === null || !deltas) return undefined;
+    trace.values = { ...(v as object), deltas };
+  }
+  return checkTrace(trace);
+}
+
+/** Display strings: a list of at most `max` non-empty strings of at most `len` UTF-16 units, nothing unshowable. */
+function texts(raw: unknown, max: number, len: number, empty: boolean): string[] | null {
+  if (!Array.isArray(raw) || raw.length > max) return null;
+  for (const s of raw) if (typeof s !== "string" || s.length > len || (!empty && !s) || UNSHOWABLE.test(s)) return null;
+  return raw as string[];
+}
+
+/** The values part of a trace with `pairs` events, or null when anything about it is off. */
+function valuesOf(raw: unknown, pairs: number): TraceValues | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const v = raw as Partial<Record<keyof TraceValues, unknown>>;
+  // A code point is at most two UTF-16 units.
+  const names = texts(v.names, MAX_VALUE_NAMES, MAX_NAME, false);
+  const shown = texts(v.texts, MAX_VALUE_TEXTS, 2 * VALUE_TEXT, true);
+  const cut = v.cut ?? null;
+  if (!names || !shown || !(v.deltas instanceof Int32Array)) return null;
+  if (cut !== null && !(Number.isSafeInteger(cut) && (cut as number) >= 0 && (cut as number) <= pairs)) return null;
+  const d = v.deltas;
+  if (d.length % 3 !== 0 || d.length > 3 * MAX_VALUE_DELTAS) return null;
+  let last = 0;
+  for (let i = 0; i < d.length; i += 3) {
+    const [at, name, text] = [d[i], d[i + 1], d[i + 2]];
+    if (at < last || at >= pairs || (cut !== null && at >= (cut as number))) return null;
+    if (name < 0 || name >= names.length || text < -1 || text >= shown.length) return null;
+    last = at;
+  }
+  return { names: [...names], texts: [...shown], deltas: d, cut: cut as number | null };
 }
 
 /** A trace from the worker, or undefined when anything about it is off (too big, wrong types, odd length). */
@@ -60,5 +118,11 @@ export function checkTrace(raw: unknown): RunTrace | undefined {
   const codes = codesOf(t.codes);
   if (!codes || !(t.calls instanceof Int32Array) || !(t.events instanceof Int32Array)) return undefined;
   if (t.calls.length > MAX_TRACE_CALLS || t.events.length > MAX_TRACE_INTS || t.events.length % 2 !== 0) return undefined;
-  return { codes, calls: t.calls, events: t.events, partial: t.partial === true };
+  const trace: RunTrace = { codes, calls: t.calls, events: t.events, partial: t.partial === true };
+  if (t.values !== undefined) {
+    const values = valuesOf(t.values, t.events.length / 2);
+    if (!values) return undefined;
+    trace.values = values;
+  }
+  return trace;
 }
