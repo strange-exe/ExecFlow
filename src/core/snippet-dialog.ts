@@ -178,8 +178,8 @@ export function colorChoices(paint: PaintInfo): { value: ColorChoice; label: str
   if (paint.family === "palette") {
     return [
       { value: "match", label: paint.themeName ? `Match the editor (${shown(paint.themeName)})` : "Match the editor" },
-      { value: "light", label: "ExecFlow Signal Light" },
-      { value: "dark", label: "ExecFlow Signal Dark" },
+      { value: "light", label: "ExecFlow Electric Blue Light" },
+      { value: "dark", label: "ExecFlow Electric Blue Dark" },
     ];
   }
   return [
@@ -192,8 +192,8 @@ export function colorChoices(paint: PaintInfo): { value: ColorChoice; label: str
 const OWN_PHRASE: Record<ColorChoice, string> = { match: "in the editor's colours", light: "in light colours", dark: "in dark colours" };
 const PALETTE_PHRASE: Record<ColorChoice, string> = {
   match: "in the editor's colours",
-  light: "in ExecFlow Signal Light colours",
-  dark: "in ExecFlow Signal Dark colours",
+  light: "in ExecFlow Electric Blue Light colours",
+  dark: "in ExecFlow Electric Blue Dark colours",
 };
 
 /** The preview's text alternative (5.3), also the dialog's description. */

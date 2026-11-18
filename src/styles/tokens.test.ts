@@ -112,13 +112,23 @@ describe("type, shape and desktop heights (redesign 2, option a)", () => {
   };
   const root = Object.assign({}, ...[...body.matchAll(/(?:^|\n):root \{([^}]*)\}/g)].map((m) => Object.fromEntries([...m[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((d) => [d[1], d[2].trim()]))));
 
-  it("Geist for the interface, JetBrains Mono for code, the log and file names, in every theme", () => {
-    expect(root["--font-ui"]).toMatch(/^"Geist", /);
-    expect(root["--font-code"]).toMatch(/^"JetBrains Mono", /);
+  it("TASA Orbiter for the interface, Geist Mono for code, the log and file names, in every theme (Workbench, 2026-11-18)", () => {
+    expect(root["--font-ui"]).toMatch(/^"TASA Orbiter", /);
+    expect(root["--font-code"]).toMatch(/^"Geist Mono", /);
     expect(root["--font-name"]).toBe("var(--font-code)");
     // "Joined symbols" switches ligatures only, never the font.
     expect(body).not.toMatch(/data-ligatures="on"\][^{]*\{[^}]*--font-code/);
-    expect(body).not.toMatch(/Source Sans 3|Source Code Pro/);
+    expect(body).not.toMatch(/Source Sans 3|Source Code Pro|JetBrains Mono|"Geist"/);
+  });
+
+  it("self-hosts both as variable files: TASA Orbiter upright, Geist Mono upright and its real italic (for comments)", () => {
+    const faces = [...tokens.matchAll(/@font-face \{([^}]*)\}/g)].map((m) => m[1]);
+    const face = (family: string, style: string) => faces.filter((f) => f.includes(`font-family: "${family}";`) && f.includes(`font-style: ${style};`));
+    expect(faces).toHaveLength(3);
+    expect(face("TASA Orbiter", "normal")[0]).toContain('src: url("@fontsource-variable/tasa-orbiter/files/tasa-orbiter-latin-wght-normal.woff2")');
+    expect(face("Geist Mono", "normal")[0]).toContain('src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2")');
+    expect(face("Geist Mono", "italic")[0]).toContain('src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-italic.woff2")');
+    for (const f of faces) expect(f).toContain("font-display: swap;");
   });
 
   it("the type scale and shapes", () => {

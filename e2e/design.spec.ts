@@ -21,9 +21,9 @@ async function openThemed(page: Page, scheme: "light" | "dark", reducedMotion: "
   await waitReady(page);
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  // And the colours really are that scheme's (ExecFlow Signal, the default: data-palette="signal").
-  await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(21, 24, 29)" : "rgb(255, 255, 255)");
+  // And the colours really are that scheme's (ExecFlow Electric Blue, the default: data-palette="electric-blue").
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "electric-blue");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(12, 12, 14)" : "rgb(244, 244, 246)");
 }
 
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -308,7 +308,7 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   await openApp(page);
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const html = page.locator("html");
-  await expect(html).toHaveAttribute("data-palette", "signal");
+  await expect(html).toHaveAttribute("data-palette", "electric-blue");
   // The theme picker is Settings > Appearance since Workbench Pro S4.
   await openThemePicker(page);
   await page.getByRole("radio", { name: "ExecFlow Slate Dark" }).check();
@@ -340,7 +340,7 @@ test("Slate stays a picker theme: chosen in Settings, painted before the app's c
   expect(await bg()).toBe("rgb(14, 18, 23)");
 });
 
-// The fonts (Geist and JetBrains Mono, every weight used, weights that really differ) and the
+// The fonts (TASA Orbiter and Geist Mono, every weight used, weights that really differ) and the
 // ligature setting are checked in e2e/signal.spec.ts.
 
 /** The load status of each face of `family` in `style` (document.fonts). */
@@ -353,13 +353,13 @@ const faceStatus = (page: Page, family: string, style: string) =>
 // the page is next idle after the editor is shown (theme/fonts.ts), before anything uses it.
 test("the code font's italic face loads at idle once the editor is shown, before anything is italic", async ({ page }) => {
   await openApp(page);
-  expect(await faceStatus(page, "JetBrains Mono", "italic"), "nothing on the empty workspace uses it").toEqual(["unloaded"]);
+  expect(await faceStatus(page, "Geist Mono", "italic"), "nothing on the empty workspace uses it").toEqual(["unloaded"]);
   await page.locator('.starter[data-language="python"]').click();
   await expect(page.locator(".cm-content")).toContainText('input("Your name: ")');
   // The starter has no comment and nothing is unsaved: no italic text is on the page.
   await expect(page.locator('.tab[data-dirty="true"]')).toHaveCount(0);
   expect(await page.locator(".cm-content").textContent()).not.toContain("#");
-  await expect.poll(() => faceStatus(page, "JetBrains Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+  await expect.poll(() => faceStatus(page, "Geist Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
 });
 
 // A reload cancels a download still running (lessons.md: a lazy download right before a reload).
@@ -377,7 +377,7 @@ test("a reload while the italic face is still downloading logs no error and no f
       for (const rule of sheet.cssRules) {
         if (!(rule instanceof CSSFontFaceRule)) continue;
         const style = rule.style;
-        if (style.getPropertyValue("font-family").includes("JetBrains Mono") && style.getPropertyValue("font-style") === "italic") {
+        if (style.getPropertyValue("font-family").includes("Geist Mono") && style.getPropertyValue("font-style") === "italic") {
           const src = /url\("?([^")]+)"?\)/.exec(style.getPropertyValue("src"));
           if (src) return new URL(src[1], location.href).href;
         }
@@ -426,7 +426,7 @@ test("a reload while the italic face is still downloading logs no error and no f
   test.info().annotations.push({ type: "cancel", description: cancelled.join("; ") || "no requestfailed event" });
   await page.unrouteAll({ behavior: "ignoreErrors" });
   // The restored tab shows the editor again, and the face loads this time.
-  await expect.poll(() => faceStatus(page, "JetBrains Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
+  await expect.poll(() => faceStatus(page, "Geist Mono", "italic"), { timeout: 10_000 }).toEqual(["loaded"]);
 });
 
 // The first suggestion list's task looked up system fallback fonts for the kind icons' glyphs and
@@ -471,20 +471,20 @@ test("'match device' follows the system light and dark setting live", async ({ p
   await expect.poll(theme).toBe("light");
 });
 
-test("ligatures stay off unless chosen, and choosing them keeps the code font (JetBrains Mono)", async ({ page }) => {
+test("ligatures stay off unless chosen, and choosing them keeps the code font (Geist Mono)", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="c"]').click();
   const lig = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontVariantLigatures);
   const codeFont = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontFamily);
   expect(await lig()).toBe("none");
-  expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
+  expect(await codeFont()).toMatch(/^"?Geist Mono"?,/);
   await page.locator("#settings-button").click();
   await page.getByLabel("Joined symbols in code").check();
   expect(await lig()).not.toBe("none");
-  expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
+  expect(await codeFont()).toMatch(/^"?Geist Mono"?,/);
   await page.getByLabel("Joined symbols in code").uncheck();
   expect(await lig()).toBe("none");
-  expect(await codeFont()).toMatch(/^"?JetBrains Mono"?,/);
+  expect(await codeFont()).toMatch(/^"?Geist Mono"?,/);
 });
 
 // Icons are fetched out of band, so no console error or axe rule catches a

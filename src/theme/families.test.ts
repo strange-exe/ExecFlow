@@ -9,13 +9,14 @@ import { BUILT_IN, themePalette, type Theme } from "./themes";
 const byId = new Map(BUILT_IN.map((t) => [t.id, t]));
 
 describe("theme families", () => {
-  it("hold every built-in theme exactly once, 24 families", () => {
+  it("hold every built-in theme exactly once, 25 families", () => {
     const ids = FAMILIES.flatMap((fam) => fam.variants.map((v) => v.id));
     expect(ids.length).toBe(BUILT_IN.length);
+    expect(BUILT_IN.length).toBe(55);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual(BUILT_IN.map((t) => t.id).sort());
-    expect(FAMILIES.length).toBe(24);
-    expect(new Set(FAMILIES.map((fam) => fam.id)).size).toBe(24);
+    expect(FAMILIES.length).toBe(25);
+    expect(new Set(FAMILIES.map((fam) => fam.id)).size).toBe(25);
   });
 
   it("label each variant with words its theme's accessible name contains (label in name), names otherwise unchanged", () => {
@@ -31,18 +32,21 @@ describe("theme families", () => {
     }
     expect(variantName(byId.get("slate-dark")!, "Dark")).toBe("ExecFlow Slate Dark");
     expect(variantName(byId.get("signal")!, "Match device")).toBe("ExecFlow Signal (match device)");
+    expect(variantName(byId.get("electric-blue")!, "Match device")).toBe("ExecFlow Electric Blue (match device)");
     expect(variantName(byId.get("dracula")!, "Dark")).toBe("Dracula, Dark");
     expect(variantName(byId.get("kanagawa")!, "Wave")).toBe("Kanagawa, Wave");
   });
 
   it("start with the curated row, then the other families A to Z with none repeated", () => {
-    expect(curatedFamilies().map((fam) => fam.id)).toEqual(["signal", "slate", "high-contrast", "github", "tokyo-night", "catppuccin"]);
+    expect(curatedFamilies().map((fam) => fam.id)).toEqual(["electric-blue", "slate", "high-contrast", "github", "tokyo-night", "catppuccin"]);
     const rest = otherFamilies();
     expect(rest.length + CURATED.length).toBe(FAMILIES.length);
     expect(rest.some((fam) => CURATED.includes(fam.id))).toBe(false);
     const names = rest.map((fam) => fam.name);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "en")));
     expect(names[0]).toBe("Ayu");
+    // Signal, the default before Electric Blue, sits A to Z beside Deep Field, the one before it.
+    expect(names.slice(names.indexOf("ExecFlow Deep Field"), names.indexOf("ExecFlow Deep Field") + 2)).toEqual(["ExecFlow Deep Field", "ExecFlow Signal"]);
   });
 
   it("filter variants by scheme: match device counts as both", () => {
@@ -53,13 +57,14 @@ describe("theme families", () => {
     expect(variantShown(byId.get("catppuccin-latte")!, "dark")).toBe(false);
     expect(variantShown(byId.get("catppuccin-latte")!, "all")).toBe(true);
     const light = FAMILIES.filter((fam) => fam.variants.some((v) => variantShown(byId.get(v.id)!, "light")));
-    expect(light.map((fam) => fam.id)).toEqual(["signal", "deep-field", "slate", "github", "tokyo-night", "catppuccin", "rose-pine", "gruvbox", "kanagawa", "everforest", "ayu", "solarized", "vitesse", "flexoki", "horizon", "material"]);
+    expect(light.map((fam) => fam.id)).toEqual(["electric-blue", "signal", "deep-field", "slate", "github", "tokyo-night", "catppuccin", "rose-pine", "gruvbox", "kanagawa", "everforest", "ayu", "solarized", "vitesse", "flexoki", "horizon", "material"]);
   });
 
   it("search by family name, variant label or theme name, ignoring case and punctuation", () => {
     const find = (q: string) => FAMILIES.filter((fam) => familyMatches(fam, byId, q)).map((fam) => fam.id);
-    expect(find("")).toHaveLength(24);
-    expect(find("  ")).toHaveLength(24);
+    expect(find("")).toHaveLength(25);
+    expect(find("  ")).toHaveLength(25);
+    expect(find("electric")).toEqual(["electric-blue"]);
     expect(find("latte")).toEqual(["catppuccin"]);
     expect(find("palenight")).toEqual(["material"]);
     expect(find("horizon bright")).toEqual(["horizon"]);

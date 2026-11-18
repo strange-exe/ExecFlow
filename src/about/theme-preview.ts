@@ -14,12 +14,12 @@ export function shortName(t: Theme): string {
 
 /**
  * The theme shown first: the one chosen in the editor (a "match device" choice as its variant in the
- * page's scheme), else Signal in the page's scheme. Anything unknown, such as a custom theme's id or
- * a damaged value, falls back to Signal.
+ * page's scheme), else Electric Blue, the default, in the page's scheme. Anything unknown, such as a
+ * custom theme's id or a damaged value, falls back to Electric Blue.
  */
 export function firstPreview(all: readonly Theme[], chosen: string | null, scheme: Scheme): string {
   const list = previewThemes(all);
-  const fallback = `signal-${scheme}`;
+  const fallback = `electric-blue-${scheme}`;
   const t = all.find((x) => x.id === chosen);
   if (!t) return fallback;
   if (!t.system) return list.some((x) => x.id === t.id) ? t.id : fallback;

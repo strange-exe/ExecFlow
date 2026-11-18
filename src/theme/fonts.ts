@@ -7,8 +7,9 @@
 // shown, or the editor fetched early when the pointer heads for the file list) it is loaded when
 // the page is next idle, with the CSS Font Loading API (w3.org/TR/css-font-loading-3,
 // FontFaceSet.load()), which draws nothing. The file is precached with the app, so this works
-// offline too. The code font is JetBrains Mono in every theme ("Joined symbols" turns on its
-// ligatures only, never another font), so this is needed once. Only the editor chunk imports this
+// offline too. The code font is Geist Mono in every theme ("Joined symbols" turns on its
+// ligatures only, never another font), and its italic is a variable file of its own (every weight,
+// like the upright one), so this is needed once. Only the editor chunk imports this
 // file, so the first visit doesn't carry it.
 
 /** How long an idle callback may wait while the page stays busy (ms). */
@@ -23,7 +24,7 @@ export function atIdle(run: () => void): void {
 }
 
 /**
- * Loads the italic face of the code font (--font-code, JetBrains Mono). Never rejects and never
+ * Loads the italic face of the code font (--font-code, Geist Mono). Never rejects and never
  * logs: a load that fails, or that a reload cancels (Firefox and WebKit then reject with a
  * NetworkError), only means the face loads at its first use, as before.
  */

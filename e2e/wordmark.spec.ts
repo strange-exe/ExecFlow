@@ -53,8 +53,8 @@ for (const scheme of ["light", "dark"] as const) {
           flowRatio: ratio(flow.color, ground),
         };
       });
-      expect(look.execFont, `${path}: Exec in the code font`).toMatch(/^"?JetBrains Mono/);
-      expect(look.flowFont, `${path}: Flow in the UI font`).toMatch(/^"?Geist/);
+      expect(look.execFont, `${path}: Exec in the code font`).toMatch(/^"?Geist Mono/);
+      expect(look.flowFont, `${path}: Flow in the UI font`).toMatch(/^"?TASA Orbiter/);
       expect(look.flowIsLink, `${path}: Flow in --link`).toBe(true);
       expect(look.execRatio, `${path}: Exec contrast`).toBeGreaterThanOrEqual(4.5);
       expect(look.flowRatio, `${path}: Flow contrast`).toBeGreaterThanOrEqual(4.5);

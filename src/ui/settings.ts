@@ -30,8 +30,8 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
-  // 15 px (the default since Deep Field, kept with JetBrains Mono in the Signal round: the approved
-  // previews were drawn at 15). A saved size stays as saved.
+  // 15 px (the default since Deep Field, kept with JetBrains Mono in the Signal round and with Geist
+  // Mono in Workbench: the approved previews were drawn at 15). A saved size stays as saved.
   codeSize: 15,
   lineWrapping: false,
   suggestOnTyping: true,

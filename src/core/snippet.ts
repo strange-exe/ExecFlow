@@ -117,8 +117,8 @@ export function menuLabel(plan: LinePlan, name: string | null): string {
 
 // ---------------------------------------------------------------- colours (the choices and tokens: core/snippet-dialog.ts)
 
-/** Which colours the document root shows: Deep Field (no data-palette), Signal, Slate, or a palette theme (High contrast and the rest, custom). */
-export type PaintFamily = "signal" | "deep-field" | "slate" | "palette";
+/** Which colours the document root shows: Deep Field (no data-palette), Electric Blue, Signal, Slate, or a palette theme (High contrast and the rest, custom). */
+export type PaintFamily = "electric-blue" | "signal" | "deep-field" | "slate" | "palette";
 export interface PaintInfo {
   readonly family: PaintFamily;
   readonly scheme: "light" | "dark";

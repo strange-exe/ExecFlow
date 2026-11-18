@@ -87,7 +87,7 @@ for (const scheme of ["light", "dark"] as const) {
     await openIn(page, "/", scheme);
     await waitReady(page);
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-    await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
+    await expect(page.locator("html")).toHaveAttribute("data-palette", "electric-blue");
     const t = await tokens(page);
     const name = `${SHOTS}/${info.project.name}-${scheme}`;
 

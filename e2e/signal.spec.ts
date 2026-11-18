@@ -1,12 +1,13 @@
-// The chosen redesign, "ExecFlow Signal" (redesign 2, option a, chosen 2026-10-25): the default
-// theme and its first paint, the one-time move from the old default, the fonts (Geist for the
-// interface, JetBrains Mono for code with its ligatures off unless chosen), the desktop bar heights
-// and the editor as a sheet (12 px corners, a 1 px --border edge, 10 px of --surface right and
-// below it, the editor head on --bg), with phones unchanged but for colours and fonts. Every themed
-// test emulates the scheme, reloads and proves the scheme and the palette are active first.
+// "ExecFlow Signal" (redesign 2, option a, chosen 2026-10-25), the default until Electric Blue
+// (Workbench, 2026-11-18), and the default's first paint: Electric Blue now, painted before the
+// app's code, the one-time move of both old defaults (Signal and Deep Field, match device) to it,
+// the fonts (TASA Orbiter for the interface, Geist Mono for code with its ligatures off unless
+// chosen), the desktop bar heights and the boards, with phones unchanged but for colours and fonts.
+// Signal's own checks pin Signal (chosen, marked so it is never moved). Every themed test emulates
+// the scheme, reloads and proves the scheme and the palette are active first.
 import type { Page } from "@playwright/test";
 import { expect, importFiles, openApp, openFromTree, openThemePicker, run, showFiles, test, waitReady } from "./helpers";
-import { rgbOf } from "./pixels";
+import { decodePng, rgbOf } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
 
@@ -29,10 +30,26 @@ const CONSOLE = {
   dark: { "terminal-bg": "#0f1115", "terminal-fg": "#e5e8ed", border: "#30363f" },
 } as const;
 
+/** The Electric Blue colours these checks read (src/theme/palettes.ts ELECTRIC_BLUE; contrast.test.ts and themes.test.ts check them there). */
+const ELECTRIC = {
+  light: { bg: "#f4f4f6", surface: "#ffffff" },
+  dark: { bg: "#0c0c0e", surface: "#141417" },
+} as const;
+
 const bodyBg = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
-/** Emulates the scheme, reloads, and proves Signal is what is painted. */
+/** Chooses Signal (match device) as a student would in this build: saved, and marked so it is never moved. */
+async function chooseSignal(page: Page) {
+  await page.evaluate(() => {
+    localStorage.setItem("codeeditor:theme", "signal");
+    localStorage.setItem("codeeditor:theme-default", "electric-blue");
+    localStorage.setItem("codeeditor:theme-paint", JSON.stringify({ system: true, scheme: "light", palette: "signal", colors: null }));
+  });
+}
+
+/** Chooses Signal, emulates the scheme, reloads, and proves Signal is what is painted. */
 async function signalIn(page: Page, scheme: Scheme) {
+  await chooseSignal(page);
   await page.emulateMedia({ colorScheme: scheme });
   await page.reload();
   await waitReady(page);
@@ -66,63 +83,80 @@ const styleOf = (page: Page, selector: string, props: string[]) =>
   page.locator(selector).first().evaluate((el, names) => Object.fromEntries(names.map((n) => [n, getComputedStyle(el).getPropertyValue(n)])), props);
 const boxOf = (page: Page, selector: string) => page.locator(selector).first().evaluate((el) => el.getBoundingClientRect().toJSON() as DOMRect);
 
-test("Signal is the default, light and dark, and theme-boot.js paints it before the app's code (no flash)", async ({ page }) => {
+test("Electric Blue is the default, light and dark, and theme-boot.js paints it before the app's code (no flash)", async ({ page }) => {
   await openApp(page);
   for (const scheme of SCHEMES) {
-    await signalIn(page, scheme);
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.reload();
+    await waitReady(page);
+    expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
+    await expect(page.locator("html")).toHaveAttribute("data-theme-id", "electric-blue");
     await reloadHeld(page, async () => {
       const html = page.locator("html");
-      await expect(html).toHaveAttribute("data-palette", "signal");
+      await expect(html).toHaveAttribute("data-palette", "electric-blue");
       await expect(html).toHaveAttribute("data-theme", scheme);
-      expect(await bodyBg(page)).toBe(rgbOf(SIGNAL[scheme].bg));
-      // The browser's toolbar colour is Signal's chrome too, per scheme.
-      expect(await page.locator('meta[name="theme-color"]').evaluateAll((m) => m.map((x) => x.getAttribute("content")))).toEqual([SIGNAL.light.surface, SIGNAL.dark.surface]);
+      expect(await bodyBg(page)).toBe(rgbOf(ELECTRIC[scheme].bg));
+      // The browser's toolbar colour is Electric Blue's chrome too, per scheme.
+      expect(await page.locator('meta[name="theme-color"]').evaluateAll((m) => m.map((x) => x.getAttribute("content")))).toEqual([ELECTRIC.light.surface, ELECTRIC.dark.surface]);
     });
   }
 });
 
-test("a device on the old default (Deep Field, match device) moves to Signal once, with no flash; Deep Field chosen again stays", async ({ page }) => {
-  await openApp(page);
-  await page.emulateMedia({ colorScheme: "dark" });
-  // What the build before Signal left on a device that never chose a theme, or chose the default.
-  await page.evaluate(() => {
-    localStorage.setItem("codeeditor:theme", "deep-field");
-    localStorage.setItem("codeeditor:theme-paint", JSON.stringify({ system: true, scheme: "dark", palette: "deep-field", colors: null }));
-    localStorage.removeItem("codeeditor:theme-default");
-  });
-  await reloadHeld(page, async () => {
-    await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
-    expect(await bodyBg(page)).toBe(rgbOf(SIGNAL.dark.bg));
-  });
-  await expect(page.locator("html")).toHaveAttribute("data-theme-id", "signal");
-  expect(await page.evaluate(() => [localStorage.getItem("codeeditor:theme"), localStorage.getItem("codeeditor:theme-default")])).toEqual(["signal", "signal"]);
+// The owner's call, 2026-11-18: "New default, move Signal users (Recommended)".
+for (const [label, before] of [
+  ["Signal, marked by a Signal build", { theme: "signal", seen: "signal", palette: "signal" }],
+  ["Deep Field, never marked (saved before Signal)", { theme: "deep-field", seen: null, palette: "deep-field" }],
+] as const) {
+  test(`a device on an old default (${label}, match device) moves to Electric Blue once, with no flash; chosen again it stays`, async ({ page }) => {
+    await openApp(page);
+    await page.emulateMedia({ colorScheme: "dark" });
+    // What the earlier build left on a device that never chose a theme, or chose the default.
+    await page.evaluate((b) => {
+      localStorage.setItem("codeeditor:theme", b.theme);
+      localStorage.setItem("codeeditor:theme-paint", JSON.stringify({ system: true, scheme: "dark", palette: b.palette, colors: null }));
+      if (b.seen) localStorage.setItem("codeeditor:theme-default", b.seen);
+      else localStorage.removeItem("codeeditor:theme-default");
+    }, before);
+    await reloadHeld(page, async () => {
+      await expect(page.locator("html")).toHaveAttribute("data-palette", "electric-blue");
+      expect(await bodyBg(page)).toBe(rgbOf(ELECTRIC.dark.bg));
+    });
+    await expect(page.locator("html")).toHaveAttribute("data-theme-id", "electric-blue");
+    expect(await page.evaluate(() => [localStorage.getItem("codeeditor:theme"), localStorage.getItem("codeeditor:theme-default")])).toEqual(["electric-blue", "electric-blue"]);
 
-  // Deep Field's "match device", chosen in the theme picker after the move, is kept across reloads.
-  const picker = await openThemePicker(page);
-  await picker.getByRole("radio", { name: "ExecFlow Deep Field (match device)" }).check();
-  await page.keyboard.press("Escape");
-  await expect(picker).toBeHidden();
-  await reloadHeld(page, async () => {
-    await expect(page.locator("html")).not.toHaveAttribute("data-palette");
-    expect(await bodyBg(page)).toBe("rgb(19, 32, 27)"); // Deep Field's dark field #13201b
+    // The old default's "match device", chosen in the theme picker after the move, is kept across reloads.
+    const picker = await openThemePicker(page);
+    const name = before.theme === "signal" ? "ExecFlow Signal (match device)" : "ExecFlow Deep Field (match device)";
+    await picker.getByRole("radio", { name }).check();
+    await page.keyboard.press("Escape");
+    await expect(picker).toBeHidden();
+    await reloadHeld(page, async () => {
+      if (before.theme === "signal") {
+        await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
+        expect(await bodyBg(page)).toBe(rgbOf(SIGNAL.dark.bg));
+      } else {
+        await expect(page.locator("html")).not.toHaveAttribute("data-palette");
+        expect(await bodyBg(page)).toBe("rgb(19, 32, 27)"); // Deep Field's dark field #13201b
+      }
+    });
+    await expect(page.locator("html")).toHaveAttribute("data-theme-id", before.theme);
   });
-  await expect(page.locator("html")).toHaveAttribute("data-theme-id", "deep-field");
-});
+}
 
 // Workbench Pro S4 (owner's go-ahead 2026-10-30): the picker's first row is "Start here", the
-// redesign4 picker study's curated row (Signal, Slate, High contrast, GitHub-style, Tokyo Night,
-// Catppuccin, as families); Deep Field moves to the A to Z list with the other families. Signal
-// still leads, chosen, with its three forms and the Default mark; High contrast is still up front.
-test("the theme picker leads with Signal (the default, chosen) and High contrast; Deep Field is in the A to Z list", async ({ page }) => {
+// redesign4 picker study's curated row (the default, Slate, High contrast, GitHub-style, Tokyo
+// Night, Catppuccin, as families). Electric Blue leads since 2026-11-18, chosen, with its three
+// forms and the Default mark; Signal moves to the A to Z list beside Deep Field.
+test("the theme picker leads with Electric Blue (the default, chosen) and High contrast; Signal and Deep Field are in the A to Z list", async ({ page }) => {
   await openApp(page);
   const picker = await openThemePicker(page);
   const upFront = picker.locator('.theme-section[data-section="start"] [data-theme-option]');
-  expect((await upFront.evaluateAll((els) => els.map((e) => e.getAttribute("data-theme-option")))).slice(0, 3)).toEqual(["signal", "signal-light", "signal-dark"]);
+  expect((await upFront.evaluateAll((els) => els.map((e) => e.getAttribute("data-theme-option")))).slice(0, 3)).toEqual(["electric-blue", "electric-blue-light", "electric-blue-dark"]);
   await expect(picker.locator('.theme-section[data-section="start"] [data-theme-option="high-contrast"]')).toHaveCount(1);
-  await expect(picker.getByRole("radio", { name: /^ExecFlow Signal \(match device\)/ })).toBeChecked();
-  await expect(picker.locator('[data-theme-family="signal"] .family-head .tag')).toHaveText("Default");
+  await expect(picker.getByRole("radio", { name: /^ExecFlow Electric Blue \(match device\)/ })).toBeChecked();
+  await expect(picker.locator('[data-theme-family="electric-blue"] .family-head .tag')).toHaveText("Default");
   const rest = picker.locator('.theme-section[data-section="all"]');
-  for (const id of ["deep-field", "deep-field-light", "deep-field-dark"]) await expect(rest.locator(`[data-theme-option="${id}"]`)).toHaveCount(1);
+  for (const id of ["signal", "signal-light", "signal-dark", "deep-field", "deep-field-light", "deep-field-dark"]) await expect(rest.locator(`[data-theme-option="${id}"]`)).toHaveCount(1);
 });
 
 // Since Workbench Pro S4 a family has one preview, of its chosen variant (or the one pointed at):
@@ -154,18 +188,18 @@ test("a 'match device' preview redraws when the device switches scheme with the 
   await expect(radio).toBeFocused();
 });
 
-test("fonts: Geist and JetBrains Mono load at every weight used and the weights differ; ligatures stay off unless chosen, which changes ligatures only", async ({ page }) => {
+test("fonts: TASA Orbiter and Geist Mono load at every weight used and the weights differ; ligatures stay off unless chosen, which changes ligatures only", async ({ page, browserName }) => {
   await openApp(page);
   await page.locator('.starter[data-language="c"]').click();
   await expect(page.locator(".cm-content")).toContainText("#include");
   const family = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).fontFamily);
-  expect(await family("body")).toMatch(/^"?Geist"?,/);
-  expect(await family(".cm-content")).toMatch(/^"?JetBrains Mono"?,/);
-  expect(await family(".tab-name")).toMatch(/^"?JetBrains Mono"?,/);
+  expect(await family("body")).toMatch(/^"?TASA Orbiter"?,/);
+  expect(await family(".cm-content")).toMatch(/^"?Geist Mono"?,/);
+  expect(await family(".tab-name")).toMatch(/^"?Geist Mono"?,/);
   expect(await page.locator("body").evaluate((el) => getComputedStyle(el).fontSize)).toBe("14px");
 
   const faces = await page.evaluate(async () => {
-    const want = [["Geist", "400", "normal"], ["Geist", "500", "normal"], ["Geist", "600", "normal"], ["JetBrains Mono", "400", "normal"], ["JetBrains Mono", "400", "italic"], ["JetBrains Mono", "600", "normal"]];
+    const want = [["TASA Orbiter", "400", "normal"], ["TASA Orbiter", "500", "normal"], ["TASA Orbiter", "600", "normal"], ["Geist Mono", "400", "normal"], ["Geist Mono", "400", "italic"], ["Geist Mono", "600", "normal"]];
     const out: string[] = [];
     // The last one is a control: a family nobody declared must come out missing.
     for (const [fam, weight, style] of [...want, ["No Such Family", "400", "normal"]]) {
@@ -177,21 +211,39 @@ test("fonts: Geist and JetBrains Mono load at every weight used and the weights 
   });
   expect(faces.pop()).toMatch(/^No Such Family 400 normal: missing/);
   expect(faces.filter((f) => !f.endsWith(": loaded"))).toEqual([]);
-  // Nothing else is declared: Source Sans 3 and Source Code Pro are gone.
-  expect(await page.evaluate(() => [...new Set([...document.fonts].map((f) => f.family.replace(/"/g, "")))].sort())).toEqual(["Geist", "JetBrains Mono"]);
+  // Nothing else is declared: Geist and JetBrains Mono (and before them Source Sans 3 and Source Code Pro) are gone.
+  expect(await page.evaluate(() => [...new Set([...document.fonts].map((f) => f.family.replace(/"/g, "")))].sort())).toEqual(["Geist Mono", "TASA Orbiter"]);
 
   // One variable file draws 400 and 600 differently in every engine (WebKit once drew a variable
-  // face at its default instance only).
-  const widths = await page.evaluate(() => ["400", "600"].map((weight) => {
-    const s = document.createElement("span");
-    s.textContent = "Waiting for input 42";
-    s.style.cssText = `font: ${weight} 14px var(--font-ui); position: absolute; white-space: nowrap; visibility: hidden;`;
-    document.body.append(s);
-    const w = s.getBoundingClientRect().width;
-    s.remove();
-    return w;
-  }));
-  expect(Math.abs(widths[1] - widths[0]), `400 vs 600 widths ${widths.join(" vs ")}`).toBeGreaterThan(1);
+  // face at its default instance only). TASA Orbiter keeps nearly the same advance at every weight
+  // (400 and 600 measured 0.19 px apart over 20 characters), so the check counts the ink the page
+  // itself draws (a screenshot of real text, not a canvas).
+  const inkOf = async (family: string, weight: string) => {
+    await page.evaluate(([f, w]) => {
+      const s = document.createElement("div");
+      s.id = "ink-probe";
+      s.textContent = "Waiting for input 42";
+      s.style.cssText = `font: ${w} 20px ${f}; position: fixed; top: 0; left: 0; z-index: 99999; padding: 4px; background: #fff; color: #000; white-space: nowrap;`;
+      document.body.append(s);
+    }, [family, weight]);
+    const shot = decodePng(await page.locator("#ink-probe").screenshot({ animations: "disabled" }));
+    let sum = 0;
+    for (let y = 0; y < shot.height; y++) for (let x = 0; x < shot.width; x++) sum += 255 - Math.min(...shot.at(x, y));
+    await page.evaluate(() => document.getElementById("ink-probe")!.remove());
+    return Math.round(sum / 255);
+  };
+  const ui = [await inkOf("var(--font-ui)", "400"), await inkOf("var(--font-ui)", "600")];
+  // The control: Geist Mono, the other variable file. Playwright's WebKit on Windows draws every
+  // variable face's outlines at one instance (measured 2026-11-18: Geist Mono, and the Geist this
+  // replaced, gave the same ink at 400 and 600; only Geist's advances moved). There the UI check
+  // can't be made, so it is noted, and only WebKit may take that way out.
+  const code = [await inkOf("var(--font-code)", "400"), await inkOf("var(--font-code)", "600")];
+  if (code[1]! / code[0]! < 1.05) {
+    expect(browserName, `only WebKit draws one instance (code ink ${code.join(" vs ")})`).toBe("webkit");
+    test.info().annotations.push({ type: "weights not drawn", description: `this WebKit draws variable outlines at one instance: UI ink ${ui.join(" vs ")}, code ink ${code.join(" vs ")}` });
+  } else {
+    expect(ui[1]! / ui[0]!, `400 vs 600 ink ${ui.join(" vs ")}`).toBeGreaterThan(1.15);
+  }
 
   const lig = () => page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontVariantLigatures);
   expect(await lig()).toBe("none");
@@ -371,7 +423,7 @@ test("desktop bars: top bar 56, editor head 44, Files head 36, console head 44, 
 });
 
 for (const scheme of SCHEMES) {
-  test(`phone ${scheme}: no sheet, the 44 px targets kept, Signal's colours and fonts`, async ({ page }) => {
+  test(`phone ${scheme}: no sheet, the 44 px targets kept, Signal's colours and the fonts`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page);
     await signalIn(page, scheme);
@@ -394,7 +446,7 @@ for (const scheme of SCHEMES) {
     expect(Math.round((await boxOf(page, ".statusbar")).bottom)).toBe(844);
     // The status bar's top edge: light draws a 2 px rule in the location blue, dark the 1 px divider.
     expect((await styleOf(page, ".statusbar", ["box-shadow"]))["box-shadow"]).toBe(scheme === "light" ? `${rgbOf(p.location)} 0px 2px 0px 0px inset` : `${rgbOf(p.divider)} 0px 1px 0px 0px inset`);
-    expect(await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?Geist"?,/);
+    expect(await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?TASA Orbiter"?,/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), "no sideways scroll").toBe(true);
   });
 }

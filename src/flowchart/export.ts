@@ -7,7 +7,7 @@
 import { drawBrandMark, brandMarkSvg } from "../editor/brand-mark";
 import { nameOf } from "../core/paths";
 import { cleanFilename, tagUnshown as shown } from "../core/safety";
-import { DEFAULT_OWN, OWN } from "../theme/palettes";
+import { DEFAULT_OWN, OWN, type OwnPalette } from "../theme/palettes";
 import { PAPER } from "../theme/print-ink";
 import { nameText } from "./labels";
 import { METRICS, type Layout, type Point } from "./layout";
@@ -25,9 +25,12 @@ export interface ExportLook {
   uiFont: string;
 }
 
-/** "Print-safe light": the default theme's light ink on white (Save as PDF's print palette). */
-export function printColors(): ExportColors {
-  const light = OWN[DEFAULT_OWN].light;
+/**
+ * "Print-safe light": the default theme's light ink on white (Save as PDF's print palette). `own`
+ * names another own palette's ink, for reading charts exported in an earlier default's.
+ */
+export function printColors(own: OwnPalette = DEFAULT_OWN): ExportColors {
+  const light = OWN[own].light;
   return {
     "surface-raised": PAPER,
     "border-strong": light["border-strong"],

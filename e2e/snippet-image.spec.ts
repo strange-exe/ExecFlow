@@ -163,11 +163,11 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(dialog.locator("#snippet-size")).toHaveText("822 x 357 px");
     for (const chunk of ["tEXt", "iTXt", "zTXt", "eXIf", "tIME"]) expect(info.chunks, `no ${chunk} chunk`).not.toContain(chunk);
     const t = await tokens(page);
-    // ExecFlow Signal, the default (src/theme/palettes.ts SIGNAL).
-    expect(t.bg).toBe(scheme === "light" ? "#ffffff" : "#15181d");
-    expect(t["syn-keyword"]).toBe(scheme === "light" ? "#7a2fc2" : "#c99dff");
-    expect(t["text-secondary"]).toBe(scheme === "light" ? "#444b56" : "#b9c0ca");
-    expect(t.border).toBe(scheme === "light" ? "#d6dbe2" : "#30363f");
+    // ExecFlow Electric Blue, the default (src/theme/palettes.ts ELECTRIC_BLUE).
+    expect(t.bg).toBe(scheme === "light" ? "#f4f4f6" : "#0c0c0e");
+    expect(t["syn-keyword"]).toBe(scheme === "light" ? "#7d4409" : "#e2b987");
+    expect(t["text-secondary"]).toBe(scheme === "light" ? "#3c3c45" : "#c4c4ce");
+    expect(t.border).toBe(scheme === "light" ? "#c6c6cf" : "#33333c");
     pixelMap(d.bytes, t);
     await expect(app(page)).toHaveAttribute("data-capture", "downloaded");
     await expect(dialog.locator("#snippet-status")).toHaveText("Downloading main-py-lines-2-3.png.");
@@ -372,7 +372,7 @@ test("7: the options change the image: every combination's size, Light in a dark
   await openDialog(page);
   await setOptions(page, "light", false, false);
   const png = await expectDownload(page, "code-lines-2-3.png", [772, 270]);
-  expect(off(decodeRgba(png).at(GROUND, GROUND), "#ffffff"), "Light's ground (Signal Light) in a dark theme").toBeLessThanOrEqual(2);
+  expect(off(decodeRgba(png).at(GROUND, GROUND), "#f4f4f6"), "Light's ground (Electric Blue Light) in a dark theme").toBeLessThanOrEqual(2);
   for (const colors of ["match", "light", "dark"] as const) {
     for (const numbers of [true, false]) {
       for (const name of [true, false]) {
@@ -1072,7 +1072,7 @@ test("19: no request leaves the site; the first opening fetches only same-origin
   expect(urls).toEqual([]);
 });
 
-test("20: the Colours choices name what they give, in Signal, Slate and High contrast; Match is this tab's paint", async ({ page, context }) => {
+test("20: the Colours choices name what they give, in Electric Blue, Slate and High contrast; Match is this tab's paint", async ({ page, context }) => {
   const labels = async () => dialogOf(page).locator(".snippet-options fieldset").first().locator("label").allTextContents();
   await openIn(page, "/", "light");
   await openDialog(page);
@@ -1108,7 +1108,7 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   await selectFixtureLines(page);
   await openFromFileMenu(page, ITEM);
   await previewReady(page);
-  expect(await labels()).toEqual(["Match the editor (High contrast)", "ExecFlow Signal Light", "ExecFlow Signal Dark"]);
+  expect(await labels()).toEqual(["Match the editor (High contrast)", "ExecFlow Electric Blue Light", "ExecFlow Electric Blue Dark"]);
   await setOptions(page, "match", true, true);
   const hc = await tokens(page);
   const matched = decodeRgba(await previewPng(page));
@@ -1116,8 +1116,8 @@ test("20: the Colours choices name what they give, in Signal, Slate and High con
   expect(off(matched.at(10, 10), matOf(hc)), "Match: this page's background").toBeLessThanOrEqual(2);
   await setOptions(page, "light", true, true);
   const light = decodeRgba(await previewPng(page));
-  expect(off(light.at(GROUND, GROUND), "#ffffff"), "Signal Light's ground").toBeLessThanOrEqual(2);
-  expect(off(light.at(10, 10), matOf({ bg: "#ffffff", action: "#2f5bea" })), "Signal Light's background").toBeLessThanOrEqual(2);
+  expect(off(light.at(GROUND, GROUND), "#f4f4f6"), "Electric Blue Light's ground").toBeLessThanOrEqual(2);
+  expect(off(light.at(10, 10), matOf({ bg: "#f4f4f6", action: "#2f5fe8" })), "Electric Blue Light's background").toBeLessThanOrEqual(2);
   await setOptions(page, "match", true, true);
   await page.keyboard.press("Escape");
 
@@ -1504,7 +1504,7 @@ for (const action of ["Download (.png)", "Copy image"] as const) {
 
 test.describe("28: Joined symbols (Chromium)", () => {
   test.skip(({ browserName }) => browserName !== "chromium", "one engine: the font-loading path is shared");
-  test("the italic JetBrains Mono face is loaded before drawing", async ({ page }) => {
+  test("the italic Geist Mono face is loaded before drawing", async ({ page }) => {
     // Every font load the page asks for, in order, with whether a glyph had been drawn on a canvas yet.
     await page.addInitScript(() => {
       const w = window as unknown as { __loads: { font: string; drawn: boolean }[]; __drawn: boolean };
@@ -1529,9 +1529,9 @@ test.describe("28: Joined symbols (Chromium)", () => {
     await openFromFileMenu(page, /^Capture snippet of plain\.py, lines 1 to 2\.\.\./);
     await previewReady(page);
     const loads = await page.evaluate(() => (window as unknown as { __loads: { font: string; drawn: boolean }[] }).__loads);
-    expect(loads.filter((l) => /^italic 400 \d+(\.\d+)?px .*JetBrains Mono/.test(l.font) && !l.drawn), JSON.stringify(loads)).not.toHaveLength(0);
+    expect(loads.filter((l) => /^italic 400 \d+(\.\d+)?px .*Geist Mono/.test(l.font) && !l.drawn), JSON.stringify(loads)).not.toHaveLength(0);
     const size = await page.locator(".cm-content").evaluate((el) => getComputedStyle(el).fontSize);
-    expect(await page.evaluate((s) => document.fonts.check(`italic 400 ${s} 'JetBrains Mono'`), size)).toBe(true);
+    expect(await page.evaluate((s) => document.fonts.check(`italic 400 ${s} 'Geist Mono'`), size)).toBe(true);
   });
 });
 
@@ -1783,10 +1783,15 @@ test("35: the scale gives the exact PNG size at 1x, 2x and 3x; the size line say
   await previewReady(page);
   // The sizes below need the code face itself (an advance of 0.6 em): a fallback font would draw a
   // different image, and the size check alone could hide it. Its measured advance is kept for CI.
+  // Geist Mono is one variable face (weight "100 900"), so the face drawing 400 is the one whose range holds it.
   const face = await page.evaluate(() => {
-    const f = [...document.fonts].find((x) => x.family.replace(/"/g, "") === "JetBrains Mono" && x.style === "normal" && x.weight === "400");
+    const holds400 = (w: string) => {
+      const [lo, hi = lo] = w.split(" ").map(Number);
+      return lo! <= 400 && 400 <= hi!;
+    };
+    const f = [...document.fonts].find((x) => x.family.replace(/"/g, "") === "Geist Mono" && x.style === "normal" && holds400(x.weight));
     const m = document.createElement("canvas").getContext("2d")!;
-    m.font = '400 15px "JetBrains Mono"';
+    m.font = '400 15px "Geist Mono"';
     return { status: f?.status ?? "missing", advance: m.measureText("0").width };
   });
   test.info().annotations.push({ type: "code face", description: JSON.stringify(face) });

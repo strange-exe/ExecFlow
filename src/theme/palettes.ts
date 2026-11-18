@@ -1,7 +1,8 @@
-// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). ExecFlow's own three
-// palettes, Signal (the default since 2026-10-25), Deep Field (the default before it) and Slate, are
-// painted by tokens.css before any script runs (a unit test keeps the two files equal); all three
-// pass every pair as designed, so the guard never moves them.
+// Colour palettes on token contract v2 (src/theme/contrast.ts COLOR_VARS). ExecFlow's own four
+// palettes, Electric Blue (the default since 2026-11-18), Signal (the default from 2026-10-25),
+// Deep Field (the default before it) and Slate, are painted by tokens.css before any script runs (a
+// unit test keeps the two files equal); all four pass every pair as designed, so the guard never
+// moves them.
 //
 // The other palettes are Pocket Run's editor themes (its src/themes.ts, same author, MIT), kept as
 // their 16 base colours and expanded onto ExecFlow's variable contract
@@ -61,7 +62,63 @@ import { lift, luminance, over, type Palette, type Scheme } from "./contrast";
 export type { Scheme };
 
 /**
- * ExecFlow Signal, light and dark (redesign 2, option a "Slate Signal", chosen 2026-10-25): cool
+ * ExecFlow Electric Blue, light and dark: the default since 2026-11-18 (the owner picked "A:
+ * Workbench" with "New default, move Signal users (Recommended)" that day). Its identity is the
+ * About page's (src/styles/about-tokens.css, redesign 9's "Electric Blue", 2026-11-17) and the
+ * Workbench mock's (.claude/design/editor9/a): graphite neutrals, one blue for the action (Run and
+ * the checked controls), blue as ink for links and the location bars, and pink for focus (the
+ * caret, the focus ring and typed input; the mock's "where the program is now"). Red marks errors
+ * only. Every pair passes as designed, and every distinctness rule and region step holds
+ * (separation "surface"), so the guard moves nothing.
+ * Mapped onto the contract: the chrome (--surface) is the mock's surface (#ffffff, #141417), menus
+ * and tooltips (--surface-raised) its raised step (#ffffff, #23232a), the region lines its hairline
+ * (#dddde3, #24242b) and the card edges its strong hairline (#c6c6cf, #33333c). Forced by the
+ * guard's rules, where the mock's own values miss one:
+ *   - The code sits on the mock's ground (#f4f4f6, #0c0c0e), not its pane (#f7f7f9, #101013): the
+ *     pane is 0.023 (light) and 0.018 (dark) OKLab from the chrome, and the chrome needs 0.03. The
+ *     ground keeps the mock's order (code a step darker than the chrome) at 0.032 and 0.037.
+ *   - The console is the chrome's ground (the mock's console is --surface; no dark console card,
+ *     so no override like SIGNAL_CONSOLE), its run-log header a step off it (#ececf1, #1a1a1f).
+ *   - Control edges (--border-strong) are the mock's node edge lifted to 3:1 on every ground
+ *     (#747482 light as in the mock; dark #6a6a78 to #7a7a88, 3:1 on the raised #23232a).
+ *   - Light danger #b42318 to #a02c0c, a darker and more orange red: 4.5:1 on a failed run's header,
+ *     and 30 degrees of hue from the pink focus (the call-site marker is the danger red). Dark keeps
+ *     the mock's #ff8f87.
+ *   - Light syntax a step darker than the mock (keyword #8a4b0b to #7d4409, number #0b6b5e to
+ *     #095c52) for selected text on the error line; dark comment #9a9aa6 for the same.
+ *   - Dark text-muted #a0a0ac to #a5a5b0, so the colours also come back unmoved from a theme file's
+ *     derived selected-row grounds (themes.test.ts), as Signal's did.
+ * Syntax follows the mock: amber keywords, teal numbers, functions in the text colour; strings
+ * green, types violet, macros as keywords, operators as punctuation. The four band tokens are
+ * translucent (#rrggbbaa) so a selection shows through the cursor line and the error line.
+ */
+export const ELECTRIC_BLUE: Record<Scheme, Palette> = {
+  light: {
+    bg: "#f4f4f6", surface: "#ffffff", "surface-raised": "#ffffff", "terminal-bg": "#ffffff", "terminal-fg": "#111114", "runlog-bg": "#ececf1", divider: "#dddde3", border: "#c6c6cf", "border-strong": "#747482",
+    text: "#111114", "text-secondary": "#3c3c45", "text-muted": "#55555f", "gutter-text": "#5c5c67",
+    action: "#2f5fe8", "action-hover": "#2448c7", "on-action": "#ffffff", "control-on": "#2f5fe8",
+    focus: "#be185d", selection: "#2f5fe81a", "list-selected": "#11111410", "active-line": "#11111408", location: "#2448c7",
+    danger: "#a02c0c", warning: "#8a5300", success: "#17673f", info: "#0b6b5e",
+    "error-band": "#e0402a2a", "call-site": "#a02c0c", "input-echo": "#be185d",
+    link: "#2448c7",
+    "syn-keyword": "#7d4409", "syn-string": "#285d24", "syn-number": "#095c52", "syn-comment": "#55555f", "syn-function": "#111114",
+    "syn-type": "#6038b6", "syn-variable": "#1c1c21", "syn-operator": "#3a3a42", "syn-macro": "#7d4409", "syn-punctuation": "#3a3a42",
+  },
+  dark: {
+    bg: "#0c0c0e", surface: "#141417", "surface-raised": "#23232a", "terminal-bg": "#141417", "terminal-fg": "#f2f2f5", "runlog-bg": "#1a1a1f", divider: "#24242b", border: "#33333c", "border-strong": "#7a7a88",
+    text: "#f2f2f5", "text-secondary": "#c4c4ce", "text-muted": "#a5a5b0", "gutter-text": "#8c8c98",
+    action: "#5b8cff", "action-hover": "#7fa6ff", "on-action": "#0c0c0e", "control-on": "#5b8cff",
+    focus: "#f9a8d4", selection: "#5b8cff2e", "list-selected": "#f2f2f512", "active-line": "#f2f2f50a", location: "#7fa6ff",
+    danger: "#ff8f87", warning: "#f2c46d", success: "#86d9a9", info: "#86d3c3",
+    "error-band": "#ff4d4d30", "call-site": "#ff8f87", "input-echo": "#f9a8d4",
+    link: "#7fa6ff",
+    "syn-keyword": "#e2b987", "syn-string": "#a8d5a0", "syn-number": "#86d3c3", "syn-comment": "#9a9aa6", "syn-function": "#f2f2f5",
+    "syn-type": "#c9b6ff", "syn-variable": "#e4e4ea", "syn-operator": "#c8c8d0", "syn-macro": "#e2b987", "syn-punctuation": "#c8c8d0",
+  },
+};
+
+/**
+ * ExecFlow Signal, light and dark (the default from 2026-10-25 until Electric Blue, 2026-11-18) (redesign 2, option a "Slate Signal", chosen 2026-10-25): cool
  * slate neutrals with a surface ladder (the chrome on --surface, the code on a near-white or
  * near-black sheet), one electric blue for the action, the location bars and checked controls, and a
  * teal focus apart from it (the caret, the focus ring and typed input). Red marks errors only. The
@@ -184,14 +241,14 @@ export const SLATE: Record<Scheme, Palette> = {
 };
 
 /** ExecFlow's own palettes (painted by tokens.css), by name. */
-export type OwnPalette = "signal" | "deep-field" | "slate";
-export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { signal: SIGNAL, "deep-field": DEEP_FIELD, slate: SLATE };
+export type OwnPalette = "electric-blue" | "signal" | "deep-field" | "slate";
+export const OWN: Record<OwnPalette, Record<Scheme, Palette>> = { "electric-blue": ELECTRIC_BLUE, signal: SIGNAL, "deep-field": DEEP_FIELD, slate: SLATE };
 /**
  * The default theme's own palette (themes.ts DEFAULT_THEME_ID): what a palette theme with nothing
  * valid to paint falls back to, the Light and Dark that Capture snippet offers under a palette
  * theme, and Save as PDF's ink.
  */
-export const DEFAULT_OWN: OwnPalette = "signal";
+export const DEFAULT_OWN: OwnPalette = "electric-blue";
 
 /** Pocket Run's theme-file colours (a Pocket Run theme file loads here unchanged). */
 export const BASE_TOKENS = [

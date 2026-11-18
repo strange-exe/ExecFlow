@@ -1,45 +1,38 @@
 /* ExecFlow design tokens (token contract v2). The colour values are ExecFlow's own palettes
    from src/theme/palettes.ts (a unit test keeps every block equal to it): Deep Field on :root (no
-   attribute needed), Signal, the default since 2026-10-25, under [data-palette="signal"], and Slate,
-   the picker theme kept from v1, under [data-palette="slate"]. Palette themes from the picker
+   attribute needed), Electric Blue, the default since 2026-11-18, under
+   [data-palette="electric-blue"], Signal, the default before it, under [data-palette="signal"], and
+   Slate, the picker theme kept from v1, under [data-palette="slate"]. Palette themes from the picker
    override the colour variables inline on <html> (src/theme/themes.ts); public/theme-boot.js sets
    data-theme and data-palette before the first paint. Fonts, sizes and shapes are global: every
    theme uses them. Components use these variables only. */
 
 /* Self-hosted, Latin subset only, SIL Open Font License 1.1. A face is downloaded only when
-   something on the page uses it. Geist (@fontsource-variable/geist 5.3.0) is one variable file for
-   every interface weight: its wght axis draws 400, 500 and 600 apart in Chromium, Firefox and
-   WebKit (measured 2026-10-25; Source Sans 3's variable file had drawn at its ExtraLight default in
-   WebKit). JetBrains Mono (@fontsource/jetbrains-mono 5.3.0) is static: 400, its real italic for
-   comments, and 600. */
+   something on the page uses it. The Workbench pair (2026-11-18), the About page's too
+   (about-tokens.css declares the same faces): TASA Orbiter (@fontsource-variable/tasa-orbiter
+   5.3.0) for the interface and Geist Mono (@fontsource-variable/geist-mono 5.3.0) for code, the log
+   and file names. Both are variable files, one download for every weight; Geist Mono's italic is
+   its own variable file, the real italic for comments (not a slanted copy). */
 @font-face {
-  font-family: "Geist";
+  font-family: "TASA Orbiter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 800;
+  src: url("@fontsource-variable/tasa-orbiter/files/tasa-orbiter-latin-wght-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("@fontsource-variable/geist/files/geist-latin-wght-normal.woff2") format("woff2");
+  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2");
 }
 @font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
-}
-/* Comments are italic: the real italic, not a slanted copy. */
-@font-face {
-  font-family: "JetBrains Mono";
+  font-family: "Geist Mono";
   font-style: italic;
   font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-italic.woff2") format("woff2");
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 600;
-  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-italic.woff2") format("woff2");
 }
 
 :root {
@@ -140,6 +133,102 @@
   --syn-punctuation: #b0b2aa;
   --scrim: rgb(13 24 20 / 0.70);
   /* Dark mode has no shadows: grounds and lifted layers carry depth. */
+  --shadow-pop: none;
+}
+
+:root[data-palette="electric-blue"] {
+  /* ExecFlow Electric Blue light, the default since 2026-11-18 (Workbench): white chrome, the code
+     on the graphite ground a step below it, one blue for Run, blue ink for links and location, a
+     pink focus, red for errors only. The console is the chrome's own ground (no dark card). */
+  --bg: #f4f4f6;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --terminal-bg: #ffffff;
+  --terminal-fg: #111114;
+  --runlog-bg: #ececf1;
+  --divider: #dddde3;
+  --border: #c6c6cf;
+  --border-strong: #747482;
+  --text: #111114;
+  --text-secondary: #3c3c45;
+  --text-muted: #55555f;
+  --gutter-text: #5c5c67;
+  --action: #2f5fe8;
+  --action-hover: #2448c7;
+  --on-action: #ffffff;
+  --control-on: #2f5fe8;
+  --focus: #be185d;
+  --selection: #2f5fe81a;
+  --list-selected: #11111410;
+  --active-line: #11111408;
+  --location: #2448c7;
+  --danger: #a02c0c;
+  --warning: #8a5300;
+  --success: #17673f;
+  --info: #0b6b5e;
+  --error-band: #e0402a2a;
+  --call-site: #a02c0c;
+  --input-echo: #be185d;
+  --link: #2448c7;
+  --syn-keyword: #7d4409;
+  --syn-string: #285d24;
+  --syn-number: #095c52;
+  --syn-comment: #55555f;
+  --syn-function: #111114;
+  --syn-type: #6038b6;
+  --syn-variable: #1c1c21;
+  --syn-operator: #3a3a42;
+  --syn-macro: #7d4409;
+  --syn-punctuation: #3a3a42;
+  /* The scrim and the popover shadow tinted to its ink (#111114), as the About page's shade is. */
+  --scrim: rgb(17 17 20 / 0.45);
+  --shadow-pop: 0 1px 2px rgb(17 17 20 / 0.06), 0 12px 32px rgb(17 17 20 / 0.10);
+}
+
+:root[data-palette="electric-blue"][data-theme="dark"] {
+  /* ExecFlow Electric Blue dark: graphite chrome, the code on the near-black ground, raised layers a
+     step lighter; the blue Run is the brightest object, pink marks focus. */
+  --bg: #0c0c0e;
+  --surface: #141417;
+  --surface-raised: #23232a;
+  --terminal-bg: #141417;
+  --terminal-fg: #f2f2f5;
+  --runlog-bg: #1a1a1f;
+  --divider: #24242b;
+  --border: #33333c;
+  --border-strong: #7a7a88;
+  --text: #f2f2f5;
+  --text-secondary: #c4c4ce;
+  --text-muted: #a5a5b0;
+  --gutter-text: #8c8c98;
+  --action: #5b8cff;
+  --action-hover: #7fa6ff;
+  --on-action: #0c0c0e;
+  --control-on: #5b8cff;
+  --focus: #f9a8d4;
+  --selection: #5b8cff2e;
+  --list-selected: #f2f2f512;
+  --active-line: #f2f2f50a;
+  --location: #7fa6ff;
+  --danger: #ff8f87;
+  --warning: #f2c46d;
+  --success: #86d9a9;
+  --info: #86d3c3;
+  --error-band: #ff4d4d30;
+  --call-site: #ff8f87;
+  --input-echo: #f9a8d4;
+  --link: #7fa6ff;
+  --syn-keyword: #e2b987;
+  --syn-string: #a8d5a0;
+  --syn-number: #86d3c3;
+  --syn-comment: #9a9aa6;
+  --syn-function: #f2f2f5;
+  --syn-type: #c9b6ff;
+  --syn-variable: #e4e4ea;
+  --syn-operator: #c8c8d0;
+  --syn-macro: #e2b987;
+  --syn-punctuation: #c8c8d0;
+  --scrim: rgb(5 5 7 / 0.70);
   --shadow-pop: none;
 }
 
@@ -418,8 +507,8 @@
 :root {
   --focus-bar: var(--focus);
 }
-:root[data-theme="dark"]:is([data-theme-id="signal"], [data-theme-id="deep-field"], [data-theme-id="system"]),
-:root:is([data-theme-id="signal-dark"], [data-theme-id="deep-field-dark"], [data-theme-id="slate-dark"], [data-theme-id="high-contrast"], [data-theme-id="github-dark"],
+:root[data-theme="dark"]:is([data-theme-id="electric-blue"], [data-theme-id="signal"], [data-theme-id="deep-field"], [data-theme-id="system"]),
+:root:is([data-theme-id="electric-blue-dark"], [data-theme-id="signal-dark"], [data-theme-id="deep-field-dark"], [data-theme-id="slate-dark"], [data-theme-id="high-contrast"], [data-theme-id="github-dark"],
   [data-theme-id="github-light"], [data-theme-id="one-dark-pro"], [data-theme-id="dracula"], [data-theme-id="tokyo-night"],
   [data-theme-id="tokyo-night-storm"], [data-theme-id="catppuccin-mocha"], [data-theme-id="catppuccin-macchiato"],
   [data-theme-id="catppuccin-frappe"], [data-theme-id="rose-pine"], [data-theme-id="rose-pine-moon"], [data-theme-id="rose-pine-dawn"],
@@ -447,9 +536,9 @@
   --board: var(--bg);
   --raised: var(--surface-raised);
 
-  /* ---- type: Geist for the interface, JetBrains Mono for code, the log and file names ---- */
-  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-code: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* ---- type: TASA Orbiter for the interface, Geist Mono for code, the log and file names ---- */
+  --font-ui: "TASA Orbiter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --font-name: var(--font-code);
   /* Three chrome tiers, each a size step and a colour step (text, text-secondary, text-muted). The
      scale is redesign 2's (option a): each chrome tier 1 px below Deep Field's, titles tighter. */

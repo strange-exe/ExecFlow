@@ -242,6 +242,13 @@ test.describe("from 1100 px", () => {
 
   test("Signal light's console is the light console ground here (the code board's foot); under 1100 px it is the dark console card", async ({ page }) => {
     await openApp(page);
+    // Signal light, chosen in this build (marked, so never moved to the default, Electric Blue).
+    await page.evaluate(() => {
+      localStorage.setItem("codeeditor:theme", "signal-light");
+      localStorage.setItem("codeeditor:theme-default", "electric-blue");
+    });
+    await openApp(page);
+    await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
     await importFiles(page, [OK]);
     await openFromTree(page, "main.py");
     const ground = () => page.locator("#panel").evaluate((el) => getComputedStyle(el).backgroundColor);

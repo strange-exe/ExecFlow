@@ -480,10 +480,10 @@ ExecFlow bundles or downloads the following. Their licences apply to their parts
 | libc++, libc++abi, libunwind and compiler-rt 22 (LLVM, wasi-sdk-33's exceptions build), in the C/C++ pack | Apache-2.0 WITH LLVM-exception (`licenses/libcxx-22-LICENSE.TXT`, `libcxxabi-22-`, `libunwind-22-`, `compiler-rt-22-`) | C++ standard library and exceptions |
 | [wasi-libc](https://github.com/WebAssembly/wasi-libc) (commit 161b3195, as wasi-sdk-33 pins it; built from musl and cloudlibc), in the C/C++ pack | Apache-2.0 WITH LLVM-exception, Apache-2.0 or MIT; musl's parts MIT, cloudlibc's BSD-2-Clause (`licenses/wasi-libc-*`) | C library |
 | libc++ 8 and libc++abi 8 headers (binji/wasm-clang's sysroot, pinned by hash in `scripts/gen-c-completions.mjs`) | MIT or University of Illinois/NCSA, dual licensed (`licenses/libcxx-8-LICENSE.TXT`, `licenses/libcxxabi-8-LICENSE.TXT`) | The C and C++ names in suggestions |
-| [Geist](https://github.com/vercel/geist-font) (`@fontsource-variable/geist`) | SIL Open Font License 1.1 | Font: the interface |
-| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: code, output and file names (its ligatures only with "Joined symbols" on) |
-| [TASA Orbiter](https://github.com/localremotetw/TASA-Typeface-Collection) (`@fontsource-variable/tasa-orbiter`) | SIL Open Font License 1.1 | Font: the About page's text |
-| [Geist Mono](https://github.com/vercel/geist-font) (`@fontsource-variable/geist-mono`) | SIL Open Font License 1.1 | Font: the About page's labels and code |
+| [TASA Orbiter](https://github.com/localremotetw/TASA-Typeface-Collection) (`@fontsource-variable/tasa-orbiter`) | SIL Open Font License 1.1 | Font: the interface and the About page's text |
+| [Geist Mono](https://github.com/vercel/geist-font) (`@fontsource-variable/geist-mono`) | SIL Open Font License 1.1 | Font: code, output and file names (its ligatures only with "Joined symbols" on), the About page's labels and code |
+| [Geist](https://github.com/vercel/geist-font) (`@fontsource-variable/geist`) | SIL Open Font License 1.1 | Font: the social card image (`scripts/make-social-card.mjs`) |
+| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) (`@fontsource/jetbrains-mono`) | SIL Open Font License 1.1 | Font: the social card image (`scripts/make-social-card.mjs`) |
 | [Phosphor Icons](https://phosphoricons.com/) (`@phosphor-icons/core`) | MIT | Icons |
 | [Workbox](https://github.com/GoogleChrome/workbox) (through `vite-plugin-pwa`) | MIT | Offline service worker |
 | [web-tree-sitter](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_web) 0.27.1 | MIT | Flowchart: reading the code |

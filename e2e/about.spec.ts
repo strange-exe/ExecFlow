@@ -1131,7 +1131,7 @@ test.describe("the theme preview", () => {
       await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
       await expect(group(page).getByRole("radio")).toHaveCount(picks.length);
       await expect(page.locator("[data-theme-count]").first()).toHaveText(String(picks.length));
-      const own = `signal-${scheme}`;
+      const own = `electric-blue-${scheme}`;
       await expect(group(page).getByRole("radio", { checked: true })).toHaveAccessibleName(short(own));
       await expect(page.locator(".tp-caption")).toContainText(short(own));
       expect(await look(page)).toEqual(expected(own));
@@ -1141,7 +1141,7 @@ test.describe("the theme preview", () => {
       await openIn(page, "/about", scheme);
       const checked = group(page).getByRole("radio", { checked: true });
       await checked.focus();
-      const from = picks.findIndex((t) => t.id === `signal-${scheme}`);
+      const from = picks.findIndex((t) => t.id === `electric-blue-${scheme}`);
       await page.keyboard.press("ArrowDown");
       const next = picks[from + 1]!;
       await expect(checked).toHaveAccessibleName(short(next.id));
@@ -1164,6 +1164,26 @@ test.describe("the theme preview", () => {
     await expect(group(page).getByRole("radio", { checked: true })).toHaveAccessibleName(short("nord"));
     expect(await look(page)).toEqual(expected("nord"));
   });
+
+  // The old defaults move to Electric Blue once (themes.ts isOldDefault, the owner's call 2026-11-18).
+  // The About page may be the first page a moved device opens: it previews what the editor will paint,
+  // and a Signal chosen again in this build (marked "electric-blue") stays Signal.
+  for (const [saved, seen, shown] of [
+    ["signal", "signal", "electric-blue-light"],
+    ["deep-field", null, "electric-blue-light"],
+    ["signal", "electric-blue", "signal-light"],
+  ] as const) {
+    test(`a saved ${saved} marked ${seen ?? "nothing"} previews ${shown} first`, async ({ page }) => {
+      await page.goto("/about");
+      await page.evaluate(([id, mark]) => {
+        localStorage.setItem("codeeditor:theme", id);
+        if (mark) localStorage.setItem("codeeditor:theme-default", mark);
+      }, [saved, seen] as const);
+      await openIn(page, "/about", "light");
+      await expect(group(page).getByRole("radio", { checked: true })).toHaveAccessibleName(short(shown));
+      expect(await look(page)).toEqual(expected(shown));
+    });
+  }
 
   test("phone: a short list first, Show all reveals every theme; 44 px choices; nothing scrolls sideways", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });

@@ -126,9 +126,9 @@ describe("colorChoices", () => {
     ]);
   });
 
-  it("palette themes name the theme and offer the default's (Signal's) two schemes", () => {
+  it("palette themes name the theme and offer the default's (Electric Blue's) two schemes", () => {
     expect(labels({ family: "palette", scheme: "dark", themeName: "High contrast" })).toEqual([
-      ["match", "Match the editor (High contrast)"], ["light", "ExecFlow Signal Light"], ["dark", "ExecFlow Signal Dark"],
+      ["match", "Match the editor (High contrast)"], ["light", "ExecFlow Electric Blue Light"], ["dark", "ExecFlow Electric Blue Dark"],
     ]);
     expect(colorChoices({ family: "palette", scheme: "light", themeName: `Mine${RLO}` })[0].label).toBe("Match the editor (Mine[U+202E])");
     expect(colorChoices({ family: "palette", scheme: "light", themeName: null })[0].label).toBe("Match the editor");
@@ -140,7 +140,7 @@ describe("previewLabel", () => {
   const pal: PaintInfo = { family: "palette", scheme: "dark", themeName: "Dracula" };
   const phrase = {
     own: { match: "in the editor's colours", light: "in light colours", dark: "in dark colours" },
-    palette: { match: "in the editor's colours", light: "in ExecFlow Signal Light colours", dark: "in ExecFlow Signal Dark colours" },
+    palette: { match: "in the editor's colours", light: "in ExecFlow Electric Blue Light colours", dark: "in ExecFlow Electric Blue Dark colours" },
   } as const;
 
   it("pins five labels exactly", () => {
@@ -148,7 +148,7 @@ describe("previewLabel", () => {
       `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}.`,
     );
     expect(previewLabel(plan(7, 7), "main.py", { ...DEFAULTS, colors: "light", numbers: false, name: false }, pal, false)).toBe(
-      `Preview of main.py, line 7, in ExecFlow Signal Light colours; line numbers hidden; file name hidden. ${LOOK}.`,
+      `Preview of main.py, line 7, in ExecFlow Electric Blue Light colours; line numbers hidden; file name hidden. ${LOOK}.`,
     );
     expect(previewLabel(plan(4, 12), "main.py", DEFAULTS, own, true)).toBe(
       `Preview of main.py, lines 4 to 12, in the editor's colours; line numbers shown; file name shown. ${LOOK}. Some colours are missing.`,

@@ -1,5 +1,5 @@
 // "Joined symbols" in code (from Pocket Run's src/ligatures.ts, same author, MIT). Code is set in
-// JetBrains Mono, whose ligatures draw != as one symbol and -> as an arrow; this setting turns them
+// Geist Mono, whose ligatures join symbols such as != and ->; this setting turns them
 // on and changes nothing else (the font stays). Off by default, so code shows exactly the
 // characters typed; this is the opt-in. public/theme-boot.js applies the choice before first paint,
 // and tokens.css turns ligatures off everywhere unless <html data-ligatures="on">.

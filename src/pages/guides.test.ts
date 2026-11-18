@@ -9,7 +9,7 @@ import { makeCodeLink, readCodeLink } from "../core/code-link";
 import { printColors } from "../flowchart/export";
 import { EXAMPLES } from "./examples";
 import { loadGuideData } from "./load";
-import { chartSvg, colorTokens, errorLine, escapeHtml, expandGuide, outputHtml, warningText, WIDE_CHART, type CapturedRun } from "./render";
+import { CAPTURED_IN, chartSvg, colorTokens, errorLine, escapeHtml, expandGuide, outputHtml, warningText, WIDE_CHART, type CapturedRun } from "./render";
 import { GUIDE_PATH, GUIDE_ROUTES, SITE } from "./routes";
 import { NAVIGATE_DENYLIST } from "../about/fallback-deny";
 
@@ -180,6 +180,10 @@ describe("an inlined flowchart", () => {
     const print = printColors();
     expect(print.info).not.toBe(print.action);
     expect(() => colorTokens({ ...print, info: print.action })).toThrow(/is both/);
+    // The charts were captured in Signal's print colours; the default's (Electric Blue's) map one to one too, for a re-capture.
+    expect(CAPTURED_IN).toBe("signal");
+    const now = colorTokens(printColors());
+    expect(new Set(now.values()).size).toBe(now.size);
   });
 });
 

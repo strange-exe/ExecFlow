@@ -186,7 +186,7 @@ function start() {
     screen = { theme: root.dataset.theme, palette: root.dataset.palette, inline };
     for (const [name] of inline) root.style.removeProperty(name);
     root.dataset.theme = "light";
-    root.dataset.palette = "signal";
+    root.dataset.palette = "electric-blue";
   });
   addEventListener("afterprint", () => {
     if (!screen) return;

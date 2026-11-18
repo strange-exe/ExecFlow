@@ -12,6 +12,7 @@
 // Pure: the caller reads the files and hands over a link maker (src/core/code-link.ts).
 import { mixHex, printColors, type ExportColors } from "../flowchart/export";
 import { CHART_TINT, type KindHue } from "../flowchart/render";
+import type { OwnPalette } from "../theme/palettes";
 
 export interface CapturedRun {
   status: string | null;
@@ -114,10 +115,18 @@ async function exampleHtml(id: string, data: GuideData, link: LinkMaker): Promis
 const HUES: readonly KindHue[] = ["success", "warning", "info", "action"];
 
 /**
+ * The own palette whose Print-safe light the guide pages' charts (src/pages/flowcharts/*.svg) were
+ * exported in: Signal, the default when they were captured (before Electric Blue, 2026-11-18). Each
+ * colour is read back to its token, so on the page the charts follow the page's own theme whatever
+ * this is; a re-capture in a later default changes it to that one.
+ */
+export const CAPTURED_IN: OwnPalette = "signal";
+
+/**
  * Each colour of a Print-safe light export, back to the token it was resolved from (the view's own
  * form: render.ts VIEW_LOOK). Two tokens with one colour can't be told apart: that stops the build.
  */
-export function colorTokens(colors: ExportColors = printColors()): Map<string, string> {
+export function colorTokens(colors: ExportColors = printColors(CAPTURED_IN)): Map<string, string> {
   const map = new Map<string, string>();
   const add = (hex: string, value: string) => {
     const key = hex.toLowerCase();

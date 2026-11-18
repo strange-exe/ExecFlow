@@ -21,12 +21,12 @@ export interface Paint extends PaintInfo {
 /** The family of the root's data-palette (themes.ts applyTheme): none is Deep Field; anything not an own palette is a palette theme. */
 export function paintFamily(palette: string | undefined): PaintFamily {
   if (palette === undefined) return "deep-field";
-  return palette === "signal" || palette === "slate" ? palette : "palette";
+  return palette === "electric-blue" || palette === "signal" || palette === "slate" ? palette : "palette";
 }
 
 /**
  * The colours of a choice: what this tab painted, or the own palette's light or dark. Palette
- * themes offer the default theme's (Signal's; the choices are named so: core/snippet-dialog.ts).
+ * themes offer the default theme's (Electric Blue's; the choices are named so: core/snippet-dialog.ts).
  * Null: not all #rrggbb.
  */
 export function imageColors(choice: ColorChoice, paint: Paint): ImageColors | null {

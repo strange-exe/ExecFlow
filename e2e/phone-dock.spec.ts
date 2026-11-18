@@ -284,7 +284,14 @@ test("every control is 24 px or more, and the primary touch controls 44 px", asy
 });
 
 test("Signal light keeps a light console ground on phones (no dark slab)", async ({ page }) => {
+  // Signal (match device), chosen in this build: marked, so never moved to the default, Electric Blue.
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("codeeditor:theme", "signal");
+    localStorage.setItem("codeeditor:theme-default", "electric-blue");
+  });
   await openFile(page, "main.py", MARKS, { width: 390, height: 844 }, "light");
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
   await run(page);
   const grounds = await page.evaluate(() => {
     const root = getComputedStyle(document.documentElement).getPropertyValue("--terminal-bg").trim();

@@ -1,5 +1,5 @@
 // The theme engine (adapted from Pocket Run's src/themes.ts, same author, MIT). A theme is either
-// one of ExecFlow's own palettes, Signal (the default), Deep Field or Slate, whose colours live in
+// one of ExecFlow's own palettes, Electric Blue (the default), Signal, Deep Field or Slate, whose colours live in
 // tokens.css so the first paint needs no script, or a palette whose colours are expanded onto the
 // variable contract, passed through the readability guard and set as inline CSS variables on
 // <html>. public/theme-boot.js repaints the saved choice before the app loads, from what
@@ -29,10 +29,16 @@ export interface Theme {
   custom?: boolean;
 }
 
-export const DEFAULT_THEME_ID = "signal";
+export const DEFAULT_THEME_ID = "electric-blue";
+/**
+ * "ExecFlow Signal (match device)", the default from 2026-10-25 until Electric Blue (2026-11-18). A
+ * device on it is moved to Electric Blue once (storedThemeId); chosen again after that, it stays.
+ */
+export const SIGNAL_SYSTEM_ID = "signal";
 /**
  * "ExecFlow Deep Field (match device)", the default from 2026-10-18 until Signal (2026-10-25). A
- * device that kept it is moved to Signal once (storedThemeId); chosen again after that, it stays.
+ * device that kept it unmarked is moved to the default once (storedThemeId); chosen in a later
+ * build, it stays.
  */
 export const DEEP_FIELD_SYSTEM_ID = "deep-field";
 /**
@@ -42,7 +48,10 @@ export const DEEP_FIELD_SYSTEM_ID = "deep-field";
 export const SLATE_SYSTEM_ID = "system";
 
 export const BUILT_IN: readonly Theme[] = [
-  { id: DEFAULT_THEME_ID, name: "ExecFlow Signal (match device)", scheme: "light", group: "codeeditor", own: "signal", system: true },
+  { id: DEFAULT_THEME_ID, name: "ExecFlow Electric Blue (match device)", scheme: "light", group: "codeeditor", own: "electric-blue", system: true },
+  { id: "electric-blue-light", name: "ExecFlow Electric Blue Light", scheme: "light", group: "codeeditor", own: "electric-blue" },
+  { id: "electric-blue-dark", name: "ExecFlow Electric Blue Dark", scheme: "dark", group: "codeeditor", own: "electric-blue" },
+  { id: SIGNAL_SYSTEM_ID, name: "ExecFlow Signal (match device)", scheme: "light", group: "codeeditor", own: "signal", system: true },
   { id: "signal-light", name: "ExecFlow Signal Light", scheme: "light", group: "codeeditor", own: "signal" },
   { id: "signal-dark", name: "ExecFlow Signal Dark", scheme: "dark", group: "codeeditor", own: "signal" },
   { id: DEEP_FIELD_SYSTEM_ID, name: "ExecFlow Deep Field (match device)", scheme: "light", group: "codeeditor", own: "deep-field", system: true },
@@ -139,8 +148,9 @@ export const CUSTOM_KEY = "codeeditor:custom-themes";
 export const PAINT_KEY = "codeeditor:theme-paint";
 /**
  * Set to DEFAULT_THEME_ID by the one-time move (storedThemeId) and by every choice (chooseTheme): a
- * saved Deep Field "match device" is then the student's own choice. Read by public/theme-boot.js
- * too: until it is set, the old default's paint is painted as Signal already.
+ * saved old default's "match device" is then the student's own choice. Signal builds set it to
+ * "signal", so a Deep Field "match device" marked "signal" was chosen then. Read by
+ * public/theme-boot.js too: until it is set, an old default's paint is painted as the default already.
  */
 export const DEFAULT_SEEN_KEY = "codeeditor:theme-default";
 
@@ -197,15 +207,26 @@ export function allThemes(): Theme[] {
 export const defaultTheme = (): Theme => BUILT_IN.find((t) => t.id === DEFAULT_THEME_ID)!;
 
 /**
- * The saved theme's id. A Deep Field "match device" saved by a build from before Signal (the
- * default then) becomes Signal, once (the owner's call, 2026-10-25): the move marks the device, and
- * so does every choice made in this build (chooseTheme), so a Deep Field "match device" chosen since
- * stays. Deep Field's fixed light and dark, and every other saved theme, were explicit choices and
- * stay. Nothing is written for a device with nothing to move.
+ * True when a saved theme is an old default the device never chose in a build after it: Signal's
+ * "match device" in a device not yet marked by this build (the owner's call, 2026-11-18: "New
+ * default, move Signal users"), and Deep Field's "match device" in a device no build has marked
+ * (a Signal build marked every choice "signal", so Deep Field marked that way was chosen). Mirrored
+ * in public/theme-boot.js.
+ */
+export function isOldDefault(id: string | null, seen: string | null): boolean {
+  if (seen === DEFAULT_THEME_ID) return false;
+  return id === SIGNAL_SYSTEM_ID || (id === DEEP_FIELD_SYSTEM_ID && seen !== SIGNAL_SYSTEM_ID);
+}
+
+/**
+ * The saved theme's id. An old default's "match device" (isOldDefault) becomes Electric Blue, once:
+ * the move marks the device, and so does every choice made in this build (chooseTheme), so Signal's
+ * or Deep Field's "match device" chosen since stays. Their fixed light and dark, and every other
+ * saved theme, were explicit choices and stay. Nothing is written for a device with nothing to move.
  */
 function storedThemeId(): string | null {
   const id = storage.get(CHOSEN_KEY);
-  if (id !== DEEP_FIELD_SYSTEM_ID || storage.get(DEFAULT_SEEN_KEY) === DEFAULT_THEME_ID) return id;
+  if (!isOldDefault(id, storage.get(DEFAULT_SEEN_KEY))) return id;
   storage.set(CHOSEN_KEY, DEFAULT_THEME_ID);
   storage.set(DEFAULT_SEEN_KEY, DEFAULT_THEME_ID);
   return DEFAULT_THEME_ID;
@@ -241,8 +262,9 @@ export function paintFor(theme: Theme): Paint {
 }
 
 /**
- * Paints a theme. data-theme picks light or dark; data-palette picks Signal's or Slate's block in
- * tokens.css ("signal", "slate") or marks a palette theme ("palette"), and is absent for Deep Field
+ * Paints a theme. data-theme picks light or dark; data-palette picks Electric Blue's, Signal's or
+ * Slate's block in tokens.css ("electric-blue", "signal", "slate") or marks a palette theme
+ * ("palette"), and is absent for Deep Field
  * (tokens.css :root); palette themes set every colour inline, each value checked first.
  */
 export function applyTheme(theme: Theme): void {
@@ -265,7 +287,7 @@ export function applyTheme(theme: Theme): void {
 
 export function chooseTheme(theme: Theme): void {
   storage.set(CHOSEN_KEY, theme.id);
-  // Chosen in a build whose default is Signal: never moved (storedThemeId, theme-boot.js).
+  // Chosen in a build whose default is Electric Blue: never moved (storedThemeId, theme-boot.js).
   storage.set(DEFAULT_SEEN_KEY, DEFAULT_THEME_ID);
   applyTheme(theme);
 }

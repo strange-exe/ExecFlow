@@ -930,7 +930,7 @@ for (const viewport of [DESKTOP, { width: 1366, height: 768 }]) {
     // one radio group is named "Colour theme", the chosen theme has the focus, and every theme is there.
     await expect(dialog.locator("h3").first()).toHaveText("Appearance");
     const themes = dialog.getByRole("radiogroup", { name: "Colour theme" });
-    await expect(themes.locator('input[name=theme][value="signal"]')).toBeFocused();
+    await expect(themes.locator('input[name=theme][value="electric-blue"]')).toBeFocused();
     for (const id of ["slate-dark", "tokyo-night", "nord"]) await expect(themes.locator(`input[name=theme][value="${id}"]`)).toBeAttached();
     expect(await themes.locator("input[name=theme]").count(), "every built-in theme").toBeGreaterThanOrEqual(27);
     expect((await box(page, "#theme-search")).y).toBeLessThan((await box(page, "#set-code-size")).y);

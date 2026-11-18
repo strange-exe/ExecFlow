@@ -20,7 +20,7 @@ test("Settings shows the version and a What's new link to the About page's chang
   // The name is the wordmark (0.16.0): Exec in the code font, Flow in --link (text-safe in every theme), one word to read.
   const mark = foot.locator(".wordmark");
   await expect(mark).toHaveText("ExecFlow");
-  expect(await mark.locator(".wm-exec").evaluate((e) => getComputedStyle(e).fontFamily)).toMatch(/^"?JetBrains Mono/);
+  expect(await mark.locator(".wm-exec").evaluate((e) => getComputedStyle(e).fontFamily)).toMatch(/^"?Geist Mono/);
   expect(await mark.locator(".wm-flow").evaluate((e) => {
     const probe = document.createElement("span");
     probe.style.color = "var(--link)";

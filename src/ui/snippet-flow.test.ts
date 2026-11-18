@@ -652,26 +652,29 @@ describe("imageColors (4.3)", () => {
   const computed = Object.fromEntries(IMAGE_TOKENS.map((t) => [t, "#010203"]));
   const paint = (family: Paint["family"]): Paint => ({ family, scheme: "dark", themeName: null, computed });
   const pick = (p: Record<string, string>) => Object.fromEntries(IMAGE_TOKENS.map((t) => [t, p[t]]));
-  it("Signal, the default: light and dark give Signal's own palettes", () => {
-    expect(imageColors("match", paint("signal"))).toEqual(computed);
+  it("Electric Blue, the default: light and dark give its own palettes; Signal gives Signal's", () => {
+    expect(imageColors("match", paint("electric-blue"))).toEqual(computed);
+    expect(imageColors("light", paint("electric-blue"))).toEqual(pick(OWN["electric-blue"].light));
+    expect(imageColors("dark", paint("electric-blue"))).toEqual(pick(OWN["electric-blue"].dark));
     expect(imageColors("light", paint("signal"))).toEqual(pick(OWN.signal.light));
     expect(imageColors("dark", paint("signal"))).toEqual(pick(OWN.signal.dark));
   });
-  it("the family is read from data-palette: none is Deep Field, signal and slate their own, anything else a palette theme", () => {
+  it("the family is read from data-palette: none is Deep Field, electric-blue, signal and slate their own, anything else a palette theme", () => {
     expect(paintFamily(undefined)).toBe("deep-field");
+    expect(paintFamily("electric-blue")).toBe("electric-blue");
     expect(paintFamily("signal")).toBe("signal");
     expect(paintFamily("slate")).toBe("slate");
     expect(paintFamily("palette")).toBe("palette");
     expect(paintFamily("evil")).toBe("palette");
   });
-  it("match gives the computed values; light and dark the own palette, the default's (Signal) for palette themes", () => {
+  it("match gives the computed values; light and dark the own palette, the default's (Electric Blue) for palette themes", () => {
     expect(imageColors("match", paint("deep-field"))).toEqual(computed);
     expect(imageColors("light", paint("deep-field"))).toEqual(pick(OWN["deep-field"].light));
     expect(imageColors("dark", paint("deep-field"))).toEqual(pick(OWN["deep-field"].dark));
     expect(imageColors("light", paint("slate"))).toEqual(pick(OWN.slate.light));
     expect(imageColors("dark", paint("slate"))).toEqual(pick(OWN.slate.dark));
-    expect(imageColors("light", paint("palette"))).toEqual(pick(OWN.signal.light));
-    expect(imageColors("dark", paint("palette"))).toEqual(pick(OWN.signal.dark));
+    expect(imageColors("light", paint("palette"))).toEqual(pick(OWN["electric-blue"].light));
+    expect(imageColors("dark", paint("palette"))).toEqual(pick(OWN["electric-blue"].dark));
   });
   it("a computed value that isn't #rrggbb fails the choice, never a guess", () => {
     expect(imageColors("match", { ...paint("palette"), computed: { ...computed, "syn-keyword": "var(--x)" } })).toBeNull();

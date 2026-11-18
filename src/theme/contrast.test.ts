@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALPHA_OK, CHART_MIXES, checkPalette, checkRules, COLOR_VARS, contrast, IMAGE_MIXES, isTokenValue, lift, luminance, over, PAIRS, readablePalette, resolve, UI_MIXES, type Palette,
 } from "./contrast";
-import { DEEP_FIELD, expandBase, POCKET_THEMES, SIGNAL, SIGNAL_CONSOLE, SLATE } from "./palettes";
+import { DEEP_FIELD, ELECTRIC_BLUE, expandBase, POCKET_THEMES, SIGNAL, SIGNAL_CONSOLE, SLATE } from "./palettes";
 import { BUILT_IN, themePalette } from "./themes";
 
 const failures = (p: Palette) => checkPalette(p).filter((r) => !r.pass).map((r) => `${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)} < ${r.min}`);
@@ -151,7 +151,53 @@ describe("ExecFlow Deep Field (the default)", () => {
   });
 });
 
-describe("ExecFlow Signal (the default)", () => {
+describe("ExecFlow Electric Blue (the default since 2026-11-18)", () => {
+  it.each(SCHEMES)("%s passes every pair the UI draws, exactly as designed", (scheme) => {
+    expect(failures(ELECTRIC_BLUE[scheme])).toEqual([]);
+    expect(readablePalette(ELECTRIC_BLUE[scheme]).adjusted).toEqual([]);
+  });
+
+  it.each(SCHEMES)("%s keeps every role distinct and every region step and band visible (separation: surface)", (scheme) => {
+    const { distinct, steps } = checkRules(ELECTRIC_BLUE[scheme], { scheme, separation: "surface" });
+    expect(distinct).toHaveLength(11);
+    expect(steps).toHaveLength(scheme === "light" ? 15 : 17);
+    expect([...distinct, ...steps].filter((r) => !r.pass).map((r) => `${r.a} vs ${r.b}`)).toEqual([]);
+  });
+
+  it("is a valid token for every name, alpha only on the four band tokens", () => {
+    for (const scheme of SCHEMES) {
+      for (const v of COLOR_VARS) {
+        const value = ELECTRIC_BLUE[scheme][v];
+        expect(isTokenValue(v, value), `${scheme} --${v} ${value}`).toBe(true);
+        expect(value.length === 9, `${scheme} --${v} translucent`).toBe((ALPHA_OK as readonly string[]).includes(v));
+      }
+    }
+  });
+
+  // The chosen design's identity (src/styles/about-tokens.css and the Workbench mock, editor9/a).
+  it("takes the design's graphite grounds, text, the one blue Run, blue ink and the pink focus", () => {
+    const pick = (p: Palette, names: readonly (keyof Palette)[]) => Object.fromEntries(names.map((v) => [v, p[v]]));
+    const NAMES = ["surface", "surface-raised", "divider", "border", "text", "text-muted", "action", "on-action", "link", "location", "focus", "input-echo"] as const;
+    expect(pick(ELECTRIC_BLUE.light, NAMES)).toEqual({
+      surface: "#ffffff", "surface-raised": "#ffffff", divider: "#dddde3", border: "#c6c6cf", text: "#111114", "text-muted": "#55555f",
+      action: "#2f5fe8", "on-action": "#ffffff", link: "#2448c7", location: "#2448c7", focus: "#be185d", "input-echo": "#be185d",
+    });
+    expect(pick(ELECTRIC_BLUE.dark, NAMES)).toEqual({
+      surface: "#141417", "surface-raised": "#23232a", divider: "#24242b", border: "#33333c", text: "#f2f2f5", "text-muted": "#a5a5b0",
+      action: "#5b8cff", "on-action": "#0c0c0e", link: "#7fa6ff", location: "#7fa6ff", focus: "#f9a8d4", "input-echo": "#f9a8d4",
+    });
+    // The code sits on the design's ground, a step darker than the chrome in both schemes.
+    expect([ELECTRIC_BLUE.light.bg, ELECTRIC_BLUE.dark.bg]).toEqual(["#f4f4f6", "#0c0c0e"]);
+    for (const scheme of SCHEMES) {
+      const p = ELECTRIC_BLUE[scheme];
+      expect(luminance(p.bg), scheme).toBeLessThan(luminance(p.surface));
+      expect(p["control-on"], scheme).toBe(p.action);
+      expect(contrast(p["on-action"], p.action), scheme).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe("ExecFlow Signal (the default from 2026-10-25 to 2026-11-18)", () => {
   it.each(SCHEMES)("%s passes every pair the UI draws, exactly as designed", (scheme) => {
     expect(failures(SIGNAL[scheme])).toEqual([]);
     expect(readablePalette(SIGNAL[scheme]).adjusted).toEqual([]);
@@ -266,8 +312,10 @@ describe("tokens.css and the first paint", () => {
     return css.slice(start, css.indexOf("}", start));
   };
 
-  it("paints the same values as palettes.ts: Signal, Deep Field and Slate, light and dark", () => {
+  it("paints the same values as palettes.ts: Electric Blue, Signal, Deep Field and Slate, light and dark", () => {
     const blocks = [
+      [ELECTRIC_BLUE.light, ':root[data-palette="electric-blue"] {'],
+      [ELECTRIC_BLUE.dark, ':root[data-palette="electric-blue"][data-theme="dark"] {'],
       [DEEP_FIELD.light, ":root {"],
       [DEEP_FIELD.dark, ':root[data-theme="dark"] {'],
       [SIGNAL.light, ':root[data-palette="signal"] {'],
@@ -334,10 +382,10 @@ describe("tokens.css and the first paint", () => {
     }
   });
 
-  it("theme-boot.js knows the three own palettes' chrome colours, and index.html starts on Signal's, the default's (no flash)", () => {
+  it("theme-boot.js knows the four own palettes' chrome colours, and index.html starts on Electric Blue's, the default's (no flash)", () => {
     const boot = readFileSync("public/theme-boot.js", "utf8");
     expect(boot).toContain(
-      `OWN_SURFACE = { signal: { light: "${SIGNAL.light.surface}", dark: "${SIGNAL.dark.surface}" }, "deep-field": { light: "${DEEP_FIELD.light.surface}", dark: "${DEEP_FIELD.dark.surface}" }, slate: { light: "${SLATE.light.surface}", dark: "${SLATE.dark.surface}" } }`,
+      `OWN_SURFACE = { "electric-blue": { light: "${ELECTRIC_BLUE.light.surface}", dark: "${ELECTRIC_BLUE.dark.surface}" }, signal: { light: "${SIGNAL.light.surface}", dark: "${SIGNAL.dark.surface}" }, "deep-field": { light: "${DEEP_FIELD.light.surface}", dark: "${DEEP_FIELD.dark.surface}" }, slate: { light: "${SLATE.light.surface}", dark: "${SLATE.dark.surface}" } }`,
     );
     expect(boot).toContain('"codeeditor:theme-paint"');
     expect(boot).toContain('"codeeditor:ligatures"');
@@ -347,13 +395,13 @@ describe("tokens.css and the first paint", () => {
     const colors = /COLORS = "([a-z0-9 -]+)"/.exec(boot)?.[1] ?? "";
     expect(colors.split(" ")).toEqual([...COLOR_VARS]);
     const html = readFileSync("index.html", "utf8");
-    expect(html).toContain(`content="${SIGNAL.light.surface}" media="(prefers-color-scheme: light)"`);
-    expect(html).toContain(`content="${SIGNAL.dark.surface}" media="(prefers-color-scheme: dark)"`);
+    expect(html).toContain(`content="${ELECTRIC_BLUE.light.surface}" media="(prefers-color-scheme: light)"`);
+    expect(html).toContain(`content="${ELECTRIC_BLUE.dark.surface}" media="(prefers-color-scheme: dark)"`);
     // The installed app's title bar and splash screen (the web app manifest in vite.config.ts): the
     // default's dark chrome and code ground, as for the toolbar's dark side.
     const config = readFileSync("vite.config.ts", "utf8");
-    expect(config).toContain(`theme_color: "${SIGNAL.dark.surface}"`);
-    expect(config).toContain(`background_color: "${SIGNAL.dark.bg}"`);
+    expect(config).toContain(`theme_color: "${ELECTRIC_BLUE.dark.surface}"`);
+    expect(config).toContain(`background_color: "${ELECTRIC_BLUE.dark.bg}"`);
   });
 });
 
@@ -403,6 +451,8 @@ describe("scripts/contrast-check.mjs", () => {
   it("passes for every theme and lists the pairs", () => {
     const out = execFileSync(process.execPath, ["scripts/contrast-check.mjs"], { encoding: "utf8", timeout: 60_000 });
     expect(out).toContain(`${PAIRS.length} pairs per theme`);
+    expect(out).toContain("pass    ExecFlow Electric Blue Light");
+    expect(out).toContain("pass    ExecFlow Electric Blue Dark");
     expect(out).toContain("pass    ExecFlow Signal Light");
     expect(out).toContain("pass    ExecFlow Signal Dark");
     expect(out).toContain("pass    ExecFlow Deep Field Light");
@@ -411,7 +461,7 @@ describe("scripts/contrast-check.mjs", () => {
     expect(out).not.toMatch(/^FAIL/m);
     // Signal, like Deep Field, is held to every rule; only Slate's misses are reported.
     const after = (name: string) => out.slice(out.indexOf(name)).split("\n")[1];
-    for (const name of ["ExecFlow Signal Light", "ExecFlow Signal Dark"]) {
+    for (const name of ["ExecFlow Electric Blue Light", "ExecFlow Electric Blue Dark", "ExecFlow Signal Light", "ExecFlow Signal Dark"]) {
       expect(after(name), name).toContain("rules: every distinctness rule and region step passes");
       expect(after(name), name).not.toContain("reported only");
     }

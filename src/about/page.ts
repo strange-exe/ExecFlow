@@ -5,7 +5,7 @@
 // (textContent / createTextNode), never as markup.
 import { CHANGELOG, type Kind, type Release } from "./changelog";
 import { COLOR_VARS } from "../theme/contrast";
-import { BUILT_IN, CHOSEN_KEY, themePalette } from "../theme/themes";
+import { BUILT_IN, CHOSEN_KEY, DEFAULT_SEEN_KEY, DEFAULT_THEME_ID, isOldDefault, themePalette } from "../theme/themes";
 import { initLivingGraph } from "./graph";
 import { applyScheme, otherScheme, type Scheme } from "./scheme";
 import { firstPreview, previewThemes, shortName } from "./theme-preview";
@@ -266,9 +266,14 @@ function themePreview(): void {
   for (const n of document.querySelectorAll<HTMLElement>("[data-theme-count]")) n.textContent = String(themes.length);
 }
 
+/**
+ * The theme the editor will paint: an old default the device never chose again (isOldDefault) reads as
+ * Electric Blue, as the editor's one-time move will make it. Read only; the editor writes the move.
+ */
 function readChosen(): string | null {
   try {
-    return localStorage.getItem(CHOSEN_KEY);
+    const id = localStorage.getItem(CHOSEN_KEY);
+    return isOldDefault(id, localStorage.getItem(DEFAULT_SEEN_KEY)) ? DEFAULT_THEME_ID : id;
   } catch {
     return null;
   }

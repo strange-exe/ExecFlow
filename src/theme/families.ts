@@ -1,4 +1,4 @@
-// The theme picker's model (Workbench Pro S4): the 52 built-in themes as 24 families, each with its
+// The theme picker's model (Workbench Pro S4): the 55 built-in themes as 25 families, each with its
 // variants (Light, Dark, Match device, or a variant's own name such as Mocha), the curated first
 // row, search and the Light/Dark filter, and the code preview drawn in a theme's own colours. Pure
 // data and functions: theme-picker.ts draws it; families.test.ts checks it, including the preview's
@@ -33,6 +33,7 @@ const f = (id: string, name: string, ...variants: [string, string][]): Family =>
  * Rose Pine's "main" and Kanagawa's "wave" variants.
  */
 export const FAMILIES: readonly Family[] = [
+  f("electric-blue", "ExecFlow Electric Blue", ["electric-blue", "Match device"], ["electric-blue-light", "Light"], ["electric-blue-dark", "Dark"]),
   f("signal", "ExecFlow Signal", ["signal", "Match device"], ["signal-light", "Light"], ["signal-dark", "Dark"]),
   f("deep-field", "ExecFlow Deep Field", ["deep-field", "Match device"], ["deep-field-light", "Light"], ["deep-field-dark", "Dark"]),
   f("slate", "ExecFlow Slate", ["system", "Match device"], ["slate-light", "Light"], ["slate-dark", "Dark"]),
@@ -60,10 +61,11 @@ export const FAMILIES: readonly Family[] = [
 ];
 
 /**
- * "Start here": the default, Slate (v1's own), High contrast, and three widely used editor families
- * with light and dark variants (the redesign4 picker study's first row). The rest follow A to Z.
+ * "Start here": the default (Electric Blue since 2026-11-18; Signal, the default before it, now
+ * follows A to Z as Deep Field did), Slate (v1's own), High contrast, and three widely used editor
+ * families with light and dark variants (the redesign4 picker study's first row). The rest follow A to Z.
  */
-export const CURATED: readonly string[] = ["signal", "slate", "high-contrast", "github", "tokyo-night", "catppuccin"];
+export const CURATED: readonly string[] = ["electric-blue", "slate", "high-contrast", "github", "tokyo-night", "catppuccin"];
 
 /** The families after the curated row, by name. */
 export function otherFamilies(): Family[] {

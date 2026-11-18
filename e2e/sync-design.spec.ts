@@ -27,9 +27,9 @@ async function openThemed(page: Page, scheme: "light" | "dark") {
   await waitReady(page);
   expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches), "colour scheme emulated").toBe(scheme === "dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-  // And the colours really are that scheme's (ExecFlow Signal, the default: data-palette="signal").
-  await expect(page.locator("html")).toHaveAttribute("data-palette", "signal");
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(21, 24, 29)" : "rgb(255, 255, 255)");
+  // And the colours really are that scheme's (ExecFlow Electric Blue, the default: data-palette="electric-blue").
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "electric-blue");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(scheme === "dark" ? "rgb(12, 12, 14)" : "rgb(244, 244, 246)");
 }
 
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
