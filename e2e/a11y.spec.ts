@@ -361,14 +361,13 @@ test("keyboard only: Tab path, tree, editor escape, tabs, panels, dialogs, menus
   stop = await focusStop(page);
   expect.soft(stop.id, "Ctrl+` focuses the output").toBe("console");
   log.output = stop;
-  // From 1100 px the run strip's count is the way to the problems (the console has no tabs there):
-  // Enter on it shows the list and says so (aria-expanded).
-  await page.locator("#problems-count").focus();
+  // From 1100 px (Workbench) the console's Problems tab, with its count, is the way to the problems:
+  // Enter on it shows the list.
+  await page.locator("#ptab-problems").focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#problems-count")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-  // The rest of the run strip, the console head's Output (back), Output beside, Maximise and
-  // collapse, the Problems panel, then the first problem.
+  // The console head's tools (the outcome holds no stop): Output beside, Maximise and collapse,
+  // the Problems panel, then the first problem.
   const panelPath = await tabPath(page, 10);
   log.problemsPath = panelPath.map(label);
   const problem = panelPath.find((s) => s.cls.includes("problem"));

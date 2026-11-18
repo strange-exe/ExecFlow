@@ -609,8 +609,9 @@ async function withAFile(page: Page) {
 }
 
 test("splitters are separators with values, keyboard resizing, and remembered sizes", async ({ page }) => {
-  // The file list is a column with a splitter under 1100 px; from 1100 px it is the Files popover
-  // (Flow Board S2), with no splitter. So its width is set at 1000 px.
+  // The file list is a column with a splitter at every desktop width (Workbench, 2026-11-18: the
+  // Flow Board's Files popover is gone; from 1100 px the list sits beside the rail). Its width is
+  // set at 1000 px and kept at 1440.
   await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
   await withAFile(page);
@@ -622,7 +623,9 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await page.keyboard.press("Home");
   await expect(side).toHaveAttribute("aria-valuenow", "200");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(side).toBeHidden();
+  await expect(side).toBeVisible();
+  await expect(side).toHaveAttribute("aria-valuenow", "200");
+  await expect.poll(async () => Math.round(await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width))).toBe(200);
   // One splitter sizes the console, the y-axis one: it sits under the code by default at every width
   // (Flow Board: from 1100 px the chart's board, not the console, is beside the code; the x-axis one
   // shows only with the output put beside the code, e2e/board-layout.spec.ts).
@@ -648,7 +651,7 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   // Under 1100 px the same splitter and the same remembered size, and the file list's width kept.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "200");
-  // The list leaves the Files popover for its column a frame after the resize in WebKit.
+  // The list's column settles a frame after the resize in WebKit.
   await expect(page.locator(".main > .splitter")).toBeVisible();
   await expect.poll(async () => Math.round(await page.locator("#sidebar").evaluate((el) => el.getBoundingClientRect().width))).toBe(200);
   await expect(rows).toHaveAttribute("aria-valuenow", "40");
@@ -663,8 +666,7 @@ test("splitters are separators with values, keyboard resizing, and remembered si
 });
 
 // A phone-wide window allows the file list 200 px at most; its refresh used to overwrite the
-// width the user had with that (248 became 200 for good: polish audit, 2026-10-24). At 1000 px:
-// from 1100 px the file list is the Files popover, with no splitter (Flow Board S2).
+// width the user had with that (248 became 200 for good: polish audit, 2026-10-24). At 1000 px.
 test("the file list keeps the width it was given through a trip to a phone-wide window", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 800 });
   await openApp(page);
@@ -742,7 +744,7 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await page.keyboard.press("Escape");
 });
 
-test("run results are read out, and the run state is beside Run", async ({ page }) => {
+test("run results are read out, and the run state is beside Run (in the status bar from 1100 px)", async ({ page }) => {
   await openApp(page);
   await page.locator('.starter[data-language="python"]').click();
   const r = await run(page, { input: ["Lin"] });
@@ -757,9 +759,10 @@ test("run results are read out, and the run state is beside Run", async ({ page 
     else expect(state.x, "the run state is right of Run").toBeGreaterThanOrEqual(runBox.x + runBox.width);
     expect(Math.abs(state.y + state.height / 2 - (runBox.y + runBox.height / 2)), "on Run's line").toBeLessThan(4);
   };
-  // From 1100 px (Flow Board S2): on the run strip at the code board's foot, after Run and the
-  // run's outcome.
-  await onRunsLine(page.locator(".run-strip > #run-button ~ #status-runtime"), "right");
+  // From 1100 px (Workbench, 2026-11-18): the run strip keeps Run and its tools; the runtime words
+  // are a fact in the mono status bar, after the encoding (flow-board.spec.ts has the order).
+  await expect(page.locator(".workbench > .statusbar > #status-encoding ~ #status-runtime")).toBeVisible();
+  await expect(page.locator(".run-strip #status-runtime")).toHaveCount(0);
   // Under it, at the top bar's end with Run (the 0.7.0 shell): the runtime words, Capture, then Run.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(page.locator(".topbar .topbar-end > #status-runtime ~ #run-button")).toBeVisible();

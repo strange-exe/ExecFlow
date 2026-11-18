@@ -8,8 +8,9 @@ import { expect, importFiles, openApp, openFromTree, setCode, showFiles, test, t
 // column only (breadcrumb from the workspace, "Search or run a command", the runtime state,
 // Capture, Run with its key), the code card and the console card, the language and Ln/Col in the
 // code card's foot. e2e/workbench-shell.spec.ts has the side-by-side console and the phone's view bar.
-// From 1100 px Flow Board S2 retires the rail and the sidebar column (Files is a popover, Run is on
-// the run strip): that shell is e2e/flow-board.spec.ts's, so this one is checked at 1000 x 800.
+// Workbench (stage 2, 2026-11-18): from 900 px the top bar spans the window, over the rail and the
+// sidebar. From 1100 px Run is on the run strip and the top bar's end holds quiet words: that shell
+// is e2e/flow-board.spec.ts's, so this one is checked at 1000 x 800.
 test.use({ serviceWorkers: "block" });
 const H = 800;
 
@@ -46,13 +47,15 @@ test.describe("desktop", () => {
   test.skip(({ viewport }) => (viewport?.width ?? 1280) < 900, "desktop layout");
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1000, height: H }));
 
-  test("the rail and the sidebar run the window's full height: the rail's actions, then the workspace, the tree, and a foot with sync and About", async ({ page }) => {
+  test("the rail and the sidebar run from the top bar to the window's foot: the rail's actions, then the workspace, the tree, and a foot with sync and About", async ({ page }) => {
     await withFiles(page);
+    // Workbench (2026-11-18): from 900 px the top bar spans the window, the rail and sidebar under it.
+    const topH = Math.round((await box(page, ".topbar")).height);
     const rail = await box(page, ".rail");
-    expect(Math.round(rail.y)).toBe(0);
+    expect(Math.round(rail.y), "the rail starts under the top bar").toBe(topH);
     expect(Math.round(rail.y + rail.height), "the rail ends at the window's foot").toBe(H);
     const side = await box(page, "#sidebar");
-    expect(Math.round(side.y), "the sidebar starts at the top of the window").toBe(0);
+    expect(Math.round(side.y), "the sidebar starts under the top bar").toBe(topH);
     expect(Math.round(side.y + side.height), "and ends at its foot").toBe(H);
     expect(side.x, "the sidebar is right of the rail").toBeGreaterThanOrEqual(rail.x + rail.width - 1);
     const sidebar = page.locator("#sidebar");
@@ -80,11 +83,14 @@ test.describe("desktop", () => {
     expect(tree.y + tree.height).toBeLessThanOrEqual(foot.y + 1);
   });
 
-  test("the top bar is over the work column only: the breadcrumb from the workspace, the command field, the runtime state, Capture, then Run with its key", async ({ page }) => {
+  test("the top bar spans the window: the mark, the breadcrumb from the workspace, the command field, the runtime state, Capture, then Run with its key", async ({ page }) => {
     await withFiles(page);
-    const side = await box(page, "#sidebar");
     const top = await box(page, ".topbar");
-    expect(top.x, "the top bar starts right of the sidebar").toBeGreaterThanOrEqual(side.x + side.width - 1);
+    // Workbench (2026-11-18): from 900 px the top bar is the window's first row, over the rail too,
+    // the app's mark and wordmark first.
+    expect(Math.round(top.x), "the top bar starts at the window's edge").toBe(0);
+    expect(Math.round(top.width), "and spans it").toBe(1000);
+    expect((await box(page, ".topbar svg.brand-mark")).x).toBeLessThan((await box(page, ".topbar .crumb")).x);
     expect(Math.round(top.height), "56 px tall").toBe(56);
     await expect(page.locator(".topbar .crumb")).toHaveText(/^Workspace\s*\/\s*main\.c$/);
     const field = page.locator(".topbar #palette-button");

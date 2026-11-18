@@ -64,16 +64,17 @@
 /* Fit is a word (the mock's chip): an edge so it reads as a button beside the two zoom icons. */
 .fc-fit { padding: 0 var(--s3); box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--text); font-weight: var(--w-label); }
 
-/* Narrow bars keep every control and drop words, widest first: the picker's label and Export's word
-   (its download glyph is familiar), then Steps as text's. Each keeps its name for screen readers. */
+/* Narrow bars keep every control and drop words, widest first: the picker's label and the tools'
+   words (Export's download glyph is familiar; Workbench, 2026-11-18: Steps as text's too, so the
+   trace's caption keeps its room on a 440 to 600 px board), then the caption. Each keeps its name
+   for screen readers. */
 @container fc-view (max-width: 599px) {
-  .fc-label, #fc-export .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .fc-label, .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   /* The board's name goes first: the board is a region named "Flowchart" for screen readers already,
      and a 1100 to 1500 px window's board (about 380 to 580 px) has no room for it beside the bar. */
   .chart-board .fc-title { display: none; }
 }
 @container fc-view (max-width: 439px) {
-  .fc-tool-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .fc-toolbar { gap: var(--s1); }
 }
 
@@ -143,7 +144,7 @@
    The negative margin gives back the bar's column gap it brings, and the indent puts it back inside. */
 .fc-trace-caption { flex: 1 1 0; min-width: 0; margin: 0 0 0 calc(-1 * var(--s3)); text-indent: var(--s3); overflow: hidden; color: var(--text-secondary); font-size: var(--fs-2); line-height: var(--lh-2); white-space: nowrap; text-overflow: ellipsis; }
 .fc-trace-caption[hidden] { display: none; }
-@container fc-view (max-width: 599px) {
+@container fc-view (max-width: 439px) {
   .fc-trace-caption { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -224,6 +225,26 @@
 }
 .fc-dialog[open] { display: flex; }
 .fc-dialog .fc-view { flex: 1; }
+
+/* ------------------------------------------------------------------ Workbench: the chart board */
+/* From 1100 px (Workbench, stage 2): a 38 px head on the chrome's ground (app.css) with the title,
+   the function picker and the zoom tools as quiet 26 px controls; the chart on its dot grid; the
+   legend a compact line at the board's bottom-left, on the board's ground, no rule above it. The
+   nodes and connectors are render.ts's quiet look (VIEW_LOOK). A touch screen keeps the 44 px
+   controls above. */
+@media (min-width: 1100px) and (pointer: fine) {
+  .chart-board .fc-toolbar { gap: 6px; padding-top: 0; padding-bottom: 0; padding-left: 14px; border-bottom: 0; }
+  .chart-board .fc-title { margin-right: 6px; font-size: 12px; font-weight: var(--w-label); line-height: 16px; }
+  .chart-board .fc-label { font-size: 12px; line-height: 16px; }
+  .chart-board .fc-picker { min-height: 26px; height: 26px; padding: 0 6px; border-radius: 4px; font-size: 12px; line-height: 16px; }
+  .chart-board .fc-tool { min-width: 26px; min-height: 26px; padding: 0 6px; border-radius: 6px; font-size: 12px; line-height: 16px; }
+  .chart-board .fc-fit { box-shadow: none; color: var(--text-secondary); }
+  .chart-board .fc-fit:hover { color: var(--text); }
+  /* It gives back the bar's 6 px gap (not the base 12) and indents by as much. */
+  .chart-board .fc-trace-caption { margin-left: -6px; text-indent: 6px; font-size: 12px; line-height: 16px; }
+  .chart-board .fc-legend { gap: 4px 14px; padding: 6px 14px 8px; border-top: 0; background: var(--board); font-size: 11px; line-height: 16px; }
+  .chart-board .fc-legend li { gap: 6px; }
+}
 
 /* Phones: the bar's words go by the container rules above (the view is the screen's width). */
 @media (max-width: 899px) {

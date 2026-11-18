@@ -10,11 +10,16 @@ describe("file badges", () => {
   });
 
   it("gives each look a word for every type, and the shown look's by default", () => {
-    for (const look of ["sheet", "hue", "tile"] as const) {
+    for (const look of ["sheet", "hue", "tile", "tag"] as const) {
       for (const kind of ["python", "c", "cpp", "header", "text"] as const) expect(BADGE_WORDS[look][kind]).toMatch(/^\S{1,3}$/);
     }
     expect(badgeWord("main.py")).toBe(BADGE_WORDS[BADGE_LOOK].python);
     expect(badgeWord("util.cpp", "tile")).toBe("C++");
     expect(badgeWord("Makefile")).toBe("");
+  });
+
+  it("shows Workbench's quiet mono tag: the lowercase extension word", () => {
+    expect(BADGE_LOOK).toBe("tag");
+    expect(["a.py", "a.c", "a.cpp", "a.h", "a.txt"].map((p) => badgeWord(p))).toEqual(["py", "c", "cpp", "h", "txt"]);
   });
 });

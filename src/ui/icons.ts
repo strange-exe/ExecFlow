@@ -28,10 +28,12 @@ import fileCpp from "@phosphor-icons/core/assets/regular/file-cpp.svg?raw";
 import filePlus from "@phosphor-icons/core/assets/regular/file-plus.svg?raw";
 import filePy from "@phosphor-icons/core/assets/regular/file-py.svg?raw";
 import fileText from "@phosphor-icons/core/assets/regular/file-text.svg?raw";
+import files from "@phosphor-icons/core/assets/regular/files.svg?raw";
 import folder from "@phosphor-icons/core/assets/regular/folder.svg?raw";
 import folderOpen from "@phosphor-icons/core/assets/regular/folder-open.svg?raw";
 import folderPlus from "@phosphor-icons/core/assets/regular/folder-plus.svg?raw";
 import gear from "@phosphor-icons/core/assets/regular/gear.svg?raw";
+import gitBranch from "@phosphor-icons/core/assets/regular/git-branch.svg?raw";
 import githubLogo from "@phosphor-icons/core/assets/regular/github-logo.svg?raw";
 import image from "@phosphor-icons/core/assets/regular/image.svg?raw";
 import info from "@phosphor-icons/core/assets/regular/info.svg?raw";
@@ -73,8 +75,8 @@ const SOURCES = {
   "cloud-arrow-up": cloudArrowUp, "cloud-check": cloudCheck, "cloud-slash": cloudSlash, "code-simple": codeSimple, columns,
   copy, "corners-in": cornersIn, "corners-out": cornersOut,
   "dots-three": dotsThree, "download-simple": downloadSimple, eraser, file, "file-c": fileC, "file-cpp": fileCpp,
-  "file-plus": filePlus, "file-py": filePy, "file-text": fileText, folder, "folder-open": folderOpen,
-  "folder-plus": folderPlus, gear, "github-logo": githubLogo, image, info, keyboard, layout, "link-simple": linkSimple, "list-checks": listChecks, lock, "magnifying-glass": magnifyingGlass, minus, "paper-plane-right": paperPlaneRight,
+  "file-plus": filePlus, "file-py": filePy, "file-text": fileText, files, folder, "folder-open": folderOpen,
+  "folder-plus": folderPlus, gear, "git-branch": gitBranch, "github-logo": githubLogo, image, info, keyboard, layout, "link-simple": linkSimple, "list-checks": listChecks, lock, "magnifying-glass": magnifyingGlass, minus, "paper-plane-right": paperPlaneRight,
   "pencil-simple": pencilSimple, plus, printer, rows, scissors, "selection-all": selectionAll, "shield-check": shieldCheck, "sidebar-simple": sidebarSimple,
   "square-split-horizontal": squareSplitHorizontal, "square-split-vertical": squareSplitVertical, tabs,
   "terminal-window": terminalWindow, trash, "tree-structure": treeStructure, "upload-simple": uploadSimple, warning, "warning-circle": warningCircle,

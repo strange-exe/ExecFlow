@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { labelRect, layoutChart, type LaidEdge } from "./layout";
 import type { FlowChart, FlowNode } from "./model";
-import { arrowCorners, arrowLength, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList, TRACE_LEGEND, traceMarks, traceSwatch } from "./render";
+import { arrowCorners, arrowLength, KIND_LOOK, kindHue, kindSwatch, LEGEND, renderChart, roundedPath, stepList, TRACE_LEGEND, traceMarks, traceSwatch } from "./render";
 import { FakeElement, fakeDocument, serialize } from "./fixtures/fake-dom";
 import { chartFile, fixture, ok, withPack } from "./fixtures/harness";
 import { MARKS, MARKS_LINES, moduleTrace } from "./fixtures/trace-runs";
@@ -145,10 +145,13 @@ describe("flowchart renderer", () => {
     expect(colours.length).toBeGreaterThan(10);
     // A token, or a kind's tint: a token mixed over surface-raised (CHART_TINT).
     for (const c of colours) expect(c, c).toMatch(/^(var\(--[a-z-]+\)|none|color-mix\(in srgb, var\(--[a-z-]+\) \d+%, var\(--surface-raised\)\))$/);
-    // Colour follows meaning: a decision is drawn in the warning hue, a plain step stays neutral.
+    // The view is Workbench's quiet look: every box neutral (the chrome's surface, the control edge),
+    // the shape alone saying the kind; exports keep the kind hues (export.test.ts).
     const shapeStyle = (kind: string) => svg.all().find((e) => e.getAttribute("data-kind") === kind)?.children.find((c) => c instanceof FakeElement && c.tagName !== "title" && c.getAttribute("class") !== "fc-ring") as FakeElement | undefined;
-    expect(shapeStyle("decision")?.getAttribute("style")).toContain("stroke:var(--warning)");
-    expect(shapeStyle("process")?.getAttribute("style")).toContain("stroke:var(--border-strong)");
+    for (const kind of ["decision", "process"]) {
+      expect(shapeStyle(kind)?.getAttribute("style"), kind).toContain("fill:var(--surface);stroke:var(--border-strong)");
+    }
+    expect(styles.join(";")).not.toMatch(/var\(--(success|warning|info|danger|action)\)/);
     for (const e of svg.all()) {
       for (const attr of ["fill", "stroke", "color"]) expect(e.getAttribute(attr), `${e.tagName} ${attr}`).toBeNull();
     }
@@ -210,11 +213,14 @@ describe("flowchart renderer", () => {
       expect(sw.getAttribute("aria-hidden"), kind).toBe("true");
       const parts = sw.children.filter((c): c is FakeElement => c instanceof FakeElement);
       expect(parts.map((p) => p.tagName), kind).toEqual(shapeTags[kind]);
-      const hue = kindHue(kind);
       const style = parts[0].getAttribute("style")!;
-      // The view's own style strings: the hue's outline over its tint, or the neutral box.
-      expect(style, kind).toContain(hue ? `stroke:var(--${hue})` : "stroke:var(--border-strong)");
-      expect(style, kind).toContain(hue ? `color-mix(in srgb, var(--${hue})` : "fill:var(--surface-raised)");
+      // The view's own style strings: the neutral box (Workbench), the shape saying the kind.
+      expect(style, kind).toContain("fill:var(--surface);stroke:var(--border-strong)");
+      // The export's look keeps the kind's hue: its outline over its tint.
+      const hue = kindHue(kind);
+      const tinted = (kindSwatch(kind, fakeDocument as unknown as Document, KIND_LOOK) as unknown as FakeElement).children.filter((c): c is FakeElement => c instanceof FakeElement)[0].getAttribute("style")!;
+      expect(tinted, kind).toContain(hue ? `stroke:var(--${hue})` : "stroke:var(--border-strong)");
+      expect(tinted, kind).toContain(hue ? `color-mix(in srgb, var(--${hue})` : "fill:var(--surface-raised)");
     }
   });
 
@@ -286,6 +292,12 @@ describe("the run trace on the chart", () => {
       expect(over.getAttribute("d")).toBe(plain[0].getAttribute("d"));
       expect(over.getAttribute("pathLength")).toBe("1");
       expect(widthOf(over)).toBe(width);
+      // Workbench: the plain line in the control edge, the taken path (and its arrowhead) in the
+      // action colour as ink.
+      expect(plain[0].getAttribute("style")).toContain("stroke:var(--border-strong)");
+      expect(over.getAttribute("style")).toContain("stroke:var(--link)");
+      const head = g.children.find((c): c is FakeElement => c instanceof FakeElement && c.getAttribute("data-part") === "arrow")!;
+      expect(head.getAttribute("style")).toContain("fill:var(--link)");
     };
     expectWidth(byText("i < n", "Yes"), 5, 4);
     expectWidth(byText("i < n", "No"), 1, 1.5);
@@ -308,8 +320,9 @@ describe("the run trace on the chart", () => {
     for (const c of chips) {
       const [rect, text] = c.children as FakeElement[];
       expect(rect.tagName).toBe("rect");
-      expect(rect.getAttribute("style")).toBe("fill:var(--surface-raised);stroke:var(--border-strong);stroke-width:1");
-      expect(text.getAttribute("style")).toContain("font-family:var(--font-code);font-size:11px");
+      // Small mono badges in the taken path's colour (the action colour as ink) on the chrome's surface.
+      expect(rect.getAttribute("style")).toBe("fill:var(--surface);stroke:var(--link);stroke-width:1");
+      expect(text.getAttribute("style")).toContain("fill:var(--link);font-family:var(--font-code);font-size:11px");
       expect(c.getAttribute("data-count") + "x").toBe(text.textContent);
     }
     // "Yes 5x": the chip starts after the label's text.

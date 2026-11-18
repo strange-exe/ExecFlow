@@ -4,7 +4,7 @@
 // switch without a tab strip, live input on the prompt's line, the grouped file menu and the
 // shortcuts dialog's one grid. Every keyboard path these touch is driven with the keyboard.
 import type { Page } from "@playwright/test";
-import { BRAND_MARK, rampColor, tileColorAt } from "../src/editor/brand-mark";
+import { BRAND_MARK, tileColorAt } from "../src/editor/brand-mark";
 import { clickTreeSpace, expect, expectActive, importFiles, openApp, openFromTree, openIn, openThemePicker, reloadApp, run, setCode, showFiles, showPanel, test, treeItem, waitReady } from "./helpers";
 import { decodeRgba, off } from "./snippet-helpers";
 
@@ -199,9 +199,12 @@ test("after a failed run the error jump comes first in the editor head, and it a
   await expect(page.locator("#snippet-button")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.locator("#run-button")).toBeFocused();
-  // Then on into the editor head: the open file's tab, then the jump.
+  // Then on to the rail (Workbench, 2026-11-18: from 900 px the top bar spans the window, first in
+  // the DOM, so the rail, the file list and the boards follow it), and from the open file's tab
+  // into the jump.
   await page.keyboard.press("Tab");
-  await expect(page.locator('.tabs [role=tab][aria-selected="true"]')).toBeFocused();
+  await expect(page.getByRole("button", { name: "Files", exact: true })).toBeFocused();
+  await page.locator('.tabs [role=tab][aria-selected="true"]').focus();
   await page.keyboard.press("Tab");
   await expect(jump).toBeFocused();
 
@@ -268,12 +271,12 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
   await openFromTree(page, "main.py");
   const crumb = page.locator(".topbar .crumb");
   // Workbench Pro: the breadcrumb starts with the workspace's name (the one heading the sidebar),
-  // then the folders and the file; from 1100 px (Flow Board S2, no rail) the app's mark heads the
-  // top bar, before the breadcrumb.
+  // then the folders and the file; from 900 px (Workbench) the app's mark and its wordmark (a
+  // picture of the h1's name, hidden from screen readers) head the top bar, before the breadcrumb.
   // The "/" between segments is decorative (aria-hidden): compare each segment's own words.
   await expect(crumb.locator("li > .crumb-text")).toHaveText(["Workspace", "main.py"]);
   await expect(page.locator("#sidebar .ws-switcher #ws-name")).toHaveText("Workspace");
-  await expect(page.locator(".topbar .topbar-start > svg.brand-mark + .crumb")).toBeVisible();
+  await expect(page.locator(".topbar .topbar-start > svg.brand-mark + .wordmark[aria-hidden=true] + .crumb")).toBeVisible();
   // A deep path, made in place (a name with folders makes them).
   const folders = ["course-materials", "semester-two", "week-eleven", "lab-practice", "exercises"];
   const file = "finding_the_largest_value_in_a_list.py";
@@ -335,15 +338,11 @@ test("the breadcrumb shows the folders and the file, gives way from the left, an
 });
 
 for (const scheme of ["light", "dark"] as const) {
-  test(`the app's mark is the logo in ${scheme}: the blue-to-teal tile and white chevrons, at the rail's head and in the phone's top bar`, async ({ page }) => {
-    // The rail is under 1100 px only (Flow Board S2); from 1100 px the mark is the top bar's svg,
-    // the same one the phone's top bar checks below.
+  test(`the app's mark is the logo in ${scheme}: the blue-to-teal tile and white chevrons, in the top bar`, async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 800 });
     await openIn(page, "/", scheme);
     await waitReady(page);
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-    // The rail: a 32 px tile painted with the logo's gradient corner to corner (the svg's own tile
-    // gives way to it there), the 20 px glyph on it.
     // Screenshots come at the device's pixel ratio (WebKit's desktop profile is 2x): CSS px are scaled
     // to bitmap px, and each expected colour is worked out at the sampled pixel's own centre.
     const shot = async (sel: string, css: number) => {
@@ -353,13 +352,10 @@ for (const scheme of ["light", "dark"] as const) {
       const px = (c: number) => Math.floor((c + 0.5) * s);
       return { at: (x: number, y: number) => png.at(px(x), px(y)), centre: (c: number) => (px(c) + 0.5) / s };
     };
-    const rail = await shot(".rail-mark", 32);
-    const railWant = (x: number, y: number) => rampColor((rail.centre(x) + rail.centre(y)) / 64);
-    for (const [x, y] of [[16, 3], [3, 16], [28, 16], [16, 28], [9, 9], [23, 23]] as const) {
-      expect(off(rail.at(x, y), railWant(x, y)), `rail tile at ${x}, ${y}: ${rail.at(x, y)} vs ${railWant(x, y)}`).toBeLessThanOrEqual(3);
-    }
-    // The middle of the left chevron's upper arm (unit 9.25, 13 of the 20 px svg at 6 px in).
-    expect(off(rail.at(11, 14), "#ffffff"), `the rail's glyph is white: ${rail.at(11, 14)}`).toBeLessThanOrEqual(40);
+    // Workbench (stage 2): the rail has no mark of its own; from 900 px the mark is the full-width
+    // top bar's svg, the same one the phone's top bar checks below.
+    await expect(page.locator(".rail-mark")).toHaveCount(0);
+    await expect(page.locator(".workbench > .topbar .topbar-start > svg.brand-mark")).toBeVisible();
     // The phone's top bar: the svg itself, its tile filled with its own gradient.
     await page.setViewportSize(PHONE);
     const mark = page.locator(".topbar .topbar-start > svg.brand-mark");

@@ -325,9 +325,11 @@ for (const scheme of ["light", "dark"] as const) {
     await page.keyboard.press("Escape");
 
     // Chrome text on its own line heights. The command field is tier 2 (--fs-2 / --lh-2: 13 / 18 px);
-    // the sidebar's "Files" heading is tier 2 too in Workbench Pro (--fs-2 / --lh-2: 13 / 18 px at
-    // 600, app.css .region-title, the mockup's side-head), under the workspace.
-    expect(await page.locator(".region-title").first().evaluate((e) => `${getComputedStyle(e).fontSize} / ${getComputedStyle(e).lineHeight}`)).toBe("13px / 18px");
+    // the sidebar's "Files" heading is the Workbench side head from 1100 px (2026-11-18, the mock's
+    // .side-head): Geist Mono 12 / 16 px at 500, like the status bar's facts.
+    const files = page.locator(".sidebar-head > .region-title");
+    expect(await files.evaluate((e) => `${getComputedStyle(e).fontSize} / ${getComputedStyle(e).lineHeight} ${getComputedStyle(e).fontWeight}`)).toBe("12px / 16px 500");
+    expect(await files.evaluate((e) => getComputedStyle(e).fontFamily)).toMatch(/Geist Mono/);
     expect(await page.locator("#palette-button").evaluate((e) => getComputedStyle(e).lineHeight)).toBe("18px");
   });
 }

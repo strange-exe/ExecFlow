@@ -60,10 +60,10 @@ test.describe("desktop", () => {
     expect(con.y, "the console is under the code").toBeGreaterThanOrEqual(code.y + code.height);
     expect(Math.abs(con.x - code.x), "one column").toBeLessThan(2);
     expect(chart.x, "the chart board is right of the code board").toBeGreaterThan(code.x + code.width + 8);
-    // The code board's edge lies 1 px outside its parts (they sit inside its hairline).
-    expect(Math.abs(chart.y - (code.y - 1)), "the boards share a top edge").toBeLessThan(2);
-    expect(Math.abs(chart.y + chart.height - (con.y + con.height + 1)), "and a bottom edge").toBeLessThan(2);
-    expect(Math.abs(chart.width - (code.width + 2)), "two equal boards").toBeLessThan(2);
+    // Workbench (2026-11-18): flush panes, no board edge around the code and its console.
+    expect(Math.abs(chart.y - code.y), "the panes share a top edge").toBeLessThan(1);
+    expect(Math.abs(chart.y + chart.height - (con.y + con.height)), "and a bottom edge").toBeLessThan(1);
+    expect(Math.abs(chart.width - code.width), "two equal panes").toBeLessThan(1);
     // The value is the console's share of the height, in percent, between its min and max.
     const value = async () => Number(await split.getAttribute("aria-valuenow"));
     expect(await split.getAttribute("aria-valuemin")).toBe("15");
@@ -104,16 +104,17 @@ test.describe("desktop", () => {
     await expect(page.locator("#panel > #panel-flowchart")).toHaveAttribute("role", "tabpanel");
   });
 
-  test("the activity rail holds Files, Search, Flowchart and New file, with Shortcuts and Settings at its foot; Files hides and shows the file list", async ({ page }) => {
-    // Under 1100 px: from 1100 px Flow Board S2 retires the rail (Files is the code board's popover,
-    // flow-board.spec.ts).
+  test("the activity rail holds Files, Search, Source control, Flowchart and New file, with Shortcuts and Settings at its foot; Files hides and shows the file list", async ({ page }) => {
+    // At 1000 px; from 1100 px the rail keeps its actions and Shortcuts and Settings move to the top
+    // bar as words (flow-board.spec.ts).
     await page.setViewportSize({ width: 1000, height: 800 });
     await openApp(page);
     await importFiles(page, FAILS);
     const rail = page.getByRole("navigation", { name: "Activity" });
     await expect(rail).toBeVisible();
     const names = await rail.getByRole("button").evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.trim()));
-    expect(names).toEqual(["Files", "Search", "Flowchart", "New file", "Shortcuts", "Settings"]);
+    // Workbench (2026-11-18): Source control joins the rail (the mock), opening the GitHub status.
+    expect(names).toEqual(["Files", "Search", "Source control", "Flowchart", "New file", "Shortcuts", "Settings"]);
     const r = await box(page, ".rail");
     expect(Math.round(r.x)).toBe(0);
     expect(Math.round(r.width)).toBe(64);
@@ -184,8 +185,8 @@ test.describe("desktop", () => {
 // Found in S3's review shots: with a C file open before the compiler's one-time download, the
 // runtime's words ("C/C++ needs a one-time download") kept the top bar's end at its full width, so
 // the page scrolled sideways (146 px at 900, 7 px at 1100) and Run was cut off at the right edge.
-// From 1100 px (Flow Board S2) Run and the runtime state are on the run strip at the code board's
-// foot instead, held to the same rules.
+// From 1100 px (Workbench, 2026-11-18) Run is on the run strip at the code's foot and the runtime
+// state is a fact in the status bar, held to the same rules.
 // Since 0.33.3 the download starts by itself when a C file opens; those words come back when it
 // fails, so the pack is refused here to hold them.
 test.describe("the top bar (from 1100 px the run strip) with a long runtime state", () => {
@@ -202,7 +203,7 @@ test.describe("the top bar (from 1100 px the run strip) with a long runtime stat
       await openApp(page);
       await importFiles(page, [{ name: "main.c", text: "int main(void) {\n    return 0;\n}\n" }]);
       await openFromTree(page, "main.c");
-      const runtime = page.locator(width >= 1100 ? ".run-strip > #status-runtime" : ".topbar #status-runtime");
+      const runtime = page.locator(width >= 1100 ? ".workbench > .statusbar > #status-runtime" : ".topbar #status-runtime");
       await expect(runtime).toHaveAttribute("data-state", "absent", { timeout: 30_000 });
       await expect(runtime).toContainText("C/C++ needs a one-time download");
       expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);

@@ -71,6 +71,8 @@ export interface SyncHooks {
   signOut(): Promise<void>;
   /** "Share link..." (file menu, palette): loads the sync screens, then the share dialog. */
   share(path: WsPath, opener: HTMLElement | null): void;
+  /** The rail's Source control: what pressing the status does (connect, sync now, the conflicts); focus comes back to `opener`. */
+  press(opener: HTMLElement): void;
 }
 
 /** Before the sync screens load, the status comes from the stored connection alone. */
@@ -157,5 +159,6 @@ export function mountSync(host: SyncHost): SyncHooks {
       await controller?.signOut();
     },
     share: (path, opener) => withController((c) => c.share(path, opener)),
+    press: (opener) => withController((c) => c.pressStatus(opener)),
   };
 }

@@ -50,8 +50,11 @@ import "../styles/sync-dialogs.css";
 export interface SyncController {
   /** Settles once the stored connection (and a remembered token) has been read. */
   ready: Promise<void>;
-  /** The status button was pressed. */
-  pressStatus(): void;
+  /**
+   * The status button was pressed, or the rail's Source control (`opener`: where the focus goes back
+   * to when a dialog it opens closes; the status button when none is given).
+   */
+  pressStatus(opener?: HTMLElement): void;
   openConnect(returnFocus?: HTMLElement | null): Promise<void>;
   disconnect(): Promise<void>;
   syncNow(reason: RunReason): Promise<void>;
@@ -1069,12 +1072,12 @@ export function createSyncController(host: SyncHost, button: HTMLButtonElement):
 
   return {
     ready,
-    pressStatus() {
+    pressStatus(opener = button) {
       if (!host.tab.canWrite() && remote) {
         host.notice.show(READ_ONLY_SYNC, { tone: "info" });
         return;
       }
-      if (phase === "not-connected" || phase === "needs-token") void openConnect(button);
+      if (phase === "not-connected" || phase === "needs-token") void openConnect(opener);
       else if (shownPhase() === "conflict") openConflicts();
       else if (phase !== "syncing") void syncNow("button");
     },

@@ -565,11 +565,6 @@
   --w-label: 500;
   --w-strong: 600;
   --tracking-title: -0.02em;
-  /* The logo's tile, the same in every theme (the owner's "Blue to teal", 2026-10-30): the stops of
-     public/icons/mark-v2.svg and BRAND_MARK (brand-mark.ts; brand-mark.test.ts keeps them equal). */
-  --logo-from: #3561f0;
-  --logo-mid: #2a5ee0;
-  --logo-to: #1a7a9a;
 
   /* ---- space (4 px base), shape, heights, motion ---- */
   --s1: 4px;
@@ -643,6 +638,20 @@
     --h-status: 28px;
     --tool: 30px;
     --primary-h: 32px;
+  }
+}
+/* Workbench (stage 2, 1100 px and wider with a fine pointer; .claude/design/editor9/a): compact
+   chrome so the code is the brightest, largest thing. A 44 px top bar, a 38 px tab bar, a 34 px
+   console head, a 26 px status bar and a 48 px icon rail; every target stays 24 px or more. */
+@media (min-width: 1100px) and (pointer: fine) {
+  :root {
+    --h-topbar: 44px;
+    --h-head: 38px;
+    --h-panel-bar: 34px;
+    --h-status: 26px;
+    --h-strip: 48px;
+    --rail-w: 48px;
+    --tool: 28px;
   }
 }
 

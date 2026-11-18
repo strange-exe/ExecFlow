@@ -174,8 +174,9 @@ test.describe("legend and colours", () => {
       await expect(legend(page).getByRole("listitem")).toHaveText(["Start and end", "Step", "Input or output", "Decision"]);
       const [l, s] = [(await legend(page).boundingBox())!, (await stage(page).boundingBox())!];
       expect(l.y, "under the chart").toBeGreaterThanOrEqual(s.y + s.height - 1);
-      // Coloured shapes kept: each kind's outline differs from a plain step's, and the legend's
-      // swatch has the very outline and fill of its shape in the chart.
+      // Workbench (2026-11-18, the mock's neutral nodes): every kind is the same quiet box, told
+      // apart by its shape alone, and the legend's swatch has the very outline and fill of its
+      // shape in the chart. Exports keep the kinds' hues (render.test.ts KIND_LOOK).
       const looks = await page.evaluate(() => {
         const look = (el: Element | null) => (el ? { stroke: getComputedStyle(el).stroke, fill: getComputedStyle(el).fill } : null);
         // Not the box's focus ring (an unpainted rect drawn first).
@@ -187,7 +188,15 @@ test.describe("legend and colours", () => {
         expect(shape, kind).not.toBeNull();
         expect(swatch, kind).toEqual(shape);
       }
-      for (const kind of ["start", "io", "decision"]) expect(looks[kind].shape!.stroke, kind).not.toBe(looks.process.shape!.stroke);
+      for (const kind of ["start", "io", "decision"]) expect(looks[kind].shape!.stroke, kind).toBe(looks.process.shape!.stroke);
+      const strong = await page.evaluate(() => {
+        const probe = document.body.appendChild(document.createElement("i"));
+        probe.style.color = "var(--border-strong)";
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+      });
+      expect(looks.process.shape!.stroke, "the neutral outline").toBe(strong);
       // Swatches are pictures of the words beside them: hidden from screen readers.
       expect(await legend(page).locator("svg:not([aria-hidden=true])").count()).toBe(0);
     });

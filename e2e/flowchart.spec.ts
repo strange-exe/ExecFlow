@@ -122,16 +122,16 @@ test.describe("the Flowchart tab", () => {
       return;
     }
     if (chartOnBoard(page)) {
-      // The chart is a region of its own beside the code; the console shows Output or Problems with
-      // no tabs (the layout fix: the run strip's count opens the problems, the head names what shows).
+      // The chart is a region of its own beside the code; the console's tabs are Output and
+      // Problems (Workbench: the Flowchart tab is the chart board's here).
       await expect(page.getByRole("region", { name: "Flowchart" })).toBeVisible();
       await expect(page.locator("#chart-board #panel-flowchart .fc-view")).toBeVisible();
-      await expect(page.locator(".panel-tabs [role=tab]:visible")).toHaveCount(0);
+      await expect(page.locator(".panel-tabs [role=tab]:visible")).toHaveText(["Output", "Problems"]);
       await expect(page.locator("#ptab-flowchart")).toBeHidden();
       await showPanel(page, "problems");
-      await expect(page.locator("#panel-title")).toHaveText("Problems");
+      await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
       await showPanel(page, "output");
-      await expect(page.locator("#panel-title")).toHaveText("Output");
+      await expect(page.locator("#ptab-output")).toHaveAttribute("aria-selected", "true");
       // The chart stays on its board whichever the console shows.
       await expect(page.locator("#panel-flowchart")).toBeVisible();
       return;

@@ -24,6 +24,15 @@
 // and the problems count form the run strip at the code board's foot (the console's first row);
 // the top bar holds the mark, the breadcrumb and the sync status, Search, then Capture, Shortcuts,
 // Settings and About.
+// Workbench (editor option A, owner's pick 2026-11-18: .claude/design/editor9/a/index.html), stage 2:
+// from 900 px the top bar spans the window (the mark and the wordmark, the breadcrumb, Search, then
+// its words), over a thin icon rail (Files, Search, Source control) and the file list, which stay
+// beside the boards from 1100 px too (the Files popover is retired). From 1100 px: the GitHub status
+// is a pill in the top bar's end before Layout, Shortcuts, Settings and About; the code board's tab
+// bar ends with Share, Capture and Focus; the run strip holds Run, Input and Arguments (room after
+// them for the stepper); the console's head is its tabs (Output | Problems, the count on the tab)
+// with the run's outcome at its end; the status bar runs along the window's foot (the language,
+// Ln/Col, spaces, UTF-8, the runtime state, the theme).
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
@@ -83,8 +92,8 @@ export interface Layout {
   repoName: HTMLElement;
   /** Under the workspace's name: where it lives ("On this computer", "On GitHub"). */
   wsOwner: HTMLElement;
-  /** The rail's actions (Search, Flowchart, New file): workbench.ts gives them their work. */
-  quick: { search: HTMLButtonElement; flowchart: HTMLButtonElement; newFile: HTMLButtonElement };
+  /** The rail's actions (Search, Source control, Flowchart, New file): workbench.ts gives them their work. */
+  quick: { search: HTMLButtonElement; source: HTMLButtonElement; flowchart: HTMLButtonElement; newFile: HTMLButtonElement };
   syncSlot: HTMLElement;
   runButton: HTMLButtonElement;
   runLabel: HTMLElement;
@@ -102,8 +111,13 @@ export interface Layout {
   /** "Error in calc.py, line 2" in the editor head: hidden until a run fails in another file. */
   errorJump: HTMLButtonElement;
   errorJumpWords: HTMLElement;
-  /** Capture snippet of the selected lines: in the top bar before Run (desktop only: phones reach it from the code menu). */
+  /**
+   * Capture snippet of the selected lines: in the top bar before Run from 900 to 1099 px, in the code
+   * board's tab bar from 1100 px (phones reach it from the code menu).
+   */
   snippetButton: HTMLButtonElement;
+  /** Share (a link to the open file's code, src/ui/share-dialog.ts): the code board's tab bar, from 1100 px. */
+  shareButton: HTMLButtonElement;
   editorPanel: HTMLElement;
   editorHost: HTMLElement;
   emptyHost: HTMLElement;
@@ -123,9 +137,14 @@ export interface Layout {
   chartBoard: HTMLElement;
   /** Whether the chart has its own board at this width (1100 px and wider). */
   chartOnBoard(): boolean;
-  /** The run strip's slot for the run's outcome (#receipt moves here from 1100 px: workbench.ts). */
+  /**
+   * The slot for the run's outcome (#receipt moves here: workbench.ts): the console head's end from
+   * 1100 px, the dock's strip on phones.
+   */
   runOutcome: HTMLElement;
-  /** "No problems" or "2 problems, line 12" beside Run (1100 px and wider): opens Problems. */
+  /** The run strip's tools after Run (1100 px and wider): workbench.ts moves Input and Arguments here. */
+  runTools: HTMLElement;
+  /** Phones: "No problems" or "2 problems, line 12" at the dock's foot: opens Problems. */
   problemsButton: HTMLButtonElement;
   problemsWords: HTMLElement;
   /** Called after the layout crossed the 1100 px line (the Flow Board shell). */
@@ -137,9 +156,13 @@ export interface Layout {
   chartVisible(): boolean;
   /** Called whenever chartVisible() may have changed. */
   onChartVisibleChange(listener: (visible: boolean) => void): void;
-  /** The notice slot: in the sidebar's foot from 900 px, in the status bar below. */
+  /** The notice slot: in the sidebar's foot from 900 px, over the code board's foot from 1100 px, in the status bar below. */
   noticeHost: HTMLElement;
-  status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement };
+  /**
+   * The status bar's facts and buttons. `theme`: the theme's name (from 1100 px), a button that opens
+   * Settings; workbench.ts keeps its words.
+   */
+  status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement; theme: HTMLButtonElement };
   /** Phones: the Code | Flowchart segment under the top bar. */
   viewTabs: { code: HTMLButtonElement; flowchart: HTMLButtonElement };
   /**
@@ -182,10 +205,7 @@ export interface Layout {
   narrow(): boolean;
   /** Called after the layout crossed the 900 px line (and moved Run and the runtime state). */
   onNarrowChange(listener: (narrow: boolean) => void): void;
-  /**
-   * Shows the file list: the drawer below 900 px (focus goes into it), the sidebar if hidden from
-   * 900 px, the Files popover from 1100 px (focus goes into it).
-   */
+  /** Shows the file list: the drawer below 900 px (focus goes into it), the sidebar if hidden from 900 px. */
   openDrawer(): void;
   closeDrawer(focusToggle?: boolean): void;
   drawerOpen(): boolean;
@@ -218,6 +238,9 @@ export function createLayout(root: HTMLElement): Layout {
   const mod = isMac() ? "Cmd" : "Ctrl";
   const m = ariaMod();
   const mark = brandMark();
+  // The wordmark beside the mark from 900 px (wordmark.css, the owner's "Code + flow"): decoration,
+  // since the page's own h1 already names the app for screen readers.
+  const wordmark = h("span", { class: "wordmark topbar-wordmark", "aria-hidden": "true" }, h("span", { class: "wm-exec" }, "Exec"), h("span", { class: "wm-flow" }, "Flow"));
   // ---------------------------------------------------------------- top bar
   // The breadcrumb: the workspace's name, the open file's folders (the secondary tier) and its name
   // (the name font, in --text). Text, not links; the slashes between them are decorative. Phones
@@ -266,24 +289,26 @@ export function createLayout(root: HTMLElement): Layout {
   const drawerToggle = h(
     "button",
     { type: "button", class: "rail-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "true", "aria-controls": "sidebar", title: "Files" },
-    icon("sidebar-simple"),
+    icon("files"),
     h("span", { class: "rail-label" }, "Files"),
     filesName,
     icon("caret-down", "files-caret"),
   );
-  // The rail's actions, each its icon over its word; Search keeps its real key in aria-keyshortcuts.
-  const railButton = (id: string, iconName: Parameters<typeof icon>[0], label: string, keys?: string) =>
-    h("button", { type: "button", class: "rail-btn", id, ...(keys ? { "aria-keyshortcuts": keys, title: `${label} (${mod}+P)` } : { title: label }) }, icon(iconName), h("span", { class: "rail-label" }, label));
+  // The rail's actions (Workbench: icons, each named by its word, which stays in the button for
+  // screen readers and shows as the tooltip); Search keeps its real key in aria-keyshortcuts.
+  const railButton = (id: string, iconName: Parameters<typeof icon>[0], label: string, keys?: string, title = label) =>
+    h("button", { type: "button", class: "rail-btn", id, ...(keys ? { "aria-keyshortcuts": keys, title: `${title} (${mod}+P)` } : { title }) }, icon(iconName), h("span", { class: "rail-label" }, label));
   const quick = {
     search: railButton("quick-search", "magnifying-glass", "Search", `${m}+P`),
+    // GitHub sync: what the status in the top bar does when pressed (connect, sync now, or the conflicts).
+    source: railButton("quick-source", "git-branch", "Source control", undefined, "Source control: GitHub sync"),
     flowchart: railButton("quick-flowchart", "tree-structure", "Flowchart"),
     newFile: railButton("quick-new-file", "plus", "New file"),
   };
-  // Shortcuts and Settings join the foot from 900 px (place()).
+  // Shortcuts and Settings join the foot from 900 to 1099 px (place()); from 1100 px they are the
+  // top bar's words.
   const railFoot = h("div", { class: "rail-foot" });
-  // The rail heads with the mark on a 32 px brand tile of its own (the glyph keeps the 20 px icon size).
-  const railMark = h("div", { class: "rail-mark" }, mark);
-  const rail = h("nav", { class: "rail", "aria-label": "Activity" }, railMark, drawerToggle, quick.search, quick.flowchart, quick.newFile, railFoot);
+  const rail = h("nav", { class: "rail", "aria-label": "Activity" }, drawerToggle, quick.search, quick.source, quick.flowchart, quick.newFile, railFoot);
 
   // ---------------------------------------------------------------- sidebar
   // The workspace at the top: its name (or the repository's, once connected) and where it lives.
@@ -318,9 +343,9 @@ export function createLayout(root: HTMLElement): Layout {
   const errorJumpWords = h("span", { class: "jump-words" });
   const errorJump = h("button", { type: "button", class: "error-jump", id: "error-jump" }, icon("x-circle"), errorJumpWords);
   errorJump.hidden = true;
-  // Capture snippet (an image of the selected lines): a ghost button before Run in the top bar. Its
-  // name is static (the selection changes on every keystroke) and starts with the word it shows
-  // (WCAG 2.5.3).
+  // Capture snippet (an image of the selected lines): a ghost button before Run in the top bar (900
+  // to 1099 px), a quiet word in the code board's tab bar from 1100 px. Its name is static (the
+  // selection changes on every keystroke) and starts with the word it shows (WCAG 2.5.3).
   const snippetButton = h(
     "button",
     { type: "button", class: "btn ghost capture-btn", id: "snippet-button", "aria-label": "Capture snippet of the selected lines", title: "Capture snippet of the selected lines" },
@@ -338,9 +363,16 @@ export function createLayout(root: HTMLElement): Layout {
   );
   // The editor head: the tabs on the left, the error jump on the right (phones have no head, and
   // keep Capture there out of sight: they reach it from the code menu).
-  // From 1100 px the head ends with the board's own tools: Flowchart (while the chart board is
-  // hidden, it brings it back) and Focus code (the code board alone; Shift Alt Enter, Visual
-  // Studio's full-screen key). Toggles named by what they do, their state in aria-pressed.
+  // From 1100 px the head ends with Share (a link to the open file's code, as the file menu's "Share
+  // link..." does), Capture, then the board's own tools: Flowchart (while the chart board is hidden,
+  // it brings it back) and Focus code (the code board alone; Shift Alt Enter, Visual Studio's
+  // full-screen key). Toggles named by what they do, their state in aria-pressed.
+  const shareButton = h(
+    "button",
+    { type: "button", class: "board-tool share-btn", id: "share-button", "aria-label": "Share a link to this file", title: "Share a link to this file's code" },
+    icon("link-simple"),
+    h("span", { class: "board-tool-label" }, "Share"),
+  );
   const chartToggle = h(
     "button",
     { type: "button", class: "board-tool chart-toggle", id: "chart-toggle", "aria-pressed": "false", "aria-controls": "chart-board", title: "Show the flowchart beside the code" },
@@ -351,21 +383,16 @@ export function createLayout(root: HTMLElement): Layout {
   const focusButton = h("button", {
     type: "button", class: "board-tool focus-toggle", id: "focus-code", "aria-pressed": "false", "aria-label": "Focus code", "aria-keyshortcuts": "Shift+Alt+Enter",
   });
-  const headTools = h("div", { class: "head-tools" }, errorJump, chartToggle, focusButton);
+  const headTools = h("div", { class: "head-tools" }, errorJump, chartToggle, shareButton, focusButton);
   const editorHead = h("div", { class: "editor-head" }, tabHost, headTools);
   const editorHost = h("div", { class: "editor-host", id: "editor-host" });
   const emptyHost = h("div", { class: "editor-empty", id: "editor-empty" });
   // Empty until a file is active (workbench renderEmpty): the editor may load before then (start-up
   // fetches it at once for a returning user), and its blank view stays out of sight.
   const editorPanel = h("div", { class: "editor-panel", id: "editor-panel", "data-empty": "true" }, editorHost, emptyHost);
-  // The card's foot (900 px and wider): the file's language and Ln/Col (the status bar below).
+  // The card's foot (900 to 1099 px): the file's language and Ln/Col (the status bar elsewhere).
   const editorFoot = h("div", { class: "editor-foot" });
-  // The Files popover (1100 px and wider): the sidebar moves into it (place()). A non-modal dialog
-  // named by the sidebar's own "Files" heading, right after the head that holds its button, so the
-  // Tab order meets it where it is seen.
-  const filesPop = h("div", { class: "files-pop", id: "files-popover", role: "dialog", "aria-labelledby": "files-title" });
-  filesPop.hidden = true;
-  const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, filesPop, editorPanel, editorFoot);
+  const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, editorPanel, editorFoot);
 
   // Phones: the Code | Flowchart segment under the top bar (the dock below shows the output).
   const viewTab = (id: string, controls: string, iconName: Parameters<typeof icon>[0], label: string, selected: boolean) =>
@@ -386,12 +413,8 @@ export function createLayout(root: HTMLElement): Layout {
   const ptabProblems = h("button", { type: "button", role: "tab", id: "ptab-problems", "aria-controls": "panel-problems", "aria-selected": "false", tabindex: "-1" }, "Problems", count);
   const ptabFlowchart = h("button", { type: "button", role: "tab", id: "ptab-flowchart", "aria-controls": "panel-flowchart", "aria-selected": "false", tabindex: "-1" }, "Flowchart");
   const panelTabsEl = h("div", { class: "panel-tabs", role: "tablist", "aria-label": "Panel" }, ptabOutput, ptabProblems, ptabFlowchart);
-  // From 1100 px the tabs give way (the run strip's count is the one way to the problems: owner,
-  // 2026-11-02, "Problems shows twice"): the head names what the console shows, and while it shows
-  // Problems, Output goes back. Under 1100 px the tabs stay (app.css).
-  const panelTitle = h("h2", { class: "panel-title", id: "panel-title" }, "Output");
-  const panelBack = h("button", { type: "button", class: "btn ghost small panel-back", id: "panel-back", "aria-controls": "panel-output" }, icon("terminal-window"), "Output");
-  panelBack.hidden = true;
+  // The tabs head the console at every width from 900 px (Workbench: Output | Problems, the count on
+  // the Problems tab; the Flowchart tab only from 900 to 1099 px, where the chart has no board).
   const panelToggle = h("button", { type: "button", class: "icon-btn panel-toggle", id: "panel-toggle", "aria-label": "Output and problems", "aria-expanded": "false", "aria-controls": "panel-output panel-problems panel-flowchart" });
   // Output below or beside the code (1100 px and wider), before Maximise (workbench.ts adds it): named
   // by the place it moves the output to (syncBoards).
@@ -403,10 +426,12 @@ export function createLayout(root: HTMLElement): Layout {
   problemsPanel.hidden = true;
   const flowchartPanel = h("div", { class: "panel-body", role: "tabpanel", id: "panel-flowchart", "aria-labelledby": "ptab-flowchart" });
   flowchartPanel.hidden = true;
-  // The run strip (1100 px and wider): the console's first row, at the code board's foot. Run (its
-  // key on it), the run's outcome (#receipt, workbench.ts), the runtime state and the problems
-  // count; a notice takes a line of its own under them. Empty and not shown under 1100 px (place()).
+  // The run strip (1100 px and wider): the console's first row, at the code board's foot. Run, then
+  // Input and Arguments (workbench.ts moves them into runTools), the rest of the row kept for the
+  // stepper. Empty and not shown from 900 to 1099 px (place()). The run's outcome (#receipt,
+  // workbench.ts) ends the console's head; on phones it is in the dock's strip.
   const runOutcome = h("div", { class: "run-outcome" });
+  const runTools = h("div", { class: "run-tools" });
   const problemsWords = h("span", { class: "problems-words" }, "No problems");
   const problemsButton = h(
     "button",
@@ -433,11 +458,12 @@ export function createLayout(root: HTMLElement): Layout {
     icon("keyboard"),
     icon("caret-down", "hide-keyboard-caret"),
   );
+  const panelBar = h("div", { class: "panel-bar" }, panelTabsEl, panelHeadTools, panelToggle);
   const panel = h(
     "section",
     { class: "panel", id: "panel", "aria-label": "Output and problems", "data-tab": "output", "data-dock": "peek" },
     runStrip,
-    h("div", { class: "panel-bar" }, panelTabsEl, panelTitle, panelBack, panelHeadTools, panelToggle),
+    panelBar,
     panelActions,
     outputPanel,
     problemsPanel,
@@ -455,27 +481,42 @@ export function createLayout(root: HTMLElement): Layout {
   const chartBoard = h("section", { class: "chart-board", id: "chart-board", "aria-label": "Flowchart", tabindex: "-1" });
   // Hide flowchart: at the end of the chart's bar (over it: the bar is the lazy view's, and hides
   // itself while nothing is drawn, so the board keeps this one in every state). First in the
-  // board's Tab order, as a region's own close is.
-  const chartHide = h("button", { type: "button", class: "icon-btn chart-hide", id: "chart-hide", "aria-label": "Hide flowchart", "aria-controls": "chart-board", title: "Hide the flowchart (the code takes its room)" }, icon("caret-line-right"));
+  // board's Tab order, as a region's own close is. A quiet word (Workbench), named by it.
+  const chartHide = h(
+    "button",
+    { type: "button", class: "board-tool chart-hide", id: "chart-hide", "aria-controls": "chart-board", title: "Hide the flowchart (the code takes its room)" },
+    icon("caret-line-right"),
+    h("span", { class: "board-tool-label" }, "Hide flowchart"),
+  );
   chartBoard.append(chartHide);
 
   const center = h("div", { class: "center", "data-view": "code", "data-dock": "peek" }, editorArea);
-  // The work column: the top bar over the two cards.
+  // The work column: the boards (and, below 900 px, the top bar over them; from 900 px the top bar
+  // spans the window: place()).
   // Why a disabled Run does nothing (its aria-describedby while no file is open: workbench.ts).
   const runWhy = h("span", { class: "visually-hidden", id: "run-why" }, "Open or create a file to run it.");
   const work = h("div", { class: "work" }, topbar, center, runWhy);
   const main = h("main", { class: "main" }, rail, sidebar);
 
-  // ---------------------------------------------------------------- status bar (below 900 px)
-  // Language, position, the runtime state, the notice slot (a live region: kept rendered while
-  // empty), Shortcuts and About. From 900 px these move to the code card's foot, the top bar, the
-  // sidebar's foot and the rail, and the bar is empty (place()).
+  // ---------------------------------------------------------------- status bar
+  // Below 900 px: language, position, the runtime state, the notice slot (a live region: kept
+  // rendered while empty), Shortcuts and About. From 900 to 1099 px these move to the code card's
+  // foot, the top bar, the sidebar's foot and the rail, and the bar is empty. From 1100 px
+  // (Workbench) it runs along the window's foot in the mono: the language, Ln/Col, the indent and
+  // the encoding at its start, the runtime state and the theme's name at its end (place()).
   const status = {
     lang: h("span", { class: "status-item", id: "status-lang" }),
     pos: h("span", { class: "status-item", id: "status-pos" }),
     runtime: h("span", { class: "status-item runtime", id: "status-runtime", "data-state": "idle" }),
     shortcuts: h("button", { type: "button", class: "status-btn", id: "shortcuts-button", title: `Keyboard shortcuts (${mod}+/)` }, icon("keyboard"), h("span", { class: "status-btn-label" }, "Shortcuts")),
+    // The theme's name (workbench.ts writes it): opens Settings, where the theme is chosen.
+    theme: h("button", { type: "button", class: "status-btn theme-status", id: "status-theme", title: "Choose the colour theme in Settings" }),
   };
+  // The editor's fixed facts: four spaces to an indent (extensions.ts indentUnit) and UTF-8 text.
+  const indentFact = h("span", { class: "status-item status-fact", id: "status-indent" }, "Spaces: 4");
+  const encodingFact = h("span", { class: "status-item status-fact", id: "status-encoding" }, "UTF-8");
+  // Pushes the runtime state and the theme to the bar's end (from 1100 px).
+  const statusGap = h("span", { class: "status-gap", "aria-hidden": "true" });
   // A real link to About, always on screen: a crawler that renders the page (Googlebot) never reads
   // index.html's <noscript>, so this is how it finds About (SEO review, 2026-10-29).
   const aboutLink = h(
@@ -551,8 +592,10 @@ export function createLayout(root: HTMLElement): Layout {
     key: "chart",
     fromPointer: (e) => chartBoard.getBoundingClientRect().right - e.clientX - BOARD_GAP / 2,
     apply: (v) => {
-      // The default split is two equal fractions, so the boards stay equal to the pixel.
-      center.style.setProperty("--chart-w", v === chartDefault(boardsWidth()) ? "minmax(0, 1fr)" : `${v}px`);
+      // The default split is two equal fractions, so the boards stay equal to the pixel (unless the
+      // code's least width cut the default short: then it is that width).
+      const w = boardsWidth();
+      center.style.setProperty("--chart-w", v === chartDefault(w) && v === Math.round((w - BOARD_GAP) / 2) ? "minmax(0, 1fr)" : `${v}px`);
       consoleSplit?.refresh();
     },
   });
@@ -618,18 +661,23 @@ export function createLayout(root: HTMLElement): Layout {
   // the mark, Files (the file's name), the sync status, Search and Settings; the segment comes under
   // it; the dock's strip holds Run, the run's outcome and the runtime state, its foot the problems
   // count and All output; the status bar the facts, the notices, Shortcuts and About.
-  // From 1100 px (Flow Board S2): the top bar's start holds the mark, the breadcrumb and the sync
-  // status; its end Capture, Shortcuts, Settings and About; Files heads the code board; the run strip
-  // holds Run, the run's outcome, the runtime state and the problems count; notices float over the
-  // code board's foot; the sidebar is the popover's.
+  // From 900 px (Workbench) the top bar leaves the work column and spans the window, the mark and the
+  // wordmark at its start, and Files heads the rail.
+  // From 1100 px (Workbench): the top bar's end holds the GitHub status, Layout, Shortcuts, Settings
+  // and About; the tab bar's tools Share, Capture and Focus; the run strip Run and its tools; the
+  // console's head the run's outcome; the status bar the facts, the runtime state and the theme;
+  // notices float over the code board's foot; the workspace's name is the file list's foot.
   function place(narrow: boolean) {
     const focused = document.activeElement;
     const wide = !narrow && wideQuery.matches;
-    if (!wide && filesPop.contains(sidebar)) main.insertBefore(sidebar, sidebarSplit.element);
-    // Layout only from 1100 px: under it the output always stands under the code.
-    if (!wide) layoutButton.remove();
+    // Layout only from 1100 px: under it the output always stands under the code. The theme's name,
+    // the indent and the encoding are the wide status bar's.
+    if (!wide) for (const el of [layoutButton, status.theme, indentFact, encodingFact, statusGap, runTools]) el.remove();
     if (narrow) {
-      // The top bar: the mark, the file's name (Files), then the sync status, Search and Settings.
+      // The top bar heads the work column: the mark, the file's name (Files), then the sync status,
+      // Search and Settings.
+      work.prepend(topbar);
+      wordmark.remove();
       topStart.replaceChildren(mark, drawerToggle);
       topEnd.append(syncSlot, paletteButton, settingsButton);
       // The segment under the top bar; the dock: the strip, the console, then its foot.
@@ -638,33 +686,37 @@ export function createLayout(root: HTMLElement): Layout {
       dockFoot.append(problemsButton, dockToggle);
       statusbar.append(status.lang, status.pos, noticeHost, status.shortcuts, aboutLink);
       headTools.append(snippetButton);
-    } else if (wide) {
-      root.insertBefore(viewBar, scrim);
-      hideKeyboard.remove();
-      topStart.replaceChildren(mark, crumb, syncSlot);
-      topbar.insertBefore(paletteButton, topEnd);
-      topEnd.append(snippetButton, layoutButton, status.shortcuts, settingsButton, aboutLink);
-      editorHead.prepend(drawerToggle);
-      runStrip.append(runButton, runOutcome, status.runtime, problemsButton);
-      editorFoot.append(status.lang, status.pos);
-      // Notices float over the code board's foot (app.css), so one coming or going never moves the code.
-      editorArea.append(noticeHost);
-      filesPop.append(sidebar);
+      sidebar.prepend(switcher);
     } else {
-      // The phone's segment and Hide keyboard leave with the phone layout; the strip keeps the run's
-      // outcome and the problems count, as before the dock (it is not shown here).
+      // The top bar spans the window, over the rail, the file list and the boards (first in the DOM,
+      // so first in the Tab order too); Files heads the rail.
+      root.insertBefore(topbar, main);
       root.insertBefore(viewBar, scrim);
       hideKeyboard.remove();
-      runStrip.append(runOutcome, problemsButton);
-      topStart.replaceChildren(crumb);
-      railMark.append(mark);
-      railMark.after(drawerToggle);
+      topStart.replaceChildren(mark, wordmark, crumb);
       topbar.insertBefore(paletteButton, topEnd);
-      topEnd.append(status.runtime, snippetButton, runButton);
-      editorFoot.append(status.lang, status.pos);
-      sidebarFoot.insertBefore(noticeHost, footRow);
-      footRow.append(syncSlot, aboutLink);
-      railFoot.append(status.shortcuts, settingsButton);
+      rail.prepend(drawerToggle);
+      if (wide) {
+        topEnd.append(syncSlot, layoutButton, status.shortcuts, settingsButton, aboutLink);
+        shareButton.after(snippetButton);
+        runStrip.append(runButton, runTools);
+        panelBar.insertBefore(runOutcome, panelHeadTools);
+        problemsButton.remove();
+        statusbar.append(status.lang, status.pos, indentFact, encodingFact, statusGap, status.runtime, status.theme);
+        // Notices float over the code board's foot (app.css), so one coming or going never moves the code.
+        editorArea.append(noticeHost);
+        sidebarFoot.prepend(switcher);
+      } else {
+        // The strip keeps the run's outcome and the problems count, as before the dock (it is not
+        // shown here).
+        runStrip.append(runOutcome, problemsButton);
+        topEnd.append(status.runtime, snippetButton, runButton);
+        editorFoot.append(status.lang, status.pos);
+        sidebarFoot.insertBefore(noticeHost, footRow);
+        footRow.append(syncSlot, aboutLink);
+        railFoot.append(status.shortcuts, settingsButton);
+        sidebar.prepend(switcher);
+      }
     }
     // A moved element loses focus in some engines: it goes back to the control that had it.
     if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
@@ -676,76 +728,16 @@ export function createLayout(root: HTMLElement): Layout {
   // Escape or a tap on the scrim close it too. From 900 px Files hides and shows the sidebar.
   const behind = () => [center, statusbar, viewSwitch];
   let sidebarShown = true;
-  /** The Files popover's place: 1100 px and wider (the layout's side of the line, not the window's). */
-  const popMode = () => filesPop.contains(sidebar);
   function syncFilesButton() {
-    const pop = popMode();
-    const open = narrowQuery.matches || pop ? drawerOpen() : sidebarShown;
+    const open = narrowQuery.matches ? drawerOpen() : sidebarShown;
     drawerToggle.setAttribute("aria-expanded", String(open));
-    drawerToggle.setAttribute("aria-controls", pop ? "files-popover" : "sidebar");
-    if (pop) drawerToggle.setAttribute("aria-haspopup", "dialog");
-    else drawerToggle.removeAttribute("aria-haspopup");
     if (sidebarShown) delete root.dataset.sidebar;
     else root.dataset.sidebar = "hidden";
   }
   function drawerOpen() {
-    return popMode() ? !filesPop.hidden && filesPop.dataset.state !== "closing" : root.dataset.drawer === "open";
-  }
-  // The popover's motion (Flow Board, design.md Motion): in, a 160 ms ease-out fade and a 4 px rise;
-  // out, 120 ms ease-in. None under reduced motion. Closing, it stops taking pointers and focus at
-  // once, and is hidden when its exit ends.
-  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  let popAnimation: Animation | null = null;
-  function animatePop(open: boolean) {
-    popAnimation?.cancel();
-    popAnimation = null;
-    if (reduceMotion.matches || typeof filesPop.animate !== "function") return null;
-    const rest = { opacity: 1, transform: "translateY(0)" };
-    const away = { opacity: 0, transform: "translateY(4px)" };
-    popAnimation = filesPop.animate(open ? [away, rest] : [rest, away], open ? { duration: 160, easing: "cubic-bezier(0, 0, 0.2, 1)" } : { duration: 120, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
-    return popAnimation;
-  }
-  /** Places the popover under its button (the head may sit under the read-only banner). */
-  function anchorPop() {
-    filesPop.style.top = `${drawerToggle.offsetTop + drawerToggle.offsetHeight + 4}px`;
-    filesPop.style.left = `${Math.max(8, drawerToggle.offsetLeft)}px`;
-  }
-  function openPop() {
-    if (drawerOpen()) return;
-    delete filesPop.dataset.state;
-    filesPop.inert = false;
-    filesPop.hidden = false;
-    anchorPop();
-    syncFilesButton();
-    animatePop(true);
-    void getComputedStyle(filesPop).visibility;
-    (sidebar.querySelector<HTMLElement>("[role=treeitem][tabindex='0']") ?? sidebar.querySelector<HTMLElement>("button"))?.focus();
-  }
-  /**
-   * `focusToggle`: Files takes the focus (Escape, the button itself). Otherwise focus inside the
-   * popover goes back to Files too, unless `pointer` (a press outside: focus goes where it pressed).
-   */
-  function closePop(focusToggle: boolean, pointer = false) {
-    if (!drawerOpen()) return;
-    const hadFocus = !pointer && filesPop.contains(document.activeElement);
-    filesPop.dataset.state = "closing";
-    filesPop.inert = true;
-    syncFilesButton();
-    const done = () => {
-      if (filesPop.dataset.state !== "closing") return;
-      delete filesPop.dataset.state;
-      filesPop.hidden = true;
-      popAnimation?.cancel();
-      popAnimation = null;
-    };
-    const exit = animatePop(false);
-    if (exit) exit.finished.then(done, () => {});
-    else done();
-    // Focus inside it would drop to the page: it goes back to Files.
-    if (focusToggle || hadFocus) drawerToggle.focus();
+    return root.dataset.drawer === "open";
   }
   function openDrawer() {
-    if (popMode()) return openPop();
     if (!narrowQuery.matches) {
       sidebarShown = true;
       syncFilesButton();
@@ -765,7 +757,6 @@ export function createLayout(root: HTMLElement): Layout {
     (sidebar.querySelector<HTMLElement>("[role=treeitem][tabindex='0']") ?? sidebar.querySelector<HTMLElement>("button"))?.focus();
   }
   function closeDrawer(focusToggle = true) {
-    if (popMode()) return closePop(focusToggle);
     if (!drawerOpen()) return;
     delete root.dataset.drawer;
     syncFilesButton();
@@ -775,7 +766,7 @@ export function createLayout(root: HTMLElement): Layout {
     if (focusToggle) drawerToggle.focus();
   }
   drawerToggle.addEventListener("click", () => {
-    if (narrowQuery.matches || popMode()) return drawerOpen() ? closeDrawer() : openDrawer();
+    if (narrowQuery.matches) return drawerOpen() ? closeDrawer() : openDrawer();
     // The focus stays on Files (it was pressed), so hiding the list never drops it to the page.
     sidebarShown = !sidebarShown;
     syncFilesButton();
@@ -790,21 +781,6 @@ export function createLayout(root: HTMLElement): Layout {
       e.preventDefault();
       closeDrawer();
     }
-  });
-  // The popover is light: a press anywhere else closes it (not on Files, which toggles it, nor in a
-  // menu or dialog it opened), and so does focus moving on to another part of the page.
-  const ownsPop = (node: EventTarget | null) =>
-    node instanceof Node && (filesPop.contains(node) || drawerToggle.contains(node) || (node instanceof Element && node.closest(".menu, dialog") !== null));
-  document.addEventListener(
-    "pointerdown",
-    (e) => {
-      if (popMode() && drawerOpen() && !ownsPop(e.target)) closePop(false, true);
-    },
-    true,
-  );
-  filesPop.addEventListener("focusout", (e) => {
-    const next = e.relatedTarget;
-    if (popMode() && drawerOpen() && next instanceof Element && !ownsPop(next)) closePop(false, true);
   });
   // ---------------------------------------------------------------- short windows
   // At 420 px tall or less the page scrolls as a whole (app.css). A text field that takes focus is
@@ -861,14 +837,8 @@ export function createLayout(root: HTMLElement): Layout {
     // On its board the chart's body always shows (the board itself shows while a file is open, or on
     // phones while the segment says Flowchart).
     if (chartBoardHolds()) flowchartPanel.hidden = false;
-    // From 1100 px: the head's name, Output (back from Problems), and the count's state.
-    const problemsOpen = chartOnBoard() && !shut && tab === "problems";
-    panelTitle.textContent = tab === "problems" ? "Problems" : "Output";
-    panelBack.hidden = !(chartOnBoard() && tab === "problems");
-    // From 1100 px the count is the one way to the list, so it says whether the list is showing; on
-    // phones it opens the list in the dock, and says so too.
-    if (chartOnBoard()) problemsButton.setAttribute("aria-expanded", String(problemsOpen));
-    else if (narrowQuery.matches) problemsButton.setAttribute("aria-expanded", String(dockNow === "all" && tab === "problems"));
+    // On phones the count at the dock's foot opens the list in the dock, and says whether it shows.
+    if (narrowQuery.matches) problemsButton.setAttribute("aria-expanded", String(dockNow === "all" && tab === "problems"));
     else problemsButton.removeAttribute("aria-expanded");
     // The splitter's value is the size the console opens to; while it is its head, it says so.
     if (shut) panelSplit.element.setAttribute("aria-valuetext", `Collapsed; opens at ${panelSplit.value} percent of the height`);
@@ -1025,12 +995,6 @@ export function createLayout(root: HTMLElement): Layout {
     if (focus) ptabs[tab].focus();
   }
   for (const t of PANEL_TABS) ptabs[t].addEventListener("click", () => showPanelTab(t));
-  // Output, back from Problems (1100 px and wider): it leaves the head, so focus goes to the count,
-  // the control that shows the problems again.
-  panelBack.addEventListener("click", () => {
-    showPanelTab("output");
-    problemsButton.focus();
-  });
   // APG tabs: arrows move round the tabs shown (wrapping), Home and End go to the ends; selection follows focus.
   panelTabsEl.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
@@ -1069,7 +1033,8 @@ export function createLayout(root: HTMLElement): Layout {
     chartToggle.setAttribute("aria-pressed", String(shown));
     focusButton.setAttribute("aria-pressed", String(focusMode));
     focusButton.title = focusMode ? "Leave focus code (Esc or Shift+Alt+Enter)" : "Focus code: hide the flowchart and the output (Shift+Alt+Enter)";
-    focusButton.replaceChildren(icon(focusMode ? "arrows-in-simple" : "arrows-out-simple"));
+    // Its word under its name (the name says what it does; aria-pressed says it is on).
+    focusButton.replaceChildren(icon(focusMode ? "arrows-in-simple" : "arrows-out-simple"), h("span", { class: "board-tool-label" }, "Focus"));
     besideToggle.setAttribute("aria-label", besideShown ? "Output below" : "Output beside");
     besideToggle.title = besideShown
       ? "Output below: put the output under the code"
@@ -1288,26 +1253,18 @@ export function createLayout(root: HTMLElement): Layout {
   const narrowListeners: ((narrow: boolean) => void)[] = [];
   const wideListeners: ((wide: boolean) => void)[] = [];
   /**
-   * Crossing a line closes the file list's drawer and popover first (at once, no motion): the list
-   * moves to its place at the new width. Focus inside it goes to Files.
+   * Crossing to 900 px or wider closes the phone's drawer first (at once, no motion): the list
+   * stands as a column there, so focus inside it stays where it is.
    */
   function shutFiles() {
-    const inside = sidebar.contains(document.activeElement);
-    if (root.dataset.drawer === "open") {
-      delete root.dataset.drawer;
-      for (const el of behind()) el.inert = false;
-    }
-    popAnimation?.cancel();
-    popAnimation = null;
-    delete filesPop.dataset.state;
-    filesPop.hidden = true;
-    filesPop.inert = false;
-    return inside;
+    if (root.dataset.drawer !== "open") return;
+    delete root.dataset.drawer;
+    for (const el of behind()) el.inert = false;
   }
   /**
    * Both lines are handled here, from what the queries say now (a jump across both runs once). At
-   * 1100 px the chart moves between its board and the console's third tab, and the shell between
-   * the rail and sidebar and the Flow Board's top bar, popover and run strip. Printing is no change
+   * 1100 px the chart moves between its board and the console's third tab, and the shell's top bar,
+   * tab bar, run strip and status bar take their Workbench parts. Printing is no change
    * of the window: Chromium lays the page out at the paper's width (the queries cross a line, and
    * cross back once printing is over), so while the print layout is in the page (data-printing,
    * print-view.ts) nothing moves, and the list is as it was, open or not, when focus goes back into
@@ -1323,7 +1280,7 @@ export function createLayout(root: HTMLElement): Layout {
     const wideCrossed = placed !== null && placed.wide !== wide;
     placed = { narrow, wide };
     root.dataset.narrow = String(narrow);
-    const refocus = narrow ? false : shutFiles();
+    if (!narrow) shutFiles();
     place(narrow);
     if (!narrow) closeDrawer(false);
     sidebar.inert = narrow && !drawerOpen();
@@ -1338,7 +1295,6 @@ export function createLayout(root: HTMLElement): Layout {
     // The boards' choices apply from 1100 px only (under it focus code ends, and the strip and the
     // console go back to their places); syncBoards lays the console out too (syncPanel).
     syncBoards();
-    if (refocus) drawerToggle.focus({ preventScroll: true });
     if (narrowCrossed) for (const listener of narrowListeners) listener(narrow);
     if (wideCrossed) for (const listener of wideListeners) listener(wide);
   };
@@ -1421,6 +1377,7 @@ export function createLayout(root: HTMLElement): Layout {
     errorJump,
     errorJumpWords,
     snippetButton,
+    shareButton,
     editorPanel,
     editorHost,
     emptyHost,
@@ -1435,6 +1392,7 @@ export function createLayout(root: HTMLElement): Layout {
     chartBoard,
     chartOnBoard,
     runOutcome,
+    runTools,
     problemsButton,
     problemsWords,
     onWideChange: (listener) => void wideListeners.push(listener),

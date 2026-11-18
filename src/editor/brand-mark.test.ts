@@ -73,16 +73,14 @@ describe("the brand mark's geometry is mark-v2.svg's", () => {
     expect(SOURCE.match(/<stop\b/g)).toHaveLength(PICKED.stops.length);
   });
 
-  it("the app's own mark draws the same logo: tokens.css holds the stops, the rail paints them corner to corner, no theme colour", () => {
-    const tokens = readFileSync("src/styles/tokens.css", "utf8");
+  it("the app's own mark draws the same logo: the top bar shows brandMarkSvg whole, no CSS repaint, no theme colour", () => {
+    // Workbench (2026-11-18): the rail's CSS-painted tile is gone; the top bar's mark is the SVG
+    // itself, whose own gradient is mark-v2.svg's (asserted above), so CSS must not hide or repaint it.
     const app = readFileSync("src/styles/app.css", "utf8");
-    const token = (name: string) => new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`).exec(tokens)?.[1];
-    expect(["logo-from", "logo-mid", "logo-to"].map((n) => [n, token(n)])).toEqual([["logo-from", "#3561f0"], ["logo-mid", "#2a5ee0"], ["logo-to", "#1a7a9a"]]);
-    expect(["logo-from", "logo-mid", "logo-to"].map(token)).toEqual(BRAND_MARK.tile.gradient.stops.map(([, c]) => c));
-    const rule = (sel: string) => new RegExp(`(?:^|\\n)${sel.replace(/[.>]/g, (c) => `\\${c}`)}\\s*\\{([^}]*)\\}`).exec(app)?.[1] ?? "";
-    // 135deg on a square box is the SVG's x1=0 y1=0 x2=1 y2=1: the gradient line runs corner to
-    // corner (its length w*sin + h*cos is the diagonal), 0 at the top-left, 1 at the bottom-right.
-    expect(rule(".rail-mark")).toMatch(/background:\s*linear-gradient\(135deg, var\(--logo-from\), var\(--logo-mid\) 50%, var\(--logo-to\)\);/);
+    const layout = readFileSync("src/ui/layout.ts", "utf8");
+    expect(layout).toMatch(/brandMarkSvg\(document, 20\)/);
+    expect(app, "no rule hides part of the mark").not.toMatch(/\.brand-mark\s*>\s*rect/);
+    expect(app, "no second, CSS-painted tile").not.toMatch(/\.rail-mark|--logo-(from|mid|to)/);
     expect(app, "the mark no longer takes the theme's brand colours").not.toMatch(/\.mark-tile|\.mark-glyph/);
   });
 

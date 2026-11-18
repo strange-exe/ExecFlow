@@ -589,7 +589,7 @@ for (const key of ["Enter", "Space"] as const) {
 // 0.7.0 (v07-shell.md): Capture is a ghost button in the top bar, right before Run (Run, the one
 // fill, ends the bar); 30 px tall like the desktop tool buttons, wider for its word. From 1100 px
 // (Flow Board S2) Run is in the code board's run strip, and Capture leads the top bar's end group.
-test("11: the head button: in the top bar right before Run (from 1100 px, leading the bar's end; Run is in the run strip), named, quiet, 30 px tall (the desktop tool height); it opens the dialog and gets focus back; none on phones", async ({ page }) => {
+test("11: the head button: in the top bar right before Run (from 1100 px a quiet word in the tab bar's tools), named, quiet, 30 px tall under 1100 px (the desktop tool height), 26 from 1100; it opens the dialog and gets focus back; none on phones", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWith(page);
   const button = page.locator("#snippet-button");
@@ -597,10 +597,13 @@ test("11: the head button: in the top bar right before Run (from 1100 px, leadin
     page.locator(".topbar").evaluate((bar) =>
       [...bar.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => el.id),
     );
-  // Layout (2026-11-07) sits between Capture and Shortcuts.
-  expect((await topStops()).slice(-4)).toEqual(["snippet-button", "layout-button", "shortcuts-button", "settings-button"]);
+  // Workbench (2026-11-18): from 1100 px Capture is a quiet word in the tab bar's tools (Share,
+  // Capture, Focus code), 26 px tall; the top bar's end is the GitHub status, Layout, Shortcuts,
+  // Settings (and About).
+  expect((await topStops()).slice(-4)).toEqual(["sync-status", "layout-button", "shortcuts-button", "settings-button"]);
+  await expect(page.locator(".editor-head .head-tools > #snippet-button")).toBeVisible();
   await expect(page.locator(".run-strip > #run-button")).toBeVisible();
-  expect((await box(button)).height).toBe(30);
+  expect((await box(button)).height).toBe(26);
   // Under 1100 px the top bar keeps Run, and Capture sits right before it.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(page.locator(".topbar #run-button")).toBeVisible();
@@ -1258,31 +1261,30 @@ test("23: with Tab moving focus, Shift+Tab from the code reaches the head button
   await selectFixtureLines(page);
   const mac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform));
   await page.keyboard.press(mac ? "Shift+Alt+M" : "Control+M");
-  // From 1100 px (Flow Board S2) Run is in the run strip under the code, so Shift+Tab goes from the
-  // open tab to Files, then back along the top bar's end (About, Settings, Shortcuts, Layout) to Capture.
-  // Focus code (the layout fix) ends the code board's head, so it comes first.
-  // Playwright's WebKit leaves links out of the Tab order (Safari's default), so About is optional.
+  // From 1100 px (Workbench, 2026-11-18) Capture is a quiet word in the tab bar's tools, right
+  // before Focus code, which ends the code's head: Shift+Tab from the code goes Focus, then Capture.
   const wide: string[] = [];
   for (let i = 0; i < 10 && wide.at(-1) !== "snippet-button"; i++) {
     await page.keyboard.press("Shift+Tab");
     wide.push(await page.evaluate(() => document.activeElement?.id || (document.activeElement?.matches(".drawer-toggle") ? "files" : document.activeElement?.className) || ""));
   }
   info.annotations.push({ type: "23 wide", description: `${info.project.name}: ${wide.join(" < ")}` });
-  expect(wide.filter((s) => s !== "about-link")).toEqual(["focus-code", await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"), "files", "settings-button", "shortcuts-button", "layout-button", "snippet-button"]);
+  expect(wide).toEqual(["focus-code", "snippet-button"]);
   // Under 1100 px the top bar keeps Run, right after Capture.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(page.locator(".topbar #run-button")).toBeVisible();
   await page.locator(".cm-content").focus();
-  // 0.7.0: Capture sits in the top bar before Run, so Shift+Tab from the code goes back through the
-  // editor head (the open tab; the error jump is hidden before a run), then Run, then Capture: the
-  // DOM order is the visual order (layout.ts).
+  // Capture sits in the top bar before Run. From 900 px (Workbench) the top bar spans the window,
+  // first in the DOM, so Shift+Tab from the code goes back through the editor head (the open tab;
+  // the error jump is hidden before a run), the file list and the rail, then Run, then Capture.
   const path: string[] = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 30 && path.at(-1) !== "snippet-button"; i++) {
     await page.keyboard.press("Shift+Tab");
     path.push(await page.evaluate(() => document.activeElement?.id || document.activeElement?.className || ""));
   }
   info.annotations.push({ type: "23", description: `${info.project.name}: Shift+Tab from the code went ${path.join(" < ")}` });
-  expect(path).toEqual([await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"), "run-button", "snippet-button"]);
+  expect(path[0]).toBe(await page.locator(".editor-head [role=tab][aria-selected=true]").getAttribute("id"));
+  expect(path.slice(-2)).toEqual(["run-button", "snippet-button"]);
   await expect(page.locator("#snippet-button")).toBeFocused();
   await page.keyboard.press("Enter");
   await previewReady(page);
@@ -1588,13 +1590,11 @@ test("29: double activation: one dialog from a double click or two quick clicks;
   await page.waitForTimeout(200);
   await expect(page.locator("dialog#snippet-dialog[open]")).toHaveCount(1);
 
-  // (e) One click on the backdrop closes it, and focus returns to More file actions. From 1100 px the
-  // double click's second press (c) landed on the code behind the closed menu, a press outside the
-  // Files popover, which closed it: focus then goes to Files, the popover's button.
+  // (e) One click on the backdrop closes it, and focus returns to More file actions (the file list
+  // stays shown from 900 px: Workbench).
   await page.mouse.click(5, 5);
   await expect(page.locator("dialog#snippet-dialog")).toHaveCount(0);
-  const popClosed = page.viewportSize()!.width >= 1100 && (await page.locator("#files-popover").evaluate((el) => (el as HTMLElement).hidden));
-  await expect(page.locator(popClosed ? ".drawer-toggle" : "#file-actions")).toBeFocused();
+  await expect(page.locator("#file-actions")).toBeFocused();
 
   // (f) A double click on Settings: Settings stays open.
   await page.locator("#settings-button").dblclick();

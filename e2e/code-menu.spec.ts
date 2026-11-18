@@ -416,9 +416,9 @@ test("C12: focus and selection: Escape, Tab, a click elsewhere, Select all; hove
 
   await page.keyboard.press("Shift+F10");
   await expect(codeMenu(page)).toBeVisible();
-  // Elsewhere: the code card's foot (the language and Ln/Col, Workbench Pro), plain text that
-  // takes no focus.
-  const facts = await box(page.locator(".editor-foot"));
+  // Elsewhere: the language fact (the code card's foot under 1100 px, the status bar from 1100 px:
+  // Workbench), plain text that takes no focus.
+  const facts = await box(page.locator("#status-lang"));
   await page.mouse.click(facts.x + 4, facts.y + facts.height / 2);
   await expect(codeMenu(page)).toHaveCount(0);
   await expect(page.locator(BANDS).first()).toBeVisible();

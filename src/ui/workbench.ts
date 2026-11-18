@@ -18,6 +18,7 @@ import { ariaMod, h, isMac, isTyping, listNames, plural, shown } from "./dom";
 import { noEditor, type Editors } from "./editors";
 import { emptyWorkspace, noFileOpen, openingFile } from "./empty-state";
 import { icon } from "./icons";
+import { allThemes, chosenTheme } from "../theme/themes";
 import { MOVE_PATH, moveRole } from "../core/move-protocol";
 import { downloadPicked, exportZip, pickFiles, workspaceZip } from "./import-export";
 import { describeImport, showRefusals } from "./import-notice";
@@ -315,13 +316,16 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   );
   L.tabHost.append(tabs.element);
 
-  // Sidebar actions: New file, New folder, and a menu button for the rest.
+  // Sidebar actions: New file, New folder, Import files (the menu's first Workspace item, one press
+  // away: Workbench), and a menu button for the rest.
   const newFileButton = h("button", { type: "button", class: "icon-btn", id: "new-file", "aria-label": "New file", title: "New file" }, icon("file-plus"));
   const newFolderButton = h("button", { type: "button", class: "icon-btn", id: "new-folder", "aria-label": "New folder", title: "New folder" }, icon("folder-plus"));
+  const importButton = h("button", { type: "button", class: "icon-btn", id: "import-files", "aria-label": "Import files", title: "Import files" }, icon("upload-simple"));
   const moreButton = h("button", { type: "button", class: "icon-btn", id: "file-actions", "aria-label": "More file actions", title: "More file actions" }, icon("dots-three"));
-  L.sidebarActions.append(newFileButton, newFolderButton, moreButton);
+  L.sidebarActions.append(newFileButton, newFolderButton, importButton, moreButton);
   newFileButton.addEventListener("click", () => startCreate("file"));
   newFolderButton.addEventListener("click", () => startCreate("dir"));
+  importButton.addEventListener("click", () => void importFrom(false, targetDir()));
   // Capture snippet (an image of the selected lines, .claude/design/snippet-image/final-v3.md): the
   // file menu's item, the editor head's button and the code menu share one entry. `narrow` asks the
   // window now: where focus goes at close follows the width the student sees, and the layout's own
@@ -598,14 +602,12 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     const pending = opening.get(path);
     if (pending) return pending;
     // Opening can wait for storage and, the first time, for the editor to download. If the user
-    // has moved on meanwhile (into a menu, a dialog, a text field, or the Files popover opened
-    // since), the file opens without taking focus or closing the popover. (The tree redraws its
-    // items while a file opens, so "the same element" can't be the test.)
+    // has moved on meanwhile (into a menu, a dialog or a text field), the file opens without taking
+    // focus. (The tree redraws its items while a file opens, so "the same element" can't be the test.)
     const focusedAtStart = document.activeElement;
-    const startedInFiles = focusedAtStart instanceof Element && focusedAtStart.closest("#files-popover") !== null;
     const focusStayed = () => {
       const now = document.activeElement;
-      return now === focusedAtStart || !(now instanceof Element) || (!now.closest(".menu, dialog[open]") && !isTyping(now) && (startedInFiles || !now.closest("#files-popover")));
+      return now === focusedAtStart || !(now instanceof Element) || (!now.closest(".menu, dialog[open]") && !isTyping(now));
     };
     const job = (async () => {
       const entry = entries.find((e) => e.path === path) ?? (await store.getEntry(ws, path));
@@ -1101,9 +1103,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let problemsSeen = false;
   problemsView.onOpen = (p) => void revealProblem(p);
   /**
-   * The run strip's count (1100 px and wider): "No problems", or "1 problem, line 12" (the first
-   * one in the open file; "2 problems, in calc.py" when none is in it), in the danger colour while
-   * there are errors. Words, so the state never rests on the colour or the icon.
+   * The count (phones: at the dock's foot; layout.ts keeps it out of the page elsewhere, where the
+   * Problems tab carries the number): "No problems", or "1 problem, line 12" (the first one in the
+   * open file; "2 problems, in calc.py" when none is in it), in the danger colour while there are
+   * errors. Words, so the state never rests on the colour or the icon.
    */
   let countKey = "";
   function renderProblemsCount(list: readonly Problem[], counts: ReturnType<typeof countProblems>) {
@@ -1122,10 +1125,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     button.firstElementChild!.replaceWith(icon(tone === "error" ? "x-circle" : tone === "warning" ? "warning" : "check-circle"));
     L.problemsWords.textContent = words;
   }
-  // The count discloses the list (aria-expanded, layout.ts): pressed again, the console goes back to
-  // Output. The focus stays on it, set here because WebKit doesn't focus a clicked button (from
-  // 1100 px the console's tabs give way to it; under it the Problems tab takes the focus, as before).
-  // On phones it sits at the dock's foot: it opens the list over the code, and closes it to the peek.
+  // The count discloses the list (aria-expanded, layout.ts). It sits at the dock's foot on phones:
+  // it opens the list over the code, closes it to the peek, and keeps the focus (set here because
+  // WebKit doesn't focus a clicked button). Elsewhere the Problems tab takes the focus.
   L.problemsButton.addEventListener("click", () => {
     const open = L.problemsButton.getAttribute("aria-expanded") === "true";
     if (L.narrow()) {
@@ -1135,7 +1137,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       return;
     }
     L.showPanelTab(open ? "output" : "problems");
-    (L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
+    L.panelTabs.problems.focus();
   });
 
   async function revealProblem(p: Problem) {
@@ -1748,8 +1750,20 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     L.showPanelTab("output");
     if (output.inputToggle.getAttribute("aria-expanded") === "true") output.stdin.focus();
   });
-  L.panelActions.append(output.inputToggle, restartButton, clearButton);
+  output.argsButton.addEventListener("click", () => L.showPanelTab("output"));
+  // From 1100 px (Workbench) Input and Arguments sit in the run strip after Run; under it Input
+  // stays in the console's bar and Arguments isn't needed (the Input box holds the field).
+  L.panelActions.append(restartButton, clearButton);
   L.panelHeadTools.append(maxButton);
+  const placeRunTools = () => {
+    if (L.chartOnBoard()) L.runTools.append(output.inputToggle, output.argsButton);
+    else {
+      L.panelActions.prepend(output.inputToggle);
+      output.argsButton.remove();
+    }
+  };
+  placeRunTools();
+  L.onWideChange(placeRunTools);
 
   // ---------------------------------------------------------------- the Flowchart view
   // Nothing of it loads on the first visit: its chunk (view, layout, renderer) the first time the
@@ -2093,6 +2107,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     describe: () => "",
     async signOut() {},
     share() {},
+    press() {},
   };
   // Settings (with the theme picker) is its own chunk, fetched the first time it opens.
   let settingsDialog: Promise<{ open(opener?: HTMLElement): void }> | null = null;
@@ -2130,13 +2145,24 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   }
   L.settingsButton.addEventListener("click", () => openSettings());
   L.status.shortcuts.addEventListener("click", () => shortcuts.open(L.status.shortcuts));
+  // The status bar's theme name (1100 px and wider: Workbench): "Theme: Electric Blue", without
+  // the "ExecFlow" prefix or "(match device)". Pressed, it opens Settings, where the picker is.
+  // Kept current from <html data-theme-id>, which applyTheme sets on every change.
+  function renderThemeStatus() {
+    const id = document.documentElement.dataset.themeId;
+    const name = (allThemes().find((t) => t.id === id) ?? chosenTheme()).name.replace(/^ExecFlow /, "").replace(/ \(match device\)$/, "");
+    if (L.status.theme.textContent !== `Theme: ${name}`) L.status.theme.textContent = `Theme: ${name}`;
+  }
+  renderThemeStatus();
+  new MutationObserver(renderThemeStatus).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme-id"] });
+  L.status.theme.addEventListener("click", () => openSettings(L.status.theme));
 
   /** Ctrl+`: the output (a collapsed panel opens), or the Output tab with nothing printed yet. */
   function goToOutput() {
     if (L.narrow()) L.showView("output");
     L.showPanelTab("output");
-    // Nothing printed yet: the Output tab, or from 1100 px (no tabs there) the Input fold.
-    if (!output.focus()) (L.narrow() ? L.dockToggle : L.chartOnBoard() ? output.inputToggle : L.panelTabs.output).focus();
+    // Nothing printed yet: the Output tab (phones: the dock's toggle).
+    if (!output.focus()) (L.narrow() ? L.dockToggle : L.panelTabs.output).focus();
   }
   const focused = () => (document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null);
 
@@ -2195,9 +2221,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
             const state = id ? editors.state(id) : null;
             return { path, state, text: state ? state.doc.toString() : await store.readFile(ws, path) };
           },
-          // Should the Files popover have closed meanwhile, focus goes to Files, the popover's
-          // button, not to a hidden More file actions.
-          app: root, notice, storage, returnTo: () => (opener?.closest<HTMLElement>("#files-popover")?.hidden ? L.drawerToggle : opener),
+          // Should the file list have been hidden meanwhile (Files, or the phone's drawer), focus
+          // goes to Files, not to a hidden More file actions.
+          app: root, notice, storage, returnTo: () => (opener && opener.getClientRects().length === 0 ? L.drawerToggle : opener),
         });
       },
       (e: unknown) => {
@@ -2315,7 +2341,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       problems: () => {
         if (L.narrow()) L.showView("problems");
         L.showPanelTab("problems");
-        (L.narrow() ? L.panelTabs.problems : L.chartOnBoard() ? L.problemsButton : L.panelTabs.problems).focus();
+        L.panelTabs.problems.focus();
       },
       settings: (opener) => openSettings(opener),
       shortcuts: (opener) => shortcuts.open(opener),
@@ -2357,6 +2383,19 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     else L.showPanelTab("flowchart", true);
   });
   L.quick.newFile.addEventListener("click", () => startCreate("file"));
+  // Source control: GitHub sync, as pressing its status in the top bar (Connect GitHub when not
+  // connected, Sync now, or the conflicts); the focus comes back here.
+  // Focused first: WebKit doesn't focus a clicked button, and the dialog it opens gives the focus
+  // back to what had it.
+  L.quick.source.addEventListener("click", () => {
+    L.quick.source.focus();
+    sync.press(L.quick.source);
+  });
+  // Share (the code board's tab bar): the file menu's "Share link..." for the open file.
+  L.shareButton.addEventListener("click", () => {
+    const path = fileOf(editors.activeId)?.path;
+    if (path) sync.share(path, L.shareButton);
+  });
   for (const type of ["pointerover", "focusin"]) L.quick.search.addEventListener(type, () => prefetchPalette(), { once: true });
   // Fetched on the first sign of intent, so the chunk is usually there by the time it opens. Not while
   // offline: a prefetch is only a hint, and without the service worker's copy it can only fail (a

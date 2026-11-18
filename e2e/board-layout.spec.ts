@@ -76,17 +76,18 @@ test.describe("the board splitter", () => {
     expect(await split.getAttribute("aria-valuemin")).toBe("320");
     // Its target is 24 px or more; its drawn line is thin.
     const s = await box(page, ".center > .board-split");
-    expect(s.width, "the target").toBeGreaterThanOrEqual(16);
-    // The pointer's reach is the bar's ::after, standing out either side of the 16 px gap.
+    // The pointer's reach is the bar's ::after, standing out either side of the 9 px column (Workbench).
+    expect(Math.round(s.width), "the 9 px splitter column").toBe(9);
     const reach = await split.evaluate((el) => el.getBoundingClientRect().width - parseFloat(getComputedStyle(el, "::after").left) - parseFloat(getComputedStyle(el, "::after").right));
     expect(reach, "the pointer's reach").toBeGreaterThanOrEqual(24);
     const line = await split.evaluate((el) => parseFloat(getComputedStyle(el, "::before").width));
-    expect(line, "a thin drawn line").toBeLessThanOrEqual(2);
+    expect(line, "a thin drawn grip").toBeLessThanOrEqual(3);
 
-    // The default: two equal boards; the value is the chart board's width.
+    // The default: two equal boards (flush panes: the code's area is its board); the value is the
+    // chart board's width.
     const start = await value(page, split);
     expect(Math.abs((await box(page, "#chart-board")).width - start)).toBeLessThan(2);
-    expect(Math.abs((await box(page, "#chart-board")).width - ((await box(page, "#editor-area")).width + 2)), "equal boards").toBeLessThan(2);
+    expect(Math.abs((await box(page, "#chart-board")).width - (await box(page, "#editor-area")).width), "equal boards").toBeLessThan(2);
 
     // ArrowLeft moves the bar towards the code: the chart board grows by 16 px; ArrowRight gives it back.
     await split.focus();
@@ -102,7 +103,7 @@ test.describe("the board splitter", () => {
     await page.keyboard.press("End");
     const max = Number(await split.getAttribute("aria-valuemax"));
     expect(await value(page, split)).toBe(max);
-    expect(Math.round((await box(page, "#editor-area")).width) + 2, "the code board at its least").toBeGreaterThanOrEqual(420);
+    expect(Math.round((await box(page, "#editor-area")).width), "the code board at its least").toBeGreaterThanOrEqual(420);
     // A double-click restores the default.
     await split.dblclick();
     expect(await value(page, split)).toBe(start);
@@ -126,7 +127,7 @@ test.describe("the board splitter", () => {
     const wanted = await value(page, boardSplit(page));
     await page.setViewportSize({ width: 1150, height: 900 });
     await expect.poll(async () => value(page, boardSplit(page))).toBeLessThan(wanted);
-    expect(Math.round((await box(page, "#editor-area")).width) + 2).toBeGreaterThanOrEqual(420);
+    expect(Math.round((await box(page, "#editor-area")).width)).toBeGreaterThanOrEqual(420);
     expect(Math.round((await box(page, "#chart-board")).width)).toBeGreaterThanOrEqual(320);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "no sideways scroll").toBe(0);
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -241,7 +242,9 @@ test.describe("the output beside the code", () => {
     expect(await split.getAttribute("aria-valuemax")).toBe("320");
     await boardSplit(page).focus();
     await page.keyboard.press("Home");
-    await expect.poll(async () => Number(await split.getAttribute("aria-valuemax"))).toBeGreaterThan(400);
+    // Workbench: 1440 - rail 48 - file list 248 - its 1 px splitter = 1143 for the boards; the chart
+    // at its least (320) and the 9 px gap leave the code board 814: 814 - 8 - 420 = 386 for the output.
+    await expect.poll(async () => Number(await split.getAttribute("aria-valuemax"))).toBe(386);
     const start = await value(page, split);
     await split.focus();
     await page.keyboard.press("ArrowLeft");
@@ -359,37 +362,32 @@ test.describe("focus code", () => {
 });
 
 test.describe("the console from 1100 px", () => {
-  test("the run strip's count is the one way to the problems: no tabs, a heading that names what shows, and Output to go back", async ({ page }) => {
+  test("the console's tabs are the way to the problems (Workbench): Output | Problems with its count, from the keyboard too", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openApp(page);
     await importFiles(page, [{ name: "calc.py", text: "print(1)\nprint(1 / 0)\n" }]);
     await openFromTree(page, "calc.py");
     expect((await run(page)).status).toBe("error");
-    await expect(page.locator(".panel-tabs")).toBeHidden();
-    const title = page.getByRole("heading", { name: "Output", exact: true });
-    await expect(title).toBeVisible();
-    await expect(page.locator("#panel-back")).toBeHidden();
-    const count = page.locator("#problems-count");
-    await expect(count).toHaveAttribute("aria-controls", "panel-problems");
-    await expect(count).toHaveAttribute("aria-expanded", "false");
-    await count.focus();
+    const tabs = page.getByRole("tablist", { name: "Panel" });
+    await expect(tabs).toBeVisible();
+    // The Flowchart tab is the chart board's here: only Output and Problems show.
+    expect(await tabs.locator("[role=tab]:visible").evaluateAll((els) => els.map((e) => e.id))).toEqual(["ptab-output", "ptab-problems"]);
+    await expect(page.locator("#ptab-problems .count")).toHaveText(/^\d+$/);
+    await expect(page.locator("#problems-count")).toHaveCount(0);
+    await page.locator("#ptab-output").focus();
+    await page.keyboard.press("ArrowRight");
     await page.keyboard.press("Enter");
-    await expect(count).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#panel-problems")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Problems", exact: true })).toBeVisible();
-    await expect(page.locator("#panel-back")).toBeVisible();
-    await expect(count).toBeFocused();
     expect(await axe(page), "axe, problems").toEqual([]);
-    // The count again goes back too.
+    await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("Enter");
     await expect(page.locator("#panel-output")).toBeVisible();
-    await expect(count).toHaveAttribute("aria-expanded", "false");
-    // Under 1100 px the tabs come back, and the count is a plain button.
+    // Under 1100 px the tabs stay, with Flowchart among them, and the count is a plain button.
     await page.setViewportSize({ width: 1000, height: 800 });
-    await expect(page.locator(".panel-tabs")).toBeVisible();
-    await expect(page.locator("#panel-title")).toBeHidden();
-    await expect(page.locator("#panel-back")).toBeHidden();
-    await expect(count).not.toHaveAttribute("aria-expanded", /.*/);
+    await expect(tabs).toBeVisible();
+    await expect(page.locator("#ptab-flowchart")).toBeVisible();
+    await expect(page.locator("#problems-count")).not.toHaveAttribute("aria-expanded", /.*/);
   });
 
   test("before the first run the console stays its head, with Input in reach, even once a problem is found; a run opens it", async ({ page }) => {
@@ -400,7 +398,7 @@ test.describe("the console from 1100 px", () => {
     await expect(page.locator("#status-runtime")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
     await setCode(page, "def broken(:\n    pass\n");
     await expect(page.locator(".cm-lint-marker-error")).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.locator("#problems-count")).toHaveAttribute("data-tone", "error");
+    await expect(page.locator("#ptab-problems .count")).toHaveAttribute("data-errors", /^[1-9]/);
     const panel = page.locator("#panel");
     await expect(panel).toHaveAttribute("data-collapsed", "true");
     await expect(page.locator("#input-toggle")).toBeVisible();

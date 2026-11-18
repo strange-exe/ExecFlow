@@ -130,12 +130,27 @@ test("R1: the code menu: named groups, Capture's short label and its detail, one
   // The browser-menu hint: one line.
   const hint = menu.locator(".menu-hint");
   await expect(hint).toHaveText("Browser menu: Shift+right-click");
-  const lines = await hint.evaluate((el) => {
+  // Lines, counted by vertical overlap: the UI text and the mono key have boxes of different heights
+  // on one line (TASA Orbiter 14 px tall at 324, Geist Mono 16 px at 323), so equal tops can't be the test.
+  // forceWrap checks the measure itself: the same hint squeezed to 9ch must count more than one line.
+  const countLines = (el: Element, forceWrap: boolean) => {
+    const h = el as HTMLElement;
+    const saved = h.style.cssText;
+    if (forceWrap) Object.assign(h.style, { whiteSpace: "normal", minWidth: "0", width: "9ch" });
     const r = document.createRange();
-    r.selectNodeContents(el);
-    return new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top))).size;
-  });
-  expect(lines, "the hint is one line").toBe(1);
+    r.selectNodeContents(h);
+    const rects = [...r.getClientRects()].filter((x) => x.width > 0).sort((a, b) => a.top - b.top);
+    h.style.cssText = saved;
+    let lines = 0;
+    let bottom = -Infinity;
+    for (const x of rects) {
+      if (x.top >= bottom - 1) lines++;
+      bottom = Math.max(bottom, x.bottom);
+    }
+    return lines;
+  };
+  expect(await hint.evaluate(countLines, false), "the hint is one line").toBe(1);
+  expect(await hint.evaluate(countLines, true), "a wrapped hint counts as more than one line").toBeGreaterThan(1);
 });
 
 for (const scheme of ["light", "dark"] as const) {
@@ -224,7 +239,7 @@ test("R3: File actions is in named groups; an unavailable item stays focusable, 
   await second.close();
 });
 
-test("R4: from 1280 px Shortcuts and Settings show their words, under it their icons; names unchanged; Capture is a camera", async ({ page }) => {
+test("R4: from 1100 px Shortcuts and Settings are words in the top bar, under it the rail's; names unchanged; Capture is a camera", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openWith(page);
   const shortcuts = page.locator("#shortcuts-button");
@@ -241,9 +256,16 @@ test("R4: from 1280 px Shortcuts and Settings show their words, under it their i
   await expect(page.locator("#snippet-button svg[data-icon=camera]")).toHaveCount(1);
   await expect(page.locator("#snippet-button")).toHaveAccessibleName("Capture snippet of the selected lines");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), "no sideways scroll at 1280").toBe(true);
-  await page.setViewportSize({ width: 1200, height: 800 });
-  await expect.poll(() => shown(shortcuts.locator(".status-btn-label"))).toBe(false);
-  expect(await shown(settings.locator(".rail-label"))).toBe(false);
+  // Workbench (2026-11-18): the top bar's tools are quiet words at every width from 1100 px (the
+  // mock), so 1100 px keeps them, on one line; under 1100 px they are the rail foot's buttons (an
+  // icon over its word, as before).
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await expect.poll(() => shown(shortcuts.locator(".status-btn-label"))).toBe(true);
+  expect(await shown(settings.locator(".rail-label"))).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), "no sideways scroll at 1100").toBe(true);
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(page.locator(".rail-foot > #shortcuts-button")).toBeVisible();
+  await expect(page.locator(".rail-foot > #settings-button")).toBeVisible();
   await expect(shortcuts).toHaveAccessibleName("Shortcuts");
   await expect(settings).toHaveAccessibleName("Settings");
 });

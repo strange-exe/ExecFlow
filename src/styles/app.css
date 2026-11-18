@@ -297,15 +297,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
   .workbench[data-sidebar="hidden"] :is(.main > .sidebar, .main > .splitter) { display: none; }
 }
 
-/* The activity rail: the mark, then Files, Search, Flowchart and New file, each its icon over its
-   word; Shortcuts and Settings at its foot. The chosen one (Files while the list shows) is lifted on
-   the raised ground with a hairline ring, as a chosen tab is, never by colour alone. */
+/* The activity rail: Files, Search, Source control, Flowchart and New file, each its icon over its
+   word (900 to 1099 px; icons alone from 1100 px, below); Shortcuts and Settings at its foot under
+   1100 px. The chosen one (Files while the list shows) is lifted on the raised ground with a
+   hairline ring, as a chosen tab is, never by colour alone. The mark is the top bar's. */
 .rail { display: flex; flex-direction: column; align-items: center; gap: var(--s1); min-height: 0; padding: var(--s3) 0; background: var(--surface); overflow-y: auto; scrollbar-width: none; }
-/* The mark at the rail's top: its 20 px glyph on a 32 px tile painted with the logo's gradient,
-   corner to corner (135deg on a square is the SVG's 0 0 1 1); the svg's own smaller tile gives way
-   to it, so the two ramps never sit one inside the other. One tile, read as the mark at the rail's size. */
-.rail-mark { display: grid; place-items: center; flex: none; width: var(--s6); height: var(--s6); margin-bottom: var(--s2); border-radius: var(--r-control); background: linear-gradient(135deg, var(--logo-from), var(--logo-mid) 50%, var(--logo-to)); }
-.rail-mark > .brand-mark > rect { visibility: hidden; }
 .rail-foot { display: flex; flex-direction: column; align-items: center; gap: var(--s1); margin-top: auto; }
 .rail .rail-btn,
 .rail .status-btn {
@@ -495,6 +491,9 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1
 .file-badge[data-look="tile"] { padding: 0 calc(var(--bs) * 0.25); border-radius: calc(var(--bs) * 0.15); background: var(--text-secondary); color: var(--board); }
 .file-badge[data-look="tile"][data-kind="python"] { border-radius: calc(var(--bs) / 2); }
 .file-badge[data-look="tile"]:is([data-kind="text"], :empty) { background: none; color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--text-muted); }
+/* Tag (Workbench, 2026-11-18): the extension word in mono, the muted ink, left-aligned, no shape;
+   the name beside it carries the row. text-muted is checked 4.5:1 on every row ground (contrast.ts). */
+.file-badge[data-look="tag"] { justify-content: start; color: var(--text-muted); font-weight: var(--w-label); font-size: 11px; letter-spacing: 0; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--fs-2)/var(--lh-2) var(--font-name); }
 [data-opaque="true"] > .tree-row .tree-name { color: var(--text-muted); }
 .tree-badge { display: inline-grid; color: var(--text-muted); }
@@ -1648,8 +1647,15 @@ input.switch {
    full-bleed layout. */
 .view-bar { display: none; }
 @media (min-width: 900px) {
+  /* Workbench: the top bar spans the window over the rail, the files and the work column
+     (layout.ts place() puts it first in #app), then the work area, then the status bar. */
+  .workbench { grid-template-rows: var(--h-topbar) minmax(0, 1fr) auto auto; }
+  .workbench > .topbar { grid-row: 1; padding-left: var(--s3); }
+  .workbench > .main { grid-row: 2; }
+  .workbench > .statusbar { grid-row: 3; }
+  .work { grid-template-rows: minmax(0, 1fr); }
   /* The status bar's facts live in the code card's foot, the top bar, the rail and the sidebar's
-     foot here (layout.ts place()). */
+     foot from 900 to 1099 px (layout.ts place()); from 1100 px the status bar shows them (below). */
   .statusbar { display: none; }
   .main, .work, .center { background: var(--surface); }
   .center { position: relative; padding: 0 var(--sheet-gap) var(--sheet-gap) 0; }
@@ -1685,42 +1691,31 @@ input.switch {
   .editor-foot > #status-pos { margin-left: auto; }
 }
 
-/* ------------------------------------------------------------------ Flow Board: two boards on a canvas */
-/* From 1100 px (redesign 7, S1; .claude/design/redesign7/a/design.md): the work column's ground is
-   the canvas and the top bar floats on it (no ground of its own). The code card and its console
-   become one board, and the chart has a board of its own beside it (layout.ts moves #panel-flowchart
-   there), shown while a file is open: two equal columns, --s4 apart and from the canvas's edges.
-   Each board: --board, a 1 px --border hairline, --r-board corners and one soft shadow in light
-   themes (--shadow-board, none in dark ones). The code board is drawn once behind its parts (the
-   ::before, as the sheet's shadow was), so the console and the editor sit inside one edge; static,
-   so typing never repaints it. No blur, blend or animated background anywhere. */
+/* ------------------------------------------------------------------ Workbench: flush panes */
+/* From 1100 px (Workbench, stage 2, 2026-11-18; .claude/design/DESIGN.md, the mock in
+   .claude/design/editor9/a): no canvas, no floating boards. The chrome (top bar, rail, files, the
+   tab bar, the run strip, the console and the status bar) is --surface; the code and the chart's
+   stage are the code's ground (--board). Panes meet at 1 px --divider hairlines, with no corners
+   and no shadow: the one soft shadow is kept for floating things (menus, dialogs, notices). The
+   chart board stands beside the code (layout.ts moves #panel-flowchart there) while a file is open,
+   past a 9 px splitter with a grip. No blur, blend or animated background anywhere. */
 @media (min-width: 1100px) {
-  .main, .work, .center { background: var(--canvas); }
-  .topbar { padding-right: var(--s4); background: transparent; }
-  .center { column-gap: var(--s4); padding: 0 var(--s4) var(--s4) 0; }
+  .main, .work { background: var(--surface); }
+  .center { padding: 0; background: var(--board); }
+  .workbench > .topbar { padding: 0 var(--s3) 0 14px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider); }
   .workbench[data-open="true"] .center { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .center::before {
-    grid-row: 1 / -1;
-    border: 1px solid var(--border);
-    border-radius: var(--r-board);
-    background: var(--board);
-    box-shadow: var(--shadow-board);
-  }
-  /* Inside the board's edge: the code at its top, the console at its foot, the 8 px splitter the
-     board's own ground between them. Each rounds its own outer corners (the code does not clip:
-     tooltips may reach past it). */
-  .editor-area, .center > .panel { margin: 0 1px; border: 0; border-radius: 0; }
-  .editor-area { margin-top: 1px; background: var(--board); border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
-  .center > .panel { margin-bottom: 1px; border-radius: 0 0 calc(var(--r-board) - 1px) calc(var(--r-board) - 1px); }
-  .editor-area > .banner, .editor-head { border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
-  .editor-head { background: var(--board); }
-  .editor-area > .editor-foot { border-radius: 0; }
-  .workbench[data-open="false"] .editor-panel, .workbench[data-open="false"] .editor-empty { border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
-  /* An empty workspace has no console: the code board is the editor alone, rounded all round. */
-  .workbench[data-files="none"] .editor-area { margin-bottom: 1px; }
-  .workbench[data-files="none"] :is(.editor-area, .editor-panel, .editor-empty) { border-radius: calc(var(--r-board) - 1px); }
+  .center::before { content: none; }
+  .editor-area, .center > .panel { margin: 0; border: 0; border-radius: 0; }
+  .editor-area { background: var(--board); }
+  .center > .panel { background: var(--terminal-bg); }
+  .editor-area > .banner, .editor-head,
+  .workbench .editor-panel, .workbench .editor-empty { border-radius: 0; }
+  /* The language and Ln/Col are the status bar's facts here (layout.ts): the card's foot is empty
+     and takes no row. */
+  .editor-area > .editor-foot { display: none; }
+  .workbench[data-files="none"] :is(.editor-area, .editor-panel, .editor-empty) { border-radius: 0; }
 
-  /* The chart board: its bar, then the chart on the ground's dot grid (CSS dots, static, on the
+  /* The chart board: its 38 px head, then the chart on a dot grid (CSS dots, static, on the
      chart's stage only, never over the code). */
   .workbench[data-open="true"] .chart-board {
     display: flex;
@@ -1729,117 +1724,129 @@ input.switch {
     grid-column: 2;
     min-width: 0;
     min-height: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--r-board);
     background: var(--board);
-    box-shadow: var(--shadow-board);
     overflow: clip;
   }
-  .chart-board:focus-visible { outline: var(--ring); outline-offset: 2px; }
+  .chart-board:focus-visible { outline: var(--ring); outline-offset: -2px; }
   .chart-board > .panel-body { flex: 1 1 0; }
-  .chart-board .fc-view, .chart-board .fc-toolbar { background: var(--board); }
+  .chart-board .fc-view { background: var(--board); }
+  .chart-board .fc-toolbar { background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider); }
   .chart-board .fc-stage {
-    background-color: var(--ground);
-    background-image: radial-gradient(var(--dot) 1px, transparent 1.5px);
-    background-size: var(--s4) var(--s4);
+    background-color: var(--board);
+    background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 1.4px);
+    background-size: 18px 18px;
   }
 }
 
-/* ------------------------------------------------------------------ Flow Board S2: run strip, files popover */
-/* From 1100 px (redesign 7, S2): the rail and the sidebar column retire. The top row floating on the
-   canvas holds the mark, the breadcrumb and the sync status, Search, then Capture, Shortcuts,
-   Settings and About (icons, named by their words). Files heads the code board and opens the file
-   list as a popover under it; the console's first row is the run strip: Run with its key, the run's
-   outcome, the runtime state and the problems count, then a notice on a line of its own. Under
-   1100 px none of this shows (layout.ts keeps the strip empty there). */
-.run-strip, .files-pop { display: none; }
+/* ------------------------------------------------------------------ Workbench: top bar, rail, files */
+/* From 1100 px: the top bar holds the mark and the breadcrumb (the file in mono ink), "Search or
+   run a command" with its keycaps, the GitHub status as a quiet pill, then Layout, Shortcuts,
+   Settings and About as quiet words. The rail is icons only (each named by its word, kept for
+   screen readers and as the tooltip): Files, Search, Source control, Flowchart, New file; the
+   chosen one (Files while the list shows) on the raised ground with a 2 px bar, never colour alone.
+   The run strip is empty under 1100 px except on phones (layout.ts). */
+.run-strip { display: none; }
 @media (min-width: 1100px) {
-  .workbench .main, .workbench[data-sidebar="hidden"] .main { grid-template-columns: minmax(0, 1fr); }
-  .main > .rail, .main > .splitter { display: none; }
-  .main > .work { grid-column: 1; }
-  .topbar { padding-left: var(--s4); }
-  .topbar-start { gap: var(--s2); }
-  .topbar-start > .crumb { padding-left: var(--s1); }
-  .topbar-start > .sync-slot { flex: 0 1 auto; }
-  .center { padding-left: var(--s4); }
-  /* Shortcuts, Settings and About: icon buttons, each named by its words (kept for the name). */
-  .topbar-end > .status-btn { justify-content: center; width: var(--tool); height: var(--tool); margin: 0; padding: 0; border-radius: var(--r-control); color: var(--text-muted); }
-  .topbar-end > .status-btn .icon { width: var(--icon-lg); height: var(--icon-lg); }
-  .topbar-end > .status-btn > .status-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* Pressed: the tool sinks 1 px and springs back with a slight overshoot (none under reduced motion). */
-  .topbar-end > :is(.status-btn, .icon-btn, .capture-btn) { transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), transform 280ms var(--spring); }
-  .topbar-end > :is(.status-btn, .icon-btn, .capture-btn):active { transform: translateY(1px) scale(0.97); transition-duration: var(--dur), var(--dur), 80ms; transition-timing-function: var(--ease), var(--ease), var(--ease-out); }
-}
-/* Flow rail (redesign 8): from 1280 px Shortcuts and Settings show their words beside their icons,
-   as Capture does (13 px, the secondary tier, the text colour on hover); About stays its icon. Under
-   1280 they are icons named by their words. */
-@media (min-width: 1280px) {
-  .topbar-end > #layout-button, .topbar-end > #shortcuts-button, .topbar-end > #settings-button {
+  .workbench .main { grid-template-columns: var(--rail-w) var(--sidebar-w, 248px) 1px minmax(0, 1fr); }
+  .main > .rail, .main > .sidebar { box-shadow: inset -1px 0 0 var(--divider); }
+  .topbar { gap: var(--s4); }
+  .topbar-start { flex: 0 1 auto; gap: var(--s2); min-width: 0; }
+  .topbar-start > .crumb { padding-left: var(--s3); font-size: 12px; line-height: 16px; }
+  .topbar-start > .crumb > .crumb-file { font-family: var(--font-code); font-weight: var(--w-label); }
+  .topbar-end { flex: 0 0 auto; gap: 2px; margin-left: auto; }
+  .topbar > .palette-btn { flex: 0 1 380px; height: 30px; margin-left: auto; border-radius: 6px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .topbar > .palette-btn:hover { box-shadow: inset 0 0 0 1px var(--text-secondary); }
+  .topbar-end > .sync-slot { margin-right: 6px; }
+  .topbar-end .sync-status { min-height: 28px; padding: 0 10px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--border); color: var(--text-secondary); font-size: 12px; }
+  /* Layout, Shortcuts, Settings and About: quiet words, the text colour on hover; icons hidden (the
+     words name them, as the mock draws). */
+  .topbar-end > :is(.status-btn, #settings-button) {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
     width: auto;
-    padding: 0 10px 0 var(--s2);
-    color: var(--text-secondary);
-    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
-  }
-  .topbar-end > :is(#layout-button, #shortcuts-button) > .status-btn-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-  .topbar-end > #layout-button > * { pointer-events: none; }
-  .topbar-end > #settings-button > .rail-label { display: inline; }
-  .topbar-end > #settings-button > * { pointer-events: none; }
-  .topbar-end > :is(#layout-button, #shortcuts-button, #settings-button):hover { color: var(--text); }
-}
-@media (min-width: 1100px) {
-  /* The code board's head shows with nothing open too: Files is the way to the files. */
-  .workbench[data-open="false"] .editor-head { display: flex; }
-  .workbench[data-open="false"] :is(.editor-panel, .editor-empty) { border-radius: 0; }
-  .editor-head { padding-left: var(--s2); }
-  /* Files: a quiet button, its icon and its word; open, lifted as the chosen tab is (a ring, never
-     the fill alone). */
-  .editor-head > .drawer-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s2);
-    flex: none;
-    height: var(--tool);
-    padding: 0 var(--s3) 0 var(--s2);
+    min-height: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0 10px;
     border: 0;
-    border-radius: var(--r-control);
+    border-radius: 6px;
     background: none;
     color: var(--text-secondary);
     font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
+    text-decoration: none;
   }
-  .editor-head > .drawer-toggle > * { pointer-events: none; }
-  .editor-head > .drawer-toggle .icon { width: var(--icon-md); height: var(--icon-md); }
-  .editor-head > .drawer-toggle .rail-label { display: inline; }
-  .editor-head > .drawer-toggle:hover { background: var(--hover); color: var(--text); }
-  .editor-head > .drawer-toggle[aria-expanded="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .topbar-end > :is(.status-btn, #settings-button) > * { pointer-events: none; }
+  .topbar-end > :is(.status-btn, #settings-button) > .icon { display: none; }
+  .topbar-end > :is(.status-btn, #settings-button) > :is(.status-btn-label, .rail-label) { display: inline; position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .topbar-end > :is(.status-btn, #settings-button):hover { background: var(--hover); color: var(--text); }
+  /* Pressed: the word sinks and springs back with a slight overshoot (none under reduced motion). */
+  .topbar-end > :is(.status-btn, #settings-button, .sync-slot) { transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out), transform 260ms var(--spring); }
+  .topbar-end > :is(.status-btn, #settings-button):active { transform: scale(0.96); transition-duration: var(--dur), var(--dur), 80ms; transition-timing-function: var(--ease-out), var(--ease-out), var(--ease-in); }
 
-  /* The Files popover: on the raised ground with a hairline and the floating shadow (light themes),
-     under Files (layout.ts anchorPop); the tree scrolls inside it. Its motion is layout.ts's (160 ms
-     in, 120 ms out, none under reduced motion); while closing it takes no pointer. */
-  .editor-area { position: relative; }
-  .files-pop {
-    position: absolute;
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    width: min(300px, calc(100% - var(--s4)));
-    max-height: min(560px, calc(100vh - 140px));
-    border: 1px solid var(--border);
-    border-radius: var(--r-sheet);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-pop);
-    overflow: hidden;
+  /* The rail: 36 px icon buttons (18 px glyphs) down a 48 px column. */
+  .rail { gap: var(--s1); padding: var(--s2) 0; }
+  .rail .rail-btn {
+    position: relative;
+    flex-direction: row;
+    width: 36px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out), transform 260ms var(--spring);
   }
-  .files-pop[data-state="closing"] { pointer-events: none; }
-  .files-pop > .sidebar { flex: 1 1 auto; min-height: 0; background: transparent; }
-  .files-pop .ws-switcher { height: auto; padding: var(--s3) var(--s3) 0; }
-  .files-pop .sidebar-head { margin-top: var(--s1); }
-  /* 32 px of empty list under the last file: the place a click chooses nothing (New file then goes
-     to the top level), kept a real target however few files there are. */
-  .files-pop .tree-host { padding-bottom: var(--s6); }
-  .files-pop .sidebar-foot { display: none; }
+  .rail .rail-btn > :is(.rail-label, .files-name) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rail .rail-btn > .files-caret { display: none; }
+  .rail .rail-btn:hover { background: var(--hover); color: var(--text); }
+  .rail .rail-btn:active { transform: scale(0.94); transition-duration: var(--dur), var(--dur), 80ms; }
+  .rail .rail-btn[aria-expanded="true"] { background: var(--surface-raised); color: var(--text); box-shadow: none; }
+  .rail .rail-btn[aria-expanded="true"]::before { content: ""; position: absolute; left: -6px; top: 9px; bottom: 9px; width: 2px; border-radius: 2px; background: var(--text); }
+}
+@media (min-width: 1100px) {
+  /* The files: the Files heading in mono, muted, with New file, New folder, Import and the menu as
+     26 px icon buttons in a 38 px head over a hairline; the workspace's name above it; quiet 26 px
+     rows with a mono language tag. The chosen row is lifted (the raised ground and a 2 px bar in
+     the text colour at its left), the open file keeps its location bar. The switcher (the
+     workspace's name) sits in the foot here (layout.ts place()). */
+  .sidebar-head { height: var(--h-head); margin: 0; padding: 0 6px 0 14px; box-shadow: inset 0 -1px 0 var(--divider); }
+  .sidebar-head > .region-title { color: var(--text-secondary); font: var(--w-label) 12px/16px var(--font-code); letter-spacing: 0; }
+  .sidebar-actions .icon-btn { width: 26px; height: 26px; border-radius: 4px; color: var(--text-secondary); }
+  .sidebar-actions .icon-btn .icon { width: var(--icon-md); height: var(--icon-md); }
+  .tree-host { padding: var(--s2) 0 var(--s6); }
+  .tree-row { --row-h: 26px; gap: var(--s2); margin: 0 6px; border-radius: 4px; }
+  .tree-name { font-size: 12.5px; }
+  .tree-row > .file-badge { --bs: 16px; min-width: 26px; }
+  [role="treeitem"][aria-selected="true"] > .tree-row {
+    background-color: var(--surface-raised);
+    background-image: linear-gradient(var(--text), var(--text));
+    background-position: left 0 top 5px;
+    background-size: 2px calc(100% - 10px);
+    box-shadow: none;
+  }
+  .sidebar-foot { margin: 0; padding: var(--s2) 6px; box-shadow: inset 0 1px 0 var(--divider); }
+  .sidebar-foot > .ws-switcher { height: auto; padding: var(--s1) var(--s2); }
+  .sidebar-foot .ws-title { font-size: var(--fs-2); }
+  .sidebar-foot .ws-owner { font-family: var(--font-code); font-size: 11px; }
+
+  /* The code board's tab bar (38 px, the chrome's ground): compact tabs, each its mono tag and its
+     name, divided by hairlines; the open one on the code's ground with a 1 px line in the text
+     colour at its top (a shape, never the fill alone). Share, Capture and Focus are quiet words at
+     its end (their icons hidden: the words name them). */
+  .editor-head { gap: var(--s1); height: var(--h-head); padding: 0 6px 0 0; background: var(--surface); border-bottom: 0; box-shadow: inset 0 -1px 0 var(--divider); }
+  .editor-head > .tab-host { margin-bottom: 0; }
+  .tabstrip { align-items: stretch; }
+  .tabs { align-items: stretch; height: 100%; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .tab { height: 100%; border-radius: 0; box-shadow: inset -1px 0 0 var(--divider); }
+  .tab[data-active="true"] { background: var(--board); box-shadow: inset -1px 0 0 var(--divider), inset 0 1px 0 var(--text); }
+  .tab[data-active="true"]::before { content: none; }
+  .tab-button { gap: 6px; padding: 0 var(--s1) 0 14px; border-radius: 0; font-size: 12.5px; }
+  .tab-button > .file-badge { min-width: 0; }
+  .head-tools { gap: 2px; }
+  .head-tools > .board-tool, .head-tools > .capture-btn { min-height: 26px; height: 26px; padding: 0 var(--s2); border: 0; border-radius: 6px; color: var(--text-secondary); font: var(--w-label) 12px/16px var(--font-ui); }
+  .head-tools > :is(.board-tool, .capture-btn):not(.error-jump) > .icon { display: none; }
+  .head-tools > .capture-btn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+  .board-tool-label, .head-tools .capture-label { display: inline; }
 
   /* The console: the run strip, then its bar, the Output tab's tool row and the tab's body. Hidden
      to its head, the strip and the bar stay. */
@@ -1854,64 +1861,44 @@ input.switch {
   .workbench[data-files="none"] .center { grid-template-rows: minmax(0, 1fr) 0 auto; }
   .workbench[data-files="none"] .center > .panel { display: grid; grid-template-rows: auto; }
   .workbench[data-files="none"] .center > .panel > :not(.run-strip) { display: none; }
-  .workbench[data-files="none"] .editor-area { margin-bottom: 0; }
   .workbench[data-files="none"] :is(.editor-area, .editor-panel, .editor-empty) { border-radius: 0; }
-  .workbench[data-files="none"] .editor-area { border-radius: calc(var(--r-board) - 1px) calc(var(--r-board) - 1px) 0 0; }
 
-  /* The strip, on the console's header ground, a 44 px bar like the heads: Run, the outcome (it
-     wraps first), the runtime state and the count at the end. */
+  /* The run strip, 48 px on the chrome's ground under a hairline: Run (the one filled blue control;
+     Stop while running), then Input and Arguments as quiet words, with room after them for the
+     stepper (stage 3b). Run keeps its words and icon; its key is in its tooltip. */
   .run-strip {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    column-gap: var(--s3);
-    row-gap: var(--s1);
+    gap: 6px;
     min-width: 0;
-    min-height: var(--h-panel-bar);
-    padding: var(--s1) var(--s3);
-    background: var(--runlog-bg);
+    height: var(--h-strip);
+    padding: 0 var(--s3);
+    background: var(--surface);
     box-shadow: inset 0 -1px 0 var(--divider);
     color: var(--text);
     font-size: var(--fs-2);
     line-height: var(--lh-2);
   }
-  .run-outcome { display: flex; flex: 1 1 0; min-width: 0; }
-  .run-outcome > .receipt { column-gap: var(--s2); }
-  /* After a failed run, Run's outline and icon are in the text colour here: on the strip's ground the
-     secondary edge measured level with Capture in the top bar (owner, 2026-11-02: "Darker outline").
-     Its word keeps the fill's weight. The error jump keeps the lead: it is the one danger-coloured
-     control. */
+  .run-strip > .btn.run { height: 32px; min-height: 32px; margin-right: var(--s1); padding: 0 14px 0 12px; border-radius: 6px; font-size: 13.5px; transition: transform 260ms var(--spring); }
+  .run-strip > .btn.run:active { transform: scale(0.95); transition-duration: 80ms; transition-timing-function: var(--ease-in); }
+  .run-strip .run-key { display: none; }
+  .run-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
+  .run-tools > .btn.ghost.small { min-height: 28px; height: 28px; padding: 0 10px; border-radius: 6px; font-size: var(--fs-2); }
+  .run-tools > .btn.ghost.small:hover:not(:disabled) { background: var(--hover); }
+  .run-tools > .args-toggle .icon { display: none; }
+  /* After a failed run, Run steps back to an outline in the text colour (the next step is a fix);
+     the error jump keeps the lead: it is the one danger-coloured control. */
   .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) { border-color: var(--text); font-weight: var(--w-strong); }
   .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) .run-icon { color: var(--text); }
-  .run-strip > .runtime { flex: 0 1 auto; }
-  .run-strip > .runtime > span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
-  .workbench[data-open="false"] .run-strip > .runtime,
-  .workbench[data-open="false"] .problems-count[data-count="0"] { display: none; }
-  /* The count: words in the secondary tier, the danger colour while there are errors; a button
-     whose hover underlines its words (its ground stays the strip's). */
-  .problems-count {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s2);
-    flex: none;
-    min-height: var(--tool);
-    margin-left: auto;
-    padding: 0 var(--s2);
-    border: 0;
-    border-radius: var(--r-control);
-    background: none;
-    color: var(--text-secondary);
-    font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui);
-    white-space: nowrap;
-  }
-  .problems-count > * { pointer-events: none; }
-  .problems-count .icon { width: var(--icon-md); height: var(--icon-md); color: var(--text-secondary); }
-  .problems-count[data-tone="error"], .problems-count[data-tone="error"] .icon { color: var(--danger); }
-  .problems-count[data-tone="warning"] .icon { color: var(--warning); }
-  .problems-count:hover .problems-words { text-decoration: underline; text-underline-offset: 3px; }
+  .workbench[data-open="false"] .run-tools { display: none; }
+  /* The run's outcome at the console head's end (layout.ts): one line, quiet, before its tools. */
+  .panel-bar > .run-outcome { display: flex; flex: 0 1 auto; min-width: 0; margin-left: auto; overflow: hidden; color: var(--text-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
+  .panel-bar > .run-outcome > .receipt { column-gap: var(--s2); flex-wrap: nowrap; min-width: 0; }
+  .panel-bar > .run-outcome + .panel-head-tools { margin-left: var(--s2); }
   /* Notices float over the code board's foot, at its end (layout.ts): a raised card with a hairline
      and the floating shadow, so one coming or going never moves the code. Empty, it takes no room
      and no pointer, and stays a live region. */
+  .editor-area { position: relative; }
   .editor-area > .notice-host {
     position: absolute;
     z-index: 10;
@@ -1930,26 +1917,20 @@ input.switch {
   .editor-area > .notice-host .notice > .icon-btn { grid-area: 1 / 3; margin: -3px 0; }
   .editor-area > .notice-host .notice-action { grid-area: 2 / 2; justify-self: start; }
 }
-/* Under 1440 px the strip's runtime state is its icon, so the outcome keeps one line (its words
-   stay its text, read out, and its tooltip: workbench.ts). */
-@media (min-width: 1100px) and (max-width: 1439px) {
-  .run-strip > .runtime > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-}
-
-/* ------------------------------------------------------------------ Flow Board: sizes, hiding, beside, focus */
+/* ------------------------------------------------------------------ Workbench: sizes, hiding, beside, focus */
 /* From 1100 px (owner's report on 0.26.0, 2026-11-02; layout.ts syncBoards sets the attributes):
-   the canvas between the boards is the board splitter (16 px, its 2 px grip in the control edge's
-   colour, a 24 px target); the chart board hides (data-chart) and the head's Flowchart brings it
-   back; the output stands beside the code inside the code board (data-console), with its own 8 px
-   splitter, the run strip the board's foot under both; focus code (data-focus) leaves the code
-   board alone on the canvas, its console the run strip. Under 1100 px none of this shows. */
-.board-tool, .center > .board-split, .center > .console-split, .chart-hide, .panel-beside, .panel-title, .panel-back { display: none; }
+   between the boards is the board splitter (9 px of chrome between two hairlines, a 3 x 32 px grip
+   in the control edge's colour, a 24 px target); the chart board hides (data-chart) and the head's
+   Flowchart brings it back; the output stands beside the code (data-console), with its own 8 px
+   splitter, the run strip the foot under both; focus code (data-focus) leaves the code alone, its
+   console the run strip. Under 1100 px none of this shows. */
+.board-tool, .center > .board-split, .center > .console-split, .chart-hide, .panel-beside { display: none; }
 @media (min-width: 1100px) {
   /* The rows' areas: the code over its console (the default), and the chart board beside them. */
-  /* The splitters' columns are the gaps (16 px between the boards, 8 px beside the code): no column-gap. */
+  /* The splitters' columns are the gaps (9 px between the boards, 8 px beside the code): no column-gap. */
   .workbench[data-open="true"] .center {
     column-gap: 0;
-    grid-template-columns: minmax(0, 1fr) var(--s4) var(--chart-w, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) 9px var(--chart-w, minmax(0, 1fr));
     grid-template-areas: "code bsplit chart" "hsplit bsplit chart" "panel bsplit chart";
   }
   .workbench[data-open="true"] .center > .editor-area { grid-area: code; }
@@ -1967,7 +1948,7 @@ input.switch {
      under the three, inside the one board edge. */
   .workbench[data-open="true"] .center[data-console="beside"] {
     grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-columns: minmax(0, 1fr) var(--s2) var(--console-w) var(--s4) var(--chart-w, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) var(--s2) var(--console-w) 9px var(--chart-w, minmax(0, 1fr));
     grid-template-areas: "code csplit panel bsplit chart" "strip strip strip bsplit chart";
   }
   .workbench[data-open="true"] .center[data-console="beside"][data-chart="hidden"] {
@@ -1977,18 +1958,11 @@ input.switch {
   .workbench[data-open="true"] .center[data-console="beside"]::before { grid-area: 1 / 1 / -1 / 4; }
   .center[data-console="beside"] > .splitter.horizontal { display: none; }
   .workbench[data-open="true"] .center[data-console="beside"] > .console-split { display: block; grid-area: csplit; }
-  .center[data-console="beside"] > .editor-area { margin: 1px 0 0 1px; border-radius: calc(var(--r-board) - 1px) 0 0 0; }
-  .center[data-console="beside"] > .editor-area > .editor-head { border-radius: calc(var(--r-board) - 1px) 0 0 0; }
-  .center[data-console="beside"] > .panel { margin: 1px 1px 0 0; border-radius: 0 calc(var(--r-board) - 1px) 0 0; grid-template-rows: var(--h-panel-bar) auto minmax(0, 1fr); }
+  .center[data-console="beside"] > .panel { box-shadow: none; grid-template-rows: var(--h-panel-bar) auto minmax(0, 1fr); }
   .center[data-console="beside"] > .panel > .panel-bar { grid-row: 1; }
   .center[data-console="beside"] > .panel > .panel-actions { grid-row: 2; }
   .center[data-console="beside"] > .panel > .panel-body { grid-row: 3; }
-  .center[data-console="beside"] > .run-strip {
-    grid-area: strip;
-    margin: 0 1px 1px;
-    border-radius: 0 0 calc(var(--r-board) - 1px) calc(var(--r-board) - 1px);
-    box-shadow: inset 0 1px 0 var(--divider);
-  }
+  .center[data-console="beside"] > .run-strip { grid-area: strip; box-shadow: inset 0 1px 0 var(--divider); }
   /* Beside, Maximise (a height) has nothing to size; Hide docks the console's head under the code. */
   .center[data-console="beside"] .panel-max { display: none; }
 
@@ -1999,13 +1973,21 @@ input.switch {
   .center[data-focus="true"] > .panel { grid-template-rows: auto; }
   .center[data-focus="true"] > .panel > :not(.run-strip) { display: none; }
 
-  /* The splitters between the boards and between the code and the output: the gap is the target
-     (24 px with the reach either side), the grip a 2 px line in the control edge's colour (3:1 on
-     the canvas and on the board: contrast.ts), the focus colour while dragged or focused. */
+  /* The splitters between the boards and between the code and the output: the column is the target
+     (24 px with the reach either side), the grip a 3 x 32 px bar in the control edge's colour (3:1
+     on the chrome and on the code's ground: contrast.ts), the focus colour while focused. The board
+     splitter is 9 px of chrome between two hairlines. */
   .center > .splitter:is(.board-split, .console-split) { width: auto; background: transparent; }
+  .center > .splitter.board-split { background: var(--surface); box-shadow: inset 1px 0 0 var(--divider), inset -1px 0 0 var(--divider); }
   .center > :is(.board-split, .console-split)::after { inset: 0 calc((var(--target) - 100%) / -2); }
-  .center > :is(.board-split, .console-split)::before { background: var(--border-strong); }
+  .center > :is(.board-split, .console-split)::before { width: 3px; height: 32px; border-radius: 2px; background: var(--border-strong); }
   .center > :is(.board-split, .console-split):is(:hover, [data-dragging])::before { background: var(--text-secondary); }
+  .center > .splitter.horizontal { height: 1px; background: var(--divider); }
+  .center > .splitter.horizontal::before { content: none; }
+  .center > .splitter.horizontal::after { inset: -12px 0 -11px; }
+  .center > .splitter.horizontal:is(:hover, [data-dragging]) { background: var(--border-strong); }
+  /* A 1 px line has no inside for a ring: the ring sits outside it, on the board's ground. */
+  .center > .splitter.horizontal:focus-visible { background: var(--focus); outline: var(--ring); outline-offset: 0; border-radius: 0; }
 
   /* The head's tools: Flowchart (its icon and word) and Focus code (its icon), quiet like Files. */
   .board-tool {
@@ -2027,20 +2009,57 @@ input.switch {
   .board-tool > * { pointer-events: none; }
   .board-tool .icon { width: var(--icon-md); height: var(--icon-md); }
   .board-tool:hover { background: var(--hover); color: var(--text); }
-  .board-tool[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
-  .chart-toggle { padding-right: var(--s3); }
+  .board-tool[aria-pressed="true"] { background: var(--surface-raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
   /* Output below or beside: an icon button before Maximise. */
   .panel-beside { display: inline-grid; }
-  /* Hide flowchart: at the end of the chart's bar, over it (the bar keeps the room). */
-  .chart-hide { display: inline-grid; position: absolute; z-index: 2; top: var(--s1); right: var(--s2); }
-  .chart-board .fc-toolbar { padding-right: calc(var(--tool) + var(--s3)); min-height: calc(var(--tool) + var(--s2)); }
+  /* Hide flowchart: a quiet word at the end of the chart's 38 px head, over it (the head keeps the
+     room). */
+  .chart-hide { display: inline-flex; position: absolute; z-index: 2; top: 5px; right: 6px; height: 28px; min-height: 28px; border-radius: 6px; font-size: 12px; line-height: 16px; }
+  .chart-hide > .icon { display: none; }
+  .chart-board .fc-toolbar { min-height: var(--h-head); padding-right: 124px; }
+  /* A board under 500 px (a 1100 to 1300 px window) keeps the bar on one row: Hide flowchart drops
+     its word for its icon (its name stays), and the bar gives back the word's room. */
+  .workbench[data-open="true"] .chart-board { container: chart-board / inline-size; }
+  @container chart-board (max-width: 499px) {
+    .chart-hide { width: 28px; padding: 0; justify-content: center; }
+    .chart-hide > .icon { display: block; width: var(--icon-md); height: var(--icon-md); }
+    .chart-hide > .board-tool-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .chart-board .fc-toolbar { padding-right: 40px; }
+  }
 
-  /* One way to the problems: the run strip's count. The console's tabs give way to a heading that
-     names what it shows, and, over the list, an Output button back (the tabs stay in the DOM). */
-  .panel-bar > .panel-tabs { display: none; }
-  .panel-title { display: block; margin: 0; padding: 0 var(--s1); color: var(--text); font: var(--w-label) var(--fs-2)/var(--lh-2) var(--font-ui); white-space: nowrap; }
-  .panel-back { display: inline-flex; }
-  .panel-back[hidden] { display: none; }
+  /* The console's head (34 px): Output | Problems as underlined tabs (a 2 px bar in the text
+     colour under the chosen one, never colour alone), Problems with its count chip (outlined in
+     the danger colour while there are errors), then the run's outcome and the tools. */
+  .panel-bar { gap: var(--s1); padding: 0 6px 0 var(--s1); background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider); }
+  .panel-bar > .panel-tabs { align-self: stretch; height: auto; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .panel-tabs [role="tab"] { height: 100%; padding: 0 10px; border-radius: 0; background: none; font-size: 12.5px; }
+  .panel-tabs [role="tab"]:hover:not([aria-selected="true"]) { background: none; color: var(--text); }
+  .panel-tabs [role="tab"][aria-selected="true"] { background: none; box-shadow: none; }
+  .panel-tabs [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; left: var(--s2); right: var(--s2); bottom: 0; height: 2px; border-radius: 1px 1px 0 0; background: var(--text); }
+  .panel-tabs [role="tab"]:focus-visible { outline-offset: -4px; }
+  .panel-tabs .count:not(:empty) { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border: 0; border-radius: 4px; background: var(--surface-raised); color: var(--text); font: var(--w-label) 11px/1 var(--font-code); }
+  .panel-tabs .count:not(:empty)[data-errors]:not([data-errors="0"]) { background: none; color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+  .panel-actions { background: var(--terminal-bg); }
+
+  /* The status bar (26 px, mono, the secondary ink): the language, Ln/Col, Spaces, UTF-8, then the
+     runtime state and the theme's name (a quiet button into Settings) at its end. */
+  .workbench > .statusbar {
+    display: flex;
+    gap: 18px;
+    height: var(--h-status);
+    min-height: var(--h-status);
+    padding: 0 6px 0 14px;
+    background: var(--surface);
+    box-shadow: inset 0 1px 0 var(--divider);
+    color: var(--text-secondary);
+    font: 400 11.5px/16px var(--font-code);
+  }
+  .statusbar > .status-gap { flex: 1 1 auto; }
+  .statusbar > .runtime { gap: 6px; font-size: 11.5px; }
+  .statusbar > .runtime .icon { width: var(--icon-sm); height: var(--icon-sm); }
+  .statusbar > .runtime > span { max-width: 32ch; overflow: hidden; text-overflow: ellipsis; }
+  .statusbar > .theme-status { height: 24px; min-height: 24px; margin: 0; padding: 0 var(--s2); border-radius: 4px; font: inherit; }
+  .workbench[data-open="false"] .statusbar > :is(#status-lang, #status-pos, .status-fact) { visibility: hidden; }
 
   /* Thin scrollbars on the boards' scrollers (the code, the chart, the output and the problems), so
      two system bars don't meet at the seam: the thumb in the control edge's colour (3:1 on the board
@@ -2060,6 +2079,27 @@ input.switch {
       background-color: var(--border-strong);
       background-clip: padding-box;
     }
+  }
+}
+/* Workbench on a touch screen 1100 px and wider: the compact sizes above are for a fine pointer;
+   every control here is 44 px (tokens.css: the 48 px bars hold them), the rows --h-row. */
+@media (min-width: 1100px) and (pointer: coarse) {
+  .topbar > .palette-btn,
+  .topbar-end .sync-status,
+  .topbar-end > :is(.status-btn, #settings-button),
+  .head-tools > :is(.board-tool, .capture-btn),
+  .run-strip > .btn.run,
+  .run-tools > .btn.ghost.small,
+  .chart-hide,
+  .chart-board :is(.fc-picker, .fc-tool),
+  .workbench > .statusbar > .theme-status { min-height: 44px; height: 44px; }
+  .rail .rail-btn, .sidebar-actions .icon-btn { width: 44px; min-height: 44px; height: 44px; }
+  .tree-row { --row-h: var(--h-row); }
+  .workbench > .statusbar { height: auto; }
+  .chart-board .fc-toolbar { padding-right: 160px; }
+  @container chart-board (max-width: 499px) {
+    .chart-hide { width: 44px; }
+    .chart-board .fc-toolbar { padding-right: 56px; }
   }
 }
 

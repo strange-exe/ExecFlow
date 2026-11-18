@@ -1,7 +1,7 @@
 // The Flow Board's sizes (1100 px and wider; owner's report on 0.26.0, 2026-11-02): the chart
 // board's width beside the code board, and the output's width when it stands beside the code
-// inside the code board. Pure arithmetic, in CSS pixels of the boards' row (the canvas less its
-// 16 px edges); layout.ts measures and applies it.
+// inside the code board. Pure arithmetic, in CSS pixels of the boards' row (the work column:
+// Workbench's panes meet the window's edges); layout.ts measures and applies it.
 //
 // The code keeps CODE_MIN (its head, the tabs and about 50 columns of code at 14 px) and the chart
 // CHART_MIN (a decision with both branches at full size). The output beside the code keeps
@@ -10,16 +10,19 @@
 export const CODE_MIN = 420;
 export const CHART_MIN = 320;
 export const CONSOLE_MIN = 320;
-/** The canvas between the two boards: the board splitter's column. */
-export const BOARD_GAP = 16;
+/** Between the two boards: the board splitter's column (Workbench: 9 px of chrome and its grip). */
+export const BOARD_GAP = 9;
 /** The board's ground between the code and the output beside it: the output splitter's column. */
 export const CONSOLE_GAP = 8;
 
 /** What the code board keeps at the least: the code, or the code and the output beside it. */
 export const codeKeep = (beside: boolean): number => (beside ? CODE_MIN + CONSOLE_GAP + CONSOLE_MIN : CODE_MIN);
 
-/** Two equal boards in a row `boards` px wide. */
-export const chartDefault = (boards: number): number => Math.round((boards - BOARD_GAP) / 2);
+/**
+ * Two equal boards in a row `boards` px wide, unless half leaves the code under its least (1100 px
+ * with the files shown): then the chart gives way to it.
+ */
+export const chartDefault = (boards: number): number => Math.min(Math.round((boards - BOARD_GAP) / 2), boards - BOARD_GAP - CODE_MIN);
 
 /** The widest chart board that leaves the code board its least. */
 export const chartMax = (boards: number, beside: boolean): number => boards - BOARD_GAP - codeKeep(beside);

@@ -56,9 +56,17 @@ export interface ChartLook {
   codeFont: string;
   uiFont: string;
   interactive: boolean;
+  /**
+   * Workbench's quiet look (the live view, stage 2, 2026-11-18): every box on `node` with the
+   * control edge, connectors in the control edge, their labels mono in the secondary ink, and the
+   * run's taken path, its arrowheads and its pass-count chips in `trace` (the action colour as
+   * ink). Without it (exports, the guide pages) boxes and connectors keep their kind's hues.
+   */
+  quiet?: { node: string; trace: string };
 }
 
-export const VIEW_LOOK: ChartLook = {
+/** The kind-hued look in the view's own form (custom properties): the exports' colours, unresolved. */
+export const KIND_LOOK: ChartLook = {
   color: (t) => `var(--${t})`,
   tint: (t, pct) => `color-mix(in srgb, var(--${t}) ${pct}%, var(--surface-raised))`,
   codeFont: "var(--font-code)",
@@ -66,11 +74,16 @@ export const VIEW_LOOK: ChartLook = {
   interactive: true,
 };
 
+/** The live view's look: Workbench's quiet one. */
+export const VIEW_LOOK: ChartLook = { ...KIND_LOOK, quiet: { node: "var(--surface)", trace: "var(--link)" } };
+
 type Styles = Record<"shape" | "bar" | "text" | "note" | "edgeLabel" | "chip" | "chipText", string> & {
   kindShape(hue: KindHue | null): string;
   kindBar(hue: KindHue | null): string;
   edge(hue: EdgeHue, width?: number): string;
-  arrow(hue: EdgeHue): string;
+  /** A taken connector's path (the run trace). */
+  trace(hue: EdgeHue, width: number): string;
+  arrow(hue: EdgeHue, traced?: boolean): string;
 };
 
 /** A connector's colour: Yes in the success hue, No in danger, the rest the secondary text colour. */
@@ -81,20 +94,26 @@ export function edgeHue(label: string | undefined): EdgeHue {
 
 function styles(look: ChartLook): Styles {
   const c = look.color;
-  const shape = `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1.5`;
+  const q = look.quiet;
+  const shape = `fill:${q ? q.node : c("surface-raised")};stroke:${c("border-strong")};stroke-width:1.5`;
+  const line = (stroke: string, width: number) => `fill:none;stroke:${stroke};stroke-width:${width};stroke-linejoin:round;stroke-linecap:round`;
   return {
     shape,
     bar: `fill:none;stroke:${c("border-strong")};stroke-width:1.5`,
     text: `fill:${c("text")};font-family:${look.codeFont};font-size:13px`,
     note: `fill:${c("text-secondary")};font-family:${look.uiFont};font-size:11px;font-style:italic`,
-    edgeLabel: `fill:${c("text")};font-family:${look.uiFont};font-size:12px;font-weight:600`,
-    kindShape: (hue) => (hue ? `fill:${look.tint(hue, CHART_TINT)};stroke:${c(hue)};stroke-width:1.75` : shape),
-    kindBar: (hue) => `fill:none;stroke:${c(hue ?? "border-strong")};stroke-width:1.5`,
-    edge: (hue, width = 1.5) => `fill:none;stroke:${c(hue)};stroke-width:${width};stroke-linejoin:round;stroke-linecap:round`,
-    arrow: (hue) => `fill:${c(hue)};stroke:none`,
-    // The pass-count chip (Flow Board's signature): secondary ink on the raised surface, a hairline round it.
-    chip: `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1`,
-    chipText: `fill:${c("text-secondary")};font-family:${look.codeFont};font-size:${CHIP.fontSize}px`,
+    edgeLabel: q
+      ? `fill:${c("text-secondary")};font-family:${look.codeFont};font-size:11px;font-weight:500`
+      : `fill:${c("text")};font-family:${look.uiFont};font-size:12px;font-weight:600`,
+    kindShape: (hue) => (hue && !q ? `fill:${look.tint(hue, CHART_TINT)};stroke:${c(hue)};stroke-width:1.75` : shape),
+    kindBar: (hue) => `fill:none;stroke:${c(hue && !q ? hue : "border-strong")};stroke-width:1.5`,
+    edge: (hue, width = 1.5) => line(q ? c("border-strong") : c(hue), width),
+    trace: (hue, width) => line(q ? q.trace : c(hue), width),
+    arrow: (hue, traced = false) => `fill:${q ? (traced ? q.trace : c("border-strong")) : c(hue)};stroke:none`,
+    // The pass-count chip: a small mono badge. Quiet: the trace's ink on the node's ground, a
+    // hairline in it; otherwise (Flow Board) secondary ink on the raised surface.
+    chip: q ? `fill:${q.node};stroke:${q.trace};stroke-width:1` : `fill:${c("surface-raised")};stroke:${c("border-strong")};stroke-width:1`,
+    chipText: `fill:${q ? q.trace : c("text-secondary")};font-family:${look.codeFont};font-size:${CHIP.fontSize}px`,
   };
 }
 
@@ -317,8 +336,8 @@ export function edgePath(e: LaidEdge): string {
   return roundedPath(line, 8, Math.max(0, run - head));
 }
 
-function arrow(doc: SvgDocument, edge: LaidEdge, STYLE: Styles, interactive: boolean): SVGPolygonElement {
-  const style = STYLE.arrow(edgeHue(edge.label));
+function arrow(doc: SvgDocument, edge: LaidEdge, STYLE: Styles, interactive: boolean, traced: boolean): SVGPolygonElement {
+  const style = STYLE.arrow(edgeHue(edge.label), traced);
   return el(doc, "polygon", interactive ? { points: pts(arrowCorners(edge)), style, "data-part": "arrow" } : { points: pts(arrowCorners(edge)), style });
 }
 
@@ -352,8 +371,8 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
     const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind, ...(m ? { "data-count": m.count } : {}) } : {});
     const d = edgePath(e);
     if (live || !m) g.appendChild(el(doc, "path", { d, style: STYLE.edge(hue) }));
-    if (m) g.appendChild(el(doc, "path", live ? { d, pathLength: 1, "data-part": "trace", style: `${STYLE.edge(hue, m.width)};--fc-i:${m.step}` } : { d, style: STYLE.edge(hue, m.width) }));
-    g.appendChild(arrow(doc, e, STYLE, live));
+    if (m) g.appendChild(el(doc, "path", live ? { d, pathLength: 1, "data-part": "trace", style: `${STYLE.trace(hue, m.width)};--fc-i:${m.step}` } : { d, style: STYLE.trace(hue, m.width) }));
+    g.appendChild(arrow(doc, e, STYLE, live, m !== null));
     if (e.label !== undefined && e.labelAt) {
       const t = el(doc, "text", { x: e.labelAt.x, y: e.labelAt.y, "text-anchor": e.labelAt.anchor, style: STYLE.edgeLabel });
       t.textContent = e.label;
@@ -502,7 +521,7 @@ export function traceSwatch(which: "width" | "count", doc: SvgDocument = documen
   const svg = el(doc, "svg", { xmlns: NS, viewBox: "0 0 24 16", width: 24, height: 16, "aria-hidden": "true", focusable: "false" });
   if (which === "width") {
     svg.appendChild(el(doc, "path", { d: "M2,4 L22,4", style: STYLE.edge("text-secondary") }));
-    svg.appendChild(el(doc, "path", { d: "M2,11 L22,11", style: STYLE.edge("text-secondary", traceWidth(5)) }));
+    svg.appendChild(el(doc, "path", { d: "M2,11 L22,11", style: STYLE.trace("text-secondary", traceWidth(5)) }));
   } else {
     svg.appendChild(el(doc, "rect", { x: 0.5, y: 0.5, width: 23, height: 15, rx: CHIP.rx, style: STYLE.chip }));
     const t = el(doc, "text", { x: 12, y: 8 + CHIP.fontSize * 0.35, "text-anchor": "middle", style: STYLE.chipText });

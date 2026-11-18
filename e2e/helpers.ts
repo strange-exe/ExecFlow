@@ -438,14 +438,13 @@ export type FileSpec = { name: string; text: string };
 
 /** On narrow screens the file list is a drawer: open it (no-op where the sidebar always shows). */
 export async function showFiles(page: Page) {
-  // Files is the code board's popover toggle from 1100 px (the list closes again once a file is
-  // chosen), the rail's toggle from 900 px (expanded while the sidebar shows) and the view bar's
-  // drawer toggle below: the layout must have crossed to the viewport's side first (WebKit reports
-  // the new width a frame late), or a desktop "expanded" is read on a phone with the drawer shut.
+  // Files is the rail's toggle from 900 px (expanded while the sidebar shows: Workbench keeps it
+  // there from 1100 px too) and the view bar's drawer toggle below: the layout must have crossed to
+  // the viewport's side first (WebKit reports the new width a frame late), or a desktop "expanded"
+  // is read on a phone with the drawer shut.
   await expect(page.locator("#app")).toHaveAttribute("data-narrow", String(isNarrow(page)));
   const toggle = page.locator(".drawer-toggle");
-  // The same for 1100 px: Files names the popover from there, the sidebar under it.
-  await expect(toggle).toHaveAttribute("aria-controls", (page.viewportSize()?.width ?? 1280) >= 1100 ? "files-popover" : "sidebar");
+  await expect(toggle).toHaveAttribute("aria-controls", "sidebar");
   // Right after a reload the toggle is drawn a moment after #app's attributes (isVisible doesn't
   // wait): wait for it, or for the list already showing, before deciding to click. Whichever is
   // visible: first() alone takes document order, and on a phone that is the shut drawer's button.
@@ -458,8 +457,8 @@ export async function showFiles(page: Page) {
 
 /**
  * Clicks the file list's empty space under the last file, which chooses nothing (New file then
- * goes to the top level). The list is shown first (from 1100 px it is the Files popover, only as
- * tall as its files), scrolled to its end, and clicked 4 px above its foot: always the space under
+ * goes to the top level). The list is shown first, scrolled to its end, and clicked 4 px above its
+ * foot: always the space under
  * the files, however many there are and however tall the list is.
  */
 export async function clickTreeSpace(page: Page) {
@@ -611,20 +610,9 @@ export async function showPanel(page: Page, tab: "output" | "problems") {
     await page.locator(`#ptab-${tab}`).click();
     return;
   }
-  if (!chartOnBoard(page)) {
-    await page.locator(`#ptab-${tab}`).click();
-    return;
-  }
+  // From 900 px the console's tabs (Output | Problems with its count: Workbench from 1100 px too).
   const panel = page.locator("#panel");
-  if (tab === "problems") {
-    const count = page.locator("#problems-count");
-    if ((await count.getAttribute("aria-expanded")) !== "true") await count.click();
-    await expect(count).toHaveAttribute("aria-expanded", "true");
-  } else if ((await panel.getAttribute("data-tab")) === "problems") {
-    await page.locator("#panel-back").click();
-  } else if ((await panel.getAttribute("data-collapsed")) === "true") {
-    await page.locator("#panel-toggle").click();
-  }
+  await page.locator(`#ptab-${tab}`).click();
   await expect(panel).toHaveAttribute("data-tab", tab);
   await expect(panel).not.toHaveAttribute("data-collapsed", "true");
 }

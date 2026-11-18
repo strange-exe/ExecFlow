@@ -74,6 +74,8 @@ export class OutputView {
   readonly status: HTMLElement;
   /** The panel bar's Input toggle (the workbench puts it there): shows the Input box. */
   readonly inputToggle: HTMLButtonElement;
+  /** Arguments (#args-button): opens the Input box at the Arguments field; hidden with that field. */
+  readonly argsButton: HTMLButtonElement;
   /** The Arguments row (#args-row) beside the Input text; args-field.ts fills it (a lazy chunk). */
   private readonly argsRow: HTMLElement;
   private argsStore: RunArgsStore | null = null;
@@ -162,6 +164,22 @@ export class OutputView {
       "Input",
     );
     this.inputToggle.addEventListener("click", () => this.showInputBox(this.inputToggle.getAttribute("aria-expanded") !== "true"));
+    // Arguments (the run strip, Workbench): opens the Input box and puts the caret in the Arguments
+    // field, one press. Shown only while that field is (a file that can run is open).
+    this.argsButton = h(
+      "button",
+      { type: "button", class: "btn ghost small args-toggle", id: "args-button", "aria-controls": "stdin-box", title: "The arguments the program gets (in the Input box)" },
+      icon("pencil-simple"),
+      "Arguments",
+    );
+    this.argsButton.hidden = true;
+    this.argsButton.addEventListener("click", () => {
+      this.showInputBox(true);
+      void this.loadArgs().then(
+        () => document.getElementById("args-field")?.focus(),
+        () => {},
+      );
+    });
     this.packText = h("p", { class: "pack-text" });
     this.packProgress = h("progress", { max: "1", value: "0", "aria-label": "C/C++ download" });
     this.packButton = h("button", { type: "button", class: "btn", id: "pack-download" });
@@ -268,6 +286,7 @@ export class OutputView {
   /** The field shows the arguments of the open file, and only for a file that can run. */
   showArgsFor(path: WsPath | null): void {
     this.argsPath = path !== null && detectLanguage(nameOf(path)) ? path : null;
+    this.argsButton.hidden = this.argsPath === null;
     if (this.argsField) this.argsField.show(this.argsPath);
     else if (this.argsPath !== null) void this.loadArgs().catch(() => {}); // Run tries again and says so
   }
@@ -276,6 +295,7 @@ export class OutputView {
   argsMoved(from: WsPath, to: WsPath | null): void {
     const path = this.argsPath;
     if (path !== null && (path === from || path.startsWith(`${from}/`))) this.argsPath = to === null ? null : to + path.slice(from.length);
+    this.argsButton.hidden = this.argsPath === null;
     this.argsField?.moved(from, to);
   }
 

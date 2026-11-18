@@ -5,11 +5,14 @@
 // name already ends with the extension, so the word is a second cue, never the only one.
 import { detectLanguage, isHeader } from "./languages";
 
-/** A: a folded page with the extension; B: the extension in its language's syntax colour; C: a solid chip. */
-export type BadgeLook = "sheet" | "hue" | "tile";
+/**
+ * A: a folded page with the extension; B: the extension in its language's syntax colour; C: a solid
+ * chip; tag: Workbench's quiet mono word in the muted ink (redesign "Workbench", 2026-11-18).
+ */
+export type BadgeLook = "sheet" | "hue" | "tile" | "tag";
 
-/** The look the app shows (the owner's pick goes here). */
-export const BADGE_LOOK: BadgeLook = "hue";
+/** The look the app shows (the owner's pick goes here: Workbench, 2026-11-18). */
+export const BADGE_LOOK: BadgeLook = "tag";
 
 export type BadgeKind = "python" | "c" | "cpp" | "header" | "text";
 
@@ -28,6 +31,7 @@ export const BADGE_WORDS: Readonly<Record<BadgeLook, Readonly<Record<BadgeKind, 
   sheet: { python: "py", c: "c", cpp: "cpp", header: "h", text: "txt" },
   hue: { python: "py", c: "c", cpp: "c++", header: "h", text: "txt" },
   tile: { python: "Py", c: "C", cpp: "C++", header: "H", text: "Txt" },
+  tag: { python: "py", c: "c", cpp: "cpp", header: "h", text: "txt" },
 };
 
 /** The word a file's badge shows ("" for a file of no known type). */

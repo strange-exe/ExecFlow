@@ -1,12 +1,14 @@
-// Flow Board, stage S2 (redesign 7, .claude/design/redesign7/a/design.md "Where every feature
-// lives" and "Motion"): from 1100 px the rail and the sidebar column retire. Run, the run's
-// outcome, the runtime state and the problems count form the run strip at the code board's foot;
-// Files in the code board's head opens the file list as a popover; the top row keeps Search, the
-// sync status, Capture, Shortcuts, Settings and About. Under 1100 px nothing changes. Every
-// keyboard path is driven with the keyboard.
+// The Workbench shell, stage 2 (.claude/design/DESIGN.md, the mock in .claude/design/editor9/a):
+// from 1100 px the rail (Files, Search, Source control, Flowchart, New file) and the files sidebar
+// stay. The run strip at the code's foot holds Run, then Input and Arguments; the console's head
+// has the Output | Problems tabs (Problems with its count) and the run's outcome; the status bar
+// shows the language, Ln/Col, Spaces, UTF-8, the runtime state and the theme; the top bar holds the
+// breadcrumb, Search, the sync status and Layout, Shortcuts, Settings and About as words. It
+// replaced Flow Board S2's Files popover and run-strip count (redesign 7). Under 1100 px nothing
+// changes. Every keyboard path is driven with the keyboard.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, run, showFiles, test, treeItem } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, run, test } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -15,7 +17,6 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const OK = { name: "main.py", text: 'print("hi")\n' };
 const FAILS = { name: "calc.py", text: "print(1)\nprint(1 / 0)\n" };
 const box = async (page: Page, sel: string) => (await page.locator(sel).first().boundingBox())!;
-const pop = (page: Page) => page.locator("#files-popover");
 const files = (page: Page) => page.locator(".drawer-toggle");
 
 /** A colour token resolved the way a computed colour is. */
@@ -37,19 +38,25 @@ async function axe(page: Page): Promise<string[]> {
 test.describe("from 1100 px", () => {
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1440, height: 900 }));
 
-  test("the run strip is the code board's foot: Run, the outcome, the runtime state and the count, above the console's tabs", async ({ page }) => {
+  test("the run strip is the code's foot: Run, then Input and Arguments, above the console's tabs", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK]);
     await openFromTree(page, "main.py");
     const strip = page.locator("#panel > .run-strip");
     await expect(strip).toBeVisible();
-    // The DOM order is the reading and the Tab order.
+    // The DOM order is the reading and the Tab order (room is left after them for the stepper).
     const order = await strip.evaluate((el) => [...el.children].map((c) => c.id || c.className));
-    expect(order).toEqual(["run-button", "run-outcome", "status-runtime", "problems-count"]);
+    expect(order).toEqual(["run-button", "run-tools"]);
+    expect(await strip.locator(".run-tools").evaluate((el) => [...el.children].map((c) => c.id))).toEqual(["input-toggle", "args-button"]);
+    await expect(page.locator("#args-button")).toBeVisible();
     const [s, bar, code] = await Promise.all([box(page, "#panel > .run-strip"), box(page, ".panel-bar"), box(page, "#editor-area")]);
     expect(s.y, "under the code").toBeGreaterThanOrEqual(code.y + code.height);
     expect(bar.y, "over the console's tabs").toBeGreaterThanOrEqual(s.y + s.height - 1);
-    expect(Math.round(s.height), "a 44 px bar, like the heads").toBe(44);
+    expect(Math.round(s.height), "a 48 px strip").toBe(48);
+    // Run is the one filled control; Input and Arguments are quiet (no fill).
+    const fill = (sel: string) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await fill("#run-button")).toBe(await token(page, "action"));
+    for (const sel of ["#input-toggle", "#args-button"]) expect(await fill(sel), sel).toBe("rgba(0, 0, 0, 0)");
     // A notice (the import's) floats over the code board's foot, inside the board, and never moves
     // the code: the code's box is the same with it and without it.
     const notice = page.locator("#editor-area > .notice-host > .notice[role=status]");
@@ -60,134 +67,129 @@ test.describe("from 1100 px", () => {
     await notice.locator(":scope > .icon-btn").click();
     await expect(notice).toHaveAttribute("data-empty", "true");
     expect(await box(page, "#editor-panel"), "the code did not move").toEqual(panelBox);
-    // Run and the runtime state left the top bar.
+    // Run and the runtime state left the top bar; the runtime state is in the status bar.
     await expect(page.locator(".topbar #run-button, .topbar #status-runtime")).toHaveCount(0);
+    await expect(page.locator(".statusbar #status-runtime")).toHaveCount(1);
     const r = await run(page);
     expect(r.status, r.output).toBe("ok");
-    // The outcome, as the run-log header shows it under 1100 px, now on the strip.
-    const receipt = strip.locator("#receipt");
+    // The outcome, as the run-log header shows it under 1100 px, now at the console head's end.
+    const receipt = page.locator(".panel-bar .run-outcome #receipt");
     await expect(receipt).toBeVisible();
     await expect(receipt).toHaveText(/Finished.*exit code 0.*ran in/);
     await expect(page.locator("#runlog .rl-file")).toHaveText("main.py");
-    await expect(page.locator("#problems-count")).toHaveText("No problems");
-    // Keyboard: Run, then the count (the outcome holds no stop).
+    // The count lives on the Problems tab; the strip's count is a phone's (the dock's foot) only.
+    await expect(page.locator("#problems-count")).toHaveCount(0);
+    await expect(page.locator("#ptab-problems")).toBeVisible();
+    // Keyboard: Run, Input, then Arguments.
     await page.locator("#run-button").focus();
     await page.keyboard.press("Tab");
-    await expect(page.locator("#problems-count")).toBeFocused();
+    await expect(page.locator("#input-toggle")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#args-button")).toBeFocused();
+    // Arguments opens the Input box with the caret in the Arguments field.
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#args-field")).toBeFocused();
+    await expect(page.locator("#input-toggle")).toHaveAttribute("aria-expanded", "true");
     // Every control on the strip is 24 px or more.
-    for (const sel of ["#run-button", "#problems-count"]) {
+    for (const sel of ["#run-button", "#input-toggle", "#args-button"]) {
       const b = await box(page, sel);
       expect(Math.min(b.width, b.height), sel).toBeGreaterThanOrEqual(24);
     }
   });
 
-  test("the count names the first problem's line, in the danger colour, and opens the Problems list (pointer and keyboard)", async ({ page }) => {
+  test("the Problems tab carries the count, in the danger colour while there are errors, and opens the list (pointer and keyboard)", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK, FAILS]);
     await openFromTree(page, "calc.py");
     const r = await run(page);
     expect(r.status, r.output).toBe("error");
-    const count = page.locator("#problems-count");
-    await expect(count).toHaveText(/^\d+ problems?, line 2$/);
-    await expect(count).toHaveAttribute("data-tone", "error");
+    const tab = page.locator("#ptab-problems");
+    const count = tab.locator(".count");
+    await expect(count).toHaveText(/^\d+$/);
     expect(await count.evaluate((el) => getComputedStyle(el).color)).toBe(await token(page, "danger"));
     // The line marks stay in the editor.
     await expect(page.locator(".cm-lintRange-error, .cm-lint-marker-error").first()).toBeVisible();
-    // With another file active, the editor head's stops, in order: Files, the open file's tab, the
-    // error jump (shown only while the error is in a file other than the active one), then Focus
-    // code (the layout fix; the Flowchart toggle shows only while the chart board is hidden).
+    // With another file active, the editor head's stops, in order: the open file's tab, the error
+    // jump (shown only while the error is in a file other than the active one), Share, Capture,
+    // then Focus (the Flowchart toggle shows only while the chart board is hidden). The code board is
+    // about 580 px here, so the strip may also show "1 more" after the tabs (tabs.ts).
     await openFromTree(page, "main.py");
     await expect(page.locator("#error-jump")).toBeVisible();
     const stops = await page.locator(".editor-head").evaluate((head) =>
-      [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => (el.matches(".drawer-toggle") ? "files" : el.id)),
+      [...head.querySelectorAll<HTMLElement>("button, [tabindex]")].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).map((el) => (el.matches(".tabs-more") ? "more" : el.id)),
     );
-    expect(stops).toHaveLength(4);
-    expect(stops[0]).toBe("files");
-    expect(stops[1]).toMatch(/^tab-/);
-    expect(stops[2]).toBe("error-jump");
-    expect(stops[3]).toBe("focus-code");
-    // The count discloses the list (the console has no tabs from 1100 px): pressed, the Problems
-    // panel shows, the count says so and keeps the focus.
-    await expect(count).toHaveAttribute("aria-expanded", "false");
-    await count.click();
-    await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-    await expect(count).toHaveAttribute("aria-expanded", "true");
-    await expect(count).toBeFocused();
+    expect(stops[0]).toMatch(/^tab-/);
+    expect(stops.slice(1).filter((s) => s !== "more")).toEqual(["error-jump", "share-button", "snippet-button", "focus-code"]);
+    // The tabs show the list: pointer, then the arrow keys and Enter.
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#panel-problems")).toBeVisible();
-    // Back to Output with the head's Output, then the keyboard: Enter on the count.
-    await page.locator("#panel-back").click();
+    await page.locator("#ptab-output").click();
     await expect(page.locator("#panel-output")).toBeVisible();
-    await expect(count).toHaveAttribute("aria-expanded", "false");
-    await expect(count).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(tab).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-    await expect(count).toBeFocused();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
     expect(await axe(page), "axe after a failed run").toEqual([]);
   });
 
-  test("Files opens the file list as a named popover under it: focus goes in, Escape closes it and returns focus, a press outside closes it", async ({ page }) => {
+  test("the rail and the files sidebar stay: Files toggles the sidebar, and the rail's icons are named and 24 px or more", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK, FAILS]);
-    // The rail and the sidebar column are gone; the list lives in the popover.
-    await expect(page.locator(".rail")).toBeHidden();
-    await expect(page.locator(".main > .splitter")).toBeHidden();
-    await expect(pop(page).locator("#sidebar")).toHaveCount(1);
-    await expect(page.getByRole("dialog", { name: "Files" })).toBeVisible();
+    await expect(page.locator("#files-popover")).toHaveCount(0);
+    const rail = page.getByRole("navigation", { name: "Activity" });
+    await expect(rail).toBeVisible();
+    await expect(page.locator(".main > #sidebar")).toBeVisible();
+    // Files, Search, Source control, Flowchart, New file: in this order, each named by its word.
+    const names = await rail.evaluate((el) => [...el.querySelectorAll<HTMLElement>(":scope > button")].map((b) => b.getAttribute("aria-label") ?? b.textContent?.trim()));
+    expect(names).toEqual(["Files", "Search", "Source control", "Flowchart", "New file"]);
+    for (const b of await rail.locator(":scope > button").all()) {
+      const r = (await b.boundingBox())!;
+      expect(Math.min(r.width, r.height)).toBeGreaterThanOrEqual(24);
+    }
+    // The Files header: New file, New folder, Import files, then the menu.
+    expect(await page.locator(".sidebar-actions").evaluate((el) => [...el.children].map((c) => c.id))).toEqual(["new-file", "new-folder", "import-files", "file-actions"]);
+    await expect(files(page)).toHaveAttribute("aria-controls", "sidebar");
     await expect(files(page)).toHaveAttribute("aria-expanded", "true");
-    await expect(files(page)).toHaveAttribute("aria-haspopup", "dialog");
-    await expect(files(page)).toHaveAttribute("aria-controls", "files-popover");
-    const [b, p] = await Promise.all([box(page, ".drawer-toggle"), box(page, "#files-popover")]);
-    expect(p.y, "under Files").toBeGreaterThanOrEqual(b.y + b.height);
-    expect(Math.abs(p.x - b.x), "aligned with Files").toBeLessThanOrEqual(8);
-    expect(await axe(page), "axe with the popover open").toEqual([]);
-    // Escape closes it and gives the focus back to Files.
-    await treeItem(page, "main.py").focus();
-    await page.keyboard.press("Escape");
-    await expect(pop(page)).toBeHidden();
-    await expect(files(page)).toBeFocused();
+    await expect(files(page)).not.toHaveAttribute("aria-haspopup");
+    expect(await axe(page), "axe with the sidebar shown").toEqual([]);
+    // Files hides the sidebar (the code takes its room) and shows it again, from the keyboard too.
+    await files(page).click();
     await expect(files(page)).toHaveAttribute("aria-expanded", "false");
-    // Enter on Files opens it with the focus inside, on the tree.
+    await expect(page.locator("#sidebar")).toBeHidden();
+    await files(page).focus();
     await page.keyboard.press("Enter");
-    await expect(pop(page)).toBeVisible();
-    expect(await page.evaluate(() => document.activeElement?.closest("#files-popover [role=tree]") !== null), "focus in the tree").toBe(true);
-    // Choosing a file closes it and takes the focus to the code.
-    await treeItem(page, "calc.py").focus();
-    await page.keyboard.press("Enter");
-    await expect(page.locator('.cm-content[aria-label="Code editor, calc.py"]')).toBeFocused();
-    await expect(pop(page)).toBeHidden();
-    // A press elsewhere closes it, and the press does what it does (the editor takes the focus).
-    await showFiles(page);
-    await expect(pop(page)).toBeVisible();
-    await page.locator(".cm-content").click();
-    await expect(pop(page)).toBeHidden();
-    await expect(page.locator(".cm-content")).toBeFocused();
-    // Files itself toggles it.
-    await files(page).click();
-    await expect(pop(page)).toBeVisible();
-    await files(page).click();
-    await expect(pop(page)).toBeHidden();
-    await expect(files(page)).toBeFocused();
+    await expect(files(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#sidebar")).toBeVisible();
+    // Choosing a file keeps the sidebar and takes the focus to the code.
+    await openFromTree(page, "calc.py");
+    await expect(page.locator("#sidebar")).toBeVisible();
   });
 
-  test("the popover stays open for its own menus and dialogs, and Escape in a menu closes only the menu", async ({ page }) => {
+  test("the Files menu: Escape closes only the menu; Import files is one press in the header", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK]);
-    await expect(pop(page)).toBeVisible();
     await page.locator("#file-actions").click();
     const menu = page.getByRole("menu", { name: "File actions" });
     await expect(menu).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(menu).toBeHidden();
-    await expect(pop(page)).toBeVisible();
+    await expect(page.locator("#sidebar")).toBeVisible();
     await expect(page.locator("#file-actions")).toBeFocused();
+    // Import files opens the browser's file chooser.
+    const chooser = page.waitForEvent("filechooser");
+    await page.locator("#import-files").click();
+    expect((await chooser).isMultiple()).toBe(true);
   });
 
-  test("the rail's other items stay reachable: Search, the sync status, Capture, Shortcuts, Settings and About in the top row, New file in the popover, the chart on its board", async ({ page }) => {
+  test("the top bar: the mark, the breadcrumb, Search, the sync status, then Layout, Shortcuts, Settings and About as words; Source control is the sync status's press", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK]);
     await openFromTree(page, "main.py");
     const top = page.locator(".topbar");
-    for (const name of ["Search or run a command", "Capture snippet of the selected lines", "Shortcuts", "Settings"]) {
+    await expect(top.locator(".brand-mark")).toBeVisible();
+    await expect(top.getByRole("list", { name: "Open file" })).toContainText("main.py");
+    for (const name of ["Search or run a command", "Layout", "Shortcuts", "Settings"]) {
       const control = top.getByRole("button", { name, exact: true });
       await expect(control, name).toBeVisible();
       const b = (await control.boundingBox())!;
@@ -195,49 +197,47 @@ test.describe("from 1100 px", () => {
     }
     await expect(top.getByRole("link", { name: "About ExecFlow" })).toBeVisible();
     await expect(top.locator("#sync-slot")).toBeVisible();
-    await expect(top.locator(".brand-mark")).toBeVisible();
+    // Capture and Share are the code board's tab bar's words now, beside Focus.
+    await expect(page.locator(".editor-head #snippet-button")).toBeVisible();
+    await expect(page.locator(".editor-head #share-button")).toBeVisible();
     await expect(page.locator("#chart-board")).toBeVisible();
-    // Shortcuts and Settings open from the keyboard.
+    // Settings opens from the keyboard and gives the focus back.
     await top.getByRole("button", { name: "Settings", exact: true }).press("Enter");
     await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("#settings-button")).toBeFocused();
-    await showFiles(page);
-    await expect(pop(page).locator("#new-file")).toBeVisible();
-    await pop(page).locator("#new-file").click();
-    await expect(pop(page).locator(".tree-input")).toBeFocused();
+    // Source control (not connected): the Connect GitHub dialog, the focus back on the rail's button.
+    await page.locator("#quick-source").click();
+    await expect(page.getByRole("dialog", { name: "Connect GitHub" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#quick-source")).toBeFocused();
+    // New file on the rail starts a name in the sidebar.
+    await page.locator("#quick-new-file").click();
+    await expect(page.locator("#sidebar .tree-input")).toBeFocused();
   });
 
-  test("motion: the popover fades in and rises 4 px over 160 ms ease-out, leaves over 120 ms ease-in; none under reduced motion", async ({ page }) => {
-    // Every Element.animate call on the popover, as asked (not as sampled mid-flight).
-    await page.addInitScript(() => {
-      const calls: unknown[] = [];
-      (window as unknown as { popCalls: unknown[] }).popCalls = calls;
-      const animate = Element.prototype.animate;
-      Element.prototype.animate = function (this: Element, frames, options) {
-        if (this.id === "files-popover") calls.push({ frames, options });
-        return animate.call(this, frames, options);
-      };
-    });
+  test("the status bar: language, Ln/Col, Spaces, UTF-8, the runtime state and the theme, in mono; the theme opens Settings", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK]);
+    await openFromTree(page, "main.py");
+    const bar = page.locator(".statusbar");
+    await expect(bar).toBeVisible();
+    const order = await bar.evaluate((el) => [...el.children].filter((c) => c.getClientRects().length > 0 && !c.matches(".status-gap")).map((c) => c.id));
+    expect(order).toEqual(["status-lang", "status-pos", "status-indent", "status-encoding", "status-runtime", "status-theme"]);
+    await expect(page.locator("#status-indent")).toHaveText("Spaces: 4");
+    await expect(page.locator("#status-encoding")).toHaveText("UTF-8");
+    // The default theme, without "ExecFlow" or "(match device)".
+    await expect(page.locator("#status-theme")).toHaveText("Theme: Electric Blue");
+    expect(await bar.evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/Geist Mono/);
+    const b = await box(page, ".statusbar");
+    expect(Math.round(b.height), "a 26 px bar").toBe(26);
+    const theme = page.locator("#status-theme");
+    expect(Math.min((await theme.boundingBox())!.height, (await theme.boundingBox())!.width)).toBeGreaterThanOrEqual(24);
+    await theme.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(pop(page)).toBeHidden();
-    const calls = () => page.evaluate(() => (window as unknown as { popCalls: unknown[] }).popCalls.splice(0));
-    await calls();
-    await files(page).click();
-    await page.keyboard.press("Escape");
-    await expect(pop(page)).toBeHidden();
-    expect(await calls()).toEqual([
-      { frames: [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "translateY(0)" }], options: { duration: 160, easing: "cubic-bezier(0, 0, 0.2, 1)" } },
-      { frames: [{ opacity: 1, transform: "translateY(0)" }, { opacity: 0, transform: "translateY(4px)" }], options: { duration: 120, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" } },
-    ]);
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await files(page).click();
-    await expect(pop(page)).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(pop(page)).toBeHidden();
-    expect(await calls(), "no motion under reduced motion").toEqual([]);
+    await expect(theme).toBeFocused();
   });
 
   test("Signal light's console is the light console ground here (the code board's foot); under 1100 px it is the dark console card", async ({ page }) => {
@@ -262,7 +262,7 @@ test.describe("from 1100 px", () => {
 test.describe("under 1100 px", () => {
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1000, height: 800 }));
 
-  test("nothing moves: Run and the runtime state in the top bar, the rail and the sidebar column, no strip and no popover", async ({ page }) => {
+  test("nothing moves: Run and the runtime state in the top bar, Input in the console's bar, the rail and the sidebar column, no strip", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [OK]);
     await openFromTree(page, "main.py");
@@ -270,15 +270,18 @@ test.describe("under 1100 px", () => {
     await expect(page.locator(".run-strip")).toBeHidden();
     await expect(page.locator(".rail")).toBeVisible();
     await expect(page.locator(".main > #sidebar")).toBeVisible();
-    await expect(pop(page)).toBeHidden();
-    await expect(files(page)).not.toHaveAttribute("aria-haspopup");
+    await expect(files(page)).toHaveAttribute("aria-controls", "sidebar");
     await expect(page.locator("#runlog #receipt")).toHaveCount(1);
-    // Crossing to the wide shell and back moves the outcome and the list with it.
+    await expect(page.locator(".panel-actions > #input-toggle")).toBeVisible();
+    await expect(page.locator("#args-button, #status-theme, #layout-button")).toHaveCount(0);
+    // Crossing to the wide shell and back moves the outcome and the run's tools with it.
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(page.locator(".run-strip #receipt")).toHaveCount(1);
-    await expect(pop(page).locator("#sidebar")).toHaveCount(1);
+    await expect(page.locator(".panel-bar #receipt")).toHaveCount(1);
+    await expect(page.locator(".run-tools > #input-toggle")).toHaveCount(1);
+    await expect(page.locator(".main > #sidebar")).toBeVisible();
     await page.setViewportSize({ width: 1000, height: 800 });
     await expect(page.locator("#runlog #receipt")).toHaveCount(1);
+    await expect(page.locator(".panel-actions > #input-toggle")).toHaveCount(1);
     await expect(page.locator(".main > #sidebar")).toBeVisible();
   });
 });

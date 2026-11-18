@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import { BOARD_GAP, besideNow, chartDefault, chartMax, CHART_MIN, CODE_MIN, codeKeep, CONSOLE_GAP, consoleDefault, consoleMax, CONSOLE_MIN } from "./board-size";
 import { sizeModel } from "./splitter";
 
-// The boards' width at 1440 px and 1100 px: the window less the canvas's 16 px on each side.
-const W1440 = 1440 - 32;
-const W1100 = 1100 - 32;
+// The boards' width at 1440 px and 1100 px (Workbench): the window less the 48 px rail, the 224 px
+// files and their 1 px splitter.
+const W1440 = 1440 - 48 - 224 - 1;
+const W1100 = 1100 - 48 - 224 - 1;
 
 describe("the board sizes (Flow Board layout fix, 2026-11-02)", () => {
+  it("the boards meet at Workbench's 9 px splitter column (stage 2: no canvas between them)", () => {
+    expect(BOARD_GAP).toBe(9);
+  });
+
   it("the code keeps 420 px, or 420 + 8 + 320 with the output beside it", () => {
     expect(codeKeep(false)).toBe(CODE_MIN);
     expect(codeKeep(true)).toBe(CODE_MIN + CONSOLE_GAP + CONSOLE_MIN);
@@ -14,7 +19,9 @@ describe("the board sizes (Flow Board layout fix, 2026-11-02)", () => {
   });
 
   it("the chart's default is half of the boards (two equal boards), and its largest leaves the code its room", () => {
-    expect(chartDefault(W1440)).toBe((W1440 - BOARD_GAP) / 2);
+    expect(chartDefault(W1440)).toBe(Math.round((W1440 - BOARD_GAP) / 2));
+    // Halves, unless that leaves the code under its least width: then the chart gives way.
+    expect(chartDefault(W1100)).toBe(W1100 - BOARD_GAP - CODE_MIN);
     expect(chartMax(W1440, false)).toBe(W1440 - BOARD_GAP - CODE_MIN);
     expect(chartMax(W1440, true)).toBe(W1440 - BOARD_GAP - 748);
     // At 1100 px the default split leaves both boards above their least widths.
@@ -26,9 +33,9 @@ describe("the board sizes (Flow Board layout fix, 2026-11-02)", () => {
     expect(besideNow(false, W1440, true)).toBe(false);
     expect(besideNow(true, W1440, true)).toBe(true);
     expect(besideNow(true, W1440, false)).toBe(true);
-    // 1100 px with the chart shown: 1068 - 16 - 320 = 732 < 748, so it falls back below.
+    // 1100 px with the chart shown: 827 - 9 - 320 = 498 < 748, so it falls back below.
     expect(besideNow(true, W1100, true)).toBe(false);
-    // With the chart hidden the whole 1068 px is the code board's.
+    // With the chart hidden the whole 827 px is the code board's.
     expect(besideNow(true, W1100, false)).toBe(true);
     // The exact edge: one pixel short falls back.
     expect(besideNow(true, 748 + BOARD_GAP + CHART_MIN, true)).toBe(true);
@@ -43,12 +50,12 @@ describe("the board sizes (Flow Board layout fix, 2026-11-02)", () => {
 
   it("a stored chart width is clamped when the window narrows, and comes back when it widens", () => {
     let width = W1440;
-    const chart = sizeModel({ min: CHART_MIN, max: () => chartMax(width, false), wanted: 900 });
-    expect(chart.value).toBe(900);
+    const chart = sizeModel({ min: CHART_MIN, max: () => chartMax(width, false), wanted: 700 });
+    expect(chart.value).toBe(700);
     width = W1100;
     expect(chart.value).toBe(chartMax(W1100, false));
     width = W1440;
-    expect(chart.value).toBe(900);
+    expect(chart.value).toBe(700);
   });
 
   it("a default that follows the window follows it until a size is chosen, and again after a reset", () => {
@@ -57,10 +64,10 @@ describe("the board sizes (Flow Board layout fix, 2026-11-02)", () => {
     expect([chart.following, chart.value]).toEqual([true, chartDefault(W1440)]);
     width = W1100;
     expect(chart.value).toBe(chartDefault(W1100));
-    chart.set(400);
-    expect([chart.following, chart.value]).toEqual([false, 400]);
+    chart.set(380);
+    expect([chart.following, chart.value]).toEqual([false, 380]);
     width = W1440;
-    expect(chart.value).toBe(400);
+    expect(chart.value).toBe(380);
     chart.reset();
     expect([chart.following, chart.value]).toEqual([true, chartDefault(W1440)]);
   });
