@@ -194,6 +194,37 @@ describe("step model", () => {
     for (const words of Object.values(NO_STEPS_WORDS)) expect(words).toMatch(/^[A-Z][\x20-\x7e]+\.$/);
   });
 
+  test("connector counts at any step: the steps' own connectors so far, the chart's counts at the end", async () => {
+    const [chart] = await charts(SUM_EVENS);
+    const m = model(chart, sumEvensTrace());
+    const ct = traceChart(chart, sumEvensTrace(), true)!;
+    const so = new Array(chart.edges.length).fill(0);
+    expect([...m.edgeCountsAt(0)]).toEqual(so);
+    for (let k = 1; k < m.total; k++) {
+      for (const e of m.step(k).edges) so[e]++;
+      expect([...m.edgeCountsAt(k)], `step ${k}`).toEqual(so);
+    }
+    expect([...m.edgeCountsAt(m.total - 1)]).toEqual(ct.counts);
+    // A fresh copy each time, clamped like the others.
+    const a = m.edgeCountsAt(99);
+    a[0] = 1234;
+    expect(m.edgeCountsAt(99)[0]).not.toBe(1234);
+    expect([...m.edgeCountsAt(-3)]).toEqual(new Array(chart.edges.length).fill(0));
+  });
+
+  test("connector counts at any step on a long run match a replay (checkpoints)", async () => {
+    const [chart] = await charts("t = 0\nfor i in range(400):\n    t += i\nprint(t)\n");
+    const lines = [1];
+    for (let i = 0; i < 400; i++) lines.push(2, 3);
+    lines.push(2, 4);
+    const m = model(chart, moduleTrace(lines));
+    const so = new Array(chart.edges.length).fill(0);
+    for (let k = 1; k < m.total; k++) {
+      for (const e of m.step(k).edges) so[e]++;
+      if (k % 37 === 0 || k === m.total - 1) expect([...m.edgeCountsAt(k)], `step ${k}`).toEqual(so);
+    }
+  });
+
   test("out-of-range step numbers are clamped, never thrown", async () => {
     const [chart] = await charts(SUM_EVENS);
     const m = model(chart, sumEvensTrace());

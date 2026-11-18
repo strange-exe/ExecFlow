@@ -632,8 +632,12 @@ test.describe("phones", () => {
     // its last row, with the panel's own ground below); the dock's foot follows it.
     await page.locator("#ptab-problems").click();
     await expect(page.locator(".problem").first()).toBeVisible();
-    const [list, view] = [await box(page, ".problems-view"), await box(page, "#panel-problems")];
-    expect(Math.round(list.y + list.height), "the list reaches the foot of the view").toBe(Math.round(view.y + view.height));
+    // Both feet in one read: a Python run's stepper rows can join the dock a beat after the run
+    // (when its steps are ready), and two reads could straddle that.
+    const [listFoot, viewFoot] = await page.evaluate(() =>
+      [".problems-view", "#panel-problems"].map((s) => Math.round(document.querySelector(s)!.getBoundingClientRect().bottom)),
+    );
+    expect(listFoot, "the list reaches the foot of the view").toBe(viewFoot);
     await page.locator("#ptab-output").click();
     // The lifted exception: a full-width 44 px button that opens the Code view at calc.py line 2.
     const exception = page.locator("#run-exception");

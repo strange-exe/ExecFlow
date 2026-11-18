@@ -44,9 +44,9 @@ test.describe("from 1100 px", () => {
     await openFromTree(page, "main.py");
     const strip = page.locator("#panel > .run-strip");
     await expect(strip).toBeVisible();
-    // The DOM order is the reading and the Tab order (room is left after them for the stepper).
+    // The DOM order is the reading and the Tab order: then the stepper and its variables row (stage 3b).
     const order = await strip.evaluate((el) => [...el.children].map((c) => c.id || c.className));
-    expect(order).toEqual(["run-button", "run-tools"]);
+    expect(order).toEqual(["run-button", "run-tools", "run-steps", "run-vars"]);
     expect(await strip.locator(".run-tools").evaluate((el) => [...el.children].map((c) => c.id))).toEqual(["input-toggle", "args-button"]);
     await expect(page.locator("#args-button")).toBeVisible();
     const [s, bar, code] = await Promise.all([box(page, "#panel > .run-strip"), box(page, ".panel-bar"), box(page, "#editor-area")]);

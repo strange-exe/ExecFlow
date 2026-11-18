@@ -151,6 +151,18 @@
   .fc-trace-new [data-part="trace"],
   .fc-trace-new [data-part="count"] { animation: none; }
 }
+/* The step-through (Workbench stage 3; flowchart-view.ts paintStep, gated on data-step so an edit's
+   stale trace drops it at once): only the connectors taken by the step shown keep the trace's ink
+   (data-taken), and their chips count the times so far. The step's box gets a 2.5 px outline in the
+   focus pink (a thicker shape as well as a colour) and an untaken connector's arrowhead the plain
+   edge: paintStep sets those on the elements' own styles, where render.ts paints their colours. The
+   outline grows with the interface spring; under reduced motion it just changes. */
+.fc-view[data-step] g[data-edge]:not([data-taken]) > [data-part="trace"],
+.fc-view[data-step] [data-part="count"]:not([data-taken]) { display: none; }
+.fc-view[data-step] .fc-node > :is(rect, polygon, circle):not(.fc-ring) { transition: stroke-width 220ms var(--spring); }
+@media (prefers-reduced-motion: reduce) {
+  .fc-view[data-step] .fc-node > :is(rect, polygon, circle):not(.fc-ring) { transition: none; }
+}
 
 /* ------------------------------------------------------------------ the legend (quiet tier) */
 /* Under the chart: the shapes it uses, each drawn by render.ts in its boxes' own colours, then its

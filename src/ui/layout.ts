@@ -144,6 +144,12 @@ export interface Layout {
   runOutcome: HTMLElement;
   /** The run strip's tools after Run (1100 px and wider): workbench.ts moves Input and Arguments here. */
   runTools: HTMLElement;
+  /**
+   * The run strip's stepper (run-stepper.ts fills it) and the variables row under it: at the strip's
+   * end from 1100 px, the dock's first rows on phones; not shown from 900 to 1099 px.
+   */
+  runSteps: HTMLElement;
+  runVars: HTMLElement;
   /** Phones: "No problems" or "2 problems, line 12" at the dock's foot: opens Problems. */
   problemsButton: HTMLButtonElement;
   problemsWords: HTMLElement;
@@ -432,6 +438,9 @@ export function createLayout(root: HTMLElement): Layout {
   // workbench.ts) ends the console's head; on phones it is in the dock's strip.
   const runOutcome = h("div", { class: "run-outcome" });
   const runTools = h("div", { class: "run-tools" });
+  // The stepper and the variables row (stage 3b): a run's steps, filled by run-stepper.ts.
+  const runSteps = h("div", { class: "run-steps", id: "run-steps" });
+  const runVars = h("div", { class: "run-vars", id: "run-vars" });
   const problemsWords = h("span", { class: "problems-words" }, "No problems");
   const problemsButton = h(
     "button",
@@ -673,6 +682,8 @@ export function createLayout(root: HTMLElement): Layout {
     // Layout only from 1100 px: under it the output always stands under the code. The theme's name,
     // the indent and the encoding are the wide status bar's.
     if (!wide) for (const el of [layoutButton, status.theme, indentFact, encodingFact, statusGap, runTools]) el.remove();
+    // From 900 to 1099 px the strip isn't shown: the stepper waits out of the page.
+    if (!wide && !narrow) for (const el of [runSteps, runVars]) el.remove();
     if (narrow) {
       // The top bar heads the work column: the mark, the file's name (Files), then the sync status,
       // Search and Settings.
@@ -682,7 +693,8 @@ export function createLayout(root: HTMLElement): Layout {
       topEnd.append(syncSlot, paletteButton, settingsButton);
       // The segment under the top bar; the dock: the strip, the console, then its foot.
       work.insertBefore(viewBar, center);
-      runStrip.append(hideKeyboard, runOutcome, status.runtime, runButton);
+      // The stepper and the variables first (each a row of its own), then the strip's own row.
+      runStrip.append(runSteps, runVars, hideKeyboard, runOutcome, status.runtime, runButton);
       dockFoot.append(problemsButton, dockToggle);
       statusbar.append(status.lang, status.pos, noticeHost, status.shortcuts, aboutLink);
       headTools.append(snippetButton);
@@ -699,7 +711,8 @@ export function createLayout(root: HTMLElement): Layout {
       if (wide) {
         topEnd.append(syncSlot, layoutButton, status.shortcuts, settingsButton, aboutLink);
         shareButton.after(snippetButton);
-        runStrip.append(runButton, runTools);
+        // The stepper at the strip's end; the variables a row of their own under it.
+        runStrip.append(runButton, runTools, runSteps, runVars);
         panelBar.insertBefore(runOutcome, panelHeadTools);
         problemsButton.remove();
         statusbar.append(status.lang, status.pos, indentFact, encodingFact, statusGap, status.runtime, status.theme);
@@ -1393,6 +1406,8 @@ export function createLayout(root: HTMLElement): Layout {
     chartOnBoard,
     runOutcome,
     runTools,
+    runSteps,
+    runVars,
     problemsButton,
     problemsWords,
     onWideChange: (listener) => void wideListeners.push(listener),

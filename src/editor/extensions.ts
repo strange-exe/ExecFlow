@@ -29,6 +29,7 @@ import { editorTheme, foldMarker, highlightStyle } from "./highlight";
 import { languageForPath, languageSupport } from "./language-support";
 import { forgetWaiting } from "./late-data";
 import { runMarks } from "./run-marks";
+import { runCountColumn, runStepExtension } from "./run-step";
 import { selectionLayer } from "./selection-layer";
 
 /** Stable id of an open file (not its path, so a rename keeps history and diagnostics). */
@@ -360,6 +361,8 @@ export function fileExtensions(path: string): Extension {
     filePath.of(path),
     EditorView.contentAttributes.of({ "aria-label": `Code editor, ${path}` }),
     EditorView.editorAttributes.of({ "data-language": lang ?? "plain" }),
+    // Python's runs have steps: a column held for their counts (run-step.ts).
+    lang === "python" ? runCountColumn : [],
   ];
 }
 
@@ -367,6 +370,8 @@ export const BASE: Extension = [
   Prec.highest(keymap.of([...APP_KEYS])),
   Prec.highest(keymap.of([ESCAPE_KEY, ENTER_KEY])),
   pickedByHand,
+  // The step-through's marks (run-step.ts); a Python file's count column comes with fileExtensions.
+  runStepExtension,
   lineNumbers(),
   foldGutter({ markerDOM: foldMarker }),
   lintGutter({ markerFilter: withoutCallSites }),

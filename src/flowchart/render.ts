@@ -368,7 +368,8 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
   for (const [i, e] of layout.edges.entries()) {
     const m = marks[i] ?? null;
     const hue = edgeHue(e.label);
-    const g = el(doc, "g", live ? { "data-from": e.from, "data-to": e.to, "data-kind": e.kind, ...(m ? { "data-count": m.count } : {}) } : {});
+    // data-edge: the layout edge's index, so the step-through (flowchart-view.ts) finds its line and chip.
+    const g = el(doc, "g", live ? { "data-edge": i, "data-from": e.from, "data-to": e.to, "data-kind": e.kind, ...(m ? { "data-count": m.count } : {}) } : {});
     const d = edgePath(e);
     if (live || !m) g.appendChild(el(doc, "path", { d, style: STYLE.edge(hue) }));
     if (m) g.appendChild(el(doc, "path", live ? { d, pathLength: 1, "data-part": "trace", style: `${STYLE.trace(hue, m.width)};--fc-i:${m.step}` } : { d, style: STYLE.trace(hue, m.width) }));
@@ -378,7 +379,11 @@ export function renderChart(chart: FlowChart, layout: Layout, doc: SvgDocument =
       t.textContent = e.label;
       g.appendChild(t);
     }
-    if (m?.chip) chips.appendChild(chip(doc, m, STYLE, live));
+    if (m?.chip) {
+      const c = chip(doc, m, STYLE, live);
+      if (live) c.setAttribute("data-edge", String(i));
+      chips.appendChild(c);
+    }
     edges.appendChild(g);
   }
   svg.appendChild(edges);

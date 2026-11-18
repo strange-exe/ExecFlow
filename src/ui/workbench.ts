@@ -42,6 +42,7 @@ import type { CodeLinkDeps } from "./code-link-dialog";
 import { onLinkFragment, type LinkFragment } from "./link-fragment";
 import type { ChartHost, FlowchartView } from "./flowchart-view";
 import { noteRun } from "../flowchart/last-run";
+import { createRunStepper } from "./run-stepper";
 import { FileTree } from "./tree";
 import { starterText, type TreeNode } from "./tree-model";
 
@@ -203,6 +204,20 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   /** The Flowchart view, a lazy chunk loaded when its tab or phone view first opens (see chartHost). */
   let chartView: FlowchartView | null = null;
   /**
+   * The run strip's stepper (stage 3b): the Flowchart view hands it a Python run's steps (chartHost
+   * steps); each step shown puts the line counts and the step's line in the code and the step on the
+   * chart.
+   */
+  const stepper = createRunStepper(L.runSteps, L.runVars, {
+    step: (src, k, user) => {
+      manager?.showRunStep(src.fileId, { counts: src.model.lineCountsAt(k), now: src.model.step(k).line }, user);
+      src.paint(k);
+    },
+    // A no-op when an edit has already cleared the file's marks (showRunStep): no transaction of
+    // ours lands among the editor's reads of typed input.
+    cleared: (fileId) => void manager?.showRunStep(fileId, null, false),
+  });
+  /**
    * Long lines wrap when Settings says so, and always below 900 px (option A, 2026-11-03): a phone's
    * code never scrolls sideways. The setting itself is kept as chosen.
    */
@@ -240,6 +255,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
               scheduleCheck(id);
               // An edit is the next step after a failed run: Run takes its filled style again.
               editedAfterRun();
+              // The steps were of the text before this edit (the code's counts went with it).
+              if (stepper.hasSteps() && stepper.fileId() === id) stepper.show(null);
               if (id === editors.activeId) chartView?.docChanged();
             },
             // Ln/Col in the editor's own update, not a frame of its own after the key (see showPosition).
@@ -813,6 +830,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     renderStatus();
     renderLastRun();
     schedulePosition();
+    // The stepper shows the open file's run only; the chart's redraw brings it back (if it has one).
+    if (stepper.fileId() !== null && stepper.fileId() !== editors.activeId) stepper.show(null);
     chartView?.fileChanged();
     // The run strip's count names a line of the open file.
     scheduleProblems();
@@ -1452,6 +1471,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     for (const s of ticket.sources) byPath.set(s.path, { path: s.path, text: s.text });
     const current = settings.get();
     runSerial++;
+    // The last run's steps go while this one runs (its own come with its trace).
+    if (stepper.hasSteps()) stepper.show(null);
     output.begin(nameOf(file.path), args.shown);
     // Code the last run wrote and nobody kept is left out now (it would be built into this run).
     discardHeld("next-run");
@@ -1488,6 +1509,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       );
       // Flow Board run trace: the chart shows the path this run took (Python; none for C and C++).
       noteRun(file.id, byPath.get(file.path)?.text ?? "", result.trace);
+      // Its steps come from the chart (the stepper, the code's counts): with the view not loaded yet
+      // (a phone that never opened the chart), it loads and draws off screen. Once loaded, its own
+      // run listener does that.
+      if (result.trace && !chartView && file.id === editors.activeId) void ensureChart().then((v) => v.prepareSteps(), () => {});
       // A file deleted during the run takes its errors with it; a renamed one keeps them under its
       // new name (endBuild stores a closed file's results under the path the tool saw).
       const marks =[...result.diagnostics, ...callSiteMarks(result.diagnostics)].filter((d) => !(d.path && moves.get(d.path) === null));
@@ -1788,6 +1813,10 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     },
     showCode: () => {
       if (L.narrow()) L.showView("code");
+    },
+    // Only the open file's steps: a draw that finishes after a switch has nothing to show.
+    steps: (shown) => {
+      if (shown === null || shown.fileId === editors.activeId) stepper.show(shown);
     },
   };
   let loadingChart: Promise<FlowchartView> | null = null;

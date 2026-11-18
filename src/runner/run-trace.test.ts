@@ -52,7 +52,7 @@ describe("variable values on the wire", () => {
     expect(checkTrace(t)).toEqual(t);
   });
 
-  it("refuses values that are off: the whole trace goes", () => {
+  it("drops values that are off, and only the values: the trace's lines stay", () => {
     const bad: [string, unknown, unknown][] = [
       ["names not strings", values({ names: [1] }), bytes()],
       ["texts not a list", values({ texts: "x" }), bytes()],
@@ -76,10 +76,19 @@ describe("variable values on the wire", () => {
       ["values JSON broken", "{", bytes()],
       ["deltas not bytes", values({}), [1, 0, 0]],
     ];
-    for (const [why, v, d] of bad) expect(traceFromPython([meta, bytes(0), events, v, d]), why).toBeUndefined();
+    const lines = traceFromPython([meta, bytes(0), events])!;
+    expect(lines.values).toBeUndefined();
+    for (const [why, v, d] of bad) {
+      const t = traceFromPython([meta, bytes(0), events, v, d]);
+      expect(t, why).toEqual(lines);
+      expect(t && "values" in t, why).toBe(false);
+    }
     const ok = traceFromPython([meta, bytes(0), events, values({}), bytes()])!;
-    expect(checkTrace({ ...ok, values: { ...ok.values!, deltas: new Int32Array(3 * MAX_VALUE_DELTAS + 3) } })).toBeUndefined();
-    expect(checkTrace({ ...ok, values: "x" })).toBeUndefined();
+    expect(checkTrace({ ...ok, values: { ...ok.values!, deltas: new Int32Array(3 * MAX_VALUE_DELTAS + 3) } })).toEqual(lines);
+    expect(checkTrace({ ...ok, values: "x" })).toEqual(lines);
+    expect(checkTrace({ ...ok, values: null })).toEqual(lines);
+    // Broken lines still lose the whole trace, values or not.
+    expect(checkTrace({ ...ok, events: Int32Array.from([0]) })).toBeUndefined();
     // Four parts is neither form.
     expect(traceFromPython([meta, bytes(0), events, values({})])).toBeUndefined();
   });

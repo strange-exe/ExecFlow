@@ -29,8 +29,10 @@ import {
 } from "../flowchart/export";
 import { kindSwatch, LEGEND, renderChart, stepList, TRACE_LEGEND, traceSwatch } from "../flowchart/render";
 import { lastRun, onRun } from "../flowchart/last-run";
-import { ranUntraced, traceChart, traceSummary, type ChartTrace } from "../flowchart/trace";
+import { NO_STEPS_WORDS, stepsFor, type StepModel, type StepsResult } from "../flowchart/steps";
+import { chipText, edgeKey, ranUntraced, traceChart, traceSummary, type ChartTrace } from "../flowchart/trace";
 import { TRACE_STEPS } from "../runner/run-trace";
+import type { StepsShown } from "./run-stepper";
 import { openModal } from "./dialogs";
 import { downloadBlob, h, svg } from "./dom";
 import { icon, pathData } from "./icons";
@@ -55,6 +57,11 @@ export interface ChartHost {
   caretLine(): number | null;
   /** Phones: the code is another view; going to the code shows it first. */
   showCode(): void;
+  /**
+   * The step-through of the chart drawn (the run strip's stepper, run-stepper.ts): its steps with a
+   * way to show any step on this chart, why it has none, or nothing (no chart).
+   */
+  steps(shown: StepsShown): void;
 }
 
 export interface FlowchartView {
@@ -65,6 +72,11 @@ export interface FlowchartView {
   docChanged(): void;
   /** The caret moved in the open file. */
   caretMoved(): void;
+  /**
+   * A run's steps are wanted while the chart is off screen (a phone's code view, a hidden board):
+   * the chart is drawn anyway, so the stepper and the code's counts get the run's steps.
+   */
+  prepareSteps(): void;
 }
 
 type State = "none" | "other" | "empty" | "loading" | "ready" | "too-big" | "no-functions" | "failed" | "timeout";
@@ -199,6 +211,9 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
       banner.hidden = true;
       traceCaption.hidden = true;
       root.dataset.trace = "none";
+      unpaint();
+      // No chart, no steps (a redraw's loading keeps the stepper until the chart is back).
+      if (!loading) host.steps(null);
     }
   }
 
@@ -373,6 +388,85 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     if (fitting) fit();
     else applyZoom();
     markCaret(false);
+    publishSteps(result, run, program, key);
+  }
+
+  // ---------------------------------------------------------------- the step-through
+  /** The steps of one run on one chart (the same key as the trace): a redraw keeps the stepper's step. */
+  let stepsCache: { key: string; value: StepsResult } | null = null;
+  /** The chart's steps go to the run strip's stepper; it calls back to show a step here (paintStep). */
+  function publishSteps(result: FlowChart, run: ReturnType<typeof lastRun>, program: boolean, key: string) {
+    unpaint();
+    const id = shown!.id;
+    if (!run || stepsCache?.key !== key) stepsCache = { key, value: stepsFor(result, run?.trace, { program, lang: shown!.lang }) };
+    const steps = stepsCache.value;
+    if (!steps.ok) return host.steps({ fileId: id, words: NO_STEPS_WORDS[steps.reason] });
+    host.steps({ fileId: id, model: steps, paint: (k) => paintStep(result, steps, k) });
+  }
+  /**
+   * Elements paintStep restyled, with what their own style said before: render.ts paints colours
+   * on the elements themselves (the export needs them), so the step's marks go there too, through
+   * the style object (never a style attribute string), and come off the same way.
+   */
+  const restyled = new Map<SVGElement, Record<string, string>>();
+  function restyle(el: SVGElement, props: Record<string, string> | null) {
+    if (props) {
+      if (!restyled.has(el)) restyled.set(el, Object.fromEntries(Object.keys(props).map((p) => [p, el.style.getPropertyValue(p)])));
+      for (const [p, v] of Object.entries(props)) el.style.setProperty(p, v);
+    } else {
+      const was = restyled.get(el);
+      if (!was) return;
+      for (const [p, v] of Object.entries(was)) el.style.setProperty(p, v);
+      restyled.delete(el);
+    }
+  }
+  /** Takes the step's marks off the chart (an edit, no chart). */
+  function unpaint() {
+    delete root.dataset.step;
+    for (const el of [...restyled.keys()]) restyle(el, null);
+    if (!svgEl) return;
+    for (const g of svgEl.querySelectorAll("[data-now], [data-taken]")) {
+      g.removeAttribute("data-now");
+      g.removeAttribute("data-taken");
+    }
+  }
+  const NOW = { stroke: "var(--focus)", "stroke-width": "2.5px" };
+  const PLAIN_HEAD = { fill: "var(--border-strong)" };
+  /**
+   * Step k on the chart drawn now: its box is the current one (data-now, and a 2.5 px outline in
+   * the focus pink: a thicker shape as well as a colour), the connectors taken so far keep the
+   * trace's ink (data-taken; the rest show plain, flowchart.css), and each chip counts the times so far.
+   */
+  function paintStep(result: FlowChart, model: StepModel, k: number) {
+    if (!svgEl || !layout || chart !== result) return;
+    for (const el of [...restyled.keys()]) if (!svgEl.contains(el)) restyled.delete(el);
+    const s = model.step(k);
+    root.dataset.step = String(s.k);
+    const nowId = String(result.nodes[s.node]?.id ?? -1);
+    for (const g of nodes()) {
+      const now = g.getAttribute("data-node") === nowId;
+      if (now) g.setAttribute("data-now", "true");
+      else g.removeAttribute("data-now");
+      for (const shape of g.querySelectorAll<SVGElement>(":scope > :is(rect, polygon, circle):not(.fc-ring)")) restyle(shape, now ? NOW : null);
+    }
+    // Connectors are counted by the layout's edges (one drawn line can stand for several of the chart's).
+    const counts = model.edgeCountsAt(s.k);
+    const byKey = new Map<string, number>();
+    result.edges.forEach((e, i) => byKey.set(edgeKey(e), (byKey.get(edgeKey(e)) ?? 0) + counts[i]));
+    for (const g of svgEl.querySelectorAll<SVGGElement>("[data-edge]")) {
+      const edge = layout.edges[Number(g.getAttribute("data-edge"))];
+      const n = edge ? (byKey.get(edgeKey(edge)) ?? 0) : 0;
+      if (n > 0) g.setAttribute("data-taken", String(n));
+      else g.removeAttribute("data-taken");
+      if (g.getAttribute("data-part") === "count") {
+        const text = g.querySelector("text");
+        if (text && n > 0) text.textContent = chipText(n);
+        continue;
+      }
+      // A connector the full run took but this step hasn't yet: its arrowhead goes plain too.
+      const head = g.querySelector<SVGElement>(':scope > [data-part="arrow"]');
+      if (head && g.hasAttribute("data-count")) restyle(head, n > 0 ? null : PLAIN_HEAD);
+    }
   }
 
   const nodes = () => (svgEl ? [...svgEl.querySelectorAll<SVGGElement>("g[data-node]")] : []);
@@ -795,11 +889,20 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   // ---------------------------------------------------------------- the run trace
   // A run of the file on screen: its trace goes on the chart now (no new chart is needed: the run
   // is of the text the chart shows, or lastRun finds nothing and the chart stays plain).
+  // Off screen, the chart is drawn anyway (prepareSteps): the stepper and the code's counts need it.
   onRun((fileId) => {
+    if (!visible) {
+      if (fileId === host.file()?.id) prepareSteps();
+      return;
+    }
     if (fileId !== shown?.id || root.dataset.state !== "ready") return;
-    if (visible) drawChosen();
-    else stale = true;
+    drawChosen();
   });
+  function prepareSteps() {
+    if (visible) return;
+    // Drawn off screen at full size; setVisible fits it when it is shown.
+    void draw();
+  }
 
   // ---------------------------------------------------------------- what the workbench calls
   setState("none", "Open a C, C++ or Python file to see its flowchart.");
@@ -817,10 +920,13 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
       // The trace was of the text before this edit: hidden at once (one attribute; flowchart.css),
       // dropped by the redraw.
       if (root.dataset.trace === "shown") root.dataset.trace = "stale";
+      // The step shown goes with it.
+      unpaint();
       schedule(REDRAW_MS);
     },
     caretMoved() {
       markCaret(true);
     },
+    prepareSteps,
   };
 }

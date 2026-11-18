@@ -279,6 +279,17 @@ describe("the run trace on the chart", () => {
   const tracePath = (g: FakeElement) => g.children.find((c): c is FakeElement => c instanceof FakeElement && c.getAttribute("data-part") === "trace");
   const widthOf = (e: FakeElement) => Number(/stroke-width:([\d.]+)/.exec(e.getAttribute("style")!)![1]);
 
+  test("in the view, each connector and its chip carry the layout edge's index (the step-through finds them)", async () => {
+    const { svg, groups, layout } = await traced();
+    expect(groups.map((g) => g.getAttribute("data-edge"))).toEqual(layout.edges.map((_, i) => String(i)));
+    const chips = svg.all().filter((e) => e.getAttribute("data-part") === "count");
+    expect(chips.length).toBeGreaterThan(0);
+    for (const c of chips) {
+      const i = Number(c.getAttribute("data-edge"));
+      expect(groups[i].getAttribute("data-count"), `chip ${i}`).toBe(c.getAttribute("data-count"));
+    }
+  });
+
   test("each connector the run took is drawn at its count's width over the plain line; the rest stay plain", async () => {
     const { chart, layout, groups } = await traced();
     const byText = (text: string, label?: string) => layout.edges.findIndex((e) => chart.nodes[e.from].text.startsWith(text) && (label === undefined || e.label === label));

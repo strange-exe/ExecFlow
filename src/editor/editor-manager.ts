@@ -24,9 +24,10 @@ import { viewHost, type EditorHost, type HostFactory } from "./host";
 import { languageForPath, languageLoaded, loadLanguage } from "./language-support";
 import { clampPos } from "./positions";
 import { RUN_CHANNEL } from "./run-marks";
+import { runStep, setRunStep, type RunStepMarks } from "./run-step";
 import type { Scheduler } from "./workspace-index";
 
-export type { EditorPrefs, FileId };
+export type { EditorPrefs, FileId, RunStepMarks };
 
 /** Open files kept in memory. Clean files beyond this are dropped, least recently used first. */
 export const MAX_SESSIONS = 30;
@@ -431,6 +432,25 @@ export class EditorManager {
       this.commitInactive(s, s.state.update(typeof spec === "function" ? spec(s.state) : spec));
     }
     return true;
+  }
+
+  /**
+   * The step-through's marks on a file (run-step.ts): its line counts so far and the step's line,
+   * or none (null). With `reveal`, the step's line scrolls into view in the open file (the least
+   * scroll that shows it); the selection and the focus stay where they are. Clearing a file with no
+   * marks is a no-op (false): an edit clears them itself, and a stray transaction just after an edit
+   * would make CodeMirror drop typed input it hasn't read yet (Firefox reads typing in parts).
+   */
+  showRunStep(id: FileId, marks: RunStepMarks | null, reveal: boolean): boolean {
+    if (marks === null && !this.state(id)?.field(runStep, false)) return false;
+    return this.apply(id, (state) => {
+      const effects: StateEffect<unknown>[] = [setRunStep.of(marks)];
+      const line = marks?.now ?? null;
+      if (reveal && line !== null && line >= 1 && line <= state.doc.lines && this.sessions.get(id) === this.active) {
+        effects.push(EditorView.scrollIntoView(state.doc.line(line).from, { y: "nearest" }));
+      }
+      return { effects };
+    });
   }
 
   /** Runs a state command (undo, redo, ...) on a file, active or not. Not from inside an update listener. */

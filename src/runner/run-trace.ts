@@ -74,10 +74,10 @@ export function traceFromPython(raw: unknown): RunTrace | undefined {
   if (!calls || !events || typeof meta !== "object" || meta === null) return undefined;
   const trace: Record<string, unknown> = { codes: (meta as { codes?: unknown }).codes, calls, events, partial: (meta as { partial?: unknown }).partial === true };
   if (raw.length === 5) {
+    // Values that are off are dropped by checkTrace; the lines still read.
     const v = jsonOf(raw[3]);
     const deltas = int32s(raw[4]);
-    if (typeof v !== "object" || v === null || !deltas) return undefined;
-    trace.values = { ...(v as object), deltas };
+    trace.values = typeof v === "object" && v !== null && deltas ? { ...(v as object), deltas } : null;
   }
   return checkTrace(trace);
 }
@@ -111,7 +111,10 @@ function valuesOf(raw: unknown, pairs: number): TraceValues | null {
   return { names: [...names], texts: [...shown], deltas: d, cut: cut as number | null };
 }
 
-/** A trace from the worker, or undefined when anything about it is off (too big, wrong types, odd length). */
+/**
+ * A trace from the worker, or undefined when anything about its lines is off (too big, wrong types,
+ * odd length). Values that are off drop only the values: the trace reads as one without them.
+ */
 export function checkTrace(raw: unknown): RunTrace | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const t = raw as Partial<Record<keyof RunTrace, unknown>>;
@@ -121,8 +124,7 @@ export function checkTrace(raw: unknown): RunTrace | undefined {
   const trace: RunTrace = { codes, calls: t.calls, events: t.events, partial: t.partial === true };
   if (t.values !== undefined) {
     const values = valuesOf(t.values, t.events.length / 2);
-    if (!values) return undefined;
-    trace.values = values;
+    if (values) trace.values = values;
   }
   return trace;
 }

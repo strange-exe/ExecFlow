@@ -251,10 +251,14 @@ test("long lines wrap below 900 px with a hanging indent, and nothing scrolls si
   expect(await noSideScroll(page), "no sideways page scroll, code view").toBe(true);
   await run(page);
   expect(await noSideScroll(page), "after a run").toBe(true);
-  // The strip stays one row at 320 px: the outcome's words wrap beside Run, not above it.
-  const [strip, runBox] = [await box(page.locator("#panel .run-strip")), await box(page.locator("#run-button"))];
-  expect(Math.round(strip.height), "one row: Run and its 8 px padding").toBeLessThanOrEqual(64);
-  expect(runBox.y - strip.y, "Run on the strip's first row").toBeLessThanOrEqual(9);
+  // The strip's own row stays one row at 320 px: the outcome's words wrap beside Run, not above it.
+  // A Python run's stepper and variables (stage 3b) are full rows over it; the row starts after them.
+  await expect(page.locator("#run-steps")).toHaveAttribute("data-state", "steps", { timeout: 30_000 });
+  const [strip, runBox, varsBox] = [await box(page.locator("#panel .run-strip")), await box(page.locator("#run-button")), await box(page.locator("#run-vars"))];
+  const rowTop = varsBox.y + varsBox.height;
+  expect(Math.round(strip.y + strip.height - rowTop), "one row: Run and its 8 px padding").toBeLessThanOrEqual(64);
+  expect(runBox.y - rowTop, "Run on the strip's own row, under the stepper's").toBeLessThanOrEqual(9);
+  expect(runBox.y - rowTop, "Run under the variables").toBeGreaterThanOrEqual(0);
   await page.locator("#dock-toggle").click();
   expect(await noSideScroll(page), "all output").toBe(true);
   await page.locator("#dock-toggle").click();

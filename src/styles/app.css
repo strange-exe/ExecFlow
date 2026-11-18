@@ -1746,6 +1746,50 @@ input.switch {
    chosen one (Files while the list shows) on the raised ground with a 2 px bar, never colour alone.
    The run strip is empty under 1100 px except on phones (layout.ts). */
 .run-strip { display: none; }
+
+/* The run strip's stepper (Workbench stage 3, option A's mock; run-stepper.ts): Previous and Next
+   as keycap arrows round "step 07 / 19" in mono, then a thin tick bar (a tick per step after Start:
+   taken in the trace's ink, the step shown in the focus pink and taller, so it is a shape as well as
+   a colour; past TICK_CAP a proportional bar). The variables row under it holds `name = value`
+   chips in mono on the code's ground. Without steps it is one quiet sentence (C, C++, no run yet).
+   Ticks and the keycaps move with the interface spring; under reduced motion they just change. */
+.run-steps { display: flex; align-items: center; min-width: 0; }
+.run-steps-words { margin: 0; min-width: 0; overflow: hidden; color: var(--text-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; text-overflow: ellipsis; }
+/* (.run-stepper, not .stepper: that is Settings' font-size stepper, a bordered box.) */
+.run-stepper { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
+.step-key { display: inline-grid; flex: none; place-items: center; width: var(--tool); height: var(--tool); padding: 0; border: 0; border-radius: var(--r-control); background: none; color: var(--text); }
+.step-key > * { pointer-events: none; }
+.step-key .keycap { min-width: 24px; height: 22px; padding: 0 var(--s1); border-bottom-width: 2px; background: var(--surface-raised); color: var(--text); font-size: 12px; line-height: 19px; text-align: center; transition: transform 220ms var(--spring); }
+.step-key:hover .keycap { background: var(--hover); }
+.step-key:active .keycap { transform: translateY(1px); transition-duration: 80ms; transition-timing-function: var(--ease-in); }
+/* At Start or the end the key stays a Tab stop (aria-disabled, so the focus never drops), quieter. */
+.step-key[aria-disabled="true"] { cursor: default; }
+.step-key[aria-disabled="true"] .keycap { border-color: var(--border); background: none; color: var(--text-muted); }
+.step-count { flex: none; min-width: 12ch; color: var(--text); font: var(--w-label) 12px/16px var(--font-code); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.step-ticks { display: flex; flex: 0 1 auto; align-items: center; gap: 2px; min-width: 24px; height: 20px; margin-left: var(--s2); overflow: hidden; }
+/* A width, not only a flex basis: the strip sizes the stepper by its content, and an empty tick's
+   content is 0 px wide, so with a basis alone the ticks were squeezed to 1 px. */
+.step-ticks > i { flex: 0 1 auto; width: 4px; min-width: 1px; height: 14px; border-radius: 1px; background: var(--border-strong); transition: background-color 160ms var(--ease-out), transform 220ms var(--spring); }
+.step-ticks > i[data-tick="done"] { background: var(--link); }
+.step-ticks > i[data-tick="cur"] { background: var(--focus); transform: scaleY(1.3); }
+.step-track { display: block; width: 120px; max-width: 100%; height: 4px; overflow: hidden; border-radius: 2px; background: var(--border-strong); }
+.step-fill { display: block; height: 100%; background: var(--link); transform-origin: left center; transition: transform 220ms var(--spring); }
+.run-vars { display: flex; align-items: center; gap: var(--s2); min-width: 0; color: var(--text); font: 12px/16px var(--font-code); }
+.run-vars-label { flex: none; color: var(--text-secondary); font-family: var(--font-ui); }
+.run-vars-list { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2); min-width: 0; max-height: calc(3 * 24px + 2 * var(--s1)); margin: 0; padding: 0; overflow: auto; list-style: none; }
+.run-var { display: inline-flex; align-items: center; max-width: 100%; height: 24px; padding: 0 var(--s2); overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--r-key); background: var(--bg); white-space: nowrap; }
+.run-var-name { max-width: 20ch; overflow: hidden; text-overflow: ellipsis; }
+.run-var-eq { flex: none; color: var(--text-secondary); white-space: pre; }
+.run-var-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.run-vars-note { margin: 0; color: var(--text-secondary); font-family: var(--font-ui); }
+/* The code's run-count column (run-step.ts): its width is held from 900 px; below, where code wraps
+   and every column costs code width, it comes with the counts. */
+.ce-run-counts .ce-run-spacer { display: none; }
+@media (min-width: 900px) { .ce-run-counts .ce-run-spacer { display: block; } }
+/* The keys are --tool square: 28 px, 44 px on a touch screen or a phone (tokens.css). */
+@media (prefers-reduced-motion: reduce) {
+  .step-key .keycap, .step-ticks > i, .step-fill { transition: none; }
+}
 @media (min-width: 1100px) {
   .workbench .main { grid-template-columns: var(--rail-w) var(--sidebar-w, 248px) 1px minmax(0, 1fr); }
   .main > .rail, .main > .sidebar { box-shadow: inset -1px 0 0 var(--divider); }
@@ -1868,10 +1912,11 @@ input.switch {
      stepper (stage 3b). Run keeps its words and icon; its key is in its tooltip. */
   .run-strip {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 0 6px;
     min-width: 0;
-    height: var(--h-strip);
+    min-height: var(--h-strip);
     padding: 0 var(--s3);
     background: var(--surface);
     box-shadow: inset 0 -1px 0 var(--divider);
@@ -1891,6 +1936,11 @@ input.switch {
   .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) { border-color: var(--text); font-weight: var(--w-strong); }
   .workbench[data-last-run="failed"] .run-strip > .btn.run:not([data-running="true"]) .run-icon { color: var(--text); }
   .workbench[data-open="false"] .run-tools { display: none; }
+  /* The stepper at the strip's end (48 px, so the strip's first row keeps its height); the variables
+     a row of their own under the strip's row, edge to edge on the code's ground under a hairline. */
+  .run-strip > .run-steps { flex: 0 1 auto; height: var(--h-strip); margin-left: auto; }
+  .run-strip > .run-vars { flex: 1 0 calc(100% + 2 * var(--s3)); margin: 0 calc(-1 * var(--s3)); padding: var(--s1) var(--s3); background: var(--bg); box-shadow: inset 0 1px 0 var(--divider); }
+  .workbench[data-open="false"] .run-strip > :is(.run-steps, .run-vars) { display: none; }
   /* The run's outcome at the console head's end (layout.ts): one line, quiet, before its tools. */
   .panel-bar > .run-outcome { display: flex; flex: 0 1 auto; min-width: 0; margin-left: auto; overflow: hidden; color: var(--text-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
   .panel-bar > .run-outcome > .receipt { column-gap: var(--s2); flex-wrap: nowrap; min-width: 0; }
@@ -2253,7 +2303,7 @@ input.switch {
      the outcome's words wrap beside Run (at 320 px Run on a row of its own cost the code a line). */
   .run-strip {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     column-gap: var(--s2);
     row-gap: var(--s1);
@@ -2264,7 +2314,18 @@ input.switch {
     font-size: var(--fs-2);
     line-height: var(--lh-2);
   }
-  .run-strip > .run-outcome { display: flex; flex: 0 1 auto; min-width: 0; }
+  /* A run's steps (stage 3b): the stepper, then its variables, each a full row over the strip's own
+     (the outcome and Run), so the strip's row stays as it was. The sentence for no steps waits for
+     the phone dock's redesign (stage 4): a quiet row here would cost the code a line. */
+  .run-strip > :is(.run-steps, .run-vars) { flex: 1 0 100%; }
+  .run-strip > .run-steps[data-state="words"] { display: none; }
+  .run-strip > .run-steps .run-stepper { flex: 1; justify-content: space-between; }
+  .run-strip > .run-steps .step-ticks { flex: 1 1 auto; justify-content: center; margin: 0; }
+  .run-strip > .run-steps .step-track { width: 100%; }
+  .run-strip > .run-vars { flex-wrap: wrap; }
+  /* A zero basis, growing: the strip wraps (for the rows above), and the outcome's words must still
+     wrap beside Run, never push it to a row of its own. */
+  .run-strip > .run-outcome { display: flex; flex: 1 1 0; min-width: 0; }
   .run-outcome > .receipt { column-gap: var(--s2); }
   .run-strip > .runtime { flex: 0 1 auto; min-width: 0; }
   .run-strip > .runtime > span { overflow: hidden; text-overflow: ellipsis; }
@@ -2328,7 +2389,7 @@ input.switch {
   .workbench[data-keyboard="open"] :is(.view-bar, .statusbar) { display: none; }
   .workbench[data-keyboard="open"] .center > .panel > :not(.run-strip) { display: none; }
   .workbench[data-keyboard="open"] .run-strip { flex-wrap: nowrap; height: 56px; padding: 0 var(--s3) 0 var(--s1); }
-  .workbench[data-keyboard="open"] .run-strip > .run-outcome { display: none; }
+  .workbench[data-keyboard="open"] .run-strip > :is(.run-outcome, .run-steps, .run-vars) { display: none; }
   .workbench[data-keyboard="open"] .run-strip > .runtime { display: inline-flex; }
   .workbench[data-keyboard="open"] .hide-keyboard { display: inline-flex; flex-direction: column; gap: 0; color: var(--text-secondary); }
   .hide-keyboard > * { pointer-events: none; }

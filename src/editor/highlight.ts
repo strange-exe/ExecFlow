@@ -103,6 +103,18 @@ export const CHROME_SPEC = {
   ".cm-gutterElement.ce-error-line": { backgroundColor: "var(--error-band)", color: "var(--text)" },
   ".cm-lineNumbers .cm-gutterElement.ce-error-line": { boxShadow: "inset 2px 0 0 var(--danger)" },
   ".cm-foldGutter .cm-gutterElement": { padding: "0 4px", cursor: "pointer" },
+  // The step-through (run-step.ts): each line's run count ("x7") in the trace's ink (--link, a
+  // checked text pair on --bg), mono at 0.8 of the code size, right-aligned before the line
+  // numbers; the step's own line gets a 3 px --focus bar 2 px inside the code's leading edge (a
+  // shape, so it never relies on the pink alone, and clear of the editor's focus bar on the gutter
+  // edge), its line number in --text and its count in bold.
+  // The padding only on a cell with a count: the active line's empty cell (every gutter has one)
+  // must give the column no width while it has no counts.
+  ".ce-run-counts .cm-gutterElement": { color: "var(--link)", fontSize: "0.8em", fontVariantNumeric: "tabular-nums", textAlign: "right" },
+  ".ce-run-counts .cm-gutterElement:not(:empty)": { paddingLeft: "10px" },
+  ".ce-run-counts .cm-gutterElement.ce-run-now": { fontWeight: "600" },
+  ".cm-lineNumbers .cm-gutterElement.ce-run-now": { color: "var(--text)" },
+  ".cm-line.ce-run-now": { boxShadow: "inset 2px 0 0 var(--bg), inset 5px 0 0 var(--focus)" },
   ".cm-foldPlaceholder": { backgroundColor: "var(--surface-raised)", border: "1px solid var(--border-strong)", color: "var(--text-muted)" },
 
   // The selection colour is for selected text only: a matching bracket is an outline.
