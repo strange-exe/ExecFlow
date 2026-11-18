@@ -2,7 +2,7 @@
 // model (steps.ts). The DOM itself is checked in the browser (e2e/run-stepper.spec.ts).
 import { describe, expect, it } from "vitest";
 import type { RunStep, StepModel } from "../flowchart/steps";
-import { cutWords, keyStep, lastKnownStep, stepLabel, stepWords, TICK_CAP, ticksOf } from "./run-stepper";
+import { changedNames, cutWords, keyStep, lastKnownStep, stepLabel, stepWords, TICK_CAP, ticksOf } from "./run-stepper";
 
 /** A model of `total` steps whose values are known up to step `known` (inclusive). */
 function fake(total: number, values: StepModel["values"] = "all", known = total - 1, steps: Partial<RunStep>[] = []): StepModel {
@@ -70,5 +70,29 @@ describe("run stepper words", () => {
     expect(ticksOf(TICK_CAP + 2, 0)).toEqual({ kind: "bar", fraction: 0 });
     expect(ticksOf(101, 25)).toEqual({ kind: "bar", fraction: 0.25 });
     expect(ticksOf(1, 0)).toEqual({ kind: "ticks", ticks: [] });
+  });
+});
+
+describe("run stepper changed marks", () => {
+  /** Variables per step (index k), all in call 0 unless `calls` says otherwise. */
+  function withVars(byStep: [string, string][][], known = byStep.length - 1, calls: number[] = []): StepModel {
+    const base = fake(byStep.length, "all", known);
+    return { ...base, step: (k) => ({ ...base.step(k), call: calls[k] ?? 0 }), varsAt: (k) => byStep[k] ?? [] };
+  }
+
+  it("marks a name whose value differs from the step before, and a name first set at this step", () => {
+    const m = withVars([[], [["total", "0"]], [["total", "0"], ["n", "1"]], [["total", "0"], ["n", "2"]], [["total", "2"], ["n", "2"]]]);
+    expect([...changedNames(m, 1)]).toEqual(["total"]);
+    expect([...changedNames(m, 2)]).toEqual(["n"]);
+    expect([...changedNames(m, 3)]).toEqual(["n"]);
+    expect([...changedNames(m, 4)]).toEqual(["total"]);
+  });
+
+  it("marks nothing at Start, across a call boundary, or where the values weren't recorded", () => {
+    const m = withVars([[], [["a", "1"]], [["x", "5"]], [["x", "6"]]], 2, [0, 0, 1, 1]);
+    expect(changedNames(m, 0).size).toBe(0);
+    expect(changedNames(m, 2).size, "a new call's names are its own, not changes").toBe(0);
+    expect(changedNames(m, 3).size, "step 3's values are past the cut").toBe(0);
+    expect(changedNames(fake(3, "none"), 1).size).toBe(0);
   });
 });

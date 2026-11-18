@@ -93,7 +93,8 @@ test.describe("run stepper", () => {
     await expect(page.locator(".cm-line.ce-run-now")).toHaveCount(1);
     await expect(page.locator(".cm-line.ce-run-now")).toHaveText("    if n % 2 == 0:");
     expect(await gutterCounts(page)).toEqual([`${TIMES}1`, `${TIMES}1`, `${TIMES}1`]);
-    await expect(vars(page)).toHaveText(["total = 0", "n = 1"]);
+    // n took its value at this step: its item says so (the dot's words, for screen readers).
+    await expect(vars(page)).toHaveText(["total = 0", "n = 1, changed"]);
     await expect(page.locator('.fc-node[data-now="true"]')).toHaveAttribute("data-kind", "decision");
     expect(await page.locator(".fc-stage g[data-edge][data-taken]").count()).toBeGreaterThanOrEqual(3);
     // The marks: a bar on the code line (a shape), a thicker pink outline on the box.
@@ -214,6 +215,64 @@ test.describe("run stepper", () => {
     }
   });
 
+  test("a variable whose value changed at the step carries a changed mark: a dot and the word, never colour alone", async ({ page }) => {
+    await openPy(page, "sum_evens.py", SUM_EVENS);
+    await runToSteps(page);
+    await page.locator("#step-next").focus();
+    await page.keyboard.press("Home");
+    const read = () =>
+      page.locator("#run-vars .run-var").evaluateAll((els) =>
+        els.map((li) => ({
+          name: li.querySelector(".run-var-name")!.textContent!,
+          value: li.querySelector(".run-var-value")!.textContent!,
+          changed: li.getAttribute("data-changed") === "true",
+          dot: (() => {
+            const d = li.querySelector<HTMLElement>(".run-var-dot");
+            const r = d?.getBoundingClientRect();
+            return !!d && d.getAttribute("aria-hidden") === "true" && !!r && r.width >= 4 && r.height >= 4 && getComputedStyle(d).display !== "none";
+          })(),
+          said: li.querySelector(".visually-hidden")?.textContent ?? "",
+        })),
+      );
+    let before = new Map<string, string>();
+    let marked = 0;
+    for (let k = 0; k < 20; k++) {
+      await expect(steps(page)).toHaveAttribute("data-step", String(k));
+      const now = await read();
+      for (const v of now) {
+        // Within one call (sum_evens has one), a name is changed when it is new or its text differs.
+        const want = k > 0 && before.get(v.name) !== v.value;
+        expect(v.changed, `step ${k}: ${v.name} = ${v.value}`).toBe(want);
+        expect(v.dot, `step ${k}: ${v.name}'s dot`).toBe(want);
+        expect(v.said, `step ${k}: ${v.name}'s words`).toBe(want ? ", changed" : "");
+        if (want) marked++;
+      }
+      before = new Map(now.map((v) => [v.name, v.value]));
+      await page.keyboard.press("ArrowRight");
+    }
+    expect(marked, "marks were drawn").toBeGreaterThan(5);
+  });
+
+  test("from 900 to 1099 px the stepper sits at the code card's foot, beside the language and the position", async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await openPy(page, "sum_evens.py", SUM_EVENS);
+    await runToSteps(page);
+    const foot = page.locator(".editor-foot");
+    await expect(foot.locator("#run-steps .run-stepper")).toBeVisible();
+    await expect(page.locator("#run-vars")).toBeVisible();
+    await expect(vars(page)).toHaveText(["total = 12", "n = 6"]);
+    const [lang, pos, stepper, footBox] = await Promise.all(["#status-lang", "#status-pos", "#run-steps", ".editor-foot"].map(async (s) => (await page.locator(s).boundingBox())!));
+    // One row: the stepper after the facts, never over them, inside the foot.
+    expect(stepper.x).toBeGreaterThanOrEqual(Math.max(lang.x + lang.width, pos.x + pos.width));
+    expect(stepper.x + stepper.width).toBeLessThanOrEqual(footBox.x + footBox.width + 1);
+    expect(stepper.y).toBeGreaterThanOrEqual(footBox.y - 1);
+    expect(stepper.y + stepper.height).toBeLessThanOrEqual(footBox.y + footBox.height + 1);
+    // The keys step it.
+    await page.locator("#step-prev").click();
+    await expect(steps(page)).toHaveAttribute("data-step", "18");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
   test("reduced motion: the ticks and keys change without moving", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openPy(page, "sum_evens.py", SUM_EVENS);
@@ -251,7 +310,7 @@ for (const [size, scheme] of [["1440", "light"], ["1440", "dark"], ["390", "dark
 test.describe("run stepper on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: false });
 
-  test("the stepper and the variables are rows of the dock over Run, with 44 px keys", async ({ page }) => {
+  test("the stepper is the run row under the variables, Run floating above both, with 44 px keys", async ({ page }) => {
     await openApp(page);
     await importFiles(page, [{ name: "sum_evens.py", text: SUM_EVENS }]);
     await openFromTree(page, "sum_evens.py");
@@ -269,8 +328,11 @@ test.describe("run stepper on a phone", () => {
       const box = (await page.locator(id).boundingBox())!;
       expect(Math.min(box.width, box.height), id).toBeGreaterThanOrEqual(44);
     }
-    const [stepBox, runBox] = [(await steps(page).boundingBox())!, (await page.locator("#run-button").boundingBox())!];
-    expect(stepBox.y + stepBox.height).toBeLessThanOrEqual(runBox.y);
+    // Stage 4 (the phone mock): Run floats above the variables and the stepper (it was the strip's
+    // last row, under them).
+    const [stepBox, varsBox, runBox] = [(await steps(page).boundingBox())!, (await page.locator("#run-vars").boundingBox())!, (await page.locator("#run-button").boundingBox())!];
+    expect(varsBox.y + varsBox.height).toBeLessThanOrEqual(stepBox.y + 1);
+    expect(runBox.y + runBox.height).toBeLessThanOrEqual(varsBox.y);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator("#step-prev").tap();
     await expect(steps(page)).toHaveAttribute("data-step", "18");

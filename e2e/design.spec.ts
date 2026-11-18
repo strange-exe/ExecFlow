@@ -81,9 +81,9 @@ for (const vp of viewports) {
       expect(await noOverflow(page), "no horizontal scroll (editing)").toBe(true);
       const editorBox = (await page.locator("#editor-panel").boundingBox())!;
       if (narrow) {
-        // No tab strip: the code starts right under the top bar (48) and the segment (60), and
-        // ends where the dock begins (option A, phone dock).
-        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(108);
+        // No tab strip and no segment: the code starts right under the top bar (56), and ends where
+        // the strip begins (Workbench stage 4: the views are the dock at the foot).
+        expect(Math.round(editorBox.y), "chrome above the first code line on a phone").toBe(56);
         expect(Math.round(editorBox.y + editorBox.height), "the code meets the dock").toBe(Math.round((await page.locator("#panel").boundingBox())!.y));
       } else {
         // Before the first run the panel is its bar: collapsed, its body hidden, the code tall.
@@ -117,7 +117,18 @@ for (const vp of viewports) {
 
       // 3b. After the failed run (reading order 1): Run steps back to its outline style.
       await expect(page.locator("#app")).toHaveAttribute("data-last-run", "failed");
-      expect(await runFill(page), "Run has stepped back").toMatch(TRANSPARENT);
+      // On a phone Run floats over the code (Workbench stage 4), so its outline keeps an opaque
+      // ground: the raised surface; elsewhere no fill.
+      const raised = await page.evaluate(() => {
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = "var(--surface-raised)";
+        document.body.append(probe);
+        const c = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return c;
+      });
+      if (narrow) expect(await runFill(page), "Run has stepped back to its opaque outline").toBe(raised);
+      else expect(await runFill(page), "Run has stepped back").toMatch(TRANSPARENT);
       if (!narrow) {
         // The error is in calc.py: the editor head's jump names it, Tab reaches it from the
         // tabs, and it opens calc.py at line 2 with the focus in the code.
@@ -141,6 +152,7 @@ for (const vp of viewports) {
       await page.keyboard.type(" ");
       await expect(page.locator("#app")).not.toHaveAttribute("data-last-run");
       expect(await runFill(page), "Run is filled again after an edit").not.toMatch(TRANSPARENT);
+      expect(await runFill(page), "Run is filled again after an edit (not the outline's ground)").not.toBe(raised);
 
       // 4. Problems.
       await showPanel(page, "problems");
@@ -177,7 +189,8 @@ test("no horizontal scroll at 320 px, and the primary controls are 44 px on a ph
   await expectActive(page, "main.cpp");
   await expect(page.locator("#run-button")).not.toHaveAttribute("aria-disabled", "true");
   expect(await noOverflow(page)).toBe(true);
-  // The top bar's controls, the segment's tabs and All output are 44 px; Run in the dock 48 (option A, 0.29.0).
+  // The top bar's controls and the dock's tabs (Code, Flowchart, Output) are 44 px or more; Run,
+  // floating over the board, 52 (Workbench stage 4).
   expect((await page.locator("#run-button").boundingBox())!.height, "#run-button").toBeGreaterThanOrEqual(48);
   for (const sel of ["#settings-button", ".drawer-toggle", "#view-code", "#view-flowchart", "#dock-toggle"]) {
     const box = (await page.locator(sel).boundingBox())!;
@@ -616,10 +629,10 @@ test("splitters are separators with values, keyboard resizing, and remembered si
   await openApp(page);
   await withAFile(page);
   const side = page.getByRole("separator", { name: "Resize the file list" });
-  await expect(side).toHaveAttribute("aria-valuenow", "248");
+  await expect(side).toHaveAttribute("aria-valuenow", "224");
   await side.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(side).toHaveAttribute("aria-valuenow", "264");
+  await expect(side).toHaveAttribute("aria-valuenow", "240");
   await page.keyboard.press("Home");
   await expect(side).toHaveAttribute("aria-valuenow", "200");
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -679,24 +692,24 @@ test("the file list keeps the width it was given through a trip to a phone-wide 
     await page.setViewportSize({ width: 1000, height: 800 });
     await expect(page.locator("#app")).toHaveAttribute("data-narrow", "false");
   };
-  await expect(splitter).toHaveAttribute("aria-valuenow", "248");
-  expect(await width()).toBe(248);
+  await expect(splitter).toHaveAttribute("aria-valuenow", "224");
+  expect(await width()).toBe(224);
 
   // The default width, through a phone-wide window and back.
   await narrowTrip();
-  await expect(splitter).toHaveAttribute("aria-valuenow", "248");
-  expect(await width()).toBe(248);
+  await expect(splitter).toHaveAttribute("aria-valuenow", "224");
+  expect(await width()).toBe(224);
 
   // A width chosen with the keyboard, through the same trip, and after a reload.
   await splitter.focus();
   await page.keyboard.press("Shift+ArrowRight");
-  await expect(splitter).toHaveAttribute("aria-valuenow", "312");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "288");
   await narrowTrip();
-  await expect(splitter).toHaveAttribute("aria-valuenow", "312");
-  expect(await width()).toBe(312);
+  await expect(splitter).toHaveAttribute("aria-valuenow", "288");
+  expect(await width()).toBe(288);
   await page.reload();
   await waitReady(page);
-  await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "312");
+  await expect(page.getByRole("separator", { name: "Resize the file list" })).toHaveAttribute("aria-valuenow", "288");
 });
 
 // WCAG 2.2 SC 2.5.7: every size the splitters set by dragging can also be set with single clicks.
@@ -727,13 +740,13 @@ test("the panel and the file list resize without dragging: Maximise the panel, a
   await expect(rows).toHaveAttribute("aria-valuenow", "35");
   // The file list's width: a column with a splitter under 1100 px (here, 1000 px).
   const side = page.getByRole("separator", { name: "Resize the file list" });
-  await expect(side).toHaveAttribute("aria-valuenow", "248");
+  await expect(side).toHaveAttribute("aria-valuenow", "224");
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Wider file list" }).click();
-  await expect(side).toHaveAttribute("aria-valuenow", "312");
+  await expect(side).toHaveAttribute("aria-valuenow", "288");
   await page.locator("#file-actions").click();
   await page.getByRole("menuitem", { name: "Narrower file list" }).click();
-  await expect(side).toHaveAttribute("aria-valuenow", "248");
+  await expect(side).toHaveAttribute("aria-valuenow", "224");
   // From 1100 px the file list is the fixed-width Files popover: the menu offers no width steps
   // there, since they would change nothing on screen (Flow Board S2).
   await page.setViewportSize({ width: 1440, height: 900 });

@@ -33,6 +33,14 @@
 // them for the stepper); the console's head is its tabs (Output | Problems, the count on the tab)
 // with the run's outcome at its end; the status bar runs along the window's foot (the language,
 // Ln/Col, spaces, UTF-8, the runtime state, the theme).
+// Workbench stage 4 (the mock's 390 x 844 phone frame): below 900 px the top bar (56 px) holds the
+// mark, Files as the open file's folder and name, the sync status, Search and Settings; the board
+// (the code, the chart, or Output: the whole console) fills the middle; the run row (64 px: the
+// stepper, or the run's one sentence with the problems count) sits under it, the variables row
+// over that in Code (atop Output in Output); the dock at the foot is one tab list, Code |
+// Flowchart | Output with the problems count; Run floats at the board's lower right, above the run
+// row. The segment under the top bar and the dock's peek of the output are retired. The status bar
+// keeps its line under the dock. From 900 to 1099 px the stepper sits at the code card's foot.
 // Those elements are moved, never copied: ids stay unique and the DOM order is the visual order,
 // so the Tab order follows what is seen (CSS `order` would split the two).
 import type { WsPath } from "../core/types";
@@ -50,7 +58,8 @@ export const NARROW = "(max-width: 899px)";
 export const WIDE = "(min-width: 1100px)";
 /** A short window (app.css): the page scrolls as a whole. */
 export const SHORT = "(max-height: 420px)";
-export const SIDEBAR = { min: 200, max: 480, initial: 248 };
+/** The file list's width: the Workbench mock's 224 px to start (stage 4; it was 248). */
+export const SIDEBAR = { min: 200, max: 480, initial: 224 };
 export const PANEL = { min: 15, max: 80, initial: 35 };
 /** The rail's width, and what the work column keeps at the least beside the sidebar. */
 const RAIL_W = 64;
@@ -146,11 +155,12 @@ export interface Layout {
   runTools: HTMLElement;
   /**
    * The run strip's stepper (run-stepper.ts fills it) and the variables row under it: at the strip's
-   * end from 1100 px, the dock's first rows on phones; not shown from 900 to 1099 px.
+   * end from 1100 px; at the code card's foot (the variables under it) from 900 to 1099 px; on
+   * phones the run row over the dock, the variables under the code (Code) or atop Output.
    */
   runSteps: HTMLElement;
   runVars: HTMLElement;
-  /** Phones: "No problems" or "2 problems, line 12" at the dock's foot: opens Problems. */
+  /** Phones: "No problems" or "2 problems, line 12" in the run row (no steps shown): opens Problems. */
   problemsButton: HTMLButtonElement;
   problemsWords: HTMLElement;
   /** Called after the layout crossed the 1100 px line (the Flow Board shell). */
@@ -169,19 +179,21 @@ export interface Layout {
    * Settings; workbench.ts keeps its words.
    */
   status: { lang: HTMLElement; pos: HTMLElement; runtime: HTMLElement; shortcuts: HTMLButtonElement; theme: HTMLButtonElement };
-  /** Phones: the Code | Flowchart segment under the top bar. */
+  /** Phones: the dock's Code and Flowchart tabs. */
   viewTabs: { code: HTMLButtonElement; flowchart: HTMLButtonElement };
   /**
-   * Phones: "All output, 8 lines" at the dock's foot, a disclosure (aria-expanded): the dock shows
-   * the last lines of the output (peek), or the whole console over the code (all).
+   * Phones: the dock's Output tab (stage 4; it was "All output", a disclosure): selected, the whole
+   * console fills the board's place (dock "all"); Code or Flowchart chosen, the dock is "peek".
    */
   dockToggle: HTMLButtonElement;
   /** Phones, the on-screen keyboard open: the accessory bar's Hide keyboard (the code lets go of the focus). */
   hideKeyboard: HTMLButtonElement;
-  /** Phones: how many lines the output has, for the dock's foot ("All output, 8 lines"). */
+  /** Phones: how many lines the output has (the Output tab's tooltip). */
   setDockLines(lines: number): void;
+  /** Phones: the problems count on the Output tab, in its name as `words` ("1 error, 1 note"). */
+  setDockCount(total: number, errors: number, words: string): void;
   dock(): Dock;
-  /** Phones: the dock's peek or the whole console. Peek also shows the code (or the chart) again. */
+  /** Phones: Code or Flowchart ("peek": the run row under the board) or Output ("all"). */
   setDock(dock: Dock): void;
   onDockChange(listener: (dock: Dock) => void): void;
   /**
@@ -292,11 +304,15 @@ export function createLayout(root: HTMLElement): Layout {
   // its name. On phones it is the open file's name in the top bar, with a caret (app.css shows one
   // or the other): named "Files: main.py" there, so the name it shows is in the name it has.
   const filesName = h("span", { class: "files-name" });
+  // Phones (stage 4, the mock's "practice / sum_evens.py"): the file's folder before its name, in
+  // the secondary tier; decoration (the name says "Files: sum_evens.py").
+  const filesDir = h("span", { class: "files-dir", "aria-hidden": "true" });
   const drawerToggle = h(
     "button",
     { type: "button", class: "rail-btn drawer-toggle", "aria-label": "Files", "aria-expanded": "true", "aria-controls": "sidebar", title: "Files" },
     icon("files"),
     h("span", { class: "rail-label" }, "Files"),
+    filesDir,
     filesName,
     icon("caret-down", "files-caret"),
   );
@@ -400,17 +416,22 @@ export function createLayout(root: HTMLElement): Layout {
   const editorFoot = h("div", { class: "editor-foot" });
   const editorArea = h("div", { class: "editor-area", id: "editor-area" }, banner, editorHead, editorPanel, editorFoot);
 
-  // Phones: the Code | Flowchart segment under the top bar (the dock below shows the output).
-  const viewTab = (id: string, controls: string, iconName: Parameters<typeof icon>[0], label: string, selected: boolean) =>
+  // Phones (Workbench stage 4, the mock's phone frame): the dock at the foot, one tab list of Code,
+  // Flowchart and Output. Output (#dock-toggle, the old "All output") opens the whole console in the
+  // board's place; it carries the problems count (shown, not read: its name says it). Words only,
+  // as in the mock.
+  const viewTab = (id: string, controls: string, label: string, selected: boolean, ...more: HTMLElement[]) =>
     h(
       "button",
-      { type: "button", role: "tab", id, "aria-controls": controls, "aria-selected": String(selected), ...(selected ? {} : { tabindex: "-1" }) },
-      icon(iconName),
+      { type: "button", role: "tab", class: "view-tab", id, "aria-controls": controls, "aria-selected": String(selected), ...(selected ? {} : { tabindex: "-1" }) },
       h("span", { class: "view-label" }, label),
+      ...more,
     );
-  const viewCode = viewTab("view-code", "editor-area", "code-simple", "Code", true);
-  const viewFlowchart = viewTab("view-flowchart", "chart-board", "tree-structure", "Flowchart", false);
-  const viewSwitch = h("div", { class: "view-switch", role: "tablist", "aria-label": "View" }, viewCode, viewFlowchart);
+  const viewCode = viewTab("view-code", "editor-area", "Code", true);
+  const viewFlowchart = viewTab("view-flowchart", "chart-board", "Flowchart", false);
+  const dockCount = h("span", { class: "dock-count", "aria-hidden": "true", "data-tone": "none" }, "0");
+  const dockToggle = viewTab("dock-toggle", "panel", "Output", false, dockCount);
+  const viewSwitch = h("div", { class: "view-switch", role: "tablist", "aria-label": "View" }, viewCode, viewFlowchart, dockToggle);
   const viewBar = h("nav", { class: "view-bar", "aria-label": "Views" }, viewSwitch);
 
   // ---------------------------------------------------------------- the console card
@@ -449,15 +470,8 @@ export function createLayout(root: HTMLElement): Layout {
     problemsWords,
   );
   const runStrip = h("div", { class: "run-strip" });
-  // Phones: the dock's foot, the problems count and All output (a disclosure of the whole console:
-  // its name keeps its words, aria-expanded says which way it is open; the caret turns).
-  const dockWords = h("span", { class: "dock-words" }, "All output");
-  const dockToggle = h(
-    "button",
-    { type: "button", class: "btn dock-toggle", id: "dock-toggle", "aria-expanded": "false", "aria-controls": "panel" },
-    dockWords,
-    icon("caret-up", "dock-caret"),
-  );
+  // The console's foot (empty since stage 4: the problems count is in the phone's run row, Output a
+  // tab of the dock); kept as the place the chart's panel goes before.
   const dockFoot = h("div", { class: "dock-foot" });
   // Phones, the on-screen keyboard open: the accessory bar's first control. It takes no focus on a
   // press (layout.ts below), so the code keeps the caret until it lets go of it.
@@ -682,8 +696,6 @@ export function createLayout(root: HTMLElement): Layout {
     // Layout only from 1100 px: under it the output always stands under the code. The theme's name,
     // the indent and the encoding are the wide status bar's.
     if (!wide) for (const el of [layoutButton, status.theme, indentFact, encodingFact, statusGap, runTools]) el.remove();
-    // From 900 to 1099 px the strip isn't shown: the stepper waits out of the page.
-    if (!wide && !narrow) for (const el of [runSteps, runVars]) el.remove();
     if (narrow) {
       // The top bar heads the work column: the mark, the file's name (Files), then the sync status,
       // Search and Settings.
@@ -691,11 +703,13 @@ export function createLayout(root: HTMLElement): Layout {
       wordmark.remove();
       topStart.replaceChildren(mark, drawerToggle);
       topEnd.append(syncSlot, paletteButton, settingsButton);
-      // The segment under the top bar; the dock: the strip, the console, then its foot.
-      work.insertBefore(viewBar, center);
-      // The stepper and the variables first (each a row of its own), then the strip's own row.
-      runStrip.append(runSteps, runVars, hideKeyboard, runOutcome, status.runtime, runButton);
-      dockFoot.append(problemsButton, dockToggle);
+      // The dock at the foot, over the status bar's line.
+      root.insertBefore(viewBar, statusbar);
+      // The strip: the variables (Code), the run row (the stepper or its sentence, the runtime
+      // state, the problems count), then Run, which floats above it (app.css). The run's outcome
+      // stays in the run-log header here (workbench.ts), so its slot is empty.
+      runStrip.append(runVars, runSteps, hideKeyboard, runOutcome, status.runtime, problemsButton, runButton);
+      placeDockParts();
       statusbar.append(status.lang, status.pos, noticeHost, status.shortcuts, aboutLink);
       headTools.append(snippetButton);
       sidebar.prepend(switcher);
@@ -705,6 +719,8 @@ export function createLayout(root: HTMLElement): Layout {
       root.insertBefore(topbar, main);
       root.insertBefore(viewBar, scrim);
       hideKeyboard.remove();
+      // Back from a phone's Output: the strip heads the console again (its own row 1).
+      if (runStrip.parentElement === panel) panel.prepend(runStrip);
       topStart.replaceChildren(mark, wordmark, crumb);
       topbar.insertBefore(paletteButton, topEnd);
       rail.prepend(drawerToggle);
@@ -724,7 +740,10 @@ export function createLayout(root: HTMLElement): Layout {
         // shown here).
         runStrip.append(runOutcome, problemsButton);
         topEnd.append(status.runtime, snippetButton, runButton);
-        editorFoot.append(status.lang, status.pos);
+        // The stepper at the code card's foot, after the language and Ln/Col; the variables a row
+        // of their own under the foot (stage 4: the strip isn't shown at this width).
+        editorFoot.append(status.lang, status.pos, runSteps);
+        editorArea.append(runVars);
         sidebarFoot.insertBefore(noticeHost, footRow);
         footRow.append(syncSlot, aboutLink);
         railFoot.append(status.shortcuts, settingsButton);
@@ -831,7 +850,7 @@ export function createLayout(root: HTMLElement): Layout {
   /** Phones: the dock's peek, or the whole console over the board. */
   let dockNow: Dock = "peek";
   /** The open file's name and unsaved state (setCrumb), which Files shows on phones. */
-  let crumbFile: { name: string; dirty: boolean } | null = null;
+  let crumbFile: { name: string; dir: string; dirty: boolean } | null = null;
   /** From 1100 px the chart has a board of its own, and the console's Flowchart tab is hidden. */
   const chartOnBoard = () => wideQuery.matches;
   /** Where the chart's body lives on the chart board: 1100 px and wider, and phones (the segment's Flowchart). */
@@ -924,20 +943,45 @@ export function createLayout(root: HTMLElement): Layout {
   }
   panelToggle.addEventListener("click", () => (panelToggle.getAttribute("aria-expanded") === "true" ? collapsePanel() : expandPanel()));
 
-  // ---------------------------------------------------------------- phones: the segment and the dock
-  // The segment picks the board (Code or Flowchart, center[data-view]); the dock (panel[data-dock])
-  // shows the output's last lines under it, or the whole console in its place. Output and Problems
-  // are the dock opened.
+  // ---------------------------------------------------------------- phones: the dock's tabs
+  // Code and Flowchart pick the board (center[data-view]) with the run row under it (dock "peek");
+  // Output puts the whole console in the board's place (dock "all"). Problems is Output on its
+  // Problems tab. One tab list, so exactly one tab is chosen and in the Tab order (APG tabs:
+  // automatic activation, arrows wrap, Home and End).
   type Seg = "code" | "flowchart";
-  const switchTabs: [HTMLButtonElement, Seg][] = [[viewCode, "code"], [viewFlowchart, "flowchart"]];
+  type DockTab = Seg | "output";
+  const dockTabs: [HTMLButtonElement, DockTab][] = [[viewCode, "code"], [viewFlowchart, "flowchart"], [dockToggle, "output"]];
   const segNow = (): Seg => (center.dataset.view === "flowchart" ? "flowchart" : "code");
+  const dockTabNow = (): DockTab => (dockNow === "all" ? "output" : segNow());
+  function syncDockTabs() {
+    const now = dockTabNow();
+    for (const [tab, v] of dockTabs) {
+      tab.setAttribute("aria-selected", String(v === now));
+      tab.tabIndex = v === now ? 0 : -1;
+    }
+  }
   function markView(seg: Seg) {
     center.dataset.view = seg;
-    for (const [tab, v] of switchTabs) {
-      tab.setAttribute("aria-selected", String(v === seg));
-      tab.tabIndex = v === seg ? 0 : -1;
-    }
+    syncDockTabs();
     tellChart();
+  }
+  /**
+   * Phones: where the strip and the variables stand for the dock. Code and Flowchart: the strip
+   * heads the console (all of it shown), the variables its first row, under the code. Output: the
+   * variables lead the console, the strip (the run row) closes it. Moved, never copied, so the Tab
+   * order is the order seen; focus inside stays.
+   */
+  function placeDockParts() {
+    if (!narrowQuery.matches) return;
+    const focused = document.activeElement;
+    if (dockNow === "all") {
+      if (panel.firstElementChild !== runVars) panel.prepend(runVars);
+      if (runStrip.nextElementSibling !== dockFoot) panel.insertBefore(runStrip, dockFoot);
+    } else {
+      if (panel.firstElementChild !== runStrip) panel.prepend(runStrip);
+      if (runStrip.firstElementChild !== runVars) runStrip.prepend(runVars);
+    }
+    if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
   }
   const dockListeners: ((dock: Dock) => void)[] = [];
   function setDock(dock: Dock) {
@@ -946,13 +990,16 @@ export function createLayout(root: HTMLElement): Layout {
     dockNow = dock;
     panel.dataset.dock = dock;
     center.dataset.dock = dock;
-    dockToggle.setAttribute("aria-expanded", String(dock === "all"));
-    // Back to the peek, the dock shows the output's last lines again (not the problems list).
+    syncDockTabs();
+    placeDockParts();
+    // Back to Code or Flowchart, Output opens on its Output tab next time (not the problems list).
     if (dock === "peek" && currentTab() !== "output") selectPanelTab("output");
     else syncPanel();
-    // Focus in what went out of sight (the code under the whole console, the console's tools under
-    // the peek) would drop to the page: it goes to All output, which stays.
-    if (narrowQuery.matches && active instanceof HTMLElement && active !== document.body && active.getClientRects().length === 0) dockToggle.focus({ preventScroll: true });
+    // Focus in what went out of sight (the code under the console, the console's tools under the
+    // code) would drop to the page: it goes to the chosen tab, which stays.
+    if (narrowQuery.matches && active instanceof HTMLElement && active !== document.body && active.getClientRects().length === 0) {
+      dockTabs.find(([, v]) => v === dockTabNow())![0].focus({ preventScroll: true });
+    }
     for (const listener of dockListeners) listener(dock);
   }
   function showView(view: View) {
@@ -964,19 +1011,27 @@ export function createLayout(root: HTMLElement): Layout {
     selectPanelTab(view);
     if (narrowQuery.matches) setDock("all");
   }
-  dockToggle.addEventListener("click", () => setDock(dockNow === "all" ? "peek" : "all"));
   function setDockLines(lines: number) {
-    dockWords.textContent = lines ? `All output, ${lines} ${lines === 1 ? "line" : "lines"}` : "All output";
+    dockToggle.title = lines ? `Output, ${lines} ${lines === 1 ? "line" : "lines"}` : "Output";
   }
-  for (const [tab, v] of switchTabs) tab.addEventListener("click", () => showView(v));
+  setDockLines(0);
+  function setDockCount(total: number, errors: number, words: string) {
+    dockCount.textContent = String(total);
+    dockCount.dataset.tone = errors ? "error" : total ? "warning" : "none";
+    if (total && words) dockToggle.setAttribute("aria-label", `Output, ${words}`);
+    else dockToggle.removeAttribute("aria-label");
+  }
+  // Output chosen again keeps the console's own tab (Output or Problems).
+  for (const [tab, v] of dockTabs) tab.addEventListener("click", () => (v === "output" ? dockNow !== "all" && showView("output") : showView(v)));
   viewSwitch.addEventListener("keydown", (e) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const at = Math.max(0, switchTabs.findIndex(([t]) => t === document.activeElement));
-    const n = switchTabs.length;
+    const at = Math.max(0, dockTabs.findIndex(([t]) => t === document.activeElement));
+    const n = dockTabs.length;
     const i = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
-    showView(switchTabs[i][1]);
-    switchTabs[i][0].focus();
+    const [tab, v] = dockTabs[i];
+    if (v !== "output" || dockNow !== "all") showView(v);
+    tab.focus();
   });
 
   // ---------------------------------------------------------------- panel tabs
@@ -1325,6 +1380,7 @@ export function createLayout(root: HTMLElement): Layout {
     const narrow = narrowQuery.matches;
     const file = narrow ? crumbFile : null;
     drawerToggle.dataset.file = String(file !== null);
+    filesDir.textContent = file?.dir ? `${file.dir} /` : "";
     if (!file) {
       filesName.replaceChildren();
       delete filesName.dataset.dirty;
@@ -1341,7 +1397,8 @@ export function createLayout(root: HTMLElement): Layout {
     const key = `${path ?? ""}\n${dirty}`;
     if (key === shown) return;
     shown = key;
-    crumbFile = path ? { name: path.slice(path.lastIndexOf("/") + 1), dirty } : null;
+    const dirs = path ? path.split("/").slice(0, -1) : [];
+    crumbFile = path ? { name: path.slice(path.lastIndexOf("/") + 1), dir: dirs[dirs.length - 1] ?? "", dirty } : null;
     syncFilesName();
     const parts = path ? path.split("/") : [];
     crumb.title = path ?? "";
@@ -1419,6 +1476,7 @@ export function createLayout(root: HTMLElement): Layout {
     dockToggle,
     hideKeyboard,
     setDockLines,
+    setDockCount,
     dock: () => dockNow,
     setDock,
     onDockChange: (listener) => void dockListeners.push(listener),

@@ -366,8 +366,19 @@ export function fileExtensions(path: string): Extension {
   ];
 }
 
+/**
+ * What covers the code's foot: phones float Run over it (app.css sets --code-foot-cover on the
+ * editor host, and pads the content by as much so the last line can scroll clear of it). Read at
+ * each scroll into view, so the caret Ctrl+End or typing takes there stays above Run too.
+ */
+export const footCover: Extension = EditorView.scrollMargins.of((view) => {
+  const cover = parseFloat(getComputedStyle(view.scrollDOM).getPropertyValue("--code-foot-cover"));
+  return cover > 0 ? { bottom: cover } : null;
+});
+
 export const BASE: Extension = [
   Prec.highest(keymap.of([...APP_KEYS])),
+  footCover,
   Prec.highest(keymap.of([ESCAPE_KEY, ENTER_KEY])),
   pickedByHand,
   // The step-through's marks (run-step.ts); a Python file's count column comes with fileExtensions.

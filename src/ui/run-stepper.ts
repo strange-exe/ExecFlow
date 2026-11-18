@@ -62,6 +62,19 @@ export function cutWords(model: StepModel, k: number): string | null {
   return last < 0 ? "Values weren't recorded for this run." : `Values stopped being recorded after step ${last}.`;
 }
 
+/**
+ * The names whose value changed at step k: new at k, or a different text than at k - 1, within one
+ * call (a new call's names are its own, not changes). None at Start or where values weren't recorded.
+ */
+export function changedNames(model: StepModel, k: number): Set<string> {
+  const out = new Set<string>();
+  if (k <= 0 || model.values === "none" || !model.valuesKnownAt(k) || !model.valuesKnownAt(k - 1)) return out;
+  if (model.step(k).call !== model.step(k - 1).call) return out;
+  const before = new Map(model.varsAt(k - 1));
+  for (const [name, value] of model.varsAt(k)) if (before.get(name) !== value) out.add(name);
+  return out;
+}
+
 /** The step a stepping key goes to (clamped), or null for any other key. */
 export function keyStep(key: string, k: number, total: number): number | null {
   const last = Math.max(0, total - 1);
@@ -162,7 +175,9 @@ export function createRunStepper(host: HTMLElement, varsHost: HTMLElement, hooks
     varsHost.dataset.values = model.values;
     const cut = cutWords(model, k);
     const pairs = cut ? [] : model.varsAt(k);
-    // textContent only: names and values are the program's own text.
+    const changed = changedNames(model, k);
+    // textContent only: names and values are the program's own text. A value that changed at this
+    // step carries a dot (a shape, not a colour alone) and says ", changed" to a screen reader.
     varsList.replaceChildren(
       ...pairs.map(([name, value]) => {
         const n = h("span", { class: "run-var-name" });
@@ -170,7 +185,12 @@ export function createRunStepper(host: HTMLElement, varsHost: HTMLElement, hooks
         const v = h("span", { class: "run-var-value" });
         v.textContent = value;
         const li = h("li", { class: "run-var" }, n, h("span", { class: "run-var-eq" }, " = "), v);
-        li.title = `${name} = ${value}`;
+        const isNew = changed.has(name);
+        if (isNew) {
+          li.dataset.changed = "true";
+          li.append(h("span", { class: "run-var-dot", "aria-hidden": "true" }), h("span", { class: "visually-hidden" }, ", changed"));
+        }
+        li.title = isNew ? `${name} = ${value} (changed at this step)` : `${name} = ${value}`;
         return li;
       }),
     );

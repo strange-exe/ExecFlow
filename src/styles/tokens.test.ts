@@ -39,7 +39,7 @@ const RUNTIME = new Set([
   "--kind", // about.css, a What's new change tag's hue, declared on each kind's rule
   "--fc-i", // src/flowchart/render.ts, a traced connector's place in the run trace's draw-in
   "--fc-chip-k", // src/ui/flowchart-view.ts, the chips' scale against the chart's zoom
-  "--peek-lines", // app.css, declared on the phone's dock (.panel below 900 px): the lines its peek shows
+  "--code-foot-cover", // app.css, declared on .editor-host below 900 px: the room Run takes over the code's foot
   "--vv-h", // src/ui/layout.ts, the height above the on-screen keyboard (phones)
   "--hang", // src/editor/hanging-indent.ts, a wrapped line's hanging indent (phones)
 ]);

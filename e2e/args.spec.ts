@@ -248,11 +248,11 @@ test("on a phone, Run with an unclosed quote from the Code view opens All output
   await openBox(page);
   await field(page).fill('"open');
   await page.locator("#view-code").click();
-  await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-selected", "false");
   await expect(field(page)).toBeHidden();
   const before = await runs(page);
   await page.locator("#run-button").click();
-  await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#ptab-output")).toHaveAttribute("aria-selected", "true");
   await expect(field(page)).toBeFocused();
   await expect(field(page)).toBeInViewport();

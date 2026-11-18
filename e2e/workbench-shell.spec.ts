@@ -7,7 +7,8 @@
 // no rail, Run on the run strip, Files a popover) is e2e/flow-board.spec.ts's; the rail is checked
 // under 1100 px here.
 import type { Page } from "@playwright/test";
-import { expect, importFiles, openApp, openFromTree, reloadApp, run, showPanel, test, tolerating } from "./helpers";
+import { expect, importFiles, openApp, openFromTree, openIn, reloadApp, run, showPanel, test, tolerating, treeItem, waitReady } from "./helpers";
+import { contrast, type RGB } from "./pixels";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -43,6 +44,35 @@ const actionColour = (page: Page) =>
 
 test.describe("desktop", () => {
   test.beforeEach(({ page }) => page.setViewportSize({ width: 1440, height: 900 }));
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`(${scheme}) the file list is 224 px, and its selected row shows: a fill a step off the list's ground and an edge 3:1 on it`, async ({ page }) => {
+      await openIn(page, "/", scheme);
+      await waitReady(page);
+      await importFiles(page, [{ name: "a.py", text: "print(1)\n" }, { name: "b.py", text: "print(2)\n" }]);
+      await openFromTree(page, "a.py");
+      expect(Math.round((await box(page, "#sidebar")).width), "the mock's 224 px").toBe(224);
+      await treeItem(page, "b.py").focus();
+      await page.keyboard.press("ArrowUp");
+      await expect(treeItem(page, "a.py")).toHaveAttribute("aria-selected", "true");
+      await page.mouse.move(1400, 880);
+      const read = await page.evaluate(() => {
+        const row = document.querySelector<HTMLElement>('.tree [role=treeitem][aria-selected="true"] > .tree-row')!;
+        const probe = document.createElement("span");
+        probe.style.color = "var(--text)";
+        document.body.append(probe);
+        const text = getComputedStyle(probe).color;
+        probe.remove();
+        return { fill: getComputedStyle(row).backgroundColor, ground: getComputedStyle(document.querySelector("#sidebar")!).backgroundColor, image: getComputedStyle(row).backgroundImage, text };
+      });
+      // A color-mix() fill computes as color(srgb r g b) with 0-1 channels; rgb() has 0-255 ones.
+      const rgb = (c: string) => (c.match(/\d*\.?\d+/g) ?? []).slice(0, 3).map((n) => Number(n) * (c.startsWith("color(srgb") ? 255 : 1)) as RGB;
+      expect(contrast(rgb(read.fill), rgb(read.ground)), `fill ${read.fill} on ${read.ground}`).toBeGreaterThanOrEqual(1.12);
+      expect(read.image, "the edge is the text colour").toContain(read.text);
+      expect(contrast(rgb(read.text), rgb(read.fill)), "the edge on the fill").toBeGreaterThanOrEqual(3);
+      expect(contrast(rgb(read.text), rgb(read.ground)), "the edge on the list").toBeGreaterThanOrEqual(3);
+    });
+  }
 
   test("from 1100 px the code board (the code over its console) and the chart board stand side by side, equal; the console's y-axis splitter resizes it from the keyboard and remembers the size", async ({ page }) => {
     await withRun(page);
@@ -253,29 +283,34 @@ test.describe("an empty workspace", () => {
 test.describe("phones", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("the segment (Code, Flowchart) under the top bar, the dock (Run 48 px, the problems count, All output) at the foot, Files the file's name", async ({ page }) => {
+  // Stage 4 (editor option A's phone mock): the views are the dock's tabs at the foot (they were a
+  // segment under the top bar), Output among them in place of "All output", Run a 52 px floating
+  // action (it was 48 px in the dock's strip), the problems count in the run row.
+  test("the dock (Code, Flowchart, Output) at the foot, Run floating over the board, Files the file's name", async ({ page }) => {
     await withRun(page);
     const bar = page.getByRole("navigation", { name: "Views" });
     await expect(bar).toBeVisible();
-    const [top, b] = [await box(page, ".topbar"), await box(page, ".view-bar")];
-    expect(Math.round(b.y), "the segment is under the top bar").toBe(Math.round(top.y + top.height));
-    const items = bar.locator("button");
-    await expect(items).toHaveText(["Code", "Flowchart"]);
+    const [top, b, status] = [await box(page, ".topbar"), await box(page, ".view-bar"), await box(page, ".statusbar")];
+    expect(Math.round(top.height), "the top bar").toBe(56);
+    expect(Math.abs(b.y + b.height - status.y), "the dock sits on the status bar's line").toBeLessThanOrEqual(1);
+    const items = bar.getByRole("tab");
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(0)).toHaveAccessibleName("Code");
+    await expect(items.nth(1)).toHaveAccessibleName("Flowchart");
+    await expect(items.nth(2)).toHaveAccessibleName(/^Output, 1 error/);
     for (const el of await items.all()) expect(Math.round((await el.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
-    expect(Math.round((await box(page, "#run-button")).height)).toBe(48);
-    // The dock's foot: the problems count and All output (a disclosure of the whole console).
-    await expect(page.locator("#panel .dock-foot #problems-count")).toBeVisible();
+    expect(Math.round((await box(page, "#run-button")).height)).toBe(52);
     const all = page.locator("#dock-toggle");
     await all.click();
-    await expect(all).toHaveAttribute("aria-expanded", "true");
+    await expect(all).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#console")).toBeVisible();
     // The console's own tabs then show, moved with the arrow keys.
     await page.locator("#ptab-output").focus();
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#ptab-problems")).toBeFocused();
     await expect(page.locator("#ptab-problems")).toHaveAttribute("aria-selected", "true");
-    await all.click();
-    await expect(all).toHaveAttribute("aria-expanded", "false");
+    await page.locator("#view-code").click();
+    await expect(all).toHaveAttribute("aria-selected", "false");
     // Files (the file's name in the top bar) opens the drawer and closes it again.
     const files = page.locator(".topbar .drawer-toggle");
     await expect(files).toHaveAccessibleName(/^Files: /);

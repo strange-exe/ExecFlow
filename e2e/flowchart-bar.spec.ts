@@ -115,7 +115,9 @@ for (const vp of [
       expect(fitted).toBeLessThanOrEqual(1.001);
       // Under the code (900 to 1099 px) the card is too short for this chart at a readable size:
       // there the chart stops at three quarters of full size and scrolls down (the "fit" tests below).
-      const whole = vp.width !== 900;
+      // So on a 390 x 844 phone since Workbench stage 4: the run row (64 px) and the dock (64 px)
+      // stay under the chart, leaving it 530 px of the 559 this 724 px chart needs at 75%.
+      const whole = vp.width !== 900 && vp.width !== 390;
       if (whole) expect(await wholeInView(page), "the whole chart in view").toBe(true);
       else expect(Math.abs(fitted - 0.75), "the readable floor").toBeLessThan(0.002);
       await page.locator("#fc-zoom-in").click();

@@ -95,13 +95,13 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   const runtimes = new Runtimes();
   const output = new OutputView();
   L.outputPanel.append(output.element);
-  // The run's outcome ("Finished, exit code 0, ran in 41 ms"): in the run strip from 1100 px and in
-  // the phone's dock, in the run-log header from 900 to 1099 px.
-  const placeOutcome = () => output.placeReceipt(L.chartOnBoard() || L.narrow() ? L.runOutcome : null);
+  // The run's outcome ("Finished, exit code 0, ran in 41 ms"): in the run strip from 1100 px, in the
+  // run-log header below that (on phones Output shows it there: the run row is the stepper's).
+  const placeOutcome = () => output.placeReceipt(L.chartOnBoard() ? L.runOutcome : null);
   placeOutcome();
   L.onWideChange(placeOutcome);
   L.onNarrowChange(placeOutcome);
-  // Phones: the dock's foot counts the output's lines, and its peek shows the last of them.
+  // Phones: the Output tab's tooltip counts the output's lines; back to Code, the log is at its end.
   output.onLines = (lines) => L.setDockLines(lines);
   output.say = (text) => announcer.say(text);
   L.onDockChange((dock) => {
@@ -1101,6 +1101,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
         count.dataset.count = String(counts.total);
         count.dataset.errors = String(counts.errors);
         tab.setAttribute("aria-label", counts.total ? `Problems, ${describeCounts(counts)}` : "Problems");
+        // Phones: the dock's Output tab carries the count too (the mock's "Output 1").
+        L.setDockCount(counts.total, counts.errors, counts.total ? describeCounts(counts) : "");
       }
       renderProblemsCount(list, counts);
       // The collapsed panel opens for the first problem of the session (as it does for every run).
@@ -1122,7 +1124,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
   let problemsSeen = false;
   problemsView.onOpen = (p) => void revealProblem(p);
   /**
-   * The count (phones: at the dock's foot; layout.ts keeps it out of the page elsewhere, where the
+   * The count (phones: in the run row; layout.ts keeps it out of the page elsewhere, where the
    * Problems tab carries the number): "No problems", or "1 problem, line 12" (the first one in the
    * open file; "2 problems, in calc.py" when none is in it), in the danger colour while there are
    * errors. Words, so the state never rests on the colour or the icon.
@@ -1144,8 +1146,8 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     button.firstElementChild!.replaceWith(icon(tone === "error" ? "x-circle" : tone === "warning" ? "warning" : "check-circle"));
     L.problemsWords.textContent = words;
   }
-  // The count discloses the list (aria-expanded, layout.ts). It sits at the dock's foot on phones:
-  // it opens the list over the code, closes it to the peek, and keeps the focus (set here because
+  // The count discloses the list (aria-expanded, layout.ts). It sits in the run row on phones:
+  // it opens the list over the code (Output, on Problems), closes it to the code, and keeps the focus (set here because
   // WebKit doesn't focus a clicked button). Elsewhere the Problems tab takes the focus.
   L.problemsButton.addEventListener("click", () => {
     const open = L.problemsButton.getAttribute("aria-expanded") === "true";
@@ -1480,7 +1482,7 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
     loadHelp().catch(() => {});
     // The panel opens on Run (to its remembered height) and shows Output. In focus code it stays the
     // run strip, which reports the run (a program waiting for input shows its console). On phones the
-    // code stays on screen: the dock's peek shows the run (option A, 2026-11-03).
+    // code stays on screen with the run row (stage 4); Output's count shows a failure.
     L.showPanelTab("output", false, true);
     setRunning("running");
     output.setPhase(lang === "python" ? "running" : "compiling", lang === "python" ? "Running" : "Compiling");
@@ -1511,8 +1513,9 @@ export async function startWorkbench(root: HTMLElement): Promise<void> {
       noteRun(file.id, byPath.get(file.path)?.text ?? "", result.trace);
       // Its steps come from the chart (the stepper, the code's counts): with the view not loaded yet
       // (a phone that never opened the chart), it loads and draws off screen. Once loaded, its own
-      // run listener does that.
-      if (result.trace && !chartView && file.id === editors.activeId) void ensureChart().then((v) => v.prepareSteps(), () => {});
+      // run listener does that. A C or C++ run has no trace, but its one sentence (no step-through)
+      // comes from the chart too, and a phone shows it in the run row (stage 4).
+      if ((result.trace || lang !== "python") && !chartView && file.id === editors.activeId) void ensureChart().then((v) => v.prepareSteps(), () => {});
       // A file deleted during the run takes its errors with it; a renamed one keeps them under its
       // new name (endBuild stores a closed file's results under the path the tool saw).
       const marks =[...result.diagnostics, ...callSiteMarks(result.diagnostics)].filter((d) => !(d.path && moves.get(d.path) === null));

@@ -579,14 +579,12 @@ export async function run(page: Page, opts: { timeout?: number; input?: string[]
 }
 
 /**
- * On narrow screens: Code is the segment's Code over the dock's peek; Output and Problems are the
- * dock opened (All output) on that tab. A no-op where all show.
+ * On narrow screens: Code is the dock's Code tab; Output and Problems are its Output tab (the whole
+ * console) on that console tab. A no-op where all show.
  */
 export async function showView(page: Page, view: "code" | "output" | "problems") {
   if (!isNarrow(page)) return;
   if (view !== "code") return showPanel(page, view);
-  const dock = page.locator("#dock-toggle");
-  if ((await dock.getAttribute("aria-expanded")) === "true") await dock.click();
   const tab = page.locator("#view-code");
   if (await tab.isVisible()) await tab.click();
 }
@@ -599,14 +597,10 @@ export async function showView(page: Page, view: "code" | "output" | "problems")
  */
 export async function showPanel(page: Page, tab: "output" | "problems") {
   if (isNarrow(page)) {
-    // Phones: All output opens the whole console, whose tabs then show. Under the chart the dock is
-    // its strip alone, so Code comes first.
+    // Phones: the dock's Output tab opens the whole console, whose tabs then show.
     const dock = page.locator("#dock-toggle");
-    if ((await dock.getAttribute("aria-expanded")) !== "true") {
-      if ((await page.locator("#view-flowchart").getAttribute("aria-selected")) === "true") await page.locator("#view-code").click();
-      await dock.click();
-    }
-    await expect(dock).toHaveAttribute("aria-expanded", "true");
+    if ((await dock.getAttribute("aria-selected")) !== "true") await dock.click();
+    await expect(dock).toHaveAttribute("aria-selected", "true");
     await page.locator(`#ptab-${tab}`).click();
     return;
   }

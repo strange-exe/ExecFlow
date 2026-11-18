@@ -242,9 +242,9 @@ test.describe("the output beside the code", () => {
     expect(await split.getAttribute("aria-valuemax")).toBe("320");
     await boardSplit(page).focus();
     await page.keyboard.press("Home");
-    // Workbench: 1440 - rail 48 - file list 248 - its 1 px splitter = 1143 for the boards; the chart
-    // at its least (320) and the 9 px gap leave the code board 814: 814 - 8 - 420 = 386 for the output.
-    await expect.poll(async () => Number(await split.getAttribute("aria-valuemax"))).toBe(386);
+    // Workbench: 1440 - rail 48 - file list 224 - its 1 px splitter = 1167 for the boards; the chart
+    // at its least (320) and the 9 px gap leave the code board 838: 838 - 8 - 420 = 410 for the output.
+    await expect.poll(async () => Number(await split.getAttribute("aria-valuemax"))).toBe(410);
     const start = await value(page, split);
     await split.focus();
     await page.keyboard.press("ArrowLeft");

@@ -538,11 +538,11 @@ test.describe("phones", () => {
     expect(ends).toEqual(["sync-slot", "palette-button", "settings-button"]);
     await expect(page.locator(".topbar #run-button")).toHaveCount(0);
     await expect(page.locator("#panel .run-strip #run-button")).toBeVisible();
-    // Chrome above the code: the top bar and the segment.
-    expect(Math.round((await box(page, ".topbar")).height)).toBe(48);
-    const seg = await box(page, ".view-bar");
-    expect(Math.round(seg.y)).toBe(48);
-    expect(Math.round((await box(page, "#editor-panel")).y), "the code starts under the segment").toBe(Math.round(seg.y + seg.height));
+    // Chrome above the code: the top bar alone (56 px, stage 4); the views are the dock at the foot.
+    expect(Math.round((await box(page, ".topbar")).height)).toBe(56);
+    expect(Math.round((await box(page, "#editor-panel")).y), "the code starts under the top bar").toBe(56);
+    const dock = await box(page, ".view-bar");
+    expect(Math.round(dock.y), "the dock is under the strip").toBeGreaterThanOrEqual(Math.round((await box(page, "#panel .run-strip")).y + (await box(page, "#panel .run-strip")).height) - 1);
 
     // The drawer marks every file open in a tab, with an icon and a description. Its head carries
     // the workspace (the app's mark is in the top bar).
@@ -574,13 +574,13 @@ test.describe("phones", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".drawer-toggle")).toHaveAttribute("aria-expanded", "false");
 
-    // The segment: one tab list of Code and Flowchart, arrows (wrapping), Home and End; the dock
-    // stays under either board.
+    // The dock: one tab list of Code, Flowchart and Output, arrows (wrapping), Home and End; the
+    // strip stays under either board.
     const switcher = page.getByRole("tablist", { name: "View" });
-    await expect(switcher.getByRole("tab")).toHaveText(["Code", "Flowchart"]);
+    await expect(switcher.getByRole("tab")).toHaveText(["Code", "Flowchart", /^Output/]);
     const selected = switcher.locator('[role=tab][aria-selected="true"]');
     await page.locator("#view-code").focus();
-    for (const [key, id] of [["ArrowRight", "view-flowchart"], ["ArrowRight", "view-code"], ["End", "view-flowchart"], ["Home", "view-code"], ["ArrowLeft", "view-flowchart"]] as const) {
+    for (const [key, id] of [["ArrowRight", "view-flowchart"], ["ArrowLeft", "view-code"], ["ArrowLeft", "dock-toggle"], ["ArrowRight", "view-code"], ["End", "dock-toggle"], ["Home", "view-code"], ["ArrowRight", "view-flowchart"]] as const) {
       await page.keyboard.press(key);
       await expect(selected, key).toHaveAttribute("id", id);
       await expect(page.locator(`#${id}`)).toBeFocused();
@@ -600,7 +600,7 @@ test.describe("phones", () => {
     await page.locator("#run-button").click();
     await expect(page.locator("#app")).toHaveAttribute("data-run", "waiting", { timeout: 45_000 });
     // A program waiting for input opens All output on its Output tab (option A, phone dock).
-    await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#ptab-output")).toHaveAttribute("aria-selected", "true");
     const field = page.locator("#live-input-field");
     await expect(field).toBeFocused();
@@ -750,7 +750,7 @@ for (const how of ["collapsed", "problems", "phone-code"] as const) {
     } else {
       // The run opened nothing over the code: the dock is its peek (option A, phone dock).
       await page.locator("#view-code").click();
-      await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-expanded", "false");
+      await expect(page.locator("#dock-toggle")).toHaveAttribute("aria-selected", "false");
       await expect(page.locator(".cm-content")).toBeVisible();
     }
     // The output went out of view while the program was still busy (before it asked).
