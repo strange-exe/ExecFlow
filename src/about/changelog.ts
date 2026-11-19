@@ -20,6 +20,18 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.36.0",
+    date: "2026-11-19",
+    title: "A new workbench, and step through a Python run",
+    items: [
+      { kind: "added", text: "After a Python run, step through it one line at a time: Previous and Next (or the Left and Right arrow keys) move a step, the code shows how many times each line has run so far, the flowchart outlines the current box and draws only the arrows taken, and a Variables row shows each variable's value at that step, marking the ones that just changed. C and C++ say step-through is Python only for now." },
+      { kind: "changed", text: "The editor has a new layout: an icon rail beside the files, a top bar with the search field and GitHub status, the flowchart on a board of its own with its tools in one bar, and a status bar along the foot." },
+      { kind: "changed", text: "The new default theme is Electric Blue, in light and dark, with TASA Orbiter for the interface and Geist Mono for code. If you used the old default (Signal), you're moved to Electric Blue once; Signal is still in Settings." },
+      { kind: "changed", text: "On a phone, Code, Flowchart and Output are tabs along the bottom, the stepper has its own row, and Run floats above it. The flowchart's legend folds behind a Key button, so the whole chart fits on screen." },
+      { kind: "fixed", text: "After you run a Python program in one folder, the mistake checks on a file in another folder now start a fresh Python, so nothing the program left behind can see that file." },
+    ],
+  },
+  {
     version: "0.35.1",
     date: "2026-11-18",
     title: "One broken file no longer stops another from running",

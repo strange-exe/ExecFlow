@@ -6,6 +6,24 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.36.0] - 2026-11-19
+
+A new workbench, and step through a Python run
+
+### Added
+
+- After a Python run, step through it one line at a time: Previous and Next (or the Left and Right arrow keys) move a step, the code shows how many times each line has run so far, the flowchart outlines the current box and draws only the arrows taken, and a Variables row shows each variable's value at that step, marking the ones that just changed. C and C++ say step-through is Python only for now.
+
+### Changed
+
+- The editor has a new layout: an icon rail beside the files, a top bar with the search field and GitHub status, the flowchart on a board of its own with its tools in one bar, and a status bar along the foot.
+- The new default theme is Electric Blue, in light and dark, with TASA Orbiter for the interface and Geist Mono for code. If you used the old default (Signal), you're moved to Electric Blue once; Signal is still in Settings.
+- On a phone, Code, Flowchart and Output are tabs along the bottom, the stepper has its own row, and Run floats above it. The flowchart's legend folds behind a Key button, so the whole chart fits on screen.
+
+### Fixed
+
+- After you run a Python program in one folder, the mistake checks on a file in another folder now start a fresh Python, so nothing the program left behind can see that file.
+
 ## [0.35.1] - 2026-11-18
 
 One broken file no longer stops another from running
