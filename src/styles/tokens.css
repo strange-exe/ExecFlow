@@ -10,9 +10,10 @@
 /* Self-hosted, Latin subset only, SIL Open Font License 1.1. A face is downloaded only when
    something on the page uses it. The Workbench pair (2026-11-18), the About page's too
    (about-tokens.css declares the same faces): TASA Orbiter (@fontsource-variable/tasa-orbiter
-   5.3.0) for the interface and Geist Mono (@fontsource-variable/geist-mono 5.3.0) for code, the log
-   and file names. Both are variable files, one download for every weight; Geist Mono's italic is
-   its own variable file, the real italic for comments (not a slanted copy). */
+   5.3.0) for the interface and Geist Mono 1.8.2 for code, the log and file names. Both are variable
+   files, one download for every weight; Geist Mono's italic is its own variable file, the real
+   italic for comments (not a slanted copy). Geist Mono comes from Vercel's own release, cut to
+   Latin by scripts/subset-geist-mono.py: Fontsource's files have no coding ligatures. */
 @font-face {
   font-family: "TASA Orbiter";
   font-style: normal;
@@ -25,14 +26,14 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2");
+  src: url("./fonts/geist-mono-1.8.2-latin-wght-normal.woff2") format("woff2");
 }
 @font-face {
   font-family: "Geist Mono";
   font-style: italic;
   font-display: swap;
   font-weight: 100 900;
-  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-italic.woff2") format("woff2");
+  src: url("./fonts/geist-mono-1.8.2-latin-wght-italic.woff2") format("woff2");
 }
 
 :root {
@@ -675,3 +676,8 @@
 :root:not([data-ligatures="on"]) *,
 :root:not([data-ligatures="on"]) *::before,
 :root:not([data-ligatures="on"]) *::after { font-variant-ligatures: none; }
+/* Geist Mono draws its joined symbols from Stylistic Set 11 ("Coding ligatures"), not from the
+   standard ligatures, so "on" turns that set on as well. TASA Orbiter has no ss11. */
+:root[data-ligatures="on"] *,
+:root[data-ligatures="on"] *::before,
+:root[data-ligatures="on"] *::after { font-feature-settings: "ss11"; }

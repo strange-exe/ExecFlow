@@ -20,6 +20,14 @@ export interface Release {
 
 export const CHANGELOG: readonly Release[] = [
   {
+    version: "0.36.1",
+    date: "2026-11-19",
+    title: "Joined symbols work again",
+    items: [
+      { kind: "fixed", text: "\"Joined symbols in code\" in Settings works again: with it on, != == -> <= >= and similar pairs are drawn as single shapes. Since 0.36.0 the switch changed nothing, because the copy of Geist Mono we shipped had no joined shapes; ExecFlow now uses Geist Mono's own release, which has them." },
+    ],
+  },
+  {
     version: "0.36.0",
     date: "2026-11-19",
     title: "A new workbench, and step through a Python run",

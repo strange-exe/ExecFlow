@@ -8,8 +8,8 @@
 
 /* Self-hosted, Latin subset only, SIL Open Font License 1.1 (README credits, licenses.txt). Both are
    variable files: one download each for every weight the page uses. TASA Orbiter
-   (@fontsource-variable/tasa-orbiter 5.3.0) for display and text; Geist Mono
-   (@fontsource-variable/geist-mono 5.3.0) for labels, navigation and code. */
+   (@fontsource-variable/tasa-orbiter 5.3.0) for display and text; Geist Mono 1.8.2 (the same
+   file as the editor's, see tokens.css) for labels, navigation and code. */
 @font-face {
   font-family: "TASA Orbiter";
   font-style: normal;
@@ -22,7 +22,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2");
+  src: url("./fonts/geist-mono-1.8.2-latin-wght-normal.woff2") format("woff2");
 }
 
 :root {

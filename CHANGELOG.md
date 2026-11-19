@@ -6,6 +6,14 @@ Every change to ExecFlow (CodeEditor before 0.16.0) that reached the site, newes
 
 This file is written from `src/about/changelog.ts` by `node scripts/write-changelog.mjs`: edit the data, not this file.
 
+## [0.36.1] - 2026-11-19
+
+Joined symbols work again
+
+### Fixed
+
+- "Joined symbols in code" in Settings works again: with it on, != == -> <= >= and similar pairs are drawn as single shapes. Since 0.36.0 the switch changed nothing, because the copy of Geist Mono we shipped had no joined shapes; ExecFlow now uses Geist Mono's own release, which has them.
+
 ## [0.36.0] - 2026-11-19
 
 A new workbench, and step through a Python run

@@ -500,6 +500,34 @@ test("ligatures stay off unless chosen, and choosing them keeps the code font (G
   expect(await codeFont()).toMatch(/^"?Geist Mono"?,/);
 });
 
+// 0.36.0 bundled a Geist Mono without its coding ligatures, so the switch changed a CSS value and
+// nothing on screen. Geist Mono keeps them in Stylistic Set 11 ("Coding ligatures"): with the
+// switch on, the same line must be drawn differently; off, exactly as before.
+test("joined symbols really join: the same code line is drawn differently with the switch on, and as before with it off", async ({ page }) => {
+  await openApp(page);
+  // Valid Python with no names, so the checker never underlines anything on the line.
+  await importFiles(page, [{ name: "ops.py", text: 's = "a != b == c -> d <= e >= f"\n' }]);
+  await openFromTree(page, "ops.py");
+  const line = page.locator(".cm-line").first();
+  await expect(line).toContainText("a != b");
+  await page.evaluate(() => document.fonts.ready);
+  const shot = async () => {
+    // Unfocused, the editor draws no cursor, so only the glyphs can differ.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    return line.screenshot({ animations: "disabled" });
+  };
+  const off = await shot();
+  await page.locator("#settings-button").click();
+  await page.getByLabel("Joined symbols in code").check();
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(async () => (await shot()).equals(off), { message: "the line looks the same with joined symbols on" }).toBe(false);
+  await page.locator("#settings-button").click();
+  await page.getByLabel("Joined symbols in code").uncheck();
+  await page.keyboard.press("Escape");
+  await expect.poll(async () => (await shot()).equals(off), { message: "off draws the line as before" }).toBe(true);
+});
+
 // Icons are fetched out of band, so no console error or axe rule catches a
 // missing favicon. Fetch the declared icons and check their bytes. (Proved to fail with the file removed.)
 test("favicon, apple-touch-icon and manifest icons exist and match their declared format", async ({ page, request }) => {

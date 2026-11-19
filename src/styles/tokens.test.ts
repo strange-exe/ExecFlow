@@ -4,6 +4,7 @@
 // var(--accent) would pass every other test and quietly paint nothing; and nothing else stops a raw
 // colour from slipping into a component rule. These two checks do.
 import { readdirSync, readFileSync } from "node:fs";
+import { brotliDecompressSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { LINT_SPEC } from "../editor/extensions";
 import { CHROME_SPEC } from "../editor/highlight";
@@ -126,9 +127,53 @@ describe("type, shape and desktop heights (redesign 2, option a)", () => {
     const face = (family: string, style: string) => faces.filter((f) => f.includes(`font-family: "${family}";`) && f.includes(`font-style: ${style};`));
     expect(faces).toHaveLength(3);
     expect(face("TASA Orbiter", "normal")[0]).toContain('src: url("@fontsource-variable/tasa-orbiter/files/tasa-orbiter-latin-wght-normal.woff2")');
-    expect(face("Geist Mono", "normal")[0]).toContain('src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2")');
-    expect(face("Geist Mono", "italic")[0]).toContain('src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-italic.woff2")');
+    // Vercel's own Geist Mono 1.8.2 cut to Latin (scripts/subset-geist-mono.py): Fontsource's has no
+    // coding ligatures, so "Joined symbols" did nothing in 0.36.0.
+    expect(face("Geist Mono", "normal")[0]).toContain('src: url("./fonts/geist-mono-1.8.2-latin-wght-normal.woff2")');
+    expect(face("Geist Mono", "italic")[0]).toContain('src: url("./fonts/geist-mono-1.8.2-latin-wght-italic.woff2")');
     for (const f of faces) expect(f).toContain("font-display: swap;");
+  });
+
+  it('"Joined symbols" turns on Geist Mono\'s Stylistic Set 11 (its coding ligatures), and only when chosen', () => {
+    expect(body).toMatch(/:root\[data-ligatures="on"\] \*,\s*:root\[data-ligatures="on"\] \*::before,\s*:root\[data-ligatures="on"\] \*::after \{ font-feature-settings: "ss11"; \}/);
+    expect(body.match(/ss11/g)).toHaveLength(1); // only in that rule, never unconditional
+  });
+
+  it("both Geist Mono files really carry Stylistic Set 11, labelled Coding ligatures", () => {
+    // WOFF2 (w3.org/TR/WOFF2): a 48-byte header, a table directory, then every table in one Brotli
+    // stream. GSUB and name are stored untransformed, so the feature tag and its UI label (UTF-16BE
+    // in the name table) appear as bytes once the stream is unpacked.
+    const tables = (bytes: Buffer): Buffer => {
+      const numTables = bytes.readUInt16BE(12);
+      const compressed = bytes.readUInt32BE(20);
+      let at = 48;
+      const base128 = () => {
+        let value = 0;
+        for (let i = 0; i < 5; i++) {
+          const b = bytes[at++];
+          value = value * 128 + (b & 0x7f);
+          if (!(b & 0x80)) return value;
+        }
+        throw new Error("bad UIntBase128");
+      };
+      for (let t = 0; t < numTables; t++) {
+        const flags = bytes[at++];
+        let tag = (flags & 0x3f) === 10 ? "glyf" : (flags & 0x3f) === 11 ? "loca" : "";
+        if ((flags & 0x3f) === 0x3f) { tag = bytes.subarray(at, at + 4).toString("latin1"); at += 4; }
+        base128(); // origLength
+        const version = flags >> 6;
+        if (tag === "glyf" || tag === "loca" ? version === 0 : version !== 0) base128(); // transformLength
+      }
+      return brotliDecompressSync(bytes.subarray(at, at + compressed));
+    };
+    for (const style of ["normal", "italic"]) {
+      const bytes = readFileSync(new URL(`./fonts/geist-mono-1.8.2-latin-wght-${style}.woff2`, import.meta.url));
+      expect(bytes.subarray(0, 4).toString("latin1"), style).toBe("wOF2");
+      expect(bytes.length, `${style}: Latin only`).toBeLessThan(45_000);
+      const data = tables(bytes);
+      expect(data.includes(Buffer.from("ss11", "latin1")), `${style}: ss11`).toBe(true);
+      expect(data.includes(Buffer.from("Coding ligatures", "utf16le").swap16()), `${style}: label`).toBe(true);
+    }
   });
 
   it("the type scale and shapes", () => {
