@@ -38,6 +38,8 @@ const bar = (page: Page) => page.locator(".fc-toolbar");
 const stage = (page: Page) => page.locator(".fc-stage");
 const chartSvg = (page: Page) => page.locator(".fc-stage svg");
 const legend = (page: Page) => page.getByRole("list", { name: "Shapes" });
+/** Phones fold the legend behind this button (owner, 2026-11-19). */
+const keyButton = (page: Page) => page.locator("#fc-key");
 
 async function chartFor(page: Page, files: { name: string; text: string }[], open: string, scheme: "light" | "dark" = "light") {
   await openIn(page, "/", scheme);
@@ -115,9 +117,8 @@ for (const vp of [
       expect(fitted).toBeLessThanOrEqual(1.001);
       // Under the code (900 to 1099 px) the card is too short for this chart at a readable size:
       // there the chart stops at three quarters of full size and scrolls down (the "fit" tests below).
-      // So on a 390 x 844 phone since Workbench stage 4: the run row (64 px) and the dock (64 px)
-      // stay under the chart, leaving it 530 px of the 559 this 724 px chart needs at 75%.
-      const whole = vp.width !== 900 && vp.width !== 390;
+      // A phone fits it whole: its legend is folded behind the Key button (owner, 2026-11-19).
+      const whole = vp.width !== 900;
       if (whole) expect(await wholeInView(page), "the whole chart in view").toBe(true);
       else expect(Math.abs(fitted - 0.75), "the readable floor").toBeLessThan(0.002);
       await page.locator("#fc-zoom-in").click();
@@ -278,11 +279,55 @@ test.describe("phones", () => {
       const s = (await stage(page).boundingBox())!;
       const g = (await chartSvg(page).boundingBox())!;
       expect(g.x + g.width, "the chart fits across").toBeLessThanOrEqual(s.x + s.width + 1);
+      // The legend is folded (owner, 2026-11-19): a 44 px Key button in the chart's top-left
+      // corner opens it over the chart, so the legend costs the chart no room.
+      const key = keyButton(page);
+      await expect(key).toBeVisible();
+      await expect(key).toHaveAttribute("aria-expanded", "false");
+      await expect(legend(page)).toBeHidden();
+      const k = (await key.boundingBox())!;
+      expect(Math.min(k.width, k.height), "a 44 px target").toBeGreaterThanOrEqual(43.5);
+      expect(k.y, "under the bar").toBeGreaterThanOrEqual(b.y + b.height - 0.5);
+      await key.click();
+      await expect(key).toHaveAttribute("aria-expanded", "true");
       await expect(legend(page)).toBeVisible();
+      await expect(legend(page).getByRole("listitem")).toHaveText(["Start and end", "Step", "Input or output", "Decision"]);
       const l = (await legend(page).boundingBox())!;
-      expect(l.x + l.width).toBeLessThanOrEqual(vp.width + 0.5);
-      // The legend stays a strip: two lines at most, so the chart keeps the screen.
-      expect(l.height).toBeLessThanOrEqual(56);
+      expect(l.x, "inside the screen").toBeGreaterThanOrEqual(-0.5);
+      expect(l.x + l.width, "inside the screen").toBeLessThanOrEqual(vp.width + 0.5);
+      expect(l.y, "under the Key button").toBeGreaterThanOrEqual(k.y + k.height - 0.5);
+      expect(l.y + l.height, "inside the chart's room").toBeLessThanOrEqual(s.y + s.height + 0.5);
+      // Escape folds it and gives the focus back to Key; a second press of Key folds it too.
+      await page.keyboard.press("Escape");
+      await expect(legend(page)).toBeHidden();
+      await expect(key).toBeFocused();
+      await expect(key).toHaveAttribute("aria-expanded", "false");
+      await key.click();
+      await expect(legend(page)).toBeVisible();
+      await key.click();
+      await expect(legend(page)).toBeHidden();
+      expect(await sideways(page)).toBe(0);
+    });
+  }
+
+  test("390 px: a Python file's chart (the wide Program picker) still fits whole, legend folded", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await chartFor(page, [{ name: "evens.py", text: "total = 0\nfor n in range(1, 7):\n    if n % 2 == 0:\n        total += n\nprint(total)\n" }], "evens.py");
+    await expect(legend(page)).toBeHidden();
+    expect(await wholeInView(page), "the whole chart in view").toBe(true);
+  });
+});
+
+test.describe("wide screens keep the legend open", () => {
+  for (const vp of [
+    { width: 1440, height: 900 },
+    { width: 900, height: 760 },
+  ]) {
+    test(`${vp.width} px: no Key button; the legend shows under the chart`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await chartFor(page, [{ name: "main.c", text: EVENS }], "main.c");
+      await expect(keyButton(page)).toBeHidden();
+      await expect(legend(page)).toBeVisible();
     });
   }
 });

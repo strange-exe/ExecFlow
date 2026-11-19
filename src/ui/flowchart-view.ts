@@ -137,8 +137,18 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   banner.hidden = true;
   const stage = h("div", { class: "fc-stage" });
   // The shapes this chart uses, each with its name (a list: a screen reader hears how many).
-  const legend = h("ul", { class: "fc-legend", "aria-label": "Shapes" });
+  const legend = h("ul", { class: "fc-legend", id: "fc-legend", "aria-label": "Shapes" });
   legend.hidden = true;
+  // Phones fold the legend (owner, 2026-11-19): a Key button in the chart's empty top-left corner
+  // opens it over the chart, so the key costs the chart no room. From 900 px the button is hidden
+  // (flowchart.css) and the legend shows as before. The wrapper is `display: contents` there, so the
+  // stage and legend lay out as the view's own children.
+  const keyButton = h("button", { type: "button", class: "fc-key", id: "fc-key", "aria-expanded": "false", "aria-controls": "fc-legend" }, "Key");
+  const stageWrap = h("div", { class: "fc-stage-wrap" }, stage, keyButton, legend);
+  const setKeyOpen = (open: boolean) => {
+    keyButton.setAttribute("aria-expanded", String(open));
+    root.dataset.key = open ? "open" : "closed";
+  };
   // A Tab stop of its own, so a long outline scrolls by keyboard (WCAG 2.1.1; WebKit scrolls a box
   // only once something in it has focus).
   const steps = h("ol", { class: "fc-steps", id: "fc-steps", "aria-label": "Steps as text", tabindex: "0" });
@@ -152,8 +162,19 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
   // The run trace in words, said once after each traced run (the chart's thick lines and chips are
   // aria-hidden; Steps as text has the counts box by box).
   const traceSaid = h("p", { class: "visually-hidden", id: "fc-trace-said", role: "status" });
-  const root = h("div", { class: "fc-view", "data-state": "none" }, toolbar, status, banner, stage, legend, steps, message, traceSaid);
+  const root = h("div", { class: "fc-view", "data-state": "none", "data-key": "closed" }, toolbar, status, banner, stageWrap, steps, message, traceSaid);
   panel.append(root);
+  keyButton.addEventListener("click", () => setKeyOpen(keyButton.getAttribute("aria-expanded") !== "true"));
+  // Escape folds an open key and hands the focus back to its button (the dialog's own Escape, in
+  // full screen, is left alone while the key is closed). On the document, not the view: Safari
+  // doesn't focus a button it clicks, so after a tap on Key the focus is still outside the view.
+  root.ownerDocument.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || root.dataset.key !== "open" || keyButton.offsetParent === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setKeyOpen(false);
+    keyButton.focus();
+  });
   const dialog = h("dialog", { class: "fc-dialog", id: "fc-dialog", "aria-label": "Flowchart, full screen" });
 
   // ---------------------------------------------------------------- state
@@ -201,6 +222,8 @@ export function createFlowchartView(panel: HTMLElement, host: ChartHost, client:
     const drawn = state === "ready";
     stage.hidden = !drawn;
     legend.hidden = !drawn;
+    keyButton.hidden = !drawn;
+    if (!drawn) setKeyOpen(false);
     steps.hidden = !drawn || stepsToggle.getAttribute("aria-expanded") !== "true";
     // The picker stays for a function that is too big (another may fit); zoom needs a drawing.
     toolbar.hidden = !(drawn || state === "too-big");

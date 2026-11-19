@@ -2305,11 +2305,9 @@ input.switch {
      in the bar. */
   .workbench:not([data-keyboard="open"]) .editor-host { --code-foot-cover: 76px; }
   .editor-host .cm-editor .cm-content { padding-bottom: var(--code-foot-cover, 0px); }
-  /* The chart's legend (a key, read as text) heads the chart here, under its tools, rather than
-     ending the board where Run floats: so the legend never sits under Run and the chart keeps its
-     room. The text steps, when open, end the board with room for Run. */
-  .chart-board .fc-stage, .chart-board .fc-legend ~ * { order: 1; }
-  .chart-board .fc-legend { border-top: 0; border-bottom: 1px solid var(--border); }
+  /* The chart's legend is folded behind Key, at the chart's top (flowchart.css), so it never sits
+     under Run and the chart keeps its room. The text steps, when open, end the board with room
+     for Run. */
   .chart-board .fc-steps { padding-bottom: 76px; }
   /* Long lines always wrap here (workbench.ts), with a hanging indent (hanging-indent.ts): a
      line's later rows start 2 columns past its own indent; its first row stays put (the 8 px is

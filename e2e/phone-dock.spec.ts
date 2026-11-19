@@ -236,8 +236,11 @@ test("the variables row is under the code in Code and at the top of Output; Run 
   await page.locator("#view-flowchart").click();
   await expect(vars).toBeHidden();
   await expect(steps).toBeVisible();
-  // The chart's legend ends the board: every item is clear of Run, which floats over the foot.
+  // The chart's legend is folded behind Key (owner, 2026-11-19); opened, every item is clear of
+  // Run, which floats over the board's foot.
   const legend = page.locator("#chart-board .fc-legend li");
+  await expect(legend.first()).toBeHidden();
+  await page.locator("#fc-key").click();
   await expect(legend.first()).toBeVisible();
   const runOverChart = await box(page.locator("#run-button"));
   for (const item of await legend.all()) expect(overlaps(await box(item), runOverChart), `legend: ${await item.textContent()}`).toBe(false);
@@ -399,5 +402,9 @@ for (const scheme of ["light", "dark"] as const) {
     await page.locator("#view-flowchart").click();
     await expect(page.locator("#chart-board #panel-flowchart")).toBeVisible();
     await scan("flowchart");
+    // The folded legend, opened (owner, 2026-11-19).
+    await page.locator("#fc-key").click();
+    await expect(page.getByRole("list", { name: "Shapes" })).toBeVisible();
+    await scan("flowchart, key open");
   });
 }
