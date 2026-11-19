@@ -75,7 +75,9 @@ jobs:
     # took 46.5 unsharded (run 40535415597), close to the 60-minute limit, so it runs split by file
     # (https://playwright.dev/docs/test-sharding) into three shards. The 60-minute WebKit jobs of runs
     # 40546811002 and 40566760719 (shard 1/2) were install stalls (41.0 and 38.6 minutes in the
-    # browser install step), not slow tests: the install step has its own time limit below.
+    # browser install step), not slow tests: the install step has its own time limit below. Firefox
+    # took 47.6 minutes in run 44280798838 and passed the 60-minute limit in run 44528226124 (0.36.0
+    # added the stepper and phone tests), so it runs in two shards.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -87,6 +89,11 @@ jobs:
           - browser: chromium
             extra: --project=speed --no-deps
           - browser: firefox
+            label: firefox 1/2
+            extra: --shard=1/2
+          - browser: firefox
+            label: firefox 2/2
+            extra: --shard=2/2
           - browser: webkit
             label: webkit 1/3
             extra: --shard=1/3
