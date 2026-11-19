@@ -556,6 +556,24 @@ describe("PythonRunner.check", () => {
     expect(await runner.check("notes.txt", "x")).toBeNull();
   });
 
+  it("a file in another folder is never checked in the interpreter a program ran in (audit run-4, lead 2)", async () => {
+    // A program can leave hooks that outlive its run (sys.addaudithook sees every compile's
+    // source), so another folder's text must not reach that interpreter: a fresh one checks it.
+    const { runner, workers } = setUp((w) => w.emit(done()));
+    await runner.run(request({ entry: "lab1/main.py", files: [{ path: "lab1/main.py", text: "" }] }), hooks());
+    const checksTo = (i: number) => workers[i].sent.filter((m) => m.type === "check").map((m) => (m as { text: string }).text);
+    void runner.check("lab1/helper.py", "x = 1"); // its own folder: the warm interpreter checks it
+    expect(checksTo(0)).toEqual(["x = 1"]);
+    const other = runner.check("lab2/main.py", "secret = 1");
+    expect(checksTo(0), "another folder's text never reaches it").toEqual(["x = 1"]);
+    expect(await other).toBeNull();
+    expect(workers[0].terminated).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runner.state).toBe("ready");
+    void runner.check("lab2/main.py", "secret = 1");
+    expect(checksTo(1), "the fresh interpreter checks it").toEqual(["secret = 1"]);
+  });
+
   it("is never sent while a program runs", async () => {
     const { runner, workers } = setUp(() => {});
     void runner.run(request(), hooks());

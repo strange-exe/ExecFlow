@@ -26,6 +26,24 @@ function model(chart: FlowChart, trace: RunTrace | undefined, program = true): S
 
 const vars = (m: StepModel, k: number) => Object.fromEntries(m.varsAt(k));
 
+describe("step model's memory (audit run-4, lead 1)", () => {
+  // A trace with a new line on every step (a forged one: a program can rewrite the recorder's
+  // buffers) once made the model keep a copy of every line's count every 128 steps: steps x lines.
+  // The line counts must cost memory in the steps alone.
+  test("60,000 steps on 60,000 distinct lines keep a few MB, not steps x lines", async () => {
+    const [chart] = await charts("x = 1\n");
+    const lines = Array.from({ length: 60_000 }, (_, i) => i + 1);
+    const before = process.memoryUsage().arrayBuffers;
+    const m = model(chart, moduleTrace(lines));
+    const kept = process.memoryUsage().arrayBuffers - before;
+    expect(kept, `typed arrays kept: ${Math.round(kept / 2 ** 20)} MB`).toBeLessThan(64 * 2 ** 20);
+    // Still right: at the last step every line has run once; halfway, the first half has.
+    expect(m.lineCountsAt(m.total - 1).size).toBe(60_000);
+    expect(m.lineCountsAt(30_000).get(30_000)).toBe(1);
+    expect(m.lineCountsAt(30_000).has(30_001)).toBe(false);
+  }, 60_000);
+});
+
 describe("step model", () => {
   test("sum_evens: 20 steps from Start to End, with counts and variables at each", async () => {
     const [chart] = await charts(SUM_EVENS);

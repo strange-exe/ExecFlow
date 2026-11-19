@@ -15,7 +15,7 @@ import { shortMakeRefusalText, shortReadRefusalText } from "../src/core/short-li
 import { BRAND_MARK } from "../src/editor/brand-mark";
 import { forgeLink, keyOf, linksSite, type LinksSite } from "./links-fake";
 import { decodePng, parseHex } from "./pixels";
-import { clickTreeSpace, expect, expectActive, importFiles, linkPreviewText, openApp, setCode, showFiles, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
+import { clickTreeSpace, expect, expectActive, importFiles, installCpp, linkPreviewText, openApp, setCode, showFiles, test, tolerating, treeItem, waitReady, watchContext } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -180,6 +180,9 @@ test.describe("Share: a short link that can't be made says why", () => {
     const site = await serveLinks(page);
     await openShare(page, "hello.c", C_PROGRAM);
     await chooseShort(page);
+    // A C file starts the C/C++ download by itself (0.34.0): let it finish before going offline, or
+    // WebKit reports the cut download as a failed request (this test is about the link, not the pack).
+    await installCpp(page);
     await context.setOffline(true);
     await page.locator("#share-primary").click();
     await expect(page.locator("#share-result")).toHaveText(shortMakeRefusalText({ kind: "offline" }));

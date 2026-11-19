@@ -469,6 +469,13 @@ export class PythonRunner {
    */
   check(path: WsPath, text: string): Promise<ToolDiagnostic[] | null> {
     if (this.state !== "ready" || this.active || !this.worker || !path.endsWith(".py")) return Promise.resolve(null);
+    // A program can leave hooks that outlive its run (sys.addaudithook sees every compile's source),
+    // so another folder's text never goes to the interpreter it ran in: as a run from that folder
+    // would, this starts a fresh one, which checks the file next time (audit run-4, lead 2).
+    if (this.ranIn !== null && this.ranIn !== parentOf(path)) {
+      this.recycle();
+      return Promise.resolve(null);
+    }
     const id = ++this.checkSeq;
     this.latestCheck.set(path, id);
     const worker = this.worker;

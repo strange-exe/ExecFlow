@@ -122,49 +122,45 @@ function build(chart: FlowChart, trace: RunTrace, codes: Set<number>): StepModel
   const total = event.length;
   const clamp = (k: number) => (Number.isFinite(k) ? Math.min(total - 1, Math.max(0, Math.trunc(k))) : 0);
 
-  // Lines by a compact index, for the line counts.
-  const lineIndex = new Map<number, number>();
-  const lines: number[] = [];
+  // Each line's steps, in order: its count at step k is how many of them are at most k. Memory in
+  // the steps alone (a trace may name any number of lines: a checkpoint of every line's count, as
+  // the boxes and connectors have, would cost steps x lines; audit run-4, lead 1).
+  const stepsOfLine = new Map<number, number[]>();
   for (let k = 1; k < total; k++) {
-    if (kind[k] === 1 && !lineIndex.has(line[k])) {
-      lineIndex.set(line[k], lines.length);
-      lines.push(line[k]);
-    }
+    if (kind[k] !== 1) continue;
+    const list = stepsOfLine.get(line[k]);
+    if (list) list.push(k);
+    else stepsOfLine.set(line[k], [k]);
   }
   const edgeTo = chart.edges.map((e) => e.to);
-  /** Adds step k's counts. */
-  function count(k: number, nodes: Int32Array, byLine: Int32Array, byEdge: Int32Array) {
+  /** Adds step k's counts (boxes and connectors: both as many as the chart has). */
+  function count(k: number, nodes: Int32Array, byEdge: Int32Array) {
     if (first[k]) nodes[chart.start]++;
     for (let i = edgeAt[k - 1]; i < edgeAt[k]; i++) {
       nodes[edgeTo[edgeList[i]]]++;
       byEdge[edgeList[i]]++;
     }
-    if (kind[k] === 1) byLine[lineIndex.get(line[k])!]++;
   }
   const nodeCheck: Int32Array[] = [];
-  const lineCheck: Int32Array[] = [];
   const edgeCheck: Int32Array[] = [];
   {
     const nodes = new Int32Array(chart.nodes.length);
-    const byLine = new Int32Array(lines.length);
     const byEdge = new Int32Array(chart.edges.length);
     for (let k = 0; k < total; k++) {
-      if (k) count(k, nodes, byLine, byEdge);
+      if (k) count(k, nodes, byEdge);
       if (k % CHECK === 0) {
         nodeCheck.push(nodes.slice());
-        lineCheck.push(byLine.slice());
         edgeCheck.push(byEdge.slice());
       }
     }
   }
-  /** Counts at step k (boxes, lines, connectors): from the checkpoint before it. */
-  function countsAt(k: number): [Int32Array, Int32Array, Int32Array] {
+  /** Counts at step k (boxes, connectors): from the checkpoint before it. */
+  function countsAt(k: number): [Int32Array, Int32Array] {
     const c = Math.floor(k / CHECK);
     const nodes = nodeCheck[c].slice();
-    const byLine = lineCheck[c].slice();
     const byEdge = edgeCheck[c].slice();
-    for (let j = c * CHECK + 1; j <= k; j++) count(j, nodes, byLine, byEdge);
-    return [nodes, byLine, byEdge];
+    for (let j = c * CHECK + 1; j <= k; j++) count(j, nodes, byEdge);
+    return [nodes, byEdge];
   }
 
   const vars = valuesFor(trace, new Set(call));
@@ -199,12 +195,15 @@ function build(chart: FlowChart, trace: RunTrace, codes: Set<number>): StepModel
     valuesKnownAt: (k) => known(clamp(k)),
     nodeCountsAt: (k) => countsAt(clamp(k))[0],
     lineCountsAt(k) {
-      const byLine = countsAt(clamp(k))[1];
+      k = clamp(k);
       const out = new Map<number, number>();
-      byLine.forEach((n, i) => n && out.set(lines[i], n));
+      for (const [at, list] of stepsOfLine) {
+        const n = upTo(list, k);
+        if (n) out.set(at, n);
+      }
       return out;
     },
-    edgeCountsAt: (k) => countsAt(clamp(k))[2],
+    edgeCountsAt: (k) => countsAt(clamp(k))[1],
   };
 }
 
