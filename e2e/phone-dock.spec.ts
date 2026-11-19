@@ -404,7 +404,11 @@ for (const scheme of ["light", "dark"] as const) {
     await scan("flowchart");
     // The folded legend, opened (owner, 2026-11-19).
     await page.locator("#fc-key").click();
-    await expect(page.getByRole("list", { name: "Shapes" })).toBeVisible();
+    const legend = page.getByRole("list", { name: "Shapes" });
+    await expect(legend).toBeVisible();
+    // The card fades in (160 ms): scanned mid-fade, its text is part transparent and axe reports
+    // contrast (CI run 44546211530 on Chromium). Scan the resting card.
+    await legend.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
     await scan("flowchart, key open");
   });
 }

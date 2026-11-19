@@ -45,6 +45,7 @@ test("pointed at, a confirmation waits; it goes once the pointer leaves", async 
   await page.clock.fastForward(12000);
   await expect(notice(page)).toHaveAttribute("data-empty", "false");
   await page.mouse.move(20, 450);
+  await page.clock.runFor(10); // pointerleave restarts the timer from a zero-delay timeout (as below)
   await page.clock.fastForward(1500);
   await expect(notice(page)).toHaveAttribute("data-empty", "false");
   await page.clock.fastForward(6000);
@@ -61,6 +62,9 @@ test("focused, a confirmation waits, so the focus never falls out of a notice th
   await expect(dismiss).toBeFocused();
   // Focus leaves for the page (Run is disabled with nothing open, so it can't take it).
   await dismiss.evaluate((b) => (b as HTMLElement).blur());
+  // focusout restarts the timer from a zero-delay timeout: let it run first, or the jump can pass
+  // before the timer exists (failed on WebKit in CI run 44546211530).
+  await page.clock.runFor(10);
   await page.clock.fastForward(6500);
   await expect(notice(page)).toHaveAttribute("data-empty", "true");
 });
