@@ -119,6 +119,19 @@ jobs:
           path: node_modules/.cache/
           key: runtimes-${{ hashFiles('node_modules/pyodide/package.json', 'src/runner/python-packages.ts', 'src/flowchart/pack.ts', 'scripts/fetch-*.mjs') }}
 
+      # The browser itself comes from a cache when it can, so its download can't stall (it did in
+      # runs 44528226124 and 44546211530: 5 jobs whose two tries both stalled). Playwright advises
+      # against caching browsers for speed alone (https://playwright.dev/docs/ci: a restore takes
+      # about as long as a download); here the point is a download that never finishes. Keyed on the
+      # Playwright version (its browsers change with it), the runner image and the browser. The
+      # system packages (--with-deps, apt) can't be cached and are still installed below.
+      - name: Restore ${{ matrix.browser }} from the cache
+        id: browsers
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.browser }}-ubuntu-24.04-${{ hashFiles('node_modules/playwright-core/package.json') }}
+
       # A stalled install (apt or the browser download) once took 41 minutes of the job's 60. Each
       # try gets 5 minutes and a stall is tried once more. Measured in the 5 green main runs of
       # 2026-10-23 to 10-26 (GitHub API step times): 13 of 15 installs took 18 to 58 s; the other
@@ -133,6 +146,16 @@ jobs:
             echo "::warning::Install ${{ matrix.browser }}: try $try failed or stalled"
           done
           exit 1
+
+      # Saved as soon as it is installed, so a test failure later in the job doesn't keep it out of
+      # the cache. Shards of one browser share the key: when two save at once, one is refused with a
+      # warning, which doesn't fail the job.
+      - name: Save ${{ matrix.browser }} to the cache
+        if: steps.browsers.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.browsers.outputs.cache-primary-key }}
 
       # Playwright's webServer runs `npm run build` and serves the production build with the
       # deployed site's headers; with CI set it uses one worker and the github reporter.
