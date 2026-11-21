@@ -7,7 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
-import { expect, importFiles, openFromTree, openInputBox, openThemePicker, reloadApp, showFiles, showPanel, showView, test, waitReady } from "./helpers";
+import { expect, importFiles, openFromTree, openInputBox, openThemePicker, reloadApp, settled, showFiles, showPanel, showView, test, waitReady } from "./helpers";
 import { openConnect, routeGitHub } from "./sync-fake";
 import { audit, focusStop, type Audit, type FocusStop } from "./audit";
 import { contrast, decodePng, type Pixels, type RGB } from "./pixels";
@@ -58,17 +58,6 @@ async function shots(page: Page, dir: string, name: string, hierarchy = true) {
     await tag.evaluate((el) => (el as Element).remove());
   }
 }
-
-/** Waits for running transitions (finite ones: the editor's cursor blink never ends). */
-const settled = (page: Page) =>
-  page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-        .map((a) => a.finished.catch(() => undefined)), // a cancelled one rejects
-    ).then(() => undefined),
-  );
 
 interface ViewRecord {
   view: string;

@@ -337,6 +337,21 @@ export async function openIn(page: Page, path: string, colorScheme?: "light" | "
  * tab's goto passed the 90 s test timeout) names the requests still open, in the error CI shows,
  * so it needs a deadline of its own before the test's.
  */
+/**
+ * Waits for the page's running animations and transitions to finish (finite ones: the editor's
+ * cursor blink never ends). Run it before an axe scan: mid-fade text is part transparent, and axe
+ * reports its contrast (the phone's view-in fade, CI runs 44546211530 and 44927330759).
+ */
+export const settled = (page: Page) =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)), // a cancelled one rejects
+    ).then(() => undefined),
+  );
+
 export async function openApp(page: Page, path = "/") {
   const open = new Map<Request, number>();
   const started = (r: Request) => void open.set(r, Date.now());

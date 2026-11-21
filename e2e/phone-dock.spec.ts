@@ -10,7 +10,7 @@
 // dock strip, and a peek of the output's last lines with "All output, N lines".)
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { expect, importFiles, openFromTree, openIn, run, test, waitReady } from "./helpers";
+import { expect, importFiles, openFromTree, openIn, run, settled, test, waitReady } from "./helpers";
 
 test.use({ serviceWorkers: "block" });
 test.setTimeout(150_000);
@@ -391,6 +391,8 @@ for (const scheme of ["light", "dark"] as const) {
   test(`axe finds nothing at 390 px (${scheme}): before a run, after a failed run, output, flowchart`, async ({ page }) => {
     await openFile(page, "main.py", BROKEN, { width: 390, height: 844 }, scheme);
     const scan = async (state: string) => {
+      // Each view fades in when opened (view-in, the Key card too): scan the resting page.
+      await settled(page);
       const result = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
       expect.soft(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), `${scheme} ${state}`).toEqual([]);
     };
@@ -404,11 +406,7 @@ for (const scheme of ["light", "dark"] as const) {
     await scan("flowchart");
     // The folded legend, opened (owner, 2026-11-19).
     await page.locator("#fc-key").click();
-    const legend = page.getByRole("list", { name: "Shapes" });
-    await expect(legend).toBeVisible();
-    // The card fades in (160 ms): scanned mid-fade, its text is part transparent and axe reports
-    // contrast (CI run 44546211530 on Chromium). Scan the resting card.
-    await legend.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    await expect(page.getByRole("list", { name: "Shapes" })).toBeVisible();
     await scan("flowchart, key open");
   });
 }
