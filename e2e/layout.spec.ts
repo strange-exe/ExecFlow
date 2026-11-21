@@ -630,6 +630,9 @@ test.describe("phones", () => {
     await expect(page.locator("#ptab-problems")).toHaveAccessibleName("Problems, 1 error, 1 note");
     // The Problems view is one ground: the list fills its body to the foot (review D: it ended at
     // its last row, with the panel's own ground below); the dock's foot follows it.
+    // The run's stepper rows join the dock a beat after the run and move the tabs down: tap once
+    // they are in (on CI the tap landed while they arrived and Problems never opened, run 44938241479).
+    await expect(page.locator("#run-steps")).toHaveAttribute("data-state", "steps", { timeout: 30_000 });
     await page.locator("#ptab-problems").click();
     await expect(page.locator(".problem").first()).toBeVisible();
     // Both feet in one read: a Python run's stepper rows can join the dock a beat after the run
