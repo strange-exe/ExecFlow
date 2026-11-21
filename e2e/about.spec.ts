@@ -508,11 +508,8 @@ test.describe("the About page", () => {
   });
 
   test.describe("the launch video", () => {
-  // Linux WebKit's media player (GStreamer) sometimes drops its first request for the file and
-  // fetches it again while the video keeps playing (CI run 40590457063, 2026-10-27: cancelled 158 ms
-  // after it started, no navigation near it). That cancel is the player's own, so it is excused for
-  // this file only; every other failure still counts, and playing is asserted below.
-  test.use(tolerating(/^request failed: http:\/\/127\.0\.0\.1:\d+\/media\/launch-[^ /]+\.mp4 Load request cancelled$/));
+  // Linux WebKit's player can cancel its own first request for the file: the fixture excuses that
+  // (helpers.ts, WEBKIT_MEDIA_PLAYER_CANCEL), and playing is asserted below.
   test("the launch video plays like a hero video once in view: muted, looping, nothing fetched before, and its button pauses it for good", async ({ page, request }) => {
     const media: string[] = [];
     page.on("request", (r) => (/\.(mp4|webm)$/.test(new URL(r.url()).pathname) ? media.push(r.url()) : null));

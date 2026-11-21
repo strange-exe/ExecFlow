@@ -98,7 +98,18 @@ const WEBKIT_CANCELLED_WORKER_LOAD = [
  * navigation began within 2 s of them, as WebKit's lines above are.
  */
 const FIREFOX_CANCELLED_WORKER_LOG = /^\[JavaScript Error: "NS_BINDING_ABORTED: " \{file: "chrome:\/\/juggler\/content\/content\/WorkerMain\.js" line: \d+\}\]$/;
-const FIREFOX_CANCELLED_PYODIDE = /^request failed: http:\/\/127\.0\.0\.1:\d+\/pyodide\/[\d.]+-heap\d+\/[\w.-]+ NS_BINDING_ABORTED$/;
+// The flowchart's parser files (web-tree-sitter.wasm and the grammars, under /flowchart/<versions>/)
+// are fetched the same way and cancelled the same way: CI run 44923442526 (design.spec.ts's reload
+// test) saw web-tree-sitter.wasm reported as started 21 ms after the reload's navigation.
+const FIREFOX_CANCELLED_RUNTIME = /^request failed: http:\/\/127\.0\.0\.1:\d+\/(pyodide\/[\d.]+-heap\d+|flowchart\/ts[\w.-]+)\/[\w.-]+ NS_BINDING_ABORTED$/;
+
+/**
+ * Linux WebKit's media player (GStreamer) sometimes drops its first request for the About page's
+ * launch video and fetches it again while the video keeps playing, with no navigation near it (CI
+ * runs 40590457063 and 44923442526: cancelled 158 ms and 7 ms after it started). That cancel is the
+ * player's own, so it is excused in WebKit for this file only; the launch video's tests assert it plays.
+ */
+const WEBKIT_MEDIA_PLAYER_CANCEL = /^request failed: http:\/\/127\.0\.0\.1:\d+\/media\/launch-[^ /]+\.mp4 Load request cancelled$/;
 
 /**
  * Fails any test one of whose pages (every tab of the test's context, watchContext below) logs a
@@ -258,7 +269,8 @@ function watchPage(page: Page, engine: string, tolerate: RegExp[], errors: strin
     const text = `request failed: ${r.url()} ${reason}`;
     if (tolerated(text)) return;
     if (engine === "webkit" && WEBKIT_FONT_INTERNAL.test(text)) return void fontFailures.push(Date.now());
-    if (engine === "firefox" && FIREFOX_CANCELLED_PYODIDE.test(text)) return void ifNavigated.push({ text, at: Date.now() });
+    if (engine === "firefox" && FIREFOX_CANCELLED_RUNTIME.test(text)) return void ifNavigated.push({ text, at: Date.now() });
+    if (engine === "webkit" && WEBKIT_MEDIA_PLAYER_CANCEL.test(text)) return;
     // A request whose start wasn't seen needs a navigation within 2 s either side of the cancel.
     if (CANCELLED.test(reason)) {
       const got = answered.get(r);
